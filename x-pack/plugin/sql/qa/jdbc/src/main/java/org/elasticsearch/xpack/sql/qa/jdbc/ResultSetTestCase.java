@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomNanos;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -1084,9 +1084,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_date_nanos").field("type", "date_nanos").endObject();
         });
         long randomDate1 = randomNonNegativeLong();
-        long randomDateNanos1 = randomNanos();
+        long randomDateNanos1 = randomTimeInNanos();
         long randomDate2 = randomNonNegativeLong();
-        long randomDateNanos2 = randomNanos();
+        long randomDateNanos2 = randomTimeInNanos();
 
         // true values
         indexSimpleDocumentWithTrueValues(randomDate1, randomDateNanos1);
@@ -1250,7 +1250,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1305,7 +1305,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
@@ -1358,7 +1358,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1411,7 +1411,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
@@ -1439,7 +1439,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     public void testGettingTimestampWithoutCalendar() throws Exception {
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1462,7 +1462,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1484,7 +1484,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] supports DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
@@ -1499,7 +1499,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     public void testGettingTimestampWithCalendar() throws IOException, SQLException {
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
@@ -1522,7 +1522,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
+        long randomLongDateNanos = randomTimeInNanos();
         setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);

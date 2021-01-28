@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomNanos;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -156,7 +156,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
 
-        long randomTimestampWitnNanos = randomNanos();
+        long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
@@ -185,7 +185,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
 
-        long randomTimestampWitnNanos = randomNanos();
+        long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 

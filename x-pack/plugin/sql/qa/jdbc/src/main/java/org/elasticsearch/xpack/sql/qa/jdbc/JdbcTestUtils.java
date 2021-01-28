@@ -94,9 +94,9 @@ final class JdbcTestUtils {
         return StringUtils.toString(zdt.withNano((int) (nanos % 1_000_000_000)));
     }
 
-    static long randomNanos() {
+    static long randomTimeInNanos() {
         // Return a number which is at least 20:00:00.000000000 to avoid switching to negative values when a UTC-XX hours is applied
-        return randomLongBetween(72000000000000L, Long.MAX_VALUE);
+        return randomLongBetween(72_000_000_000_000L, Long.MAX_VALUE);
     }
 
     static int extractNanosOnly(long nanos) {

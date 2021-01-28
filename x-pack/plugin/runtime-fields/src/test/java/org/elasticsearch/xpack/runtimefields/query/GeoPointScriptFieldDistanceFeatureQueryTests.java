@@ -24,8 +24,7 @@ import org.elasticsearch.xpack.runtimefields.mapper.AbstractLongFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.GeoPointFieldScript;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.Collections;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -86,14 +85,14 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
     @Override
     public void testMatches() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [34, 6]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"location\": [34, 6]}"))));
+            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchLookup searchLookup = new SearchLookup(null, null);
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
-                    Map.of(),
+                    Collections.emptyMap(),
                     searchLookup,
                     ctx
                 ) {
@@ -124,7 +123,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
 
     public void testMaxScore() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of());
+            iw.addDocument(Collections.emptyList());
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 GeoPointScriptFieldDistanceFeatureQuery query = createTestInstance();

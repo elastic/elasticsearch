@@ -197,11 +197,6 @@ public class BulkByScrollTask extends CancellableTask {
         }
     }
 
-    @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
-    }
-
     /**
      * This class acts as a builder for {@link Status}. Once the {@link Status} object is built by calling
      * {@link #buildStatus()} it is immutable. Used by an instance of {@link ObjectParser} when parsing from

@@ -264,6 +264,11 @@ public class DissectParserTests extends ESTestCase {
         assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
     }
 
+    public void testEmptyValueWithBrackets() {
+        assertMatch("(%{a}) [%{b}] -[%{c}]", "(foo) [] -[bar]", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "", "bar"));
+        assertMatch("[%{a}] [%{b}]", "[] []", Arrays.asList("a", "b"), Arrays.asList("", ""));
+    }
+
     /**
      * Runtime errors
      */
@@ -321,7 +326,7 @@ public class DissectParserTests extends ESTestCase {
         while (tests.hasNext()) {
             JsonNode test = tests.next();
             boolean skip = test.path("skip").asBoolean();
-            if (!skip) {
+            if (skip == false) {
                 String name = test.path("name").asText();
                 logger.debug("Running Json specification: " + name);
                 String pattern = test.path("tok").asText();

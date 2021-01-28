@@ -202,6 +202,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         // Clear all internal watcher state for the next test method:
         logger.info("[#{}]: clearing watcher state", getTestName());
         stopWatcher();
+        // Wait for all pending tasks to complete, this to avoid any potential incoming writes
+        // to watcher history data stream to recreate the data stream after it has been created.
+        // Otherwise ESIntegTestCase test cluster's wipe cluster logic that deletes all indices may fail,
+        // because it attempts to remove the write index of an existing data stream.
+        waitNoPendingTasksOnAll();
         String[] dataStreamsToDelete = {HistoryStoreField.DATA_STREAM};
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(dataStreamsToDelete));
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(dataStreamsToDelete);

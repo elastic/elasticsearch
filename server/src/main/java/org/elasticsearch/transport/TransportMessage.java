@@ -22,8 +22,9 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 
-public abstract class TransportMessage implements Writeable {
+public abstract class TransportMessage implements Writeable, RefCounted {
 
     private TransportAddress remoteAddress;
 
@@ -45,4 +46,20 @@ public abstract class TransportMessage implements Writeable {
      * currently a no-op
      */
     public TransportMessage(StreamInput in) {}
+
+    @Override
+    public void incRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return true;
+    }
+
+    @Override
+    public boolean decRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return false;
+    }
 }

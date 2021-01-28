@@ -239,8 +239,12 @@ public class SequenceMatcher {
         return false;
     }
 
-    Set<SequenceKey> keysFor(int stage) {
+    Set<SequenceKey> keys(int stage) {
         return stageToKeys.keys(stage);
+    }
+
+    Set<SequenceKey> keys() {
+        return stageToKeys.keys();
     }
 
     List<Sequence> completed() {

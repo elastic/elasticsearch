@@ -35,7 +35,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
 
@@ -60,16 +59,14 @@ public class MetadataIndexUpgradeService {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
-    private final SystemIndices systemIndices;
     private final ScriptService scriptService;
 
     public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings, SystemIndices systemIndices, ScriptService scriptService) {
+                                       IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
-        this.systemIndices = systemIndices;
         this.scriptService = scriptService;
     }
 
@@ -84,17 +81,15 @@ public class MetadataIndexUpgradeService {
         if (isUpgraded(indexMetadata)) {
             /*
              * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
-             * needed by this index. Additionally, the system flag could have been lost during a rolling upgrade where the previous version
-             * did not know about the flag.
+             * needed by this index.
              */
-            return archiveBrokenIndexSettings(maybeMarkAsSystemIndex(indexMetadata));
+            return archiveBrokenIndexSettings(indexMetadata);
         }
         // Throws an exception if there are too-old segments:
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
-        final IndexMetadata metadataWithSystemMarked = maybeMarkAsSystemIndex(indexMetadata);
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
-        final IndexMetadata newMetadata = archiveBrokenIndexSettings(metadataWithSystemMarked);
+        final IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetadata);
         return markAsUpgraded(newMetadata);
@@ -218,13 +213,5 @@ public class MetadataIndexUpgradeService {
         } else {
             return indexMetadata;
         }
-    }
-
-    IndexMetadata maybeMarkAsSystemIndex(IndexMetadata indexMetadata) {
-        final boolean isSystem = systemIndices.isSystemIndex(indexMetadata.getIndex());
-        if (isSystem != indexMetadata.isSystem()) {
-            return IndexMetadata.builder(indexMetadata).system(isSystem).build();
-        }
-        return indexMetadata;
     }
 }

@@ -1,18 +1,19 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-delete-autoscaling-policy]]
 === Delete autoscaling policy API
 ++++
 <titleabbrev>Delete autoscaling policy</titleabbrev>
 ++++
 
-experimental[]
+include::../autoscaling-designed-for-note.asciidoc[]
 
 Delete autoscaling policy.
 
 [[autoscaling-delete-autoscaling-policy-request]]
 ==== {api-request-title}
 
+//////////////////////////
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
@@ -25,6 +26,7 @@ PUT /_autoscaling/policy/my_autoscaling_policy
 }
 --------------------------------------------------
 // TESTSETUP
+//////////////////////////
 
 [source,console]
 --------------------------------------------------
@@ -47,7 +49,7 @@ This API deletes an autoscaling policy with the provided name.
 [[autoscaling-delete-autoscaling-policy-examples]]
 ==== {api-examples-title}
 
-This example deletes an autoscaling policy named `my_autosaling_policy`.
+This example deletes an autoscaling policy named `my_autoscaling_policy`.
 
 [source,console]
 --------------------------------------------------

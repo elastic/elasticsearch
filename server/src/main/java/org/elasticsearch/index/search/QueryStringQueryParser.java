@@ -56,7 +56,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -82,7 +82,7 @@ import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFie
 public class QueryStringQueryParser extends XQueryParser {
     private static final String EXISTS_FIELD = "_exists_";
 
-    private final QueryShardContext context;
+    private final SearchExecutionContext context;
     private final Map<String, Float> fieldsAndWeights;
     private final boolean lenient;
 
@@ -104,7 +104,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param context The query shard context.
      * @param defaultField The default field for query terms.
      */
-    public QueryStringQueryParser(QueryShardContext context, String defaultField) {
+    public QueryStringQueryParser(SearchExecutionContext context, String defaultField) {
         this(context, defaultField, Collections.emptyMap(), false);
     }
 
@@ -113,7 +113,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param defaultField The default field for query terms.
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
-    public QueryStringQueryParser(QueryShardContext context, String defaultField, boolean lenient) {
+    public QueryStringQueryParser(SearchExecutionContext context, String defaultField, boolean lenient) {
         this(context, defaultField, Collections.emptyMap(), lenient);
     }
 
@@ -121,7 +121,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param context The query shard context
      * @param fieldsAndWeights The default fields and weights expansion for query terms
      */
-    public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights) {
+    public QueryStringQueryParser(SearchExecutionContext context, Map<String, Float> fieldsAndWeights) {
         this(context, null, fieldsAndWeights, false);
     }
 
@@ -130,7 +130,7 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param fieldsAndWeights The default fields and weights expansion for query terms.
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
-    public QueryStringQueryParser(QueryShardContext context, Map<String, Float> fieldsAndWeights, boolean lenient) {
+    public QueryStringQueryParser(SearchExecutionContext context, Map<String, Float> fieldsAndWeights, boolean lenient) {
         this(context, null, fieldsAndWeights, lenient);
     }
 
@@ -139,13 +139,13 @@ public class QueryStringQueryParser extends XQueryParser {
      * @param context The query shard context
      * @param lenient If set to `true` will cause format based failures (like providing text to a numeric field) to be ignored.
      */
-    public QueryStringQueryParser(QueryShardContext context, boolean lenient) {
+    public QueryStringQueryParser(SearchExecutionContext context, boolean lenient) {
         this(context, "*",
             resolveMappingField(context, "*", 1.0f, false, false, null),
             lenient);
     }
 
-    private QueryStringQueryParser(QueryShardContext context, String defaultField,
+    private QueryStringQueryParser(SearchExecutionContext context, String defaultField,
                                    Map<String, Float> fieldsAndWeights,
                                    boolean lenient) {
         super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
@@ -415,7 +415,7 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     private Query getRangeQuerySingle(String field, String part1, String part2,
-                                      boolean startInclusive, boolean endInclusive, QueryShardContext context) {
+                                      boolean startInclusive, boolean endInclusive, SearchExecutionContext context) {
         MappedFieldType currentFieldType = context.getFieldType(field);
         if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             return newUnmappedFieldQuery(field);

@@ -97,13 +97,14 @@ public class XContentFactory {
      * Constructs a xcontent builder that will output the result into the provided output stream.
      */
     public static XContentBuilder contentBuilder(XContentType type, OutputStream outputStream) throws IOException {
-        if (type == XContentType.JSON) {
+        XContentType canonical = type.canonical();
+        if (canonical == XContentType.JSON) {
             return jsonBuilder(outputStream);
-        } else if (type == XContentType.SMILE) {
+        } else if (canonical == XContentType.SMILE) {
             return smileBuilder(outputStream);
-        } else if (type == XContentType.YAML) {
+        } else if (canonical == XContentType.YAML) {
             return yamlBuilder(outputStream);
-        } else if (type == XContentType.CBOR) {
+        } else if (canonical == XContentType.CBOR) {
             return cborBuilder(outputStream);
         }
         throw new IllegalArgumentException("No matching content type for " + type);
@@ -113,13 +114,15 @@ public class XContentFactory {
      * Returns a binary content builder for the provided content type.
      */
     public static XContentBuilder contentBuilder(XContentType type) throws IOException {
-        if (type == XContentType.JSON) {
+        XContentType canonical = type.canonical();
+
+        if (canonical == XContentType.JSON) {
             return JsonXContent.contentBuilder();
-        } else if (type == XContentType.SMILE) {
+        } else if (canonical == XContentType.SMILE) {
             return SmileXContent.contentBuilder();
-        } else if (type == XContentType.YAML) {
+        } else if (canonical == XContentType.YAML) {
             return YamlXContent.contentBuilder();
-        } else if (type == XContentType.CBOR) {
+        } else if (canonical == XContentType.CBOR) {
             return CborXContent.contentBuilder();
         }
         throw new IllegalArgumentException("No matching content type for " + type);

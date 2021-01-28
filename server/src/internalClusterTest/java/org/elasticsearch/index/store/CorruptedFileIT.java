@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -435,7 +436,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
                         BytesRef bytesRef = req.content().toBytesRef();
                         BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
                         request = new RecoveryFileChunkRequest(req.recoveryId(), req.requestSeqNo(), req.shardId(), req.metadata(),
-                            req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
+                            req.position(), ReleasableBytesReference.wrap(array), req.lastChunk(), req.totalTranslogOps(),
+                            req.sourceThrottleTimeInNanos());
                     } else {
                         assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
                         final byte[] array = req.content().toBytesRef().bytes;

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.plan.logical;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -52,9 +51,6 @@ public class Sequence extends Join {
 
     @Override
     public Join replaceChildren(List<LogicalPlan> newChildren) {
-        if (newChildren.size() < 2) {
-            throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
-        }
         int lastIndex = newChildren.size() - 1;
         return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestamp(), tiebreaker(),
                 direction());

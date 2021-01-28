@@ -87,13 +87,13 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new PrefixQuery(new Term("field", "key\0val"));
-        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_QSC));
+        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT));
 
         expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term("field", "key\0vAl"));
-        assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_QSC));
+        assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
                 "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
     }
@@ -102,7 +102,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         KeyedFlattenedFieldType ft = createFieldType();
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
+            () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext()));
         assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
@@ -112,12 +112,12 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         TermRangeQuery expected = new TermRangeQuery("field",
             new BytesRef("key\0lower"),
             new BytesRef("key\0upper"), false, false);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_QSC));
+        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_CONTEXT));
 
         expected = new TermRangeQuery("field",
             new BytesRef("key\0lower"),
             new BytesRef("key\0upper"), true, true);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, MOCK_QSC));
+        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, MOCK_CONTEXT));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             ft.rangeQuery("lower", null, false, false, null));
@@ -125,12 +125,12 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            ft.rangeQuery(null, "upper", false, false, MOCK_QSC));
+            ft.rangeQuery(null, "upper", false, false, MOCK_CONTEXT));
         assertEquals("[range] queries on keyed [flattened] fields must include both an upper and a lower bound.",
             e.getMessage());
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.rangeQuery("lower", "upper", false, false, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.rangeQuery("lower", "upper", false, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
                 "'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -139,7 +139,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         KeyedFlattenedFieldType ft = createFieldType();
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockShardContext()));
+            () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockContext()));
         assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
@@ -147,7 +147,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         KeyedFlattenedFieldType ft = createFieldType();
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.wildcardQuery("valu*", null, false, randomMockShardContext()));
+            () -> ft.wildcardQuery("valu*", null, false, randomMockContext()));
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 

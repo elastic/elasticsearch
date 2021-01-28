@@ -54,7 +54,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -267,14 +266,24 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    // A utility class for use with highlighters where the content being highlighted
-    // needs plain text format for highlighting but marked-up format for token discovery.
-    // The class takes markedup format field values and returns plain text versions.
-    // When asked to tokenize plain-text versions by the highlighter it tokenizes the
-    // original markup form in order to inject annotations.
+    /**
+     * A utility class for use with highlighters where the content being highlighted
+     * needs plain text format for highlighting but marked-up format for token discovery.
+     * The class takes marked up format field values and returns plain text versions.
+     * When asked to tokenize plain-text versions by the highlighter it tokenizes the
+     * original markup form in order to inject annotations.
+     * WARNING - not thread safe.
+     * Unlike other Analyzers, which tend to be single-instance, this class has
+     * instances created per search request and field being highlighted. This allows us to 
+     * keep state about the annotations being processed and pass them into token streams
+     * being highlighted.
+     */
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
         private final Analyzer delegate;
         private AnnotatedText[] annotations;
+        // If the field has arrays of values this counter is used to keep track of
+        // which array element is currently being highlighted.
+        int readerNum;
 
         public AnnotatedHighlighterAnalyzer(Analyzer delegate){
             super(delegate.getReuseStrategy());
@@ -286,17 +295,18 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
           return delegate;
         }
 
+        // Called with each new doc being highlighted
         public void setAnnotations(AnnotatedText[] annotations) {
-            this.annotations = annotations;
+            this.annotations = annotations;            
+            this.readerNum = 0;
         }
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            AtomicInteger readerNum = new AtomicInteger(0);
             return new TokenStreamComponents(r -> {
                 String plainText = readToString(r);
-                AnnotatedText at = annotations[readerNum.getAndIncrement()];
+                AnnotatedText at = annotations[readerNum++];
                 assert at.textMinusMarkup.equals(plainText);
                 injector.setAnnotations(at);
                 components.getSource().accept(new StringReader(at.textMinusMarkup));

@@ -936,23 +936,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
-    public void testPartialReduce() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            testReduceCase(false);
-        }
+    public void testCoordCircuitBreaker() throws Exception {
+        int numShards = randomIntBetween(20, 200);
+        testReduceCase(numShards, numShards, true);
+        testReduceCase(numShards, numShards, false);
+        testReduceCase(numShards, randomIntBetween(2, numShards-1), true);
+        testReduceCase(numShards, randomIntBetween(2, numShards-1), false);
     }
 
-    public void testPartialReduceWithFailure() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            testReduceCase(true);
-        }
-    }
-
-    private void testReduceCase(boolean shouldFail) throws Exception {
-        int expectedNumResults = randomIntBetween(20, 200);
-        int bufferSize = randomIntBetween(2, expectedNumResults - 1);
+    private void testReduceCase(int numShards, int bufferSize, boolean shouldFail) throws Exception {
         SearchRequest request = new SearchRequest();
-
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
@@ -963,10 +956,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
             circuitBreaker, SearchProgressListener.NOOP,
-            request, expectedNumResults, exc -> hasConsumedFailure.set(true));
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        Thread[] threads = new Thread[expectedNumResults];
-        for (int i =  0; i < expectedNumResults; i++) {
+            request, numShards, exc -> hasConsumedFailure.set(true));
+        CountDownLatch latch = new CountDownLatch(numShards);
+        Thread[] threads = new Thread[numShards];
+        for (int i =  0; i < numShards; i++) {
             final int index = i;
             threads[index] = new Thread(() -> {
                 QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
@@ -976,7 +969,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
                 InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap())));
+                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
+                );
                 result.aggregations(aggs);
                 result.setShardIndex(index);
                 result.size(1);
@@ -984,13 +978,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
             });
             threads[index].start();
         }
-        for (int i = 0; i < expectedNumResults; i++) {
+        for (int i = 0; i < numShards; i++) {
             threads[i].join();
         }
         latch.await();
         if (shouldFail) {
             if (shouldFailPartial == false) {
                 circuitBreaker.shouldBreak.set(true);
+            } else {
+                circuitBreaker.shouldBreak.set(false);
             }
             CircuitBreakingException exc = expectThrows(CircuitBreakingException.class, () -> consumer.reduce());
             assertEquals(shouldFailPartial, hasConsumedFailure.get());
@@ -1003,6 +999,35 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertThat(circuitBreaker.allocated, equalTo(0L));
     }
 
+    public void testFailConsumeAggs() throws Exception {
+        int expectedNumResults = randomIntBetween(20, 200);
+        int bufferSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = new SearchRequest();
+
+        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
+        request.setBatchedReduceSize(bufferSize);
+        AtomicBoolean hasConsumedFailure = new AtomicBoolean();
+        try (QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc -> hasConsumedFailure.set(true))) {
+            for (int i = 0; i < expectedNumResults; i++) {
+                final int index = i;
+                QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
+                    new SearchShardTarget("node", new ShardId("a", "b", index), null, OriginalIndices.NONE),
+                    null);
+                result.topDocs(new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]);
+                result.aggregations(null);
+                result.setShardIndex(index);
+                result.size(1);
+                expectThrows(Exception.class, () -> consumer.consumeResult(result, () -> {
+                }));
+            }
+            assertNull(consumer.reduce().aggregations);
+        }
+    }
+
     private static class AssertingCircuitBreaker extends NoopCircuitBreaker {
         private final AtomicBoolean shouldBreak = new AtomicBoolean(false);
 
@@ -1013,19 +1038,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             assert bytes >= 0;
             if (shouldBreak.get()) {
                 throw new CircuitBreakingException(label, getDurability());
             }
             allocated += bytes;
-            return allocated;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
+        public void addWithoutBreaking(long bytes) {
             allocated += bytes;
-            return allocated;
         }
     }
 }

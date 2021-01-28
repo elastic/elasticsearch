@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -252,7 +253,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecate("include_in_all",
+                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
@@ -494,12 +495,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
-        if (reason == MergeReason.INDEX_TEMPLATE) {
-            if (mergeWith.enabled.explicit()) {
+        if (mergeWith.enabled.explicit()) {
+            if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
+            } else if (isEnabled() != mergeWith.isEnabled()){
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
         }
 
         for (Mapper mergeWithMapper : mergeWith) {
@@ -536,7 +537,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return builder;
     }
 
-    public void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
+    void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
         builder.startObject(simpleName());
         if (nested.isNested()) {
             builder.field("type", NESTED_CONTENT_TYPE);
@@ -564,13 +565,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().stream().toArray(size -> new Mapper[size]);
-        Arrays.sort(sortedMappers, new Comparator<Mapper>() {
-            @Override
-            public int compare(Mapper o1, Mapper o2) {
-                return o1.name().compareTo(o2.name());
-            }
-        });
+        Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
+        Arrays.sort(sortedMappers, Comparator.comparing(Mapper::name));
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {

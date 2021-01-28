@@ -39,7 +39,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -249,7 +249,7 @@ public enum RangeType {
         @Override
         public Query rangeQuery(String field, boolean hasDocValues, Object lowerTerm, Object upperTerm, boolean includeLower,
                                 boolean includeUpper, ShapeRelation relation, @Nullable ZoneId timeZone,
-                                @Nullable DateMathParser parser, QueryShardContext context) {
+                                @Nullable DateMathParser parser, SearchExecutionContext context) {
             ZoneId zone = (timeZone == null) ? ZoneOffset.UTC : timeZone;
 
             DateMathParser dateMathParser = (parser == null) ?
@@ -653,7 +653,7 @@ public enum RangeType {
 
     public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
                             ShapeRelation relation, @Nullable ZoneId timeZone, @Nullable DateMathParser dateMathParser,
-                            QueryShardContext context) {
+                            SearchExecutionContext context) {
         Object lower = from == null ? minValue() : parseValue(from, false, dateMathParser);
         Object upper = to == null ? maxValue() : parseValue(to, false, dateMathParser);
         return createRangeQuery(field, hasDocValues, lower, upper, includeFrom, includeTo, relation);

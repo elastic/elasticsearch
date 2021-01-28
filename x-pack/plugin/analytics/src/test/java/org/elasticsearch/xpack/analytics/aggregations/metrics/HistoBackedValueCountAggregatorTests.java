@@ -115,7 +115,7 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
         // Note: this is the same list as Core, plus Analytics
         return List.of(
             CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
             CoreValuesSourceType.BOOLEAN,

@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.java-rest-test'
@@ -30,3 +31,8 @@ testClusters.all {
 }
 
 tasks.named("test").configure { enabled = false }
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+}

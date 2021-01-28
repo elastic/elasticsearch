@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -28,4 +30,9 @@ if (!pagerDutyServiceKey) {
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     keystore 'xpack.notification.pagerduty.account.test_account.secure_service_api_key', pagerDutyServiceKey
   }
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("integTest").configure{enabled = false }
 }

@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -319,7 +318,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, Function<String, MappedFieldType> fieldTypeLookup, long fromSeqNo,
+    public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
                                                 long toSeqNo, boolean requiredFullRange)  {
         return newEmptySnapshot();
     }
@@ -396,8 +395,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
+    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, String forceMergeUUID) {
         if (maxNumSegments == ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             // noop
         } else if (maxNumSegments < lastCommittedSegmentInfos.size()) {

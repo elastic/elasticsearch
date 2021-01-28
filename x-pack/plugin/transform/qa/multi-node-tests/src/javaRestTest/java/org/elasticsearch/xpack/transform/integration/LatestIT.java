@@ -13,10 +13,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.transform.PreviewTransformRequest;
 import org.elasticsearch.client.transform.PreviewTransformResponse;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
@@ -121,7 +121,7 @@ public class LatestIT extends TransformIntegTestCase {
 
         String destIndexName = "reviews-latest";
         TransformConfig transformConfig =
-            createTransformConfigBuilder(TRANSFORM_NAME, destIndexName, SOURCE_INDEX_NAME)
+            createTransformConfigBuilder(TRANSFORM_NAME, destIndexName, QueryBuilders.matchAllQuery(), SOURCE_INDEX_NAME)
                 .setLatestConfig(
                     LatestConfig.builder()
                         .setUniqueKey(USER_ID)
@@ -153,7 +153,7 @@ public class LatestIT extends TransformIntegTestCase {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
         TransformConfig transformConfig =
-            createTransformConfigBuilder(TRANSFORM_NAME, "dummy", SOURCE_INDEX_NAME)
+            createTransformConfigBuilder(TRANSFORM_NAME, "dummy", QueryBuilders.matchAllQuery(), SOURCE_INDEX_NAME)
                 .setLatestConfig(
                     LatestConfig.builder()
                         .setUniqueKey(USER_ID)
@@ -161,14 +161,11 @@ public class LatestIT extends TransformIntegTestCase {
                         .build())
                 .build();
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            PreviewTransformResponse previewResponse =
-                restClient.transform().previewTransform(new PreviewTransformRequest(transformConfig), RequestOptions.DEFAULT);
-            // Verify preview mappings
-            assertThat(previewResponse.getMappings(), allOf(hasKey("_meta"), hasEntry("properties", emptyMap())));
-            // Verify preview contents
-            assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
-            assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
-        }
+        PreviewTransformResponse previewResponse = previewTransform(transformConfig, RequestOptions.DEFAULT);
+        // Verify preview mappings
+        assertThat(previewResponse.getMappings(), allOf(hasKey("_meta"), hasEntry("properties", emptyMap())));
+        // Verify preview contents
+        assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
+        assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
     }
 }

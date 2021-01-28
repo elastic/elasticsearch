@@ -19,7 +19,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,17 +40,17 @@ public class FetchDocValuesContext {
      * Create a new FetchDocValuesContext using the provided input list.
      * Field patterns containing wildcards are resolved and unmapped fields are filtered out.
      */
-    public FetchDocValuesContext(QueryShardContext shardContext, List<FieldAndFormat> fieldPatterns) {
+    public FetchDocValuesContext(SearchExecutionContext searchExecutionContext, List<FieldAndFormat> fieldPatterns) {
         for (FieldAndFormat field : fieldPatterns) {
-            Collection<String> fieldNames = shardContext.simpleMatchToIndexNames(field.field);
+            Collection<String> fieldNames = searchExecutionContext.simpleMatchToIndexNames(field.field);
             for (String fieldName : fieldNames) {
-                if (shardContext.isFieldMapped(fieldName)) {
+                if (searchExecutionContext.isFieldMapped(fieldName)) {
                     fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
                 }
             }
         }
 
-        int maxAllowedDocvalueFields = shardContext.getIndexSettings().getMaxDocvalueFields();
+        int maxAllowedDocvalueFields = searchExecutionContext.getIndexSettings().getMaxDocvalueFields();
         if (fields.size() > maxAllowedDocvalueFields) {
             throw new IllegalArgumentException(
                 "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.geo.Point;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -15,12 +16,10 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.fielddata.GeoPointScriptFieldData;
@@ -29,8 +28,7 @@ import org.elasticsearch.xpack.runtimefields.query.GeoPointScriptFieldGeoShapeQu
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -46,12 +44,6 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             return new GeoPointScriptFieldType(name, factory, this);
         }
     });
-
-    private static final List<Class<? extends Geometry>> UNSUPPORTED_GEOMETRIES = new ArrayList<>();
-    static {
-        UNSUPPORTED_GEOMETRIES.add(Line.class);
-        UNSUPPORTED_GEOMETRIES.add(MultiLine.class);
-    }
 
     private GeoPointScriptFieldType(String name, GeoPointFieldScript.Factory scriptFactory, Builder builder) {
         super(name, scriptFactory::newFactory, builder);
@@ -80,13 +72,13 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         throw new IllegalArgumentException("Runtime field [" + name() + "] of type [" + typeName() + "] does not support range queries");
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         throw new IllegalArgumentException(
             "Geometry fields do not support exact searching, use dedicated geometry queries instead: [" + name() + "]"
         );
@@ -98,17 +90,18 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
-    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        if (shape == null) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+        if (luceneGeometries.length == 0
+            || (relation == ShapeRelation.CONTAINS && Arrays.stream(luceneGeometries).anyMatch(g -> (g instanceof Point) == false))) {
             return new MatchNoDocsQuery();
         }
-        final LatLonGeometry[] geometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, UNSUPPORTED_GEOMETRIES);
-        return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, geometries);
+        return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, luceneGeometries);
     }
 }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.settings;
 
-import java.util.Map;
-
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -48,7 +48,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testEmpty() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = getPossibleKeystorePassword();
         createKeystore(password);
         terminal.addSecretInput(password);
         execute();
@@ -56,7 +56,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testOne() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = getPossibleKeystorePassword();
         createKeystore(password, "foo", "bar");
         terminal.addSecretInput(password);
         execute();
@@ -64,7 +64,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMultiple() throws Exception {
-        String password = randomFrom("", "keystorepassword");
+        String password = getPossibleKeystorePassword();
         createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
         terminal.addSecretInput(password);
         execute();
@@ -91,6 +91,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testListWithUnprotectedKeystore() throws Exception {
+        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         createKeystore("", "foo", "bar");
         execute();
         // Not prompted for a password

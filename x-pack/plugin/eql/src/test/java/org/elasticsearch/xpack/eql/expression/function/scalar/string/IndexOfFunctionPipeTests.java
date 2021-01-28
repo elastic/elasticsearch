@@ -58,8 +58,8 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
             b1.start(),
             b1.isCaseSensitive());
 
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         IndexOfFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new IndexOfFunctionPipe(
@@ -70,7 +70,7 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
             b2.start(),
             b2.isCaseSensitive());
 
-        assertEquals(newB, b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+        assertEquals(newB, b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -80,11 +80,11 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
         Pipe newSubstring = randomValueOtherThan(b.substring(), () -> pipe(randomStringLiteral()));
         Pipe newStart = b.start() == null ? null : randomValueOtherThan(b.start(), () -> pipe(randomIntLiteral()));
         boolean newCaseSensitive = randomValueOtherThan(b.isCaseSensitive(), () -> randomBoolean());
-        
+
         IndexOfFunctionPipe newB = new IndexOfFunctionPipe(b.source(), b.expression(), b.input(), b.substring(), b.start(),
             newCaseSensitive);
         IndexOfFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
@@ -93,7 +93,7 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
                         comb.get(0) ? newInput : b.input(),
                         comb.get(1) ? newSubstring : b.substring(),
                         tempNewStart);
-                
+
                 assertEquals(transformed.input(), comb.get(0) ? newInput : b.input());
                 assertEquals(transformed.substring(), comb.get(1) ? newSubstring : b.substring());
                 assertEquals(transformed.start(), tempNewStart);
@@ -129,7 +129,7 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
                 }
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

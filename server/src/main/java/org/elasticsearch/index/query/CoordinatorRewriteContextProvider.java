@@ -60,7 +60,7 @@ public class CoordinatorRewriteContextProvider {
         ClusterState clusterState = clusterStateSupplier.get();
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
 
-        if (indexMetadata == null || indexMetadata.getTimestampMillisRange().containsAllShardRanges() == false) {
+        if (indexMetadata == null || indexMetadata.getTimestampRange().containsAllShardRanges() == false) {
             return null;
         }
 
@@ -70,13 +70,13 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
 
-        IndexLongFieldRange timestampMillisRange = indexMetadata.getTimestampMillisRange();
+        IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         return new CoordinatorRewriteContext(xContentRegistry,
             writeableRegistry,
             client,
             nowInMillis,
             index,
-            timestampMillisRange,
+            timestampRange,
             dateFieldType
         );
     }

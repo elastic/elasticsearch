@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -250,4 +251,8 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         }, NestedAggregatorTests.resellersMappedFields());
     }
 
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return NestedAggregatorTests.MOCK_OBJECT_MAPPERS;
+    }
 }

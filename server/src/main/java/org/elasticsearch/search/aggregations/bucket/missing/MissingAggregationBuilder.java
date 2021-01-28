@@ -67,7 +67,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

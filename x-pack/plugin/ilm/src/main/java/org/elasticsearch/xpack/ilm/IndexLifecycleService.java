@@ -23,6 +23,7 @@ import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -222,6 +223,11 @@ public class IndexLifecycleService
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // wait for the cluster state to be recovered so the ILM policies are present
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         // Instead of using a LocalNodeMasterListener to track master changes, this service will
         // track them here to avoid conditions where master listener events run after other
         // listeners that depend on what happened in the master listener

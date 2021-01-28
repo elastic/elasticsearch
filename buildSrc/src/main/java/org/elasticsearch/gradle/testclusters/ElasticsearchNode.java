@@ -511,7 +511,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
 
-            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", "-x", key));
+            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", key));
 
             for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
                 File file = entry.getValue();
@@ -635,7 +635,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void installModules() {
-        logToProcessStdout("Installing " + modules.size() + "modules");
+        logToProcessStdout("Installing " + modules.size() + " modules");
         for (Provider<File> module : modules) {
             Path destination = getDistroDir().resolve("modules")
                 .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
@@ -1235,7 +1235,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             String content = new String(Files.readAllBytes(jvmOptions));
             Map<String, String> expansions = jvmOptionExpansions();
             for (String origin : expansions.keySet()) {
-                if (!content.contains(origin)) {
+                if (content.contains(origin) == false) {
                     throw new IOException("template property " + origin + " not found in template.");
                 }
                 content = content.replace(origin, expansions.get(origin));

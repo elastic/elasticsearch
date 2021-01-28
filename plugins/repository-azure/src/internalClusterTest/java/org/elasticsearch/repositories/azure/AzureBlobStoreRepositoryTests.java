@@ -24,6 +24,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.azure.AzureHttpHandler;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -39,14 +40,17 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -59,12 +63,15 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     @Override
-    protected Settings repositorySettings() {
-        return Settings.builder()
-            .put(super.repositorySettings())
-            .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
-            .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test")
-            .build();
+    protected Settings repositorySettings(String repoName) {
+        Settings.Builder settingsBuilder = Settings.builder()
+                .put(super.repositorySettings(repoName))
+                .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
+                .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test");
+        if (randomBoolean()) {
+            settingsBuilder.put(AzureRepository.Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
+        }
+        return settingsBuilder.build();
     }
 
     @Override
@@ -85,7 +92,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(StandardCharsets.UTF_8));
+        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
         final MockSecureSettings secureSettings = new MockSecureSettings();
         String accountName = DEFAULT_ACCOUNT_NAME;
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), accountName);
@@ -116,8 +123,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 @Override
                 RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                     return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
-                        azureStorageSettings.getMaxRetries() + 1, 5,
-                        1L, 15L, null);
+                        azureStorageSettings.getMaxRetries() + 1, 60,
+                        50L, 100L, null);
                 }
 
                 @Override
@@ -225,7 +232,29 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             container.delete();
-            assertThat(container.listBlobs().size(), equalTo(0));
+            assertThat(container.listBlobs(), is(anEmptyMap()));
+        }
+    }
+
+    public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            List<String> blobsToDelete = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                byte[] bytes = randomBytes(randomInt(100));
+                String blobName = randomAlphaOfLength(10);
+                container.writeBlob(blobName, new BytesArray(bytes), false);
+                blobsToDelete.add(blobName);
+            }
+
+            // Try to delete non existent blobs
+            for (int i = 0; i < 10; i++) {
+                blobsToDelete.add(randomName());
+            }
+
+            Randomness.shuffle(blobsToDelete);
+            container.deleteBlobsIgnoringIfNotExists(blobsToDelete);
+            assertThat(container.listBlobs(), is(anEmptyMap()));
         }
     }
 }

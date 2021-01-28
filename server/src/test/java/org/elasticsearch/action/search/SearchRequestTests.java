@@ -181,6 +181,31 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
+        {
+            // Minimum compatible shard node version with ccs_minimize_roundtrips
+            SearchRequest searchRequest;
+            boolean isMinCompatibleShardVersion = randomBoolean();
+            if (isMinCompatibleShardVersion) {
+                searchRequest = new SearchRequest(VersionUtils.randomVersion(random()));
+            } else {
+                searchRequest = new SearchRequest();
+            }
+
+            boolean shouldSetCcsMinimizeRoundtrips = randomBoolean();
+            if (shouldSetCcsMinimizeRoundtrips) {
+                searchRequest.setCcsMinimizeRoundtrips(true);
+            }
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+
+            if (isMinCompatibleShardVersion && shouldSetCcsMinimizeRoundtrips) {
+                assertNotNull(validationErrors);
+                assertEquals(1, validationErrors.validationErrors().size());
+                assertEquals("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
+                    validationErrors.validationErrors().get(0));
+            } else {
+                assertNull(validationErrors);
+            }
+        }
     }
 
     public void testCopyConstructor() throws IOException {

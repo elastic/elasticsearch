@@ -1058,7 +1058,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         for (final Map.Entry<Index, Integer> e : entries) {
             final Index index = e.getKey();
-            for (int i = 0; i < e.getValue(); i++) {
+            for (int i = 0; i <= e.getValue(); i++) {
                 final ShardId shardId = new ShardId(index, i);
                 final HashSet<ShardRouting> shards = shardsByShardId.get(shardId);
                 final List<ShardRouting> mutableShardRoutings = routingNodes.assignedShards(shardId);

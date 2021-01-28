@@ -339,8 +339,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
-                Objects.equals(size, that.size) &&
-                Objects.equals(fetchSize, that.fetchSize) &&
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&

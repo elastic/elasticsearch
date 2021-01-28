@@ -137,7 +137,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
                         StreamSupport.stream(e.getLastCommittedSegmentInfos().spliterator(), false).collect(Collectors.toList());
                 segmentsReference.set(segments);
                 // trigger a background merge that will be managed by the concurrent merge scheduler
-                e.forceMerge(randomBoolean(), 0, false, false, false, UUIDs.randomBase64UUID());
+                e.forceMerge(randomBoolean(), 0, false, UUIDs.randomBase64UUID());
                 /*
                  * Merging happens in the background on a merge thread, and the maybeDie handler is invoked on yet another thread; we have
                  * to wait for these events to finish.

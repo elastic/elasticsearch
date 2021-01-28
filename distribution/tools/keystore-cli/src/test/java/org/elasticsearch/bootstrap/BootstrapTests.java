@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.common.settings.KeyStoreWrapperTests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.settings.KeyStoreCommandTestCase;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -58,16 +59,20 @@ public class BootstrapTests extends ESTestCase {
     }
 
     public void testLoadSecureSettings() throws Exception {
+        final char[] password = KeyStoreWrapperTests.getPossibleKeystorePassword();
         final Path configPath = env.configFile();
         final SecureString seed;
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             seed = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(keyStoreWrapper).build());
             assertNotNull(seed);
             assertTrue(seed.length() > 0);
-            keyStoreWrapper.save(configPath, new char[0]);
+            keyStoreWrapper.save(configPath, password);
         }
+        final InputStream in = password.length > 0
+            ? new ByteArrayInputStream(new String(password).getBytes(StandardCharsets.UTF_8))
+            : System.in;
         assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
-        try (SecureSettings secureSettings = Bootstrap.loadSecureSettings(env)) {
+        try (SecureSettings secureSettings = Bootstrap.loadSecureSettings(env, in)) {
             SecureString seedAfterLoad = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(secureSettings).build());
             assertEquals(seedAfterLoad.toString(), seed.toString());
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));

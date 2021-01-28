@@ -288,7 +288,8 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     private Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = query(sql).mode(mode).toString();
-        String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
+        String format = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.CBOR, XContentType.YAML).name()
+            .toLowerCase(Locale.ROOT);
 
         // add a client_id to the request
         if (randomBoolean()) {

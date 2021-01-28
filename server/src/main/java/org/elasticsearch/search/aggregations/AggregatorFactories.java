@@ -476,6 +476,18 @@ public class AggregatorFactories {
             return builder;
         }
 
+        /**
+         * Bytes to preallocate on the "request" breaker for these aggregations. The
+         * goal is to request a few more bytes than we expect to use at first to
+         * cut down on contention on the "request" breaker when we are constructing
+         * the aggs. Underestimating what we allocate up front will fail to
+         * accomplish the goal. Overestimating will cause requests to fail for no
+         * reason.
+         */
+        public long bytesToPreallocate() {
+            return aggregationBuilders.stream().mapToLong(b -> b.bytesToPreallocate() + b.factoriesBuilder.bytesToPreallocate()).sum();
+        }
+
         @Override
         public String toString() {
             return Strings.toString(this, true, true);

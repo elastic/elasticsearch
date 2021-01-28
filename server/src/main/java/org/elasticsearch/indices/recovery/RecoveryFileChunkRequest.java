@@ -20,21 +20,22 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
 
-public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
+public final class RecoveryFileChunkRequest extends RecoveryTransportRequest implements RefCounted {
     private final boolean lastChunk;
     private final long recoveryId;
     private final ShardId shardId;
     private final long position;
-    private final BytesReference content;
+    private final ReleasableBytesReference content;
     private final StoreFileMetadata metadata;
     private final long sourceThrottleTimeInNanos;
 
@@ -48,7 +49,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
         position = in.readVLong();
         long length = in.readVLong();
         String checksum = in.readString();
-        content = in.readBytesReference();
+        content = in.readReleasableBytesReference();
         Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
         assert writtenBy != null;
         metadata = new StoreFileMetadata(name, length, checksum, writtenBy);
@@ -58,13 +59,14 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
     }
 
     public RecoveryFileChunkRequest(long recoveryId, final long requestSeqNo, ShardId shardId, StoreFileMetadata metadata, long position,
-                                    BytesReference content, boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
+                                    ReleasableBytesReference content, boolean lastChunk, int totalTranslogOps,
+                                    long sourceThrottleTimeInNanos) {
         super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metadata = metadata;
         this.position = position;
-        this.content = content;
+        this.content = content.retain();
         this.lastChunk = lastChunk;
         this.totalTranslogOps = totalTranslogOps;
         this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
@@ -90,7 +92,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
         return metadata.length();
     }
 
-    public BytesReference content() {
+    public ReleasableBytesReference content() {
         return content;
     }
 
@@ -134,5 +136,20 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest {
      */
     public boolean lastChunk() {
         return lastChunk;
+    }
+
+    @Override
+    public void incRef() {
+        content.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return content.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return content.decRef();
     }
 }

@@ -569,6 +569,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     public void testDefaultOptionsWithSigningAndMultipleEncryptionKeys() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final KeyStoreWrapper usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         final Path dir = createTempDir();
 

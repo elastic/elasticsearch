@@ -127,7 +127,9 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoMatch, other.allowNoMatch);
+            return Objects.equals(jobId, other.jobId)
+                    && Objects.equals(allowNoMatch, other.allowNoMatch)
+                    && Objects.equals(getTimeout(), other.getTimeout());
         }
     }
 

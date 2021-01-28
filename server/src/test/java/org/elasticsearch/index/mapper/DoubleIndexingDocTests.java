@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -40,32 +40,32 @@ public class DoubleIndexingDocTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
 
-        QueryShardContext qsc = mock(QueryShardContext.class);
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
 
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(doc.rootDoc());
             iw.addDocument(doc.rootDoc());
         }, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            TopDocs topDocs = searcher.search(mapperService.fieldType("field1").termQuery("value1", qsc), 10);
+            TopDocs topDocs = searcher.search(mapperService.fieldType("field1").termQuery("value1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field2").termQuery("1", qsc), 10);
+            topDocs = searcher.search(mapperService.fieldType("field2").termQuery("1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field3").termQuery("1.1", qsc), 10);
+            topDocs = searcher.search(mapperService.fieldType("field3").termQuery("1.1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field4").termQuery("2010-01-01", qsc), 10);
+            topDocs = searcher.search(mapperService.fieldType("field4").termQuery("2010-01-01", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("1", qsc), 10);
+            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("2", qsc), 10);
+            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("2", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 
-            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("3", qsc), 10);
+            topDocs = searcher.search(mapperService.fieldType("field5").termQuery("3", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
         });
     }

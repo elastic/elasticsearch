@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -57,8 +58,6 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();
             String sessionUUID = request.getSessionUUID();
-            // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
-            // structure on the same thread. So the bytes will be copied before the reference is released.
             BytesReference pagedBytesReference = BytesReference.fromByteArray(array, bytesRequested);
             try (ReleasableBytesReference reference = new ReleasableBytesReference(pagedBytesReference, array)) {
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
@@ -72,27 +71,27 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         }
     }
 
-    public static class GetCcrRestoreFileChunkResponse extends ActionResponse {
+    public static class GetCcrRestoreFileChunkResponse extends ActionResponse implements RefCounted {
 
         private final long offset;
-        private final BytesReference chunk;
+        private final ReleasableBytesReference chunk;
 
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
             super(streamInput);
             offset = streamInput.readVLong();
-            chunk = streamInput.readBytesReference();
+            chunk = streamInput.readReleasableBytesReference();
         }
 
-        GetCcrRestoreFileChunkResponse(long offset, BytesReference chunk) {
+        GetCcrRestoreFileChunkResponse(long offset, ReleasableBytesReference chunk) {
             this.offset = offset;
-            this.chunk = chunk;
+            this.chunk = chunk.retain();
         }
 
         public long getOffset() {
             return offset;
         }
 
-        public BytesReference getChunk() {
+        public ReleasableBytesReference getChunk() {
             return chunk;
         }
 
@@ -102,5 +101,19 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             out.writeBytesReference(chunk);
         }
 
+        @Override
+        public void incRef() {
+            chunk.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return chunk.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return chunk.decRef();
+        }
     }
 }

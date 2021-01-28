@@ -130,9 +130,9 @@ the cluster state -- it doesn't wait for the shrink operation to start.
 
 Indices can only be shrunk if they satisfy the following requirements:
 
-* the target index must not exist
+* The target index must not exist.
 
-* The index must have more primary shards than the target index.
+* The source index must have more primary shards than the target index.
 
 * The number of primary shards in the target index must be a factor of the
   number of primary shards in the source index. The source index must have

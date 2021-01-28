@@ -1178,6 +1178,8 @@ public final class TokenService {
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
                             try {
+                                logger.debug("Found superseding document: index=[{}] id=[{}] primTerm=[{}] seqNo=[{}]",
+                                    response.getIndex(), response.getId(), response.getPrimaryTerm(), response.getSeqNo());
                                 listener.onResponse(
                                     new CreateTokenResult(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(),
                                         decryptedTokens[0]),
@@ -1657,7 +1659,18 @@ public final class TokenService {
                                 }
                             }
                         } else {
-                            onFailure.accept(new IllegalStateException("token document is missing and must be present"));
+                            // This shouldn't happen (if we have a valid `UserToken` object, then should mean that we loaded it from the
+                            // index in a prior operation (e.g. #getUserTokenFromId), however this error can happen if either:
+                            // 1. The document was deleted just after we read it
+                            // 2. This Get used a different replica to the previous one, and they were out of sync.
+                            logger.warn(
+                                "Could not find token document (index=[{}] id=[{}]) in order to validate user token [{}] for [{}]",
+                                response.getIndex(),
+                                response.getId(),
+                                userToken.getId(),
+                                userToken.getAuthentication().getUser().principal());
+                            onFailure.accept(traceLog("validate token", userToken.getId(),
+                                new IllegalStateException("token document is missing and must be present")));
                         }
                     }, e -> {
                         // if the index or the shard is not there / available we assume that

@@ -226,20 +226,18 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
         return size == that.size &&
-                fetchSize == that.fetchSize &&
-                resultPosition == that.resultPosition &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(filter, that.filter) &&
-                Objects.equals(size, that.size) &&
-                Objects.equals(fetchSize, that.fetchSize) &&
-                Objects.equals(timestampField, that.timestampField) &&
-                Objects.equals(tiebreakerField, that.tiebreakerField) &&
-                Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(query, that.query) &&
-                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-                Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(keepOnCompletion, that.keepOnCompletion);
+            fetchSize == that.fetchSize &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Objects.equals(filter, that.filter) &&
+            Objects.equals(timestampField, that.timestampField) &&
+            Objects.equals(tiebreakerField, that.tiebreakerField) &&
+            Objects.equals(eventCategoryField, that.eventCategoryField) &&
+            Objects.equals(query, that.query) &&
+            Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
+            Objects.equals(keepAlive, that.keepAlive) &&
+            Objects.equals(keepOnCompletion, that.keepOnCompletion) &&
+            Objects.equals(resultPosition, that.resultPosition);
     }
 
     @Override
@@ -254,10 +252,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             tiebreakerField,
             eventCategoryField,
             query,
-            resultPosition,
             waitForCompletionTimeout,
             keepAlive,
-            keepOnCompletion);
+            keepOnCompletion,
+            resultPosition);
     }
 
     public String[] indices() {

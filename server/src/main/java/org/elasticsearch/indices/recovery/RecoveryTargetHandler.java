@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.store.Store;
@@ -104,7 +104,7 @@ public interface RecoveryTargetHandler {
     void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener);
 
     /** writes a partial file chunk to the target store */
-    void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
+    void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
                         boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);
 
     default void cancel() {}

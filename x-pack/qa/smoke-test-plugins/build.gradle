@@ -24,7 +24,7 @@ ext.expansions = [
         'expected.plugins.count': pluginPaths.size()
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   inputs.properties(project.expansions)
   MavenFilteringHack.filter(it, expansions)
 }

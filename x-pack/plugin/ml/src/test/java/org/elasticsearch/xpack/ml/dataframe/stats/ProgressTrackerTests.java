@@ -11,7 +11,9 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -146,6 +148,75 @@ public class ProgressTrackerTests extends ESTestCase {
 
         progressTracker.updatePhase(new PhaseProgress("foo", 40));
         assertThat(getProgressForPhase(progressTracker, "foo"), equalTo(41));
+    }
+
+    public void testResetForInference_GivenInference() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Arrays.asList("a", "b"), true);
+        progressTracker.updateReindexingProgress(10);
+        progressTracker.updateLoadingDataProgress(20);
+        progressTracker.updatePhase(new PhaseProgress("a", 30));
+        progressTracker.updatePhase(new PhaseProgress("b", 40));
+        progressTracker.updateWritingResultsProgress(50);
+        progressTracker.updateInferenceProgress(60);
+
+        progressTracker.resetForInference();
+
+        List<PhaseProgress> progress = progressTracker.report();
+        assertThat(progress, contains(
+            new PhaseProgress(ProgressTracker.REINDEXING, 100),
+            new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
+            new PhaseProgress("a", 100),
+            new PhaseProgress("b", 100),
+            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100),
+            new PhaseProgress(ProgressTracker.INFERENCE, 0)
+        ));
+    }
+
+    public void testResetForInference_GivenNoInference() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Arrays.asList("a", "b"), false);
+        progressTracker.updateReindexingProgress(10);
+        progressTracker.updateLoadingDataProgress(20);
+        progressTracker.updatePhase(new PhaseProgress("a", 30));
+        progressTracker.updatePhase(new PhaseProgress("b", 40));
+        progressTracker.updateWritingResultsProgress(50);
+
+        progressTracker.resetForInference();
+
+        List<PhaseProgress> progress = progressTracker.report();
+        assertThat(progress, contains(
+            new PhaseProgress(ProgressTracker.REINDEXING, 100),
+            new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
+            new PhaseProgress("a", 100),
+            new PhaseProgress("b", 100),
+            new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100)
+        ));
+    }
+
+    public void testAreAllPhasesExceptInferenceComplete_GivenComplete() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("a"), true);
+        progressTracker.updateReindexingProgress(100);
+        progressTracker.updateLoadingDataProgress(100);
+        progressTracker.updatePhase(new PhaseProgress("a", 100));
+        progressTracker.updateWritingResultsProgress(100);
+        progressTracker.updateInferenceProgress(50);
+
+        assertThat(progressTracker.areAllPhasesExceptInferenceComplete(), is(true));
+    }
+
+    public void testAreAllPhasesExceptInferenceComplete_GivenNotComplete() {
+        Map<String, Integer> phasePerProgress = new LinkedHashMap<>();
+        phasePerProgress.put(ProgressTracker.REINDEXING, 100);
+        phasePerProgress.put(ProgressTracker.LOADING_DATA, 100);
+        phasePerProgress.put("a", 100);
+        phasePerProgress.put(ProgressTracker.WRITING_RESULTS, 100);
+        String nonCompletePhase = randomFrom(phasePerProgress.keySet());
+        phasePerProgress.put(ProgressTracker.INFERENCE, 50);
+        phasePerProgress.put(nonCompletePhase, randomIntBetween(0, 99));
+
+        ProgressTracker progressTracker = new ProgressTracker(phasePerProgress.entrySet().stream()
+            .map(entry -> new PhaseProgress(entry.getKey(), entry.getValue())).collect(Collectors.toList()));
+
+        assertThat(progressTracker.areAllPhasesExceptInferenceComplete(), is(false));
     }
 
     private static int getProgressForPhase(ProgressTracker progressTracker, String phase) {

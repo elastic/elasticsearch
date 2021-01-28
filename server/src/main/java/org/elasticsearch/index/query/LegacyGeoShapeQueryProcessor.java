@@ -71,7 +71,7 @@ public class LegacyGeoShapeQueryProcessor  {
     }
 
     public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy,
-                               ShapeRelation relation, QueryShardContext context) {
+                               ShapeRelation relation, SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when '"
                     + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");

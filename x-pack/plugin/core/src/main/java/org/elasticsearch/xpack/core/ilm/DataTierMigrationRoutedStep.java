@@ -48,12 +48,6 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         ALL_CLUSTER_SETTINGS = allSettings;
     }
 
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(
-        List.of(
-            new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS))
-        )
-    );
-
     DataTierMigrationRoutedStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
@@ -65,6 +59,12 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            List.of(
+                new DataTierAllocationDecider(clusterState.getMetadata().settings(),
+                    new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS))
+            )
+        );
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -99,7 +99,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             return new Result(true, null);
         }
 
-        int allocationPendingAllShards = getPendingAllocations(index, ALLOCATION_DECIDERS, clusterState);
+        int allocationPendingAllShards = getPendingAllocations(index, allocationDeciders, clusterState);
 
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(

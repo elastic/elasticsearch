@@ -31,6 +31,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -62,7 +63,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -643,7 +643,7 @@ public class RestControllerTests extends ESTestCase {
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
+        final String mimeType = randomCompatibleMediaType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -679,7 +679,7 @@ public class RestControllerTests extends ESTestCase {
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
+        final String mimeType = randomCompatibleMediaType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -729,12 +729,10 @@ public class RestControllerTests extends ESTestCase {
             }));
     }
 
-    private String randomCompatibleMimeType(byte version) {
-        String subtype = randomFrom(Stream.of(XContentType.values())
-            .map(XContentType::mediaTypeWithoutParameters)
-            .toArray(String[]::new))
-            .split("/")[1];
-        return randomFrom("application/vnd.elasticsearch+" + subtype + ";compatible-with=" + version);
+    private String randomCompatibleMediaType(byte version) {
+        XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
+        return type.toParsedMediaType()
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

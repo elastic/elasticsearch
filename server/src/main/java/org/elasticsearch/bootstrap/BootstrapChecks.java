@@ -144,7 +144,7 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
-                if ((enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce() == false) {
+                if (enforceLimits == false && enforceBootstrapChecks == false && check.alwaysEnforce() == false) {
                     ignoredErrors.add(result.getMessage());
                 } else {
                     errors.add(result.getMessage());

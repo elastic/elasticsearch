@@ -75,7 +75,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));
         project.getTasks()
             .withType(CopyRestTestsTask.class)
-            .configureEach(copyRestTestTask -> copyRestTestTask.setSourceSetName(SOURCE_SET_NAME));
+            .configureEach(copyRestTestTask -> copyRestTestTask.setOutputSourceSet(yamlTestSourceSet));
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);

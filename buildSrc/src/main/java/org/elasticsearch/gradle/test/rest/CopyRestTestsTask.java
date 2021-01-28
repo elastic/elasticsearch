@@ -20,15 +20,12 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.Project;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -44,7 +41,6 @@ import org.gradle.internal.Factory;
 import javax.inject.Inject;
 import java.io.File;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -54,6 +50,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  * Copies the Rest YAML test to the current projects test resources output directory.
  * This is intended to be be used from {@link RestResourcesPlugin} since the plugin wires up the needed
  * configurations and custom extensions.
+ *
  * @see RestResourcesPlugin
  */
 public class CopyRestTestsTask extends DefaultTask {
@@ -61,7 +58,7 @@ public class CopyRestTestsTask extends DefaultTask {
     private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
-    private String sourceSetName;
+    private SourceSet outputSourceSet;
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
     private FileCollection additionalConfig;
@@ -105,11 +102,6 @@ public class CopyRestTestsTask extends DefaultTask {
         return includeXpack;
     }
 
-    @Input
-    String getSourceSetName() {
-        return sourceSetName;
-    }
-
     @SkipWhenEmpty
     @InputFiles
     public FileTree getInputDir() {
@@ -139,12 +131,7 @@ public class CopyRestTestsTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(
-            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
-                .getOutput()
-                .getResourcesDir(),
-            REST_TEST_PREFIX
-        );
+        return new File(outputSourceSet.getOutput().getResourcesDir(), REST_TEST_PREFIX);
     }
 
     @TaskAction
@@ -167,8 +154,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 );
                 getFileSystemOperations().copy(c -> {
                     c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
-                    // this ends up as the same dir as outputDir
-                    c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
+                    c.into(Objects.requireNonNull(outputSourceSet.getOutput().getResourcesDir()));
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
@@ -193,15 +179,8 @@ public class CopyRestTestsTask extends DefaultTask {
         }
     }
 
-    private Optional<SourceSet> getSourceSet() {
-        Project project = getProject();
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
-            ? Optional.empty()
-            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
-    }
-
-    public void setSourceSetName(String sourceSetName) {
-        this.sourceSetName = sourceSetName;
+    public void setOutputSourceSet(SourceSet outputSourceSet) {
+        this.outputSourceSet = outputSourceSet;
     }
 
     public void setCoreConfig(FileCollection coreConfig) {

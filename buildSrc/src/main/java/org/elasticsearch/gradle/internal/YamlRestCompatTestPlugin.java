@@ -53,8 +53,6 @@ import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
  */
-// TODO: support running tests against multiple prior versions in addition to bwc:minor. To achieve this we will need to create published
-// artifacts that include all of the REST tests for the latest 7.x.y releases
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
     public static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
@@ -129,7 +127,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
-                task.setSourceSetName(SOURCE_SET_NAME);
+                task.setOutputSourceSet(yamlCompatTestSourceSet);
                 task.setCoreConfigToFileTree(
                     config -> project.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)

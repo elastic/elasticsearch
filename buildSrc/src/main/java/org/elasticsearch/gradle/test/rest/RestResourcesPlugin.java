@@ -105,7 +105,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.getIncludeCore().set(extension.restTests.getIncludeCore());
                 task.getIncludeXpack().set(extension.restTests.getIncludeXpack());
                 task.setCoreConfig(testConfig);
-                task.setSourceSetName(TEST_SOURCE_SET_NAME);
+                task.setOutputSourceSet(defaultSourceSet);
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()

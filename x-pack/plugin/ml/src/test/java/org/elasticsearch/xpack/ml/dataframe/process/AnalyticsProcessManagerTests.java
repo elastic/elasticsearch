@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
@@ -97,8 +98,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
         task = mock(DataFrameAnalyticsTask.class);
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
-        when(task.getStatsHolder()).thenReturn(new StatsHolder(
-            ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report()));
+        when(task.getStatsHolder()).thenReturn(newStatsHolder());
         when(task.getParentTaskId()).thenReturn(new TaskId(""));
         dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
             false,
@@ -117,10 +117,16 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
             processFactory, auditor, trainedModelProvider, resultsPersisterService, 1);
     }
 
+    private StatsHolder newStatsHolder() {
+        return new StatsHolder(ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report(),
+            null,
+            null,
+            new DataCounts(CONFIG_ID));
+    }
+
     public void testRunJob_TaskIsStopping() {
         when(task.isStopping()).thenReturn(true);
-        when(task.getParams()).thenReturn(
-            new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, Collections.emptyList(), false));
+        when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, false));
 
         processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(
             stepResponse -> {
@@ -209,7 +215,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     public void testRunJob_ProcessNotAliveAfterStart() {
         when(process.isProcessAlive()).thenReturn(false);
         when(task.getParams()).thenReturn(
-            new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, Collections.emptyList(), false));
+            new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, false));
 
         processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(
             stepResponse -> fail("Expected error but listener got a response instead"),

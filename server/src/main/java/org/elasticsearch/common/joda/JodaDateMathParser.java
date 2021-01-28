@@ -102,7 +102,7 @@ public class JodaDateMathParser implements DateMathParser {
             }
 
             final int num;
-            if (!Character.isDigit(mathString.charAt(i))) {
+            if (Character.isDigit(mathString.charAt(i)) == false) {
                 num = 1;
             } else {
                 int numFrom = i;

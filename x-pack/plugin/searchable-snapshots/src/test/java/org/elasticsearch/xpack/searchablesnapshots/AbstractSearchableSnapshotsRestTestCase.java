@@ -47,11 +47,18 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected abstract Settings repositorySettings();
 
     private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody) throws Exception {
+        runSearchableSnapshotsTest(testCaseBody, false);
+    }
+
+    private void runSearchableSnapshotsTest(SearchableSnapshotsTestCaseBody testCaseBody, boolean sourceOnly) throws Exception {
         final String repositoryType = repositoryType();
-        final Settings repositorySettings = repositorySettings();
+        Settings repositorySettings = repositorySettings();
+        if (sourceOnly) {
+            repositorySettings = Settings.builder().put("delegate_type", repositoryType).put(repositorySettings).build();
+        }
 
         logger.info("creating repository [{}] of type [{}]", REPOSITORY_NAME, repositoryType);
-        registerRepository(REPOSITORY_NAME, repositoryType, true, repositorySettings);
+        registerRepository(REPOSITORY_NAME, sourceOnly ? "source" : repositoryType, true, repositorySettings);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -138,6 +145,23 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                 assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
             }
         });
+    }
+
+    public void testSourceOnlyRepository() throws Exception {
+        runSearchableSnapshotsTest((indexName, numDocs) -> {
+            for (int i = 0; i < 10; i++) {
+                if (randomBoolean()) {
+                    logger.info("clearing searchable snapshots cache for [{}] before search", indexName);
+                    clearCache(indexName);
+                }
+                Map<String, Object> searchResults = search(
+                    indexName,
+                    QueryBuilders.matchAllQuery(),
+                    randomFrom(Boolean.TRUE, Boolean.FALSE, null)
+                );
+                assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
+            }
+        }, true);
     }
 
     public void testCloseAndReopen() throws Exception {

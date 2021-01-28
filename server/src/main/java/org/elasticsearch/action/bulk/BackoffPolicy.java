@@ -158,7 +158,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
 
         @Override
         public TimeValue next() {
-            if (!hasNext()) {
+            if (hasNext() == false) {
                 throw new NoSuchElementException("Only up to " + numberOfElements + " elements");
             }
             int result = start + 10 * ((int) Math.exp(0.8d * (currentlyConsumed)) - 1);
@@ -201,7 +201,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
 
         @Override
         public TimeValue next() {
-            if (!hasNext()) {
+            if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
             curr++;

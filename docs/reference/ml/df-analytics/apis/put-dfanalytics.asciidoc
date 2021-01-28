@@ -96,6 +96,10 @@ understand the function of these parameters.
 .Properties of `classification`
 [%collapsible%open]
 =====
+`alpha`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+
 `class_assignment_objective`::::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
@@ -109,9 +113,17 @@ The data type of the field must be numeric (`integer`, `short`, `long`, `byte`),
 categorical (`ip` or `keyword`), or boolean. There must be no more than 30
 different values in this field.
 
+`downsample_factor`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
 `eta`::::
 (Optional, double)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
+
+`eta_growth_rate_per_tree`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (Optional, double)
@@ -234,6 +246,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
 (Optional, double)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
+`max_optimization_rounds_per_hyperparameter`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+
 `max_trees`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
@@ -266,6 +282,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 `randomize_seed`::::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`soft_tree_depth_limit`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+
+`soft_tree_depth_tolerance`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 
 `training_percent`::::
 (Optional, integer)
@@ -320,6 +344,10 @@ understand the function of these parameters.
 .Properties of `regression`
 [%collapsible%open]
 =====
+`alpha`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-alpha]
+
 `dependent_variable`::::
 (Required, string)
 +
@@ -327,9 +355,17 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric.
 
+`downsample_factor`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
 `eta`::::
 (Optional, double)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
+
+`eta_growth_rate_per_tree`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-eta-growth]
 
 `feature_bag_fraction`::::
 (Optional, double)
@@ -359,6 +395,10 @@ to learn more.
 (Optional, double)
 A positive number that is used as a parameter to the `loss_function`.
 
+`max_optimization_rounds_per_hyperparameter`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-max-optimization-rounds]
+
 `max_trees`::::
 (Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
@@ -376,6 +416,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 `randomize_seed`::::
 (Optional, long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+
+`soft_tree_depth_limit`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-limit]
+
+`soft_tree_depth_tolerance`::::
+(Optional, double)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-soft-tolerance]
 
 `training_percent`::::
 (Optional, integer)

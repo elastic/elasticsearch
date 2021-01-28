@@ -129,7 +129,7 @@ public class Table {
         if (currentCells == null) {
             throw new IllegalStateException("no block started...");
         }
-        if (!inHeaders) {
+        if (inHeaders == false) {
             if (currentCells.size() == headers.size()) {
                 throw new IllegalStateException("can't add more cells to a row than the header");
             }
@@ -144,7 +144,7 @@ public class Table {
             }
         } else {
             mAttr = new HashMap<>();
-            if (!inHeaders) {
+            if (inHeaders == false) {
                 // get the attributes of the header cell we are going to add
                 mAttr.putAll(headers.get(currentCells.size()).attr);
             }
@@ -163,7 +163,7 @@ public class Table {
         currentCells.add(cell);
 
         // If we're in a value row, also populate the named column.
-        if (!inHeaders) {
+        if (inHeaders == false) {
             String hdr = (String) headers.get(cellIndex).value;
             map.get(hdr).add(cell);
         }

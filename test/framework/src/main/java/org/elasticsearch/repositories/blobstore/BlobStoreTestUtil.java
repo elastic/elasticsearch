@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -69,6 +70,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -290,7 +292,7 @@ public final class BlobStoreTestUtil {
      */
     public static ClusterService mockClusterService(RepositoryMetadata metadata) {
         return mockClusterService(ClusterState.builder(ClusterState.EMPTY_STATE).metadata(
-            Metadata.builder().putCustom(RepositoriesMetadata.TYPE,
+            Metadata.builder().clusterUUID(UUIDs.randomBase64UUID(random())).putCustom(RepositoriesMetadata.TYPE,
                 new RepositoriesMetadata(Collections.singletonList(metadata))).build()).build());
     }
 

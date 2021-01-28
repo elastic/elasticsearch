@@ -51,9 +51,16 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
             // this should not happen, but still go over version conflicts and report later
             .setAbortOnVersionConflict(false)
-            // use the same throttling as for search
-            .setRequestsPerSecond(settingsConfig.getDocsPerSecond())
+            // refresh the index, so docs are really gone
+            .setRefresh(true)
+            // use transforms retry mechanics instead
+            .setMaxRetries(0)
             .indices(destConfig.getIndex());
+
+        // use the same throttling as for search
+        if (settingsConfig.getDocsPerSecond() != null) {
+            request.setRequestsPerSecond(settingsConfig.getDocsPerSecond());
+        }
 
         return request;
     }
@@ -62,7 +69,7 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
         TimeRetentionPolicyConfig config,
         TransformCheckpoint checkpoint
     ) {
-        Instant cutOffDate = Instant.ofEpochMilli(checkpoint.getTimeUpperBound()).minusMillis(config.getMaxAge().getMillis());
+        Instant cutOffDate = Instant.ofEpochMilli(checkpoint.getTimestamp()).minusMillis(config.getMaxAge().getMillis());
         return QueryBuilders.rangeQuery(config.getField()).lt(cutOffDate.toEpochMilli()).format("epoch_millis");
     }
 }

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -265,6 +267,10 @@ public class TransformIndexerTests extends ESTestCase {
             );
         }
 
+        @Override
+        void refreshDestinationIndex(RefreshRequest refreshRequest, ActionListener<RefreshResponse> responseListener) {
+            responseListener.onResponse(new RefreshResponse(1,1,0,Collections.emptyList()));
+        }
     }
 
     @Before

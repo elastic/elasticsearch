@@ -70,9 +70,7 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD.getPreferredName(), field);
-        if (maxAge.duration() > 0) {
-            builder.field(MAX_AGE.getPreferredName(), maxAge.getStringRep());
-        }
+        builder.field(MAX_AGE.getPreferredName(), maxAge.getStringRep());
         builder.endObject();
         return builder;
     }

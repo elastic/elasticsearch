@@ -12,6 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -207,6 +210,20 @@ class ClientTransformIndexer extends TransformIndexer {
             client,
             DeleteByQueryAction.INSTANCE,
             deleteByQueryRequest,
+            responseListener
+        );
+    }
+
+    @Override
+    protected void refreshDestinationIndex(RefreshRequest refreshRequest, ActionListener<RefreshResponse> responseListener) {
+        // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
+        // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
+        // called for the transform destination index
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.TRANSFORM_ORIGIN,
+            RefreshAction.INSTANCE,
+            refreshRequest,
             responseListener
         );
     }

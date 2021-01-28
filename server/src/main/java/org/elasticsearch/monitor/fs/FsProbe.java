@@ -49,7 +49,7 @@ public class FsProbe {
     }
 
     public FsInfo stats(FsInfo previous) throws IOException {
-        if (!nodeEnv.hasNodeFile()) {
+        if (nodeEnv.hasNodeFile() == false) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
         NodePath[] dataLocations = nodeEnv.nodePaths();
@@ -83,12 +83,12 @@ public class FsProbe {
             List<FsInfo.DeviceStats> devicesStats = new ArrayList<>();
 
             List<String> lines = readProcDiskStats();
-            if (!lines.isEmpty()) {
+            if (lines.isEmpty() == false) {
                 for (String line : lines) {
                     String fields[] = line.trim().split("\\s+");
                     final int majorDeviceNumber = Integer.parseInt(fields[0]);
                     final int minorDeviceNumber = Integer.parseInt(fields[1]);
-                    if (!devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))) {
+                    if (devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)) == false) {
                         continue;
                     }
                     final String deviceName = fields[2];

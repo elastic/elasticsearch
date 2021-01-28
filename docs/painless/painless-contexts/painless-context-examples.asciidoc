@@ -24,6 +24,8 @@ Each document in the `seat` data contains the following fields:
         The number of the seat within a row.
 `sold` ({ref}/boolean.html[`boolean`])::
         Whether or not the seat is sold.
+`datetime` ({ref}/date.html[`date`])::
+        The date and time of the play as a date object.
 
 ==== Prerequisites
 Start an {ref}/getting-started-install.html[{es} instance], and then access the
@@ -41,13 +43,14 @@ PUT /seats
     "properties": {
       "theatre":  { "type": "keyword" },
       "play":     { "type": "keyword" },
-      "actors":   { "type": "text"    },
+      "actors":   { "type": "keyword" },
       "date":     { "type": "keyword" },
       "time":     { "type": "keyword" },
       "cost":     { "type": "double"  },
       "row":      { "type": "integer" },
       "number":   { "type": "integer" },
-      "sold":     { "type": "boolean" }
+      "sold":     { "type": "boolean" },
+      "datetime": { "type": "date"    }
     }
   }
 }

@@ -69,27 +69,19 @@ public class CopyRestTestsTask extends DefaultTask {
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
     private final ProjectLayout projectLayout;
+    private final FileSystemOperations fileSystemOperations;
+    private final ArchiveOperations archiveOperations;
 
     @Inject
-    public CopyRestTestsTask(ProjectLayout projectLayout) {
+    public CopyRestTestsTask(ProjectLayout projectLayout,
+                             Factory<PatternSet> patternSetFactory,
+                             FileSystemOperations fileSystemOperations,
+                             ArchiveOperations archiveOperations) {
         corePatternSet = getPatternSetFactory().create();
         xpackPatternSet = getPatternSetFactory().create();
         this.projectLayout = projectLayout;
-    }
-
-    @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Inject
-    protected FileSystemOperations getFileSystemOperations() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Inject
-    protected ArchiveOperations getArchiveOperations() {
-        throw new UnsupportedOperationException();
+        this.fileSystemOperations = fileSystemOperations;
+        this.archiveOperations = archiveOperations;
     }
 
     @Input
@@ -141,7 +133,7 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeCore.get().isEmpty() == false) {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
-                getFileSystemOperations().copy(c -> {
+                fileSystemOperations.copy(c -> {
                     c.from(coreConfigToFileTree.apply(coreConfig));
                     c.into(getOutputDir());
                     c.include(corePatternSet.getIncludes());
@@ -152,8 +144,8 @@ public class CopyRestTestsTask extends DefaultTask {
                     projectPath,
                     VersionProperties.getElasticsearch()
                 );
-                getFileSystemOperations().copy(c -> {
-                    c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
+                fileSystemOperations.copy(c -> {
+                    c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
                     c.into(Objects.requireNonNull(outputSourceSet.getOutput().getResourcesDir()));
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
@@ -164,7 +156,7 @@ public class CopyRestTestsTask extends DefaultTask {
         // only copy x-pack tests if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", projectPath);
-            getFileSystemOperations().copy(c -> {
+            fileSystemOperations.copy(c -> {
                 c.from(xpackConfigToFileTree.apply(xpackConfig));
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
@@ -172,7 +164,7 @@ public class CopyRestTestsTask extends DefaultTask {
         }
         // copy any additional config
         if (additionalConfig != null) {
-            getFileSystemOperations().copy(c -> {
+            fileSystemOperations.copy(c -> {
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(getOutputDir());
             });

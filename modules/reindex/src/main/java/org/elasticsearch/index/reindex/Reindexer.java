@@ -92,16 +92,17 @@ public class Reindexer {
         BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
     }
 
-    public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+    public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollParallelizationHelper.executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
-                AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
-                    scriptService, reindexSslConfig, request, listener);
+                ParentTaskAssigningClient assigningBulkClient =
+                    new ParentTaskAssigningClient(bulkClient, clusterService.localNode(), task);
+                AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, assigningBulkClient,
+                    threadPool, scriptService, reindexSslConfig, request, listener);
                 searchAction.start();
             });
-
     }
 
     /**
@@ -169,16 +170,16 @@ public class Reindexer {
          */
         private List<Thread> createdThreads = emptyList();
 
-        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                 ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig sslConfig, ReindexRequest request,
-                                 ActionListener<BulkByScrollResponse> listener) {
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient searchClient,
+                                 ParentTaskAssigningClient bulkClient, ThreadPool threadPool, ScriptService scriptService,
+                                 ReindexSslConfig sslConfig, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
             super(task,
                 /*
                  * We only need the source version if we're going to use it when write and we only do that when the destination request uses
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                false, logger, client, threadPool, request, listener, scriptService, sslConfig);
+                false, logger, searchClient, bulkClient, threadPool, request, listener, scriptService, sslConfig);
         }
 
         @Override

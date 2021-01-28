@@ -72,19 +72,19 @@ public final class ExpressionTranslators {
 
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
-            new BinaryComparisons(),
-            new Ranges(),
-            new BinaryLogic(),
-            new IsNulls(),
-            new IsNotNulls(),
-            new Nots(),
-            new Likes(),
-            new InComparisons(),
-            new StringQueries(),
-            new Matches(),
-            new MultiMatches(),
-            new Scalars()
-            );
+        new BinaryComparisons(),
+        new Ranges(),
+        new BinaryLogic(),
+        new IsNulls(),
+        new IsNotNulls(),
+        new Nots(),
+        new Likes(),
+        new InComparisons(),
+        new StringQueries(),
+        new Matches(),
+        new MultiMatches(),
+        new Scalars()
+    );
 
     public static Query toQuery(Expression e) {
         return toQuery(e, new QlTranslatorHandler());
@@ -382,6 +382,7 @@ public final class ExpressionTranslators {
 
     public static class InComparisons extends ExpressionTranslator<In> {
 
+        @Override
         protected Query asQuery(In in, TranslatorHandler handler) {
             return doTranslate(in, handler);
         }
@@ -442,11 +443,11 @@ public final class ExpressionTranslators {
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
             if (f instanceof StartsWith) {
                 StartsWith sw = (StartsWith) f;
-                if (sw.isCaseSensitive() && sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
+                if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
                     String pattern = (String) sw.pattern().fold();
 
-                    return new PrefixQuery(f.source(), targetFieldName, pattern);
+                    return new PrefixQuery(f.source(), targetFieldName, pattern, sw.isCaseInsensitive());
                 }
             }
             return null;

@@ -829,7 +829,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + "InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0)), "
                 + "params.v1, params.v2))",
             sq.script().toString());
-        assertEquals("[{v=keyword}, {v=xyz}, {v=true}]", sq.script().params().toString());
+        assertEquals("[{v=keyword}, {v=xyz}, {v=false}]", sq.script().params().toString());
     }
 
     @SuppressWarnings("unchecked")

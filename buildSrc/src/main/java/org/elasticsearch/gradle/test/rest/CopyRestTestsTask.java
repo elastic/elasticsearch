@@ -68,7 +68,7 @@ public class CopyRestTestsTask extends DefaultTask {
     private Function<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
     private Function<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
     private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
-    private String outputResourceParent = "";
+    private String outputResourceRoot = "";
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
@@ -145,7 +145,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
                     .getOutput()
                     .getResourcesDir(),
-                outputResourceParent
+                outputResourceRoot
             ),
             REST_TEST_PREFIX
         );
@@ -173,7 +173,7 @@ public class CopyRestTestsTask extends DefaultTask {
                     c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
                     // this ends up as the same dir as outputDir
                     c.into(
-                        new File(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()), outputResourceParent)
+                        new File(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()), outputResourceRoot)
                     );
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
@@ -234,8 +234,8 @@ public class CopyRestTestsTask extends DefaultTask {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 
-    public void setOutputResourceParent(String outputResourceParent) {
-        this.outputResourceParent = outputResourceParent;
+    public void setOutputResourceRoot(String outputResourceRoot) {
+        this.outputResourceRoot = outputResourceRoot;
     }
 
     @Internal

@@ -152,7 +152,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                task.setOutputResourceParent(TEST_INTERMEDIATE_DIR_NAME);
+                task.setOutputResourceRoot(TEST_INTERMEDIATE_DIR_NAME);
                 task.onlyIf(t -> isEnabled(project));
             });
 
@@ -163,6 +163,13 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.dependsOn(copyCompatYamlTestTask);
                 task.dependsOn(yamlCompatTestSourceSet.getProcessResourcesTaskName());
                 task.setInputResourceParent(TEST_INTERMEDIATE_DIR_NAME);
+                File resourceDir = yamlCompatTestSourceSet.getOutput().getResourcesDir();
+                File intermediateDir = new File(resourceDir, TEST_INTERMEDIATE_DIR_NAME);
+                task.setInput(project.files(new File(intermediateDir,RELATIVE_TEST_PATH.toString())));
+
+
+
+
                 task.onlyIf(t -> isEnabled(project));
             });
 

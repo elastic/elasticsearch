@@ -32,6 +32,7 @@ import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.Input;
@@ -68,6 +69,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
     );
 
     private SourceSet sourceSet;
+    private FileCollection input;
+    private File output;
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
     private final PatternFilterable testPatternSet;
@@ -100,16 +103,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     @SkipWhenEmpty
     @InputFiles
     public FileTree getTestFiles() {
-        return getProject().files(
-            new File(
-                new File(
-                    sourceSet                        .getOutput()
-                        .getResourcesDir(),
-                    inputResourceParent
-                ),
-                REST_TEST_PREFIX
-            )
-        ).getAsFileTree().matching(testPatternSet);
+        return input.getAsFileTree().matching(testPatternSet);
     }
 
     @TaskAction
@@ -135,6 +129,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     public void setSourceSet(SourceSet sourceSet) {
         this.sourceSet = sourceSet;
+    }
+
+    public void setInput(FileCollection input) {
+        this.input = input;
+    }
+
+    public void setOutput(File output) {
+        this.output = output;
     }
 
     public void setInputResourceParent(String inputResourceParent) {

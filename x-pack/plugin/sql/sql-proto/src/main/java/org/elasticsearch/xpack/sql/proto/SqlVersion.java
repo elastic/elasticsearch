@@ -162,4 +162,11 @@ public class SqlVersion implements Comparable<SqlVersion>{
         /* only client's of version 7.7.0 and later are supported as backwards compatible */
         return V_7_7_0.compareTo(version) <= 0;
     }
+
+    public static boolean supportsDateNanos(SqlVersion version) {
+        if (version == null) {
+            return true;
+        }
+        return DATE_NANOS_SUPPORT_VERSION.compareTo(version) <= 0;
+    }
 }

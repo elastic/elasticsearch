@@ -82,24 +82,25 @@ public final class StringUtils {
 
     private StringUtils() {}
 
+    // This method doesn't support compatibility with older JDBC drivers
     public static String toString(Object value) {
-        return toString(value, true);
+        return toString(value, null);
     }
 
-    public static String toString(Object value, boolean supportsNanos) {
+    public static String toString(Object value, SqlVersion sqlVersion) {
         if (value == null) {
             return "null";
         }
 
         if (value instanceof ZonedDateTime) {
-            if (supportsNanos) {
+            if (SqlVersion.supportsDateNanos(sqlVersion)) {
                 return ((ZonedDateTime) value).format(ISO_DATETIME_WITH_NANOS);
             } else {
                 return ((ZonedDateTime) value).format(ISO_DATETIME_WITH_MILLIS);
             }
         }
         if (value instanceof OffsetTime) {
-            if (supportsNanos) {
+            if (SqlVersion.supportsDateNanos(sqlVersion)) {
                 return ((OffsetTime) value).format(ISO_TIME_WITH_NANOS);
             } else {
                 return ((OffsetTime) value).format(ISO_TIME_WITH_MILLIS);

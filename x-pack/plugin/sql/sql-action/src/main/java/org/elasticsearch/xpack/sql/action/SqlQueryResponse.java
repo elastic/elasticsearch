@@ -28,7 +28,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.fromId;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 
@@ -216,10 +215,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         if (value instanceof ZonedDateTime) {
             ZonedDateTime zdt = (ZonedDateTime) value;
             // use the ISO format
-            if (mode == JDBC && isClientCompatible(sqlVersion) && DATE_NANOS_SUPPORT_VERSION.compareTo(sqlVersion) > 0) {
-                builder.value(StringUtils.toString(zdt, false));
+            if (mode == JDBC && isClientCompatible(sqlVersion)) {
+                builder.value(StringUtils.toString(zdt, sqlVersion));
             } else {
-                builder.value(StringUtils.toString(zdt, true));
+                builder.value(StringUtils.toString(zdt));
             }
         } else if (mode == CLI && value != null && value.getClass().getSuperclass().getSimpleName().equals(INTERVAL_CLASS_NAME)) {
             // use the SQL format for intervals when sending back the response for CLI

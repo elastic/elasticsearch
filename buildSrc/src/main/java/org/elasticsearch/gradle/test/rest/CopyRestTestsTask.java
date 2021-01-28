@@ -32,7 +32,6 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
@@ -58,7 +57,7 @@ public class CopyRestTestsTask extends DefaultTask {
     private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
-    private SourceSet outputSourceSet;
+    private File outputResourceDir;
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
     private FileCollection additionalConfig;
@@ -125,7 +124,7 @@ public class CopyRestTestsTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(outputSourceSet.getOutput().getResourcesDir(), REST_TEST_PREFIX);
+        return new File(outputResourceDir, REST_TEST_PREFIX);
     }
 
     @TaskAction
@@ -148,7 +147,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 );
                 fileSystemOperations.copy(c -> {
                     c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
-                    c.into(Objects.requireNonNull(outputSourceSet.getOutput().getResourcesDir()));
+                    c.into(Objects.requireNonNull(outputResourceDir));
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
@@ -173,8 +172,8 @@ public class CopyRestTestsTask extends DefaultTask {
         }
     }
 
-    public void setOutputSourceSet(SourceSet outputSourceSet) {
-        this.outputSourceSet = outputSourceSet;
+    public void setOutputResourceDir(File outputResourceDir) {
+        this.outputResourceDir = outputResourceDir;
     }
 
     public void setCoreConfig(FileCollection coreConfig) {

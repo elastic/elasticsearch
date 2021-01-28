@@ -1144,7 +1144,7 @@ public final class NodeEnvironment  implements Closeable {
 
 
     private void assertEnvIsLocked() {
-        if (!closed.get() && locks != null) {
+        if (closed.get() == false && locks != null) {
             for (Lock lock : locks) {
                 try {
                     lock.ensureValid();

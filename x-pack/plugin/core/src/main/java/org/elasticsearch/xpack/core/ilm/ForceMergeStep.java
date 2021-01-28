@@ -26,6 +26,11 @@ public class ForceMergeStep extends AsyncActionStep {
         this.maxNumSegments = maxNumSegments;
     }
 
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
     public int getMaxNumSegments() {
         return maxNumSegments;
     }

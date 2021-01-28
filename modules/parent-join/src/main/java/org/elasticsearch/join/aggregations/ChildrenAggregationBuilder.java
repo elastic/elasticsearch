@@ -74,7 +74,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

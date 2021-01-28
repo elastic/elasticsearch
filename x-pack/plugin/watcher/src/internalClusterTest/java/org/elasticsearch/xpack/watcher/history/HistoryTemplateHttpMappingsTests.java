@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure that the mapping for the watch_record are correct
@@ -88,14 +89,14 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
+        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(searchSource()
                 .aggregation(terms("input_result_path").field("result.input.http.request.path"))
                 .aggregation(terms("input_result_host").field("result.input.http.request.host"))
                 .aggregation(terms("webhook_path").field("result.actions.webhook.request.path")))
                 .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 

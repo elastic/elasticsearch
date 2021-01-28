@@ -5,14 +5,21 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class PreProcessingTests<T extends PreProcessor> extends AbstractSerializingTestCase<T> {
@@ -30,6 +37,18 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
     }
 
     @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        return new NamedWriteableRegistry(entries);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+    }
+
+    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> !field.isEmpty();
     }
@@ -39,6 +58,22 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
         assertions.forEach((fieldName, matcher) ->
             assertThat(fieldValues.get(fieldName), matcher)
         );
+    }
+
+    public void testInputOutputFieldOrderConsistency() throws IOException {
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertFieldConsistency)
+            .assertToXContentEquivalence(false)
+            .test();
+    }
+
+    private void assertFieldConsistency(T lft, T rgt) {
+        assertThat(lft.inputFields(), equalTo(rgt.inputFields()));
+        assertThat(lft.outputFields(), equalTo(rgt.outputFields()));
     }
 
     public void testWithMissingField() {

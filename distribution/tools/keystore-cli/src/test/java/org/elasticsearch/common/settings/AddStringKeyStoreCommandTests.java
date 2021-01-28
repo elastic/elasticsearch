@@ -73,6 +73,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingPromptCreateWithoutPasswordWhenPrompted() throws Exception {
+        assumeFalse("Cannot create unprotected keystore on FIPS JVM", inFipsJvm());
         terminal.addTextInput("y");
         terminal.addSecretInput("bar");
         execute("foo");
@@ -80,6 +81,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingPromptCreateWithoutPasswordWithoutPromptIfForced() throws Exception {
+        assumeFalse("Cannot create unprotected keystore on FIPS JVM", inFipsJvm());
         terminal.addSecretInput("bar");
         execute("-f", "foo");
         assertSecureString("foo", "bar", "");
@@ -251,7 +253,9 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testSpecialCharacterInName() throws Exception {
-        createKeystore("");
+        String password = randomAlphaOfLengthBetween(14, 24);
+        createKeystore(password);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("value");
         final String key = randomAlphaOfLength(4) + '@' + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));
@@ -260,6 +264,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {
+        assumeFalse("Cannot create unprotected keystores in FIPS mode", inFipsJvm());
         String password = "";
         createKeystore(password, "foo", "bar");
         terminal.addTextInput("");

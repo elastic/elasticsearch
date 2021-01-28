@@ -41,6 +41,16 @@ import java.util.function.Function;
  */
 final class S3ClientSettings {
 
+    static {
+        // Make sure repository plugin class is loaded before this class is used to trigger static initializer for that class which applies
+        // necessary Jackson workaround
+        try {
+            Class.forName("org.elasticsearch.repositories.s3.S3RepositoryPlugin");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     // prefix for s3 client settings
     private static final String PREFIX = "s3.client.";
 

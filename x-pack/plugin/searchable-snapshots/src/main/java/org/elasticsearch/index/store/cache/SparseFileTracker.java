@@ -37,20 +37,67 @@ public class SparseFileTracker {
 
     private final long length;
 
+    /**
+     * Number of bytes that were initially present in the case where the sparse file tracker was initialized with some completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
+     */
+    private final long initialLength;
+
+    /**
+     * Creates a new empty {@link SparseFileTracker}
+     *
+     * @param description a description for the sparse file tracker
+     * @param length      the length of the file tracked by the sparse file tracker
+     */
     public SparseFileTracker(String description, long length) {
+        this(description, length, Collections.emptySortedSet());
+    }
+
+    /**
+     * Creates a {@link SparseFileTracker} with some ranges already present
+     *
+     * @param description a description for the sparse file tracker
+     * @param length      the length of the file tracked by the sparse file tracker
+     * @param ranges      the set of ranges to be considered present
+     */
+    public SparseFileTracker(String description, long length, SortedSet<Tuple<Long, Long>> ranges) {
         this.description = description;
         this.length = length;
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
         }
+        long initialLength = 0;
+        if (ranges.isEmpty() == false) {
+            synchronized (mutex) {
+                Range previous = null;
+                for (Tuple<Long, Long> next : ranges) {
+                    final Range range = new Range(next.v1(), next.v2(), null);
+                    if (range.end <= range.start) {
+                        throw new IllegalArgumentException("Range " + range + " cannot be empty");
+                    }
+                    if (length < range.end) {
+                        throw new IllegalArgumentException("Range " + range + " is exceeding maximum length [" + length + ']');
+                    }
+                    if (previous != null && range.start <= previous.end) {
+                        throw new IllegalArgumentException("Range " + range + " is overlapping a previous range " + previous);
+                    }
+                    final boolean added = this.ranges.add(range);
+                    assert added : range + " already exist in " + this.ranges;
+                    previous = range;
+                    initialLength += range.end - range.start;
+                }
+                assert invariant();
+            }
+        }
+        this.initialLength = initialLength;
     }
 
     public long getLength() {
         return length;
     }
 
-    public List<Tuple<Long, Long>> getCompletedRanges() {
-        List<Tuple<Long, Long>> completedRanges = null;
+    public SortedSet<Tuple<Long, Long>> getCompletedRanges() {
+        SortedSet<Tuple<Long, Long>> completedRanges = null;
         synchronized (mutex) {
             assert invariant();
             for (Range range : ranges) {
@@ -58,12 +105,21 @@ public class SparseFileTracker {
                     continue;
                 }
                 if (completedRanges == null) {
-                    completedRanges = new ArrayList<>();
+                    completedRanges = new TreeSet<>(Comparator.comparingLong(Tuple::v1));
                 }
                 completedRanges.add(Tuple.tuple(range.start, range.end));
             }
         }
-        return completedRanges == null ? Collections.emptyList() : completedRanges;
+        return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
+    }
+
+    /**
+     * Returns the number of bytes that were initially present in the case where the sparse file tracker was initialized with some
+     * completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
+     */
+    public long getInitialLength() {
+        return initialLength;
     }
 
     /**
@@ -201,13 +257,13 @@ public class SparseFileTracker {
             case 1:
                 final Range requiredRange = requiredRanges.get(0);
                 requiredRange.completionListener.addListener(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     Math.min(requiredRange.completionListener.end, subRange.v2())
                 );
                 break;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     requiredRanges.size()
                 );
                 requiredRanges.forEach(
@@ -290,13 +346,13 @@ public class SparseFileTracker {
             case 1:
                 final Range pendingRange = pendingRanges.get(0);
                 pendingRange.completionListener.addListener(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     Math.min(pendingRange.completionListener.end, end)
                 );
                 return true;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     pendingRanges.size()
                 );
                 pendingRanges.forEach(

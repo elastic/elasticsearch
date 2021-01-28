@@ -3,7 +3,7 @@
 === OpenID Connect Prepare Authentication API
 
 Creates an oAuth 2.0 authentication request as a URL string based on the
-configuration of the respective OpenID Connect authentication realm in {es}. 
+configuration of the respective OpenID Connect authentication realm in {es}.
 
 [[security-api-oidc-prepare-authentication-request]]
 ==== {api-request-title}
@@ -16,13 +16,13 @@ configuration of the respective OpenID Connect authentication realm in {es}.
 [[security-api-oidc-prepare-authentication-desc]]
 ==== {api-description-title}
 
-The response of this API is a URL pointing to the Authorization Endpoint of the 
-configured OpenID Connect Provider and can be used to redirect the browser of 
+The response of this API is a URL pointing to the Authorization Endpoint of the
+configured OpenID Connect Provider and can be used to redirect the browser of
 the user in order to continue the authentication process.
 
 {es} exposes all the necessary OpenID Connect related functionality via the
 OpenID Connect APIs. These APIs are used internally by {kib} in order to provide
-OpenID Connect based authentication, but can also be used by other, custom web 
+OpenID Connect based authentication, but can also be used by other, custom web
 applications or other clients. See also
 <<security-api-oidc-authenticate,OpenID Connect authenticate API>>
 and <<security-api-oidc-logout,OpenID Connect logout API>>.
@@ -81,7 +81,8 @@ the Authentication Request, as HTTP GET parameters:
 {
   "redirect" : "http://127.0.0.1:8080/c2id-login?scope=openid&response_type=id_token&redirect_uri=https%3A%2F%2Fmy.fantastic.rp%2Fcb&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I&nonce=WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM&client_id=elasticsearch-rp",
   "state" : "4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
-  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM"
+  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM",
+  "realm" : "oidc1"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I/\$\{body.state\}/]
@@ -109,7 +110,8 @@ the Authentication Request, as HTTP GET parameters:
 {
   "redirect" : "http://127.0.0.1:8080/c2id-login?scope=openid&response_type=id_token&redirect_uri=https%3A%2F%2Fmy.fantastic.rp%2Fcb&state=lGYK0EcSLjqH6pkT5EVZjC6eIW5YCGgywj2sxROO&nonce=zOBXLJGUooRrbLbQk5YCcyC8AXw3iloynvluYhZ5&client_id=elasticsearch-rp",
   "state" : "lGYK0EcSLjqH6pkT5EVZjC6eIW5YCGgywj2sxROO",
-  "nonce" : "zOBXLJGUooRrbLbQk5YCcyC8AXw3iloynvluYhZ5"
+  "nonce" : "zOBXLJGUooRrbLbQk5YCcyC8AXw3iloynvluYhZ5",
+  "realm" : "oidc1"
 }
 --------------------------------------------------
 
@@ -134,7 +136,8 @@ the Authentication Request, as HTTP GET parameters:
 {
   "redirect" : "http://127.0.0.1:8080/c2id-login?login_hint=this_is_an_opaque_string&scope=openid&response_type=id_token&redirect_uri=https%3A%2F%2Fmy.fantastic.rp%2Fcb&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I&nonce=WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM&client_id=elasticsearch-rp",
   "state" : "4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
-  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM"
+  "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM",
+  "realm" : "oidc1"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I/\$\{body.state\}/]

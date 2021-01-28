@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -36,7 +37,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -49,7 +49,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
             "_type", value -> {
-                deprecationLogger.deprecate("conditional-processor__type",
+                deprecationLogger.deprecate(DeprecationCategory.INDICES, "conditional-processor__type",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });
@@ -103,8 +103,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             final long startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
             processor.execute(ingestDocument, (result, e) -> {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-                metric.postIngest(ingestTimeInMillis);
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
                 if (e != null) {
                     metric.ingestFailed();
                     handler.accept(null, e);

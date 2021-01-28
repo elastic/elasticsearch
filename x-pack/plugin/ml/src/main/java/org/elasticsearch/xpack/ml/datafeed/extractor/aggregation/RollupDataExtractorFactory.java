@@ -75,7 +75,8 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             Intervals.alignToFloor(end, histogramInterval),
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
             datafeedConfig.getHeaders(),
-            datafeedConfig.getIndicesOptions());
+            datafeedConfig.getIndicesOptions(),
+            datafeedConfig.getRuntimeMappings());
         return new RollupDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
 
@@ -86,6 +87,13 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                               NamedXContentRegistry xContentRegistry,
                               DatafeedTimingStatsReporter timingStatsReporter,
                               ActionListener<DataExtractorFactory> listener) {
+
+        if (datafeed.getRuntimeMappings().isEmpty() == false) {
+            // TODO Rollup V2 will support runtime fields
+            listener.onFailure(new IllegalArgumentException("The datafeed has runtime_mappings defined, "
+                + "runtime fields are not supported in rollup searches"));
+            return;
+        }
 
         final AggregationBuilder datafeedHistogramAggregation = getHistogramAggregation(
             datafeed.getParsedAggregations(xContentRegistry).getAggregatorFactories());

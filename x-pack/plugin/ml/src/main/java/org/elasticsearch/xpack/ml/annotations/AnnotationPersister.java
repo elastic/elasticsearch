@@ -16,7 +16,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -35,20 +34,19 @@ public class AnnotationPersister {
     private static final int DEFAULT_BULK_LIMIT = 10_000;
 
     private final ResultsPersisterService resultsPersisterService;
-    private final AbstractAuditor<?> auditor;
+
     /**
      * Execute bulk requests when they reach this size
      */
     private final int bulkLimit;
 
-    public AnnotationPersister(ResultsPersisterService resultsPersisterService, AbstractAuditor<?> auditor) {
-        this(resultsPersisterService, auditor, DEFAULT_BULK_LIMIT);
+    public AnnotationPersister(ResultsPersisterService resultsPersisterService) {
+        this(resultsPersisterService, DEFAULT_BULK_LIMIT);
     }
 
     // For testing
-    AnnotationPersister(ResultsPersisterService resultsPersisterService, AbstractAuditor<?> auditor, int bulkLimit) {
+    AnnotationPersister(ResultsPersisterService resultsPersisterService, int bulkLimit) {
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
-        this.auditor = Objects.requireNonNull(auditor);
         this.bulkLimit = bulkLimit;
     }
 
@@ -114,7 +112,8 @@ public class AnnotationPersister {
             logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequest.numberOfActions());
             BulkResponse bulkResponse =
                 resultsPersisterService.bulkIndexWithRetry(
-                    bulkRequest, jobId, shouldRetry, msg -> auditor.warning(jobId, "Bulk indexing of annotations failed " + msg));
+                    bulkRequest, jobId, shouldRetry,
+                    retryMessage -> logger.debug("[{}] Bulk indexing of annotations failed {}", jobId, retryMessage));
             bulkRequest = new BulkRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             return bulkResponse;
         }

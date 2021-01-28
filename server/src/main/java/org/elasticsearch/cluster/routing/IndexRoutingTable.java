@@ -79,11 +79,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         this.shards = shards;
         List<ShardRouting> allActiveShards = new ArrayList<>();
         for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
-            for (ShardRouting shardRouting : cursor.value) {
-                if (shardRouting.active()) {
-                    allActiveShards.add(shardRouting);
-                }
-            }
+            allActiveShards.addAll(cursor.value.activeShards());
         }
         this.allActiveShards = Collections.unmodifiableList(allActiveShards);
     }
@@ -238,7 +234,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     }
 
     /**
-     * Calculates the number of primary shards in the routing table the are in
+     * Calculates the number of primary shards in the routing tables that are in
      * {@link ShardRoutingState#UNASSIGNED} state.
      */
     public int primaryShardsUnassigned() {

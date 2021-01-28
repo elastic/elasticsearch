@@ -96,12 +96,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -377,52 +371,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Explicitly force merge one or more indices into a the number of segments.
      */
     ForceMergeRequestBuilder prepareForceMerge(String... indices);
-
-    /**
-     * Explicitly upgrade one or more indices
-     *
-     * @param request The upgrade request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    ActionFuture<UpgradeResponse> upgrade(UpgradeRequest request);
-
-    /**
-     * Explicitly upgrade one or more indices
-     *
-     * @param request  The upgrade request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    void upgrade(UpgradeRequest request, ActionListener<UpgradeResponse> listener);
-
-    /**
-     *  Explicitly upgrade one or more indices
-     */
-    UpgradeStatusRequestBuilder prepareUpgradeStatus(String... indices);
-
-    /**
-     * Check upgrade status of one or more indices
-     *
-     * @param request The upgrade request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    ActionFuture<UpgradeStatusResponse> upgradeStatus(UpgradeStatusRequest request);
-
-    /**
-     * Check upgrade status of one or more indices
-     *
-     * @param request  The upgrade request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    void upgradeStatus(UpgradeStatusRequest request, ActionListener<UpgradeStatusResponse> listener);
-
-    /**
-     * Check upgrade status of one or more indices
-     */
-    UpgradeRequestBuilder prepareUpgrade(String... indices);
 
     /**
      * Get the complete mappings of one or more types

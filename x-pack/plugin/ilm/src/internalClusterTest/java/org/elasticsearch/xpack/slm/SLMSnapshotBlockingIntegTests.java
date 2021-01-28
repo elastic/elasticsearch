@@ -246,7 +246,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Assert that the history document has been written for taking the snapshot and deleting it
             assertBusy(() -> {
-                SearchResponse resp = client().prepareSearch("slm-history*")
+                SearchResponse resp = client().prepareSearch(".slm-history*")
                     .setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)).get();
                 logger.info("--> checking history written for {}, got: {}",
                     completedSnapshotName, Strings.arrayToCommaDelimitedString(resp.getHits().getHits()));
@@ -272,7 +272,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         final SnapshotState expectedUnsuccessfulState = partialSuccess ? SnapshotState.PARTIAL : SnapshotState.FAILED;
         // Setup
         createAndPopulateIndex(indexName);
-        createRepository(REPO, "mock");
+        createRepositoryNoVerify(REPO, "mock");
 
         createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));

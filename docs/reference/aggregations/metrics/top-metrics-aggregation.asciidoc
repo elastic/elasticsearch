@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-metrics-top-metrics]]
-=== Top Metrics Aggregation
+=== Top metrics aggregation
+++++
+<titleabbrev>Top metrics</titleabbrev>
+++++
 
 The `top_metrics` aggregation selects metrics from the document with the largest or smallest "sort"
 value. For example, this gets the value of the `m` field on the document with the largest value of `s`:

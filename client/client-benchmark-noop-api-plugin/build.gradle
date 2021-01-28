@@ -28,10 +28,8 @@ esplugin {
 }
 
 // Not published so no need to assemble
-assemble.enabled = false
-
-tasks.named("dependencyLicenses").configure { it.enabled = false }
-dependenciesInfo.enabled = false
-
+tasks.named("assemble").configure { enabled = false }
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
 // no unit tests
-test.enabled = false
+tasks.named("test").configure { enabled = false }

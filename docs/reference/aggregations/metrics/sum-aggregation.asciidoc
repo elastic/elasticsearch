@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-sum-aggregation]]
-=== Sum Aggregation
+=== Sum aggregation
+++++
+<titleabbrev>Sum</titleabbrev>
+++++
 
 A `single-value` metrics aggregation that sums up numeric values that are extracted from the aggregated documents.
 These values can be extracted either from specific numeric or <<histogram,histogram>> fields in the documents,

@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.security.rest.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
@@ -68,8 +66,6 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
     protected Exception checkFeatureAvailable(RestRequest request) {
         if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return new IllegalStateException("Security is not enabled but a security rest handler is registered");
-        } else if (licenseState.checkFeature(XPackLicenseState.Feature.SECURITY) == false) {
-            return LicenseUtils.newComplianceException(XPackField.SECURITY);
         } else if (licenseState.isSecurityEnabled() == false) {
             return new ElasticsearchException("Security must be explicitly enabled when using a [" +
                     licenseState.getOperationMode().description() + "] license. " +

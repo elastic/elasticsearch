@@ -36,7 +36,6 @@ public final class DataTypes {
     // string
     public static final DataType KEYWORD          = new DataType("keyword",           Integer.MAX_VALUE, false, false, true);
     public static final DataType TEXT             = new DataType("text",              Integer.MAX_VALUE, false, false, false);
-    public static final DataType CONSTANT_KEYWORD = new DataType("constant_keyword",  Integer.MAX_VALUE, false, false, true);
     // date
     public static final DataType DATETIME         = new DataType("DATETIME", "date",  Long.BYTES,        false, false, true);
     // ip
@@ -62,7 +61,6 @@ public final class DataTypes {
             SCALED_FLOAT,
             KEYWORD,
             TEXT,
-            CONSTANT_KEYWORD,
             DATETIME,
             IP,
             BINARY,
@@ -134,7 +132,7 @@ public final class DataTypes {
     }
 
     public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT || t == CONSTANT_KEYWORD;
+        return t == KEYWORD || t == TEXT;
     }
 
     public static boolean isPrimitive(DataType t) {

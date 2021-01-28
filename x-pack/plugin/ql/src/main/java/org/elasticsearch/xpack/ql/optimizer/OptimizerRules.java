@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
@@ -38,9 +39,15 @@ import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
@@ -1008,32 +1015,111 @@ public final class OptimizerRules {
             for (int i = 0; i < bcs.size(); i ++) {
                 BinaryComparison bc = bcs.get(i);
 
-                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
-                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
-                    if (comp != null) {
-                        if (comp >= 0) {
-                            if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
-                                bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
-                            } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
-                            return true;
-                        } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
-                    } // else: non-comparable, nop
-                } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
-                    comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
-                    if (comp != null) {
-                        if (comp <= 0) {
-                            if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
-                                bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
-                            } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
-                            return true;
-                        } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop
-                    } // else: non-comparable, nop
-                } // else: other non-relevant type
+                if (notEquals.left().semanticEquals(bc.left())) {
+                    if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                        comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                        if (comp != null) {
+                            if (comp >= 0) {
+                                if (comp == 0 && bc instanceof LessThanOrEqual) { // a != 2 AND a <= 2 -> a < 2
+                                    bcs.set(i, new LessThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                } // else : comp > 0 (a != 2 AND a </<= 1 -> a </<= 1), or == 0 && bc i.of "<" (a != 2 AND a < 2 -> a < 2)
+                                return true;
+                            } // else: comp < 0 : a != 2 AND a </<= 3 -> nop
+                        } // else: non-comparable, nop
+                    } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                        comp = bc.right().foldable() ? BinaryComparison.compare(neqVal, bc.right().fold()) : null;
+                        if (comp != null) {
+                            if (comp <= 0) {
+                                if (comp == 0 && bc instanceof GreaterThanOrEqual) { // a != 2 AND a >= 2 -> a > 2
+                                    bcs.set(i, new GreaterThan(bc.source(), bc.left(), bc.right(), bc.zoneId()));
+                                } // else: comp < 0 (a != 2 AND a >/>= 3 -> a >/>= 3), or == 0 && bc i.of ">" (a != 2 AND a > 2 -> a > 2)
+                                return true;
+                            } // else: comp > 0 : a != 2 AND a >/>= 1 -> nop
+                        } // else: non-comparable, nop
+                    } // else: other non-relevant type
+                }
             }
 
             return false;
         }
 
+    }
+
+    /**
+     * Combine disjunctions on the same field into an In expression.
+     * This rule looks for both simple equalities:
+     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
+     * and combinations of In
+     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
+     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
+     *
+     * This rule does NOT check for type compatibility as that phase has been
+     * already be verified in the analyzer.
+     */
+    public static class CombineDisjunctionsToIn extends OptimizerExpressionRule {
+        public CombineDisjunctionsToIn() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Or) {
+                // look only at equals and In
+                List<Expression> exps = splitOr(e);
+
+                Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
+                ZoneId zoneId = null;
+                List<Expression> ors = new LinkedList<>();
+
+                for (Expression exp : exps) {
+                    if (exp instanceof Equals) {
+                        Equals eq = (Equals) exp;
+                        // consider only equals against foldables
+                        if (eq.right().foldable()) {
+                            found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
+                        } else {
+                            ors.add(exp);
+                        }
+                        if (zoneId == null) {
+                            zoneId = eq.zoneId();
+                        }
+                    }
+                    else if (exp instanceof In) {
+                        In in = (In) exp;
+                        found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+                        if (zoneId == null) {
+                            zoneId = in.zoneId();
+                        }
+                    } else {
+                        ors.add(exp);
+                    }
+                }
+
+                if (found.isEmpty() == false) {
+                    // combine equals alongside the existing ors
+                    final ZoneId finalZoneId = zoneId;
+                    found.forEach((k, v) -> {
+                        ors.add(v.size() == 1
+                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
+                            : createIn(k, new ArrayList<>(v), finalZoneId));
+                    });
+
+                    Expression combineOr = combineOr(ors);
+                    // check the result semantically since the result might different in order
+                    // but be actually the same which can trigger a loop
+                    // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
+                    if (e.semanticEquals(combineOr) == false) {
+                        e = combineOr;
+                    }
+                }
+            }
+
+            return e;
+        }
+
+        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
+            return new In(key.source(), key, values, zoneId);
+        }
     }
 
     public static class ReplaceSurrogateFunction extends OptimizerExpressionRule {
@@ -1146,14 +1232,14 @@ public final class OptimizerRules {
             super(TransformDirection.DOWN);
         }
 
+        @Override
         protected Expression rule(Expression e) {
             if (e instanceof RegexMatch) {
                 RegexMatch<?> regexMatch = (RegexMatch<?>) e;
                 StringPattern pattern = regexMatch.pattern();
                 if (pattern.matchesAll()) {
                     e = new IsNotNull(e.source(), regexMatch.field());
-                }
-                else if (pattern.isExactMatch()) {
+                } else if (pattern.isExactMatch()) {
                     Literal literal = new Literal(regexMatch.source(), regexMatch.pattern().asString(), DataTypes.KEYWORD);
                     e = new Equals(e.source(), regexMatch.field(), literal);
                 }
@@ -1195,7 +1281,7 @@ public final class OptimizerRules {
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
             return direction == TransformDirection.DOWN ?
-                plan.transformDown(this::rule, typeToken()) : plan.transformUp(this::rule, typeToken());
+                plan.transformDown(typeToken(), this::rule) : plan.transformUp(typeToken(), this::rule);
         }
 
         @Override

@@ -56,6 +56,26 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         IpFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new IpFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v instanceof String) {
+                    try {
+                        emit((String) v);
+                    } catch (Exception e) {
+                        // ignore parsing exceptions
+                    }
+                }
+            }
+        }
+    };
+
     private BytesRef[] values = new BytesRef[1];
     private int count;
 
@@ -97,7 +117,10 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
-        values[count++] = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
+        BytesRef encoded = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
+        // encode the address and increment the count on separate lines, to ensure that
+        // we don't increment if the address is badly formed
+        values[count++] = encoded;
     }
 
     public static class Emit {

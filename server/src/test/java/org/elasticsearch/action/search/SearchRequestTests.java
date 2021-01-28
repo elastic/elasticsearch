@@ -52,21 +52,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             return request;
         }
         //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
-        return SearchRequest.subSearchRequest(request, request.indices(),
+        return SearchRequest.subSearchRequest(new TaskId("node", 1), request, request.indices(),
             randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong(), randomBoolean());
     }
 
     public void testWithLocalReduction() {
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
+        final TaskId taskId = new TaskId("n", 1);
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(
+            taskId, null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request, null, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request,
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request, null, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request,
             new String[]{null}, "", 0, randomBoolean()));
-        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(request,
+        expectThrows(NullPointerException.class, () -> SearchRequest.subSearchRequest(taskId, request,
             Strings.EMPTY_ARRAY, null, 0, randomBoolean()));
-        expectThrows(IllegalArgumentException.class, () -> SearchRequest.subSearchRequest(request,
+        expectThrows(IllegalArgumentException.class, () -> SearchRequest.subSearchRequest(taskId, request,
             Strings.EMPTY_ARRAY, "", -1, randomBoolean()));
-        SearchRequest searchRequest = SearchRequest.subSearchRequest(request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
+        SearchRequest searchRequest = SearchRequest.subSearchRequest(taskId, request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
         assertNull(searchRequest.validate());
     }
 
@@ -81,6 +83,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
+        if (version.before(Version.V_7_11_0) && searchRequest.source() != null) {
+            // Versions before 7.11.0 don't support runtime mappings
+            searchRequest.source().runtimeMappings(emptyMap());
+        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
@@ -174,6 +180,31 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
+            // Minimum compatible shard node version with ccs_minimize_roundtrips
+            SearchRequest searchRequest;
+            boolean isMinCompatibleShardVersion = randomBoolean();
+            if (isMinCompatibleShardVersion) {
+                searchRequest = new SearchRequest(VersionUtils.randomVersion(random()));
+            } else {
+                searchRequest = new SearchRequest();
+            }
+
+            boolean shouldSetCcsMinimizeRoundtrips = randomBoolean();
+            if (shouldSetCcsMinimizeRoundtrips) {
+                searchRequest.setCcsMinimizeRoundtrips(true);
+            }
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+
+            if (isMinCompatibleShardVersion && shouldSetCcsMinimizeRoundtrips) {
+                assertNotNull(validationErrors);
+                assertEquals(1, validationErrors.validationErrors().size());
+                assertEquals("[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
+                    validationErrors.validationErrors().get(0));
+            } else {
+                assertNull(validationErrors);
+            }
         }
     }
 

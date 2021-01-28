@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -28,14 +28,14 @@ import java.util.Map;
 
 public abstract class NumericMetricsAggregator extends MetricsAggregator {
 
-    private NumericMetricsAggregator(String name, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+    private NumericMetricsAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         super(name, context, parent, metadata);
     }
 
     public abstract static class SingleValue extends NumericMetricsAggregator {
 
-        protected SingleValue(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        protected SingleValue(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
             super(name, context, parent, metadata);
         }
 
@@ -53,7 +53,7 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
 
     public abstract static class MultiValue extends NumericMetricsAggregator {
 
-        protected MultiValue(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        protected MultiValue(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
             super(name, context, parent, metadata);
         }
 

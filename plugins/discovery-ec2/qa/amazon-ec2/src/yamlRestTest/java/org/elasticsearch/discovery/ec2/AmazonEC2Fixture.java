@@ -124,7 +124,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 + "\"AccessKeyId\": \"" + "ec2_integration_test_access_key" + "\","
                 + "\"Expiration\": \"" + DateUtils.formatISO8601Date(expiration) + "\","
                 + "\"RoleArn\": \"" + "test" + "\","
-                + "\"SecretAccessKey\": \"" + "test" + "\","
+                + "\"SecretAccessKey\": \"" + "ec2_integration_test_secret_key" + "\","
                 + "\"Token\": \"" + "test" + "\""
                 + "}";
 

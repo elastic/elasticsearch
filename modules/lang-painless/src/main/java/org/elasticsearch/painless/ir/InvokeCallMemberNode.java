@@ -20,72 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessClassBinding;
-import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
 public class InvokeCallMemberNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private LocalFunction localFunction;
-    private PainlessMethod importedMethod;
-    private PainlessClassBinding classBinding;
-    private int classBindingOffset;
-    private PainlessInstanceBinding instanceBinding;
-    private String bindingName;
-
-    public void setLocalFunction(LocalFunction localFunction) {
-        this.localFunction = localFunction;
-    }
-
-    public LocalFunction getLocalFunction() {
-        return localFunction;
-    }
-
-    public void setImportedMethod(PainlessMethod importedMethod) {
-        this.importedMethod = importedMethod;
-    }
-
-    public PainlessMethod getImportedMethod() {
-        return importedMethod;
-    }
-
-    public void setClassBinding(PainlessClassBinding classBinding) {
-        this.classBinding = classBinding;
-    }
-
-    public PainlessClassBinding getClassBinding() {
-        return classBinding;
-    }
-
-    public void setClassBindingOffset(int classBindingOffset) {
-        this.classBindingOffset = classBindingOffset;
-    }
-
-    public int getClassBindingOffset() {
-        return classBindingOffset;
-    }
-
-    public void setInstanceBinding(PainlessInstanceBinding instanceBinding) {
-        this.instanceBinding = instanceBinding;
-    }
-
-    public PainlessInstanceBinding getInstanceBinding() {
-        return instanceBinding;
-    }
-
-    public void setBindingName(String bindingName) {
-        this.bindingName = bindingName;
-    }
-
-    public String getBindingName() {
-        return bindingName;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

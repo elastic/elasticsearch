@@ -28,7 +28,6 @@ import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.predicates.IntObjectPredicate;
 import com.carrotsearch.hppc.predicates.IntPredicate;
 import com.carrotsearch.hppc.procedures.IntObjectProcedure;
@@ -149,23 +148,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
      * Returns a direct iterator over the keys.
      */
     public Iterator<VType> valuesIt() {
-        final Iterator<ObjectCursor<VType>> iterator = map.values().iterator();
-        return new Iterator<VType>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public VType next() {
-                return iterator.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
+        return ImmutableOpenMap.iterator(map.values());
     }
 
     @Override
@@ -234,7 +217,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         public ImmutableOpenIntMap<VType> build() {
             IntObjectHashMap<VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            return new ImmutableOpenIntMap<>(map);
+            return map.isEmpty() ? of() : new ImmutableOpenIntMap<>(map);
         }
 
         /**

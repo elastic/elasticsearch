@@ -27,8 +27,8 @@ String s3Bucket = System.getenv("amazon_s3_bucket")
 String s3BasePath = System.getenv("amazon_s3_base_path")
 
 if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
-  s3AccessKey = 'access_key'
-  s3SecretKey = 'secret_key'
+  s3AccessKey = 's3_test_access_key'
+  s3SecretKey = 's3_test_secret_key'
   s3Bucket = 'bucket'
   s3BasePath = null
   useFixture = true
@@ -42,12 +42,12 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 's3-fixture-other')
 }
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'test.s3.bucket', s3Bucket
   nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 

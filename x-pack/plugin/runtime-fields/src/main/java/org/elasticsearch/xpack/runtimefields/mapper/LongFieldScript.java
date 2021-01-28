@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -33,6 +34,24 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
     public interface LeafFactory {
         LongFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new LongFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                try {
+                    emit(NumberFieldMapper.NumberType.objectToLong(v, true));
+                } catch (Exception e) {
+                    // ignore;
+                }
+            }
+        }
+    };
 
     public LongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);

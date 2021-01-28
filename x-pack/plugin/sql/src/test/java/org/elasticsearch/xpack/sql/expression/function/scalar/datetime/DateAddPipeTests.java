@@ -61,19 +61,19 @@ public class DateAddPipeTests extends AbstractNodeTestCase<DateAddPipe, Pipe> {
                 b1.second(),
                 b1.third(),
                 b1.zoneId());
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
 
         DateAddPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
         newB = new DateAddPipe(
-                newLoc,
-                b2.expression(),
-                b2.first(),
-                b2.second(),
-                b2.third(),
-                b2.zoneId());
+            newLoc,
+            b2.expression(),
+            b2.first(),
+            b2.second(),
+            b2.third(),
+            b2.zoneId());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override

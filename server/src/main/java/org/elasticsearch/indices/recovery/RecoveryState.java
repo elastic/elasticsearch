@@ -795,7 +795,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class Index extends Timer implements ToXContentFragment, Writeable {
-        private final RecoveryFilesDetails fileDetails;
+        protected final RecoveryFilesDetails fileDetails;
 
         public static final long UNKNOWN = -1L;
 

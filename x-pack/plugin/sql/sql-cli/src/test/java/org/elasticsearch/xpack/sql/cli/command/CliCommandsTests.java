@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.cli.SqlCliTestCase;
 import org.elasticsearch.xpack.sql.cli.TestTerminal;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class CliCommandsTests extends ESTestCase {
+public class CliCommandsTests extends SqlCliTestCase {
 
     public void testCliCommands() {
         TestTerminal testTerminal = new TestTerminal();

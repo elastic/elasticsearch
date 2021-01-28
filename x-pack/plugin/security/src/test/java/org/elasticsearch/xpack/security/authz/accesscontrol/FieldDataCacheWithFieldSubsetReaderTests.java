@@ -58,8 +58,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         String name = "_field";
         indexFieldDataCache = new DummyAccountingFieldDataCache();
         sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(indexFieldDataCache,  name,
-            CoreValuesSourceType.BYTES, circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(name, CoreValuesSourceType.BYTES, indexFieldDataCache,
+            CoreValuesSourceType.KEYWORD, circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(name, CoreValuesSourceType.KEYWORD, indexFieldDataCache,
                 circuitBreakerService, TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);

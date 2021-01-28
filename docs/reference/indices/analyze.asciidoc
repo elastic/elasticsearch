@@ -81,7 +81,7 @@ Array of character filters used to preprocess characters before the tokenizer.
 See <<analysis-charfilters>> for a list of character filters.
 
 `explain`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the response includes token attributes and additional details.
 Defaults to `false`.
 experimental:[The format of the additional detail information is labelled as experimental in Lucene and it may change in the future.]

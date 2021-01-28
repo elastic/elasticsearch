@@ -81,7 +81,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
- * their tests can use them. Most methods run in the listener thread pool because the are meant to be fast and don't expect to block.
+ * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>,
     Action extends TransportAction<Request, ?>> {
@@ -122,7 +122,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
-        if (!task.isWorker()) {
+        if (task.isWorker() == false) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
         this.worker = task.getWorkerState();

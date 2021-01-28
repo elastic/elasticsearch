@@ -99,7 +99,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     public long maxOrd() {
-        return hll.runLens.size() >>> hll.precision();
+        return hll.maxOrd();
     }
 
     @Override
@@ -222,6 +222,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             this.runLens =  bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
             this.iterator = new HyperLogLogIterator(this, precision, m);
+        }
+
+        public long maxOrd() {
+            return runLens.size() >>> precision();
         }
 
         @Override
@@ -359,6 +363,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
 
         private int recomputedSize(long bucketOrd) {
+            if (bucketOrd >= hll.maxOrd()) {
+                return 0;
+            }
             int size = 0;
             for (int i = 0; i <= mask; ++i) {
                 final int v = get(bucketOrd, i);

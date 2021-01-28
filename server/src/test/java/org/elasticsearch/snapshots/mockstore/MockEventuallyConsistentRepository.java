@@ -29,6 +29,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -378,9 +379,9 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
-                final boolean failIfAlreadyExists) throws IOException {
-                writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
+                                        final boolean failIfAlreadyExists) throws IOException {
+                writeBlob(blobName, bytes, failIfAlreadyExists);
             }
         }
     }

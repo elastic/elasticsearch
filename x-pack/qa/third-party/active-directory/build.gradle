@@ -9,20 +9,20 @@ dependencies {
 testFixtures.useFixture ":x-pack:test:smb-fixture"
 
 // add test resources from security, so tests can use example certs
-processTestResources {
+tasks.named("processTestResources").configure {
   duplicatesStrategy = DuplicatesStrategy.INCLUDE
   from(project(xpackModule('core')).sourceSets.test.resources.srcDirs)
   from(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
 }
 
 // we have to repeat these patterns because the security test resources are effectively in the src of this p
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
   exclude '**/*.p12'
   exclude '**/*.der'
 }
 
-test {
+tasks.named("test").configure {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -31,4 +31,3 @@ test {
   include '**/*IT.class'
   include '**/*Tests.class'
 }
-

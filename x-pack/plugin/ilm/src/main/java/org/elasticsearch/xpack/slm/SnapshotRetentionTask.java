@@ -286,7 +286,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         final AtomicInteger deleted = new AtomicInteger(0);
         final AtomicInteger failed = new AtomicInteger(0);
         final GroupedActionListener<Void> allDeletesListener =
-                new GroupedActionListener<>(ActionListener.runAfter(ActionListener.map(listener, v -> null),
+                new GroupedActionListener<>(ActionListener.runAfter(listener.map(v -> null),
                         () -> {
                             TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
                             logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
@@ -303,7 +303,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                  List<SnapshotInfo> snapshots, ActionListener<Void> listener) {
 
         final ActionListener<Void> allDeletesListener =
-                new GroupedActionListener<>(ActionListener.map(listener, v -> null), snapshots.size());
+                new GroupedActionListener<>(listener.map(v -> null), snapshots.size());
         for (SnapshotInfo info : snapshots) {
             if (runningDeletions.add(info.snapshotId()) == false) {
                 // snapshot is already being deleted, no need to start another delete job for it

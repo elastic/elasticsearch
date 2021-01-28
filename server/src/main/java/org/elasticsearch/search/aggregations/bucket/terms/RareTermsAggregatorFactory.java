@@ -34,20 +34,21 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    private final RareTermsAggregatorSupplier aggregatorSupplier;
     private final IncludeExclude includeExclude;
     private final int maxDocCount;
     private final double precision;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             RareTermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
@@ -69,7 +70,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     int maxDocCount,
                                     double precision,
                                     IncludeExclude includeExclude,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
@@ -114,7 +115,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     int maxDocCount,
                                     double precision,
                                     IncludeExclude includeExclude,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
@@ -153,19 +154,20 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                       IncludeExclude includeExclude,
                                       AggregationContext context,
                                       AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                      Map<String, Object> metadata, int maxDocCount, double precision) throws IOException {
+                                      Map<String, Object> metadata, int maxDocCount, double precision,
+                                      RareTermsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
         this.maxDocCount = maxDocCount;
         this.precision = precision;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedRareTerms(name, metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -175,13 +177,11 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(RareTermsAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,
@@ -190,7 +190,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 maxDocCount,
                 precision,
                 includeExclude,
-                searchContext,
+                context,
                 parent,
                 cardinality,
                 metadata
@@ -208,7 +208,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 ValuesSource valuesSource,
                 DocValueFormat format,
                 IncludeExclude includeExclude,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata,
                 long maxDocCount,
@@ -259,7 +259,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             ValuesSource valuesSource,
             DocValueFormat format,
             IncludeExclude includeExclude,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata,
             long maxDocCount,

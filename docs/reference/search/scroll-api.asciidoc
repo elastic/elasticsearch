@@ -110,7 +110,7 @@ IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
 the <<scroll-api-scroll-id-param,`scroll_id` request body parameter>>.
 
 `rest_total_hits_as_int`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the API response's `hit.total` property is returned as an integer.
 If `false`, the API response's `hit.total` property is returned as an object.
 Defaults to `false`.

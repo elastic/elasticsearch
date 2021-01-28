@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -58,7 +59,11 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(otherNode, new ClusterName(""), Version.CURRENT));
+                    handleResponse(requestId, new TransportService.HandshakeResponse(
+                            Version.CURRENT,
+                            Build.CURRENT.hash(),
+                            otherNode,
+                            new ClusterName("")));
                 }
             }
         };
@@ -89,11 +94,6 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                         @Override
                         public void handleException(TransportException exp) {
                             fail("should not be called");
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override
@@ -139,11 +139,6 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                         @Override
                         public void handleException(TransportException exp) {
                             fail("should not be called");
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
                         }
 
                         @Override

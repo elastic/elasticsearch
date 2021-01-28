@@ -48,6 +48,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 
 /** A dummy repository for testing which just needs restore overridden */
 public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
@@ -92,8 +93,15 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
-        listener.onResponse(new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.singletonMap(indexId, emptyList()), ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY));
+        listener.onResponse(new RepositoryData(
+                MISSING_UUID,
+                EMPTY_REPO_GEN,
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.singletonMap(indexId, emptyList()),
+                ShardGenerations.EMPTY,
+                IndexMetaDataGenerations.EMPTY));
     }
 
     @Override

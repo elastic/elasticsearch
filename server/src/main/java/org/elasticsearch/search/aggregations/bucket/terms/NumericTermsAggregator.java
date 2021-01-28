@@ -41,8 +41,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.LongFil
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.BucketOrdsEnum;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForLong;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,7 +69,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         DocValueFormat format,
         BucketOrder order,
         BucketCountThresholds bucketCountThresholds,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         SubAggCollectionMode subAggCollectMode,
         IncludeExclude.LongFilter longFilter,
@@ -77,7 +77,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         Map<String, Object> metadata
     )
         throws IOException {
-        super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
+        super(name, factories, context, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;

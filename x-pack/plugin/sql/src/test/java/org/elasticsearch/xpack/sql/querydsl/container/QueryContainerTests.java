@@ -9,7 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
@@ -24,8 +23,6 @@ import java.time.ZoneId;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -86,11 +83,8 @@ public class QueryContainerTests extends ESTestCase {
         Attribute fourth = new FieldAttribute(Source.EMPTY, "fourth", esField);
         Alias firstAliased = new Alias(Source.EMPTY, "firstAliased", first);
 
-        Map<Attribute, Expression> aliasesMap = new LinkedHashMap<>();
-        aliasesMap.put(firstAliased.toAttribute(), first);
-
         QueryContainer queryContainer = new QueryContainer()
-            .withAliases(new AttributeMap<>(aliasesMap))
+            .withAliases(new AttributeMap<>(firstAliased.toAttribute(), first))
             .addColumn(third)
             .addColumn(first)
             .addColumn(fourth)

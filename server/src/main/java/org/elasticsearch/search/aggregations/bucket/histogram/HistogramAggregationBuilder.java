@@ -194,12 +194,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     /** Get the current minimum bound that is set on this builder. */
     public double minBound() {
-        return extendedBounds.getMin();
+        return DoubleBounds.getEffectiveMin(extendedBounds);
     }
 
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
-        return extendedBounds.getMax();
+        return DoubleBounds.getEffectiveMax(extendedBounds);
     }
 
     protected DoubleBounds extendedBounds() {
@@ -359,6 +359,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        HistogramAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         if (hardBounds != null && extendedBounds != null) {
             if (hardBounds.getMax() != null && extendedBounds.getMax() != null && hardBounds.getMax() < extendedBounds.getMax()) {
@@ -370,8 +372,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
                     hardBounds + "], extended bounds: [" + extendedBounds.getMin() + "--" + extendedBounds.getMax() + "]");
             }
         }
+
         return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, extendedBounds,
-            hardBounds, context, parent, subFactoriesBuilder, metadata);
+            hardBounds, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -50,7 +49,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -58,6 +57,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.emptyMap;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -163,10 +164,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        QueryShardContext context = new QueryShardContext(0,
+        SearchExecutionContext context = new SearchExecutionContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
+                null, null, null, null, null, null,
+                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
@@ -185,10 +186,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() throws IOException {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        QueryShardContext context = new QueryShardContext(0,
+        SearchExecutionContext context = new SearchExecutionContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-                null, null, () -> nowInMillis, null, null, () -> true, null);
+                null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+                null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
@@ -230,9 +231,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
-        QueryShardContext context = new QueryShardContext(0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null);
+        SearchExecutionContext context = new SearchExecutionContext(0, 0, indexSettings,
+            null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";

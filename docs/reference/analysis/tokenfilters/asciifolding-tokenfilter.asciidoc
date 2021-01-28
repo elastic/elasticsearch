@@ -100,7 +100,7 @@ PUT /asciifold_example
 ==== Configurable parameters
 
 `preserve_original`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, emit both original tokens and folded tokens.
 Defaults to `false`.
 

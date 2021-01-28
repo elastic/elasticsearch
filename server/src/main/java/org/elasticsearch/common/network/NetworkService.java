@@ -196,19 +196,19 @@ public final class NetworkService {
     }
 
     /** resolves a single host specification */
-    private InetAddress[] resolveInternal(String host) throws IOException {
+    private InetAddress[] resolveInternal(final String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
-            host = host.substring(1, host.length() - 1);
+            final String interfaceSpec = host.substring(1, host.length() - 1);
             // next check any registered custom resolvers if any
             if (customNameResolvers != null) {
                 for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveIfPossible(host);
+                    InetAddress addresses[] = customNameResolver.resolveIfPossible(interfaceSpec);
                     if (addresses != null) {
                         return addresses;
                     }
                 }
             }
-            switch (host) {
+            switch (interfaceSpec) {
                 case "local":
                     return NetworkUtils.getLoopbackAddresses();
                 case "local:ipv4":
@@ -229,14 +229,14 @@ public final class NetworkService {
                     return NetworkUtils.filterIPV6(NetworkUtils.getGlobalAddresses());
                 default:
                     /* an interface specification */
-                    if (host.endsWith(":ipv4")) {
-                        host = host.substring(0, host.length() - 5);
-                        return NetworkUtils.filterIPV4(NetworkUtils.getAddressesForInterface(host));
-                    } else if (host.endsWith(":ipv6")) {
-                        host = host.substring(0, host.length() - 5);
-                        return NetworkUtils.filterIPV6(NetworkUtils.getAddressesForInterface(host));
+                    if (interfaceSpec.endsWith(":ipv4")) {
+                        return NetworkUtils.filterIPV4(NetworkUtils.getAddressesForInterface(host, ":ipv4",
+                                interfaceSpec.substring(0, interfaceSpec.length() - 5)));
+                    } else if (interfaceSpec.endsWith(":ipv6")) {
+                        return NetworkUtils.filterIPV6(NetworkUtils.getAddressesForInterface(host, ":ipv6",
+                                interfaceSpec.substring(0, interfaceSpec.length() - 5)));
                     } else {
-                        return NetworkUtils.getAddressesForInterface(host);
+                        return NetworkUtils.getAddressesForInterface(host, "", interfaceSpec);
                     }
             }
         }

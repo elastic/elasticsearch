@@ -4,9 +4,14 @@
 <titleabbrev>Geo-distance</titleabbrev>
 ++++
 
-Filters documents that include only hits that exists within a specific
-distance from a geo point. Assuming the following mapping and indexed
-document:
+Matches <<geo-point,`geo_point`>> and <<geo-shape,`geo_shape`>> values within
+a given distance of a geopoint.
+
+[discrete]
+[[geo-distance-query-ex]]
+==== Example
+
+Assume the following the following documents are indexed:
 
 [source,console]
 --------------------------------------------------
@@ -34,12 +39,37 @@ PUT /my_locations/_doc/1
     }
   }
 }
+
+PUT /my_geoshapes
+{
+  "mappings": {
+    "properties": {
+      "pin": {
+        "properties": {
+          "location": {
+            "type": "geo_shape"
+          }
+        }
+      }
+    }
+  }
+}
+
+PUT /my_geoshapes/_doc/1
+{
+  "pin": {
+    "location": {
+      "type" : "polygon",
+      "coordinates" : [[[13.0 ,51.5], [15.0, 51.5], [15.0, 54.0], [13.0, 54.0], [13.0 ,51.5]]]
+    }
+  }
+}
 --------------------------------------------------
 // TESTSETUP
 
 
-Then the following simple query can be executed with a `geo_distance`
-filter:
+Use a `geo_distance` filter to match `geo_point` values within a specified
+distance of another geopoint:
 
 [source,console]
 --------------------------------------------------
@@ -63,6 +93,57 @@ GET /my_locations/_search
   }
 }
 --------------------------------------------------
+
+Use the same filter to match `geo_shape` values within the given distance:
+
+[source,console]
+--------------------------------------------------
+GET my_geoshapes/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "200km",
+          "pin.location": {
+            "lat": 40,
+            "lon": -70
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+To match both `geo_point` and `geo_shape` values, search both indices:
+
+[source,console]
+--------------------------------------------------
+GET my_locations,my_geoshapes/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "200km",
+          "pin.location": {
+            "lat": 40,
+            "lon": -70
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
 
 [discrete]
 ==== Accepted Formats
@@ -197,12 +278,6 @@ The following are options allowed on the filter:
     Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or
     longitude, set to `COERCE` to additionally try and infer correct
     coordinates (default is `STRICT`).
-
-[discrete]
-==== geo_point Type
-
-The filter *requires* the `geo_point` type to be set on the relevant
-field.
 
 [discrete]
 ==== Multi Location Per Document

@@ -29,7 +29,6 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 /**
  * Represents a gt assert section:
@@ -40,7 +39,7 @@ public class GreaterThanAssertion extends Assertion {
     public static GreaterThanAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
         Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
-        if (! (stringObjectTuple.v2() instanceof Comparable) ) {
+        if ((stringObjectTuple.v2() instanceof Comparable) == false) {
             throw new IllegalArgumentException("gt section can only be used with objects that support natural ordering, found "
                     + stringObjectTuple.v2().getClass().getSimpleName());
         }
@@ -60,10 +59,13 @@ public class GreaterThanAssertion extends Assertion {
                 actualValue, instanceOf(Comparable.class));
         assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
                 expectedValue, instanceOf(Comparable.class));
+        if (actualValue instanceof Long && expectedValue instanceof Integer) {
+            expectedValue = (long) (int) expectedValue;
+        }
         try {
             assertThat(errorMessage(), (Comparable) actualValue, greaterThan((Comparable) expectedValue));
         } catch (ClassCastException e) {
-            fail("cast error while checking (" + errorMessage() + "): " + e);
+            throw new AssertionError("cast error while checking (" + errorMessage() + "): " + e, e);
         }
     }
 

@@ -52,7 +52,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     private final Map<String, Map<String, FieldCapabilities>> responseMap;
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
-    FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
+    public FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
         this(indices, responseMap, Collections.emptyList());
     }
 

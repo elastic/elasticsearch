@@ -21,6 +21,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -114,9 +115,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         if (sourceFiles == null) {
             throw new IllegalArgumentException("unknown source [" + source + "]");
         }
-        final List<SnapshotFiles> updated = new ArrayList<>(shardSnapshots);
-        updated.add(sourceFiles.withSnapshotName(target));
-        return new BlobStoreIndexShardSnapshots(updated);
+        return new BlobStoreIndexShardSnapshots(CollectionUtils.appendToCopy(shardSnapshots, sourceFiles.withSnapshotName(target)));
     }
 
     /**

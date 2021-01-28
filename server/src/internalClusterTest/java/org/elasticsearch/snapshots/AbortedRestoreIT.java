@@ -24,16 +24,13 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -85,7 +82,8 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        final ThreadPool.Info snapshotThreadPoolInfo = threadPool(dataNode).info(ThreadPool.Names.SNAPSHOT);
+        final ThreadPool.Info snapshotThreadPoolInfo =
+                internalCluster().getInstance(ThreadPool.class, dataNode).info(ThreadPool.Names.SNAPSHOT);
         assertThat(snapshotThreadPoolInfo.getMax(), greaterThan(0));
 
         logger.info("--> waiting for snapshot thread [max={}] pool to be full", snapshotThreadPoolInfo.getMax());
@@ -107,17 +105,6 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void waitForMaxActiveSnapshotThreads(final String node, final Matcher<Integer> matcher) throws Exception {
-        assertBusy(() -> assertThat(threadPoolStats(node, ThreadPool.Names.SNAPSHOT).getActive(), matcher), 30L, TimeUnit.SECONDS);
-    }
-
-    private static ThreadPool threadPool(final String node) {
-        return internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().threadPool();
-    }
-
-    private static ThreadPoolStats.Stats threadPoolStats(final String node, final String threadPoolName) {
-        return StreamSupport.stream(threadPool(node).stats().spliterator(), false)
-            .filter(threadPool -> threadPool.getName().equals(threadPoolName))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Failed to find thread pool " + threadPoolName));
+        assertBusy(() -> assertThat(snapshotThreadPoolStats(node).getActive(), matcher), 30L, TimeUnit.SECONDS);
     }
 }

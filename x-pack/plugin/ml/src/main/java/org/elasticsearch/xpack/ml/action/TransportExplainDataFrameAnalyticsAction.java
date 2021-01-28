@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
@@ -16,7 +18,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -29,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.xpack.core.ml.dataframe.explain.MemoryEstimation;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -43,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
+import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.DEFAULT_MODEL_MEMORY_LIMIT;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 /**
@@ -52,6 +58,7 @@ import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSe
 public class TransportExplainDataFrameAnalyticsAction
     extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, ExplainDataFrameAnalyticsAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportExplainDataFrameAnalyticsAction.class);
     private final XPackLicenseState licenseState;
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -59,6 +66,7 @@ public class TransportExplainDataFrameAnalyticsAction
     private final MemoryUsageEstimationProcessManager processManager;
     private final SecurityContext securityContext;
     private final ThreadPool threadPool;
+    private volatile int numLazyMLNodes;
 
     @Inject
     public TransportExplainDataFrameAnalyticsAction(TransportService transportService,
@@ -76,9 +84,15 @@ public class TransportExplainDataFrameAnalyticsAction
         this.licenseState = licenseState;
         this.processManager = Objects.requireNonNull(processManager);
         this.threadPool = threadPool;
+        this.numLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) :
             null;
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setNumLazyMLNodes);
+    }
+
+    private void setNumLazyMLNodes(int value) {
+        this.numLazyMLNodes = value;
     }
 
     @Override
@@ -92,13 +106,15 @@ public class TransportExplainDataFrameAnalyticsAction
 
         DiscoveryNode localNode = clusterService.localNode();
         if (MachineLearning.isMlNode(localNode)) {
-            explain(task, request, listener);
+            explain(task, request, true, listener);
         } else {
-            redirectToMlNode(request, listener);
+            redirectToMlNode(task, request, listener);
         }
     }
 
-    private void explain(Task task, PutDataFrameAnalyticsAction.Request request,
+    private void explain(Task task,
+                         PutDataFrameAnalyticsAction.Request request,
+                         boolean shouldEstimateMemory,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
 
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
@@ -106,7 +122,7 @@ public class TransportExplainDataFrameAnalyticsAction
         );
         if (licenseState.isSecurityEnabled()) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
-                // Set the auth headers (preferring the secondary headers) to the caller's. 
+                // Set the auth headers (preferring the secondary headers) to the caller's.
                 // Regardless if the config was previously stored or not.
                 DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(request.getConfig())
                     .setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()))
@@ -114,7 +130,7 @@ public class TransportExplainDataFrameAnalyticsAction
                 extractedFieldsDetectorFactory.createFromSource(
                     config,
                     ActionListener.wrap(
-                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, listener),
+                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, shouldEstimateMemory, listener),
                         listener::onFailure
                     )
                 );
@@ -123,7 +139,7 @@ public class TransportExplainDataFrameAnalyticsAction
             extractedFieldsDetectorFactory.createFromSource(
                 request.getConfig(),
                 ActionListener.wrap(
-                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, listener),
+                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, shouldEstimateMemory, listener),
                     listener::onFailure
                 )
             );
@@ -131,9 +147,31 @@ public class TransportExplainDataFrameAnalyticsAction
 
     }
 
-    private void explain(Task task, DataFrameAnalyticsConfig config, ExtractedFieldsDetector extractedFieldsDetector,
+    private void explain(Task task,
+                         DataFrameAnalyticsConfig config,
+                         ExtractedFieldsDetector extractedFieldsDetector,
+                         boolean shouldEstimateMemory,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+        if (fieldExtraction.v1().getAllFields().isEmpty()) {
+            listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(
+                fieldExtraction.v2(),
+                new MemoryEstimation(ByteSizeValue.ZERO, ByteSizeValue.ZERO)
+            ));
+            return;
+        }
+        if (shouldEstimateMemory == false) {
+            String warning =  Messages.getMessage(
+                Messages.DATA_FRAME_ANALYTICS_AUDIT_UNABLE_TO_ESTIMATE_MEMORY_USAGE,
+                config.getModelMemoryLimit());
+            logger.warn("[{}] {}", config.getId(), warning);
+            HeaderWarning.addWarning(warning);
+            listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(
+                fieldExtraction.v2(),
+                new MemoryEstimation(DEFAULT_MODEL_MEMORY_LIMIT, DEFAULT_MODEL_MEMORY_LIMIT)
+            ));
+            return;
+        }
 
         ActionListener<MemoryEstimation> memoryEstimationListener = ActionListener.wrap(
             memoryEstimation -> listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation)),
@@ -170,12 +208,15 @@ public class TransportExplainDataFrameAnalyticsAction
     /**
      * Finds the first available ML node in the cluster and redirects the request to this node.
      */
-    private void redirectToMlNode(PutDataFrameAnalyticsAction.Request request,
+    private void redirectToMlNode(Task task,
+                                  PutDataFrameAnalyticsAction.Request request,
                                   ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         Optional<DiscoveryNode> node = findMlNode(clusterService.state());
         if (node.isPresent()) {
             transportService.sendRequest(node.get(), actionName, request,
                 new ActionListenerResponseHandler<>(listener, ExplainDataFrameAnalyticsAction.Response::new));
+        } else if (numLazyMLNodes > 0 || request.getConfig().isAllowLazyStart()) {
+            explain(task, request, false, listener);
         } else {
             listener.onFailure(ExceptionsHelper.badRequestException("No ML node to run on"));
         }

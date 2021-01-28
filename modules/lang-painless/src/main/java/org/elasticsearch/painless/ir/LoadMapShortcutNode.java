@@ -20,24 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class LoadMapShortcutNode extends ExpressionNode {
 
-    /* ---- begin node data ---- */
-
-    private PainlessMethod getter;
-
-    public void setGetter(PainlessMethod getter) {
-        this.getter = getter;
-    }
-
-    public PainlessMethod getGetter() {
-        return getter;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

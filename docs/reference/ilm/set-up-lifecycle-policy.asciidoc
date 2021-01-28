@@ -7,7 +7,7 @@ For {ilm-init} to manage an index, a valid policy
 must be specified in the `index.lifecycle.name` index setting. 
 
 To configure a lifecycle policy for <<index-rollover, rolling indices>>, 
-you create the policy and add it to the <<indices-templates, index template>>.
+you create the policy and add it to the <<index-templates, index template>>.
 
 To use a policy to manage an index that doesn't roll over,
 you can specify a lifecycle policy when you create the index,

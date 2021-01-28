@@ -65,7 +65,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentParser xContentParser = xContentType.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
-        assertEquals(xContentType, parsed.getXContentType());
+        assertEquals(xContentType.canonical(), parsed.getXContentType());
         assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
         assertEquals("1", parsed.getId());
     }

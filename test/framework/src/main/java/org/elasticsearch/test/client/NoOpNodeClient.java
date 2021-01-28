@@ -35,6 +35,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -71,7 +72,8 @@ public class NoOpNodeClient extends NodeClient {
 
     @Override
     public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
-                           RemoteClusterService remoteClusterService, NamedWriteableRegistry namedWriteableRegistry) {
+                           Transport.Connection localConnection, RemoteClusterService remoteClusterService,
+                           NamedWriteableRegistry namedWriteableRegistry) {
         throw new UnsupportedOperationException("cannot initialize " + this.getClass().getSimpleName());
     }
 

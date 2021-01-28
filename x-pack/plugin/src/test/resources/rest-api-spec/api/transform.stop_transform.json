@@ -5,6 +5,10 @@
       "description":"Stops one or more transforms."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

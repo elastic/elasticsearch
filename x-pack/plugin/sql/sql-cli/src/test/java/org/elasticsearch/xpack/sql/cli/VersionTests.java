@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 
-public class VersionTests extends ESTestCase {
+public class VersionTests extends SqlCliTestCase {
     public void testVersionIsCurrent() {
         /* This test will only work properly in gradle because in gradle we run the tests
          * using the jar. */

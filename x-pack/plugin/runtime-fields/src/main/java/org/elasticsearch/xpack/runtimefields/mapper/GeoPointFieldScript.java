@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -41,6 +44,43 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     public interface LeafFactory {
         GeoPointFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new GeoPointFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        private final GeoPoint scratch = new GeoPoint();
+
+        @Override
+        public void execute() {
+            try {
+                Object value = XContentMapValues.extractValue(field, leafSearchLookup.source().source());
+                if (value instanceof List<?>) {
+                    List<?> values = (List<?>) value;
+                    if (values.size() > 0 && values.get(0) instanceof Number) {
+                        parsePoint(value);
+                    } else {
+                        for (Object point : values) {
+                            parsePoint(point);
+                        }
+                    }
+                } else {
+                    parsePoint(value);
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        private void parsePoint(Object point) {
+            if (point != null) {
+                GeoUtils.parseGeoPoint(point, scratch, true);
+                emit(scratch.lat(), scratch.lon());
+            }
+        }
+    };
 
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);

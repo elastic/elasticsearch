@@ -120,15 +120,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])",
-                new ClusterStateUpdateTask(request.waitForEvents()) {
+                new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return currentState;
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return taskTimeout;
                     }
 
                     @Override

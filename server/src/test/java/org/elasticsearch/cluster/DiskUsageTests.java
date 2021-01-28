@@ -120,7 +120,7 @@ public class DiskUsageTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<ShardRouting, String> routingToPath = ImmutableOpenMap.builder();
         ClusterState state = ClusterState.builder(new ClusterName("blarg")).version(0).build();
-        InternalClusterInfoService.buildShardLevelInfo(logger, stats, shardSizes, routingToPath, new HashMap<>());
+        InternalClusterInfoService.buildShardLevelInfo(stats, shardSizes, routingToPath, new HashMap<>());
         assertEquals(2, shardSizes.size());
         assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
         assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_1)));
@@ -158,7 +158,7 @@ public class DiskUsageTests extends ESTestCase {
                 new NodeStats(new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null, new FsInfo(0, null, node3FSInfo), null,null,null,null,null, null, null, null)
         );
-        InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
+        InternalClusterInfoService.fillDiskUsagePerNode(nodeStats, newLeastAvaiableUsages, newMostAvaiableUsages);
         DiskUsage leastNode_1 = newLeastAvaiableUsages.get("node_1");
         DiskUsage mostNode_1 = newMostAvaiableUsages.get("node_1");
         assertDiskUsage(mostNode_1, node1FSInfo[2]);
@@ -199,7 +199,7 @@ public class DiskUsageTests extends ESTestCase {
                 new NodeStats(new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT), 0,
                         null,null,null,null,null, new FsInfo(0, null, node3FSInfo), null,null,null,null,null, null, null, null)
         );
-        InternalClusterInfoService.fillDiskUsagePerNode(logger, nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
+        InternalClusterInfoService.fillDiskUsagePerNode(nodeStats, newLeastAvailableUsages, newMostAvailableUsages);
         DiskUsage leastNode_1 = newLeastAvailableUsages.get("node_1");
         DiskUsage mostNode_1 = newMostAvailableUsages.get("node_1");
         assertNull("node1 should have been skipped", leastNode_1);

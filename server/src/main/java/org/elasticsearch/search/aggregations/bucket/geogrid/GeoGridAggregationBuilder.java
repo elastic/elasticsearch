@@ -129,8 +129,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     protected abstract ValuesSourceAggregatorFactory createFactory(
         String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
         GeoBoundingBox geoBoundingBox, AggregationContext context, AggregatorFactory parent,
-        Builder subFactoriesBuilder, Map<String, Object> metadata
-    ) throws IOException;
+        Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException;
 
     public int precision() {
         return precision;
@@ -180,7 +179,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
-                                                       AggregatorFactory parent, Builder subFactoriesBuilder)
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder)
                     throws IOException {
         int shardSize = this.shardSize;
 

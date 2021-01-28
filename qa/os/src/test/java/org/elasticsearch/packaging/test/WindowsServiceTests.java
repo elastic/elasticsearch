@@ -36,6 +36,7 @@ import java.util.Arrays;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -271,10 +272,27 @@ public class WindowsServiceTests extends PackagingTestCase {
         assertThat(result.stdout, containsString("Unknown option \"bogus\""));
     }
 
+    public void test80JavaOptsInEnvVar() throws Exception {
+        sh.getEnv().put("ES_JAVA_OPTS", "-Xmx2g -Xms2g");
+        sh.run(serviceScript + " install");
+        assertCommand(serviceScript + " start");
+        assertStartedAndStop();
+        sh.getEnv().remove("ES_JAVA_OPTS");
+    }
+
+    public void test81JavaOptsInJvmOptions() throws Exception {
+        withCustomConfig(tempConf -> {
+            append(tempConf.resolve("jvm.options"), "-Xmx2g" + System.lineSeparator());
+            append(tempConf.resolve("jvm.options"), "-Xms2g" + System.lineSeparator());
+            sh.run(serviceScript + " install");
+            assertCommand(serviceScript + " start");
+            assertStartedAndStop();
+        });
+    }
+
     // TODO:
     // custom SERVICE_USERNAME/SERVICE_PASSWORD
     // custom SERVICE_LOG_DIR
     // custom LOG_OPTS (looks like it currently conflicts with setting custom log dir)
-    // install and run with java opts
     // install and run java opts Xmx/s (each data size type)
 }

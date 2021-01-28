@@ -71,6 +71,16 @@ public class VerifierTests extends ESTestCase {
         accept("foo where true");
     }
 
+    public void testQueryCondition() {
+        accept("any where bool");
+        assertEquals("1:11: Condition expression needs to be boolean, found [LONG]", error("any where pid"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [DATETIME]", error("any where @timestamp"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where command_line"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [TEXT]", error("any where hostname"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where constant_keyword"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [IP]", error("any where source_address"));
+    }
+
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
     }
@@ -336,6 +346,26 @@ public class VerifierTests extends ESTestCase {
         final IndexResolution idxr = loadIndexResolution("mapping-default.json");
         assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
             error(idxr, "foo where pid : 123"));
+    }
+
+    public void testKeysWithDifferentTypes() throws Exception {
+        assertEquals("1:62: Sequence key [md5] type [keyword] is incompatible with key [pid] type [long]",
+            error(index, "sequence " +
+                "[process where true] by pid " +
+                "[process where true] by md5"));
+    }
+
+    public void testKeysWithDifferentButCompatibleTypes() throws Exception {
+        accept(index, "sequence " +
+                "[process where true] by hostname " +
+                "[process where true] by user_domain");
+    }
+
+    public void testKeysWithSimilarYetDifferentTypes() throws Exception {
+        assertEquals("1:69: Sequence key [opcode] type [long] is incompatible with key [@timestamp] type [date]",
+            error(index, "sequence " +
+                "[process where true] by @timestamp " +
+                "[process where true] by opcode"));
     }
 
 }

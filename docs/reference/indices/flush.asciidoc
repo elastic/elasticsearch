@@ -75,7 +75,7 @@ Defaults to `open`.
 `force`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the request forces a flush
 even if there are no changes to commit to the index.
@@ -93,7 +93,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 `wait_if_ongoing`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the flush operation blocks until execution
 when another flush operation is running.

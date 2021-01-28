@@ -43,7 +43,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -59,7 +59,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     private BufferingNestedLeafBucketCollector bufferingNestedLeafBucketCollector;
 
     NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
-                     SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
+                     AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality,
                      Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
@@ -107,12 +107,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    protected void preGetSubLeafCollectors() throws IOException {
-        processBufferedDocs();
-    }
-
-    @Override
-    protected void doPostCollection() throws IOException {
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
+        super.preGetSubLeafCollectors(ctx);
         processBufferedDocs();
     }
 
@@ -124,6 +120,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        processBufferedDocs();
         return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
             new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }

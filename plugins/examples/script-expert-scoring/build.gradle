@@ -27,5 +27,5 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 

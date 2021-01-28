@@ -64,7 +64,10 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
 
-        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder().setType("deprecation").setConfiguration(configuration).build();
+        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
+            .setDataset("elasticsearch.deprecation")
+            .setConfiguration(configuration)
+            .build();
 
         this.filter = new RateLimitingFilter();
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
@@ -116,13 +119,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      * @return an initialised bulk processor
      */
     private BulkProcessor getBulkProcessor(Client client, Settings settings) {
-        final OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN);
         final BulkProcessor.Listener listener = new DeprecationBulkListener();
 
         // This configuration disables the size count and size thresholds,
         // and instead uses a scheduled flush only. This means that calling
         // processor.add() will not block the calling thread.
-        return BulkProcessor.builder(originSettingClient::bulk, listener)
+        return BulkProcessor.builder(client::bulk, listener)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .setConcurrentRequests(Math.max(2, EsExecutors.allocatedProcessors(settings)))
             .setBulkActions(-1)

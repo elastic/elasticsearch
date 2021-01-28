@@ -55,7 +55,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 == {api-request-body-title}
 
 `allow_lazy_start`::
-(Optional, boolean) 
+(Optional, Boolean) 
 Specifies whether this job can start when there is insufficient {ml} node 
 capacity for it to be immediately assigned to a node. The default is `false`; if
 a {ml} node with capacity to run the job cannot immediately be found, the API

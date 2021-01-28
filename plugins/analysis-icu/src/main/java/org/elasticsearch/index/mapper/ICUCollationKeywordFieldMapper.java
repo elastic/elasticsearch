@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -50,7 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
+public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "icu_collation_keyword";
 
@@ -62,7 +62,6 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         public CollationFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
                                   Collator collator, String nullValue, int ignoreAbove, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
@@ -82,12 +81,12 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -102,7 +101,7 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -124,13 +123,13 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions, QueryShardContext context) {
+                                boolean transpositions, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method,
-                                 boolean caseInsensitive, QueryShardContext context) {
+                                 boolean caseInsensitive, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -138,13 +137,13 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         public Query wildcardQuery(String value,
                                    @Nullable MultiTermQuery.RewriteMethod method,
                                    boolean caseInsensitive,
-                                   QueryShardContext context) {
+                                   SearchExecutionContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                                 MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -186,7 +185,7 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         return (ICUCollationKeywordFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -281,14 +280,14 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ICUCollationKeywordFieldMapper build(BuilderContext context) {
+        public ICUCollationKeywordFieldMapper build(ContentPath contentPath) {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
-            CollationFieldType ft = new CollationFieldType(buildFullName(context), indexed.getValue(),
+            CollationFieldType ft = new CollationFieldType(buildFullName(contentPath), indexed.getValue(),
                 stored.getValue(), hasDocValues.getValue(), collator, nullValue.getValue(), ignoreAbove.getValue(),
                 meta.getValue());
             return new ICUCollationKeywordFieldMapper(name, buildFieldType(), ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(), collator, this);
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), collator, this);
         }
     }
 
@@ -418,7 +417,7 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
                                              MappedFieldType mappedFieldType,
                                              MultiFields multiFields, CopyTo copyTo,
                                              Collator collator, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         assert collator.isFrozen();
         this.fieldType = fieldType;
         this.params = builder.collatorParams();
@@ -441,7 +440,7 @@ public class ICUCollationKeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

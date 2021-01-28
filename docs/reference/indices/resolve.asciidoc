@@ -128,7 +128,7 @@ The API returns the following response:
     {
       "name": "foo",
       "backing_indices": [
-        ".ds-foo-000001"
+        ".ds-foo-2099.03.07-000001"
       ],
       "timestamp_field": "@timestamp"
     }
@@ -136,6 +136,8 @@ The API returns the following response:
 }
 ----
 // TESTRESPONSE[s/remoteCluster1:/remotecluster-/]
+// TESTRESPONSE[s/.ds-foo-2099.03.07-000001/$body.data_streams.0.backing_indices.0/]
+
 <1> All indices matching the supplied names or expressions
 <2> All aliases matching the supplied names or expressions
 <3> All data streams matching the supplied names or expressions

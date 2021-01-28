@@ -385,11 +385,17 @@ public class ValuesSourceConfig {
      */
     @Nullable
     public Function<byte[], Number> getPointReaderOrNull() {
-        MappedFieldType fieldType = fieldType();
-        if (fieldType != null && script() == null && missing() == null) {
-            return fieldType.pointReaderIfPossible();
-        }
-        return null;
+        return alignesWithSearchIndex() ? fieldType().pointReaderIfPossible() : null;
+    }
+
+    /**
+     * Do {@link ValuesSource}s built by this config line up with the search
+     * index of the underlying field? This'll only return true if the fields
+     * is searchable and there aren't missing values or a script to confuse
+     * the ordering.
+     */
+    public boolean alignesWithSearchIndex() {
+        return script() == null && missing() == null && fieldType() != null && fieldType().isSearchable();
     }
 
     /**

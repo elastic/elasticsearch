@@ -106,6 +106,26 @@ tasks.register("generateContextDoc", DefaultTestClustersTask) {
     }.assertNormalExitValue()
   }
 }
+/**********************************************
+ *           Context JSON Generation          *
+ **********************************************/
+testClusters {
+  generateContextApiSpecCluster {
+    testDistribution = 'DEFAULT'
+  }
+}
+
+tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
+  dependsOn sourceSets.doc.runtimeClasspath
+  useCluster testClusters.generateContextApiSpecCluster
+  doFirst {
+    project.javaexec {
+      main = 'org.elasticsearch.painless.ContextApiSpecGenerator'
+      classpath = sourceSets.doc.runtimeClasspath
+      systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
+    }.assertNormalExitValue()
+  }
+}
 
 /**********************************************
  *            Parser regeneration             *

@@ -41,7 +41,7 @@ public class ConcatFunctionPipe extends Pipe {
             return this;
         }
 
-        return replaceChildren(newValues);
+        return replaceChildrenSameSize(newValues);
     }
 
     @Override

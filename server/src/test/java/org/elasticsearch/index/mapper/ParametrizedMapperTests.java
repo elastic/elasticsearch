@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -32,9 +31,10 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -87,7 +87,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         return (TestMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> fixed
             = Parameter.boolParam("fixed", false, m -> toType(m).fixed, true);
@@ -137,9 +137,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        public ParametrizedFieldMapper build(Mapper.BuilderContext context) {
-            return new TestMapper(name(), buildFullName(context),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public FieldMapper build(ContentPath contentPath) {
+            return new TestMapper(name(), buildFullName(contentPath),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -153,7 +153,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public static class TestMapper extends ParametrizedFieldMapper {
+    public static class TestMapper extends FieldMapper {
 
         private final boolean fixed;
         private final boolean fixed2;
@@ -197,7 +197,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static TestMapper fromMapping(String mapping, Version version) {
+    private static TestMapper fromMapping(String mapping, Version version, boolean fromDynamicTemplate) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             Map.of("_standard", Lucene.STANDARD_ANALYZER,
@@ -213,13 +213,20 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, version, () -> null, null, null,
+        }, name -> null, version, () -> null, null, null,
             mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        });
+        }, false);
+        if (fromDynamicTemplate) {
+            pc = pc.createDynamicTemplateFieldContext(pc);
+        }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+            .build(new ContentPath());
+    }
+
+    private static TestMapper fromMapping(String mapping, Version version) {
+        return fromMapping(mapping, version, false);
     }
 
     private static TestMapper fromMapping(String mapping) {
@@ -379,6 +386,26 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertTrue(mapper.fixed2);
         assertWarnings("Parameter [fixed2_old] on mapper [field] is deprecated, use [fixed2]");
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed2\":true,\"required\":\"value\"}}", Strings.toString(mapper));
+    }
+
+    /**
+     * test parsing mapping from dynamic templates, should ignore unknown parameters for bwc and log warning before 8.0.0
+     */
+    public void testBWCunknownParametersfromDynamicTemplates() {
+        String mapping = "{\"type\":\"test_mapper\",\"some_unknown_parameter\":true,\"required\":\"value\"}";
+        TestMapper mapper = fromMapping(mapping, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0), true);
+        assertNotNull(mapper);
+        assertWarnings(
+            "Parameter [some_unknown_parameter] is used in a dynamic template mapping and has no effect on type [test_mapper]. "
+            + "Usage will result in an error in future major versions and should be removed."
+        );
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"required\":\"value\"}}", Strings.toString(mapper));
+
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> fromMapping(mapping, Version.V_8_0_0, true)
+        );
+        assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
     }
 
     public void testAnalyzers() {

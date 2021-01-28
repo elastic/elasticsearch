@@ -6,16 +6,16 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
 import java.util.function.LongConsumer;
 
 /** Sorted numeric doc values for precision 0 */
 class AllCellValues extends ByteTrackingSortingNumericDocValues {
-    private MultiGeoShapeValues geoValues;
+    private GeoShapeValues geoValues;
 
-    protected AllCellValues(MultiGeoShapeValues geoValues, GeoGridTiler tiler, LongConsumer circuitBreakerConsumer) {
+    protected AllCellValues(GeoShapeValues geoValues, GeoGridTiler tiler, LongConsumer circuitBreakerConsumer) {
         super(circuitBreakerConsumer);
         this.geoValues = geoValues;
         resize(1);

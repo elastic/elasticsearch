@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStatus;
@@ -313,6 +314,10 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final int extraClones = randomIntBetween(1, 5);
         final List<ActionFuture<AcknowledgedResponse>> extraCloneFutures = new ArrayList<>(extraClones);
+        final boolean slowInitClones = extraClones > 1 && randomBoolean();
+        if (slowInitClones) {
+            blockMasterOnReadIndexMeta(repoName);
+        }
         for (int i = 0; i < extraClones; i++) {
             extraCloneFutures.add(startClone(repoName, sourceSnapshot, "target-snapshot-" + i, indexBlocked));
         }
@@ -569,6 +574,76 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(blockedSnapshot);
         assertAcked(clone.get());
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
+    }
+
+    public void testStartCloneDuringRunningDelete() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(1, 5));
+        blockMasterOnWriteIndexFile(repoName);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, randomFrom(snapshotNames));
+        waitForBlock(masterName, repoName);
+        awaitNDeletionsInProgress(1);
+
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, "target-snapshot", indexName);
+        logger.info("--> waiting for snapshot clone to be fully initialized");
+        awaitClusterState(state -> {
+            for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
+                if (entry.clones().isEmpty() == false) {
+                    assertEquals(sourceSnapshot, entry.source().getName());
+                    for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> value : entry.clones().values()) {
+                        assertSame(value.value, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
+                    }
+                    return true;
+                }
+            }
+            return  false;
+        });
+        unblockNode(repoName, masterName);
+        assertAcked(deleteFuture.get());
+        assertAcked(cloneFuture.get());
+    }
+
+    public void testManyConcurrentClonesStartOutOfOrder() throws Exception {
+        // large snapshot pool to allow for concurrently finishing clone while another clone is blocked on trying to load SnapshotInfo
+        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "test-idx";
+        createIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+        assertAcked(admin().indices().prepareDelete(testIndex).get());
+
+        final MockRepository repo = getRepositoryOnMaster(repoName);
+        repo.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
+        repo.setBlockOnWriteIndexFile();
+
+        final ActionFuture<AcknowledgedResponse> clone1 = startClone(repoName, sourceSnapshot, "target-snapshot-1", testIndex);
+        // wait for this snapshot to show up in the cluster state
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(masterName, repoName);
+
+        final ActionFuture<AcknowledgedResponse> clone2 = startClone(repoName, sourceSnapshot, "target-snapshot-2", testIndex);
+
+        awaitNumberOfSnapshotsInProgress(2);
+        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .entries().stream().anyMatch(entry -> entry.state().completed()));
+        repo.unblock();
+
+        assertAcked(clone1.get());
+        assertAcked(clone2.get());
     }
 
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(String repoName, String sourceSnapshot, String targetSnapshot,

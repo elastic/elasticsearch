@@ -299,7 +299,7 @@ public class BytesRestResponseTests extends ESTestCase {
 
         final XContentType xContentType = randomFrom(XContentType.values());
 
-        Map<String, String> params = Collections.singletonMap("format", xContentType.format());
+        Map<String, String> params = Collections.singletonMap("format", xContentType.queryParameter());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = detailed ? new DetailedExceptionRestChannel(request) : new SimpleExceptionRestChannel(request);
 

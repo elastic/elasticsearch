@@ -22,7 +22,6 @@ import java.time.ZonedDateTime;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -646,7 +645,6 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals(BOOLEAN, commonType(BOOLEAN, BOOLEAN));
         assertEquals(NULL, commonType(NULL, NULL));
         assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
-        assertEquals(DOUBLE, commonType(DOUBLE, CONSTANT_KEYWORD));
         assertEquals(LONG, commonType(TEXT, LONG));
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
@@ -656,11 +654,6 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         // strings
         assertEquals(TEXT, commonType(TEXT, KEYWORD));
         assertEquals(TEXT, commonType(KEYWORD, TEXT));
-        assertEquals(TEXT, commonType(TEXT, CONSTANT_KEYWORD));
-        assertEquals(TEXT, commonType(CONSTANT_KEYWORD, TEXT));
-        assertEquals(KEYWORD, commonType(KEYWORD, CONSTANT_KEYWORD));
-        assertEquals(KEYWORD, commonType(CONSTANT_KEYWORD, KEYWORD));
-        assertEquals(CONSTANT_KEYWORD, commonType(CONSTANT_KEYWORD, CONSTANT_KEYWORD));
 
         // numeric and intervals
         assertEquals(INTERVAL_YEAR_TO_MONTH, commonType(INTERVAL_YEAR_TO_MONTH, LONG));

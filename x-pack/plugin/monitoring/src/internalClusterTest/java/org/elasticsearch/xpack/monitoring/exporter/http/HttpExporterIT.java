@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitor
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -99,6 +100,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private final boolean watcherAlreadyExists = randomBoolean();
     private final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
     private final String userName = "elasticuser";
+    private final MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
 
     private MockWebServer webServer;
 
@@ -651,7 +653,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 new Exporter.Config("_http", "http", settings, clusterService(), TestUtils.newTestLicenseState());
 
         final Environment env = TestEnvironment.newEnvironment(buildEnvSettings(settings));
-        return new HttpExporter(config, new SSLService(env), new ThreadContext(settings));
+        return new HttpExporter(config, new SSLService(env), new ThreadContext(settings), coordinator);
     }
 
     private void export(final Settings settings, final Collection<MonitoringDoc> docs) throws Exception {

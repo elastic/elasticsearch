@@ -164,8 +164,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
                                              final ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.updatePersistentTaskState(request.taskId, request.allocationId, request.state,
-                ActionListener.delegateFailure(listener,
-                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
+                    listener.map(PersistentTaskResponse::new));
         }
     }
 }

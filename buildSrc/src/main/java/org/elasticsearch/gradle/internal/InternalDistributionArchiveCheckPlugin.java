@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.ArchiveOperations;
@@ -42,7 +41,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.util.Util.capitalize;
 
-public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
+public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
 
     private ArchiveOperations archiveOperations;
 

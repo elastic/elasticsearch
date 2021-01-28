@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -44,39 +46,40 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
 
     static {
         PARSER = new ObjectParser<>(SearchSourceBuilder.POINT_IN_TIME.getPreferredName(), XContentParams::new);
-        PARSER.declareString((params, id) -> params.id = id, ID_FIELD);
+        PARSER.declareString((params, id) -> params.encodedId = id, ID_FIELD);
         PARSER.declareField((params, keepAlive) -> params.keepAlive = keepAlive,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_FIELD.getPreferredName()),
             KEEP_ALIVE_FIELD, ObjectParser.ValueType.STRING);
     }
 
     private static final class XContentParams {
-        private String id;
+        private String encodedId;
         private TimeValue keepAlive;
     }
 
-    private final String id;
+    private final String encodedId;
+    private transient SearchContextId searchContextId; // lazily decoded from the encodedId
     private TimeValue keepAlive;
 
-    public PointInTimeBuilder(String id) {
-        this.id = Objects.requireNonNull(id);
+    public PointInTimeBuilder(String encodedId) {
+        this.encodedId = Objects.requireNonNull(encodedId);
     }
 
     public PointInTimeBuilder(StreamInput in) throws IOException {
-        id = in.readString();
+        encodedId = in.readString();
         keepAlive = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
+        out.writeString(encodedId);
         out.writeOptionalTimeValue(keepAlive);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SearchSourceBuilder.POINT_IN_TIME.getPreferredName());
-        builder.field(ID_FIELD.getPreferredName(), id);
+        builder.field(ID_FIELD.getPreferredName(), encodedId);
         if (keepAlive != null) {
             builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive);
         }
@@ -86,17 +89,27 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
 
     public static PointInTimeBuilder fromXContent(XContentParser parser) throws IOException {
         final XContentParams params = PARSER.parse(parser, null);
-        if (params.id == null) {
+        if (params.encodedId == null) {
             throw new IllegalArgumentException("point int time id is not provided");
         }
-        return new PointInTimeBuilder(params.id).setKeepAlive(params.keepAlive);
+        return new PointInTimeBuilder(params.encodedId).setKeepAlive(params.keepAlive);
     }
 
     /**
-     * Returns the id of this point in time
+     * Returns the encoded id of this point in time
      */
-    public String getId() {
-        return id;
+    public String getEncodedId() {
+        return encodedId;
+    }
+
+    /**
+     * Returns the search context of this point in time from its encoded id.
+     */
+    public SearchContextId getSearchContextId(NamedWriteableRegistry namedWriteableRegistry) {
+        if (searchContextId == null) {
+            searchContextId = SearchContextId.decode(namedWriteableRegistry, encodedId);
+        }
+        return searchContextId;
     }
 
     /**
@@ -118,11 +131,11 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final PointInTimeBuilder that = (PointInTimeBuilder) o;
-        return Objects.equals(id, that.id) && Objects.equals(keepAlive, that.keepAlive);
+        return Objects.equals(encodedId, that.encodedId) && Objects.equals(keepAlive, that.keepAlive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, keepAlive);
+        return Objects.hash(encodedId, keepAlive);
     }
 }

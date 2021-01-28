@@ -8,14 +8,7 @@ esplugin {
 }
 archivesBaseName = 'x-pack-deprecation'
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
+addQaCheckDependencies()
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")

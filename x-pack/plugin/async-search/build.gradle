@@ -8,17 +8,11 @@ esplugin {
 }
 archivesBaseName = 'x-pack-async-search'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << "-Xlint:-rawtypes"
 }
+
+addQaCheckDependencies()
 
 dependencies {
   compileOnly project(":server")

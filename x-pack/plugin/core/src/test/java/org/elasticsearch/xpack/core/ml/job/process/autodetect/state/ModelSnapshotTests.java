@@ -18,6 +18,8 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapshot> {
     private static final Date DEFAULT_TIMESTAMP = new Date();
@@ -155,7 +157,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         modelSnapshot.setMinVersion(Version.CURRENT);
         modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setDescription(randomAlphaOfLengthBetween(1, 20));
-        modelSnapshot.setSnapshotId(randomAlphaOfLengthBetween(1, 20));
+        modelSnapshot.setSnapshotId(randomAlphaOfLength(10));
         modelSnapshot.setSnapshotDocCount(randomInt());
         modelSnapshot.setModelSizeStats(ModelSizeStatsTests.createRandomized());
         modelSnapshot.setLatestResultTimeStamp(
@@ -213,5 +215,19 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ModelSnapshot.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testEmptySnapshot() {
+        ModelSnapshot modelSnapshot = ModelSnapshot.emptySnapshot("my_job");
+        assertThat(modelSnapshot.getSnapshotId(), equalTo("empty"));
+        assertThat(modelSnapshot.isTheEmptySnapshot(), is(true));
+        assertThat(modelSnapshot.getMinVersion(), equalTo(Version.CURRENT));
+        assertThat(modelSnapshot.getLatestRecordTimeStamp(), is(nullValue()));
+        assertThat(modelSnapshot.getLatestResultTimeStamp(), is(nullValue()));
+    }
+
+    public void testIsEmpty_GivenNonEmptySnapshot() {
+        ModelSnapshot modelSnapshot = createRandomized();
+        assertThat(modelSnapshot.isTheEmptySnapshot(), is(false));
     }
 }

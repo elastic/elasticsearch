@@ -43,21 +43,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -79,7 +76,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -97,6 +94,28 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(DummyPlugin.class);
+    }
+
+    public void testLegacyNoopUpdate() {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        PutRequest pr = new PutRequest("api", "id");
+        pr.patterns(Arrays.asList("foo", "bar"));
+        if (randomBoolean()) {
+            pr.settings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
+        }
+        if (randomBoolean()) {
+            pr.mappings("{}");
+        }
+        if (randomBoolean()) {
+            pr.aliases(Collections.singleton(new Alias("alias")));
+        }
+        pr.order(randomIntBetween(0, 10));
+        state = MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id"));
+
+        assertNotNull(state.metadata().templates().get("id"));
+
+        assertThat(MetadataIndexTemplateService.innerPutTemplate(state, pr, new IndexTemplateMetadata.Builder("id")), equalTo(state));
     }
 
     public void testIndexTemplateInvalidNumberOfShards() {
@@ -728,7 +747,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
     public void testResolveConflictingMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -1096,10 +1114,42 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
+        List<Map<String, AliasMetadata>> resolvedAliases =
+            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template", true);
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
+    }
+
+    public void testResolveAliasesDataStreams() throws Exception {
+        Map<String, AliasMetadata> a1 = new HashMap<>();
+        a1.put("logs", AliasMetadata.newAliasMetadataBuilder("logs").build());
+
+        // index template can't have data streams and aliases
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs-*"),
+            new Template(null, null, a1), null, 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
+        ClusterState state1 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put("1", it).build())
+            .build();
+        Exception e =
+            expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", true));
+        assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
+        // Ignoring validation
+        assertThat(MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", false), equalTo(List.of(a1)));
+        assertWarnings("template [1] has alias and data stream definitions");
+
+        // index template can't have data streams and a component template with an aliases
+        ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, null, a1), null, null);
+        it = new ComposableIndexTemplate(List.of("logs-*"), null, List.of("c1"), 0L, 1L, null,
+            new ComposableIndexTemplate.DataStreamTemplate(), null);
+        ClusterState state2 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put("1", it).put("c1", componentTemplate).build())
+            .build();
+        e = expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", true));
+        assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
+        // Ignoring validation
+        assertThat(MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", false), equalTo(List.of(a1)));
+        assertWarnings("template [1] has alias and data stream definitions");
     }
 
     public void testAddInvalidTemplate() throws Exception {
@@ -1550,12 +1600,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected List<ParametrizedFieldMapper.Parameter<?>> getParameters() {
+        protected List<FieldMapper.Parameter<?>> getParameters() {
             return List.of(enabled);
         }
 
         @Override
-        public MetadataFieldMapper build(Mapper.BuilderContext context) {
+        public MetadataFieldMapper build() {
             return new MetadataTimestampFieldMapper(enabled.getValue());
         }
     }
@@ -1566,7 +1616,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
                 @Override
-                public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -1576,12 +1626,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Query termQuery(Object value, QueryShardContext context) {
+                public Query termQuery(Object value, SearchExecutionContext context) {
                     return null;
                 }
 
                 @Override
-                public Query existsQuery(QueryShardContext context) {
+                public Query existsQuery(SearchExecutionContext context) {
                     return null;
                 }
             });
@@ -1589,7 +1639,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        public FieldMapper.Builder getMergeBuilder() {
             return new MetadataTimestampFieldBuilder().init(this);
         }
 

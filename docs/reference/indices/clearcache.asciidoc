@@ -48,7 +48,7 @@ Defaults to `open`.
 `fielddata`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 clears the fields cache.
 
@@ -78,12 +78,12 @@ used to limit the request.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `query`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 clears the query cache.
 
 `request`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 clears the request cache.
 

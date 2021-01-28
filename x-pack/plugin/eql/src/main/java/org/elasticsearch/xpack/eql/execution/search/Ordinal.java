@@ -58,17 +58,15 @@ public class Ordinal implements Comparable<Ordinal> {
         }
         if (timestamp == o.timestamp) {
             if (tiebreaker != null) {
-                if (o.tiebreaker != null) {
-                    return tiebreaker.compareTo(o.tiebreaker);
-                }
-                // nulls are first - lower than any other value
-                // other tiebreaker is null this one isn't, fall through 1
+                // if the other tiebreaker is null, it is higher (nulls are last)
+                return o.tiebreaker != null ? tiebreaker.compareTo(o.tiebreaker) : -1;
             }
-            // null tiebreaker
+            // this tiebreaker is null
             else {
-                if (o.tiebreaker != null) {
-                    return -1;
-                } else {
+                // nulls are last so unless both are null (equal)
+                // this ordinal is greater (after) then the other tiebreaker
+                // so fall through to 1
+                if (o.tiebreaker == null) {
                     return 0;
                 }
             }

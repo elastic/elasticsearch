@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.slm;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -24,6 +25,7 @@ import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTe
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicy> {
 
@@ -46,27 +48,58 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
         assertThat(p.calculateNextExecution(), equalTo(4078864860000L));
     }
 
+    public void testCalculateNextInterval() {
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 0/5 * * * ?", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.timeValueMinutes(5)));
+        }
+
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
+        }
+
+        {
+            SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "* * * 31 FEB ? *", "repo", Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY);
+            assertThat(p.calculateNextInterval(), equalTo(TimeValue.MINUS_ONE));
+        }
+    }
+
     public void testValidation() {
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("a,b", "<my, snapshot-{now/M}>",
-            "* * * * * L", "  ", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("a,b", "<my, snapshot-{now/M}>",
+                "* * * * * L", "  ", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
-        ValidationException e = policy.validate();
-        assertThat(e.validationErrors(),
-            containsInAnyOrder(
-                "invalid policy id [a,b]: must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
-                "invalid snapshot name [<my, snapshot-{now/M}>]: must not contain contain" +
-                    " the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
-                "invalid repository name [  ]: cannot be empty",
-                "invalid schedule: invalid cron expression [* * * * * L]"));
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(),
+                containsInAnyOrder(
+                    "invalid policy id [a,b]: must not contain the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
+                    "invalid snapshot name [<my, snapshot-{now/M}>]: must not contain contain" +
+                        " the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
+                    "invalid repository name [  ]: cannot be empty",
+                    "invalid schedule: invalid cron expression [* * * * * L]"));
+        }
 
-        policy = new SnapshotLifecyclePolicy("_my_policy", "mySnap",
-            " ", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("_my_policy", "mySnap",
+                " ", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
-        e = policy.validate();
-        assertThat(e.validationErrors(),
-            containsInAnyOrder("invalid policy id [_my_policy]: must not start with '_'",
-                "invalid snapshot name [mySnap]: must be lowercase",
-                "invalid schedule [ ]: must not be empty"));
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(),
+                containsInAnyOrder("invalid policy id [_my_policy]: must not start with '_'",
+                    "invalid snapshot name [mySnap]: must be lowercase",
+                    "invalid schedule [ ]: must not be empty"));
+        }
+
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("my_policy", "my_snap",
+                "0 0/30 * * * ?", "repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
+            ValidationException e = policy.validate();
+            assertThat(e, nullValue());
+        }
     }
 
     public void testMetadataValidation() {

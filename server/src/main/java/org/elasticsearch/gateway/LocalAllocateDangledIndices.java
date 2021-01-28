@@ -136,6 +136,11 @@ public class LocalAllocateDangledIndices {
                                     indexMetadata.getIndex(), request.fromNode);
                             continue;
                         }
+                        if (currentState.metadata().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
+                            logger.warn("ignoring dangled index [{}] on node [{}] since it was recently deleted",
+                                    indexMetadata.getIndex(), request.fromNode);
+                            continue;
+                        }
                         importNeeded = true;
 
                         IndexMetadata upgradedIndexMetadata;
@@ -165,7 +170,7 @@ public class LocalAllocateDangledIndices {
                     if (!importNeeded) {
                         return currentState;
                     }
-                    logger.info("auto importing dangled indices {} from [{}]", sb.toString(), request.fromNode);
+                    logger.info("importing dangled indices {} from [{}]", sb.toString(), request.fromNode);
 
                     RoutingTable routingTable = routingTableBuilder.build();
                     ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).blocks(blocks)

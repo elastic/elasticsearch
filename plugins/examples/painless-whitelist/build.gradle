@@ -36,4 +36,4 @@ testClusters.all {
   testDistribution = 'OSS'
 }
 
-test.enabled = false
+tasks.named("test").configure { enabled = false }

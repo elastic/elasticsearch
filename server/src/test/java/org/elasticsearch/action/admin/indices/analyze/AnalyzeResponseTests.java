@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,7 +31,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -107,9 +107,8 @@ public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<Analyz
     @Override
     protected AnalyzeAction.Response mutateInstance(AnalyzeAction.Response instance) throws IOException {
         if (instance.getTokens() != null) {
-            List<AnalyzeToken> extendedList = new ArrayList<>(instance.getTokens());
-            extendedList.add(RandomObjects.randomToken(random()));
-            return new AnalyzeAction.Response(extendedList, null);
+            return new AnalyzeAction.Response(
+                    CollectionUtils.appendToCopy(instance.getTokens(), RandomObjects.randomToken(random())), null);
         } else {
             AnalyzeToken[] tokens = instance.detail().tokenizer().getTokens();
             return new AnalyzeAction.Response(null, new AnalyzeAction.DetailAnalyzeResponse(

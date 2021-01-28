@@ -8,13 +8,21 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
+import java.util.List;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingDeciders;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingDeciders;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomRoles;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.sameInstance;
@@ -32,7 +40,11 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     public void testUpdatePolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
-        final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(policy.name(), mutateAutoscalingDeciders(policy.deciders()));
+        final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(
+            policy.name(),
+            new TreeSet<>(randomSubsetOf(randomIntBetween(1, 5), List.of("data", "data_content", "data_hot", "data_warm", "data_cold"))),
+            mutateAutoscalingDeciders(policy.deciders())
+        );
         putAutoscalingPolicy(updatedPolicy);
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
@@ -52,6 +64,31 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         );
     }
 
+    public void testPutPolicyIllegalName() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> putAutoscalingPolicy(new AutoscalingPolicy(randomAlphaOfLength(8) + "*", randomRoles(), randomAutoscalingDeciders()))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("name must not contain the following characters " + Strings.INVALID_FILENAME_CHARS)
+        );
+    }
+
+    public void testPutNoDeciderPolicy() {
+        String policyName = randomAlphaOfLength(8);
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> putAutoscalingPolicy(new AutoscalingPolicy(policyName, new TreeSet<>(), new TreeMap<>()))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("no default nor user configured deciders for policy [" + policyName + "] with roles [[]]")
+        );
+    }
+
     private AutoscalingPolicy putRandomAutoscalingPolicy() {
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
         putAutoscalingPolicy(policy);
@@ -59,7 +96,11 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
     }
 
     private void putAutoscalingPolicy(final AutoscalingPolicy policy) {
-        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(policy);
+        final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            policy.name(),
+            policy.roles(),
+            policy.deciders()
+        );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
     }
 

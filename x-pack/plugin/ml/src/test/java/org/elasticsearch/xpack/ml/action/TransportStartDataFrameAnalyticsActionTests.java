@@ -9,28 +9,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
@@ -42,13 +32,10 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.net.InetAddress;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -60,65 +47,10 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
 
     private static final String JOB_ID = "data_frame_id";
 
-    public void testVerifyIndicesPrimaryShardsAreActive() {
-
-        // At present the only critical index is the config index
-        String indexName = MlConfigIndex.indexName();
-
-        Metadata.Builder metadata = Metadata.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        );
-        metadata.put(indexMetadata);
-        Index index = new Index(indexName, "_uuid");
-        ShardId shardId = new ShardId(index, 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
-        shardRouting = shardRouting.initialize("node_id", null, 0L);
-        shardRouting = shardRouting.moveToStarted();
-        routingTable.add(IndexRoutingTable.builder(index)
-            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
-
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
-        csBuilder.routingTable(routingTable.build());
-        csBuilder.metadata(metadata);
-
-        ClusterState cs = csBuilder.build();
-        assertThat(
-            TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(cs,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName),
-            empty());
-
-        metadata = new Metadata.Builder(cs.metadata());
-        routingTable = new RoutingTable.Builder(cs.routingTable());
-        if (randomBoolean()) {
-            routingTable.remove(indexName);
-        } else {
-            index = new Index(indexName, "_uuid");
-            shardId = new ShardId(index, 0);
-            shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
-            shardRouting = shardRouting.initialize("node_id", null, 0L);
-            routingTable.add(IndexRoutingTable.builder(index)
-                .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
-        }
-
-        csBuilder.routingTable(routingTable.build());
-        csBuilder.metadata(metadata);
-        List<String> result = TransportStartDataFrameAnalyticsAction.verifyIndicesPrimaryShardsAreActive(csBuilder.build(),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), indexName);
-        assertThat(result, contains(indexName));
-    }
-
     // Cannot assign the node because upgrade mode is enabled
     public void testGetAssignment_UpgradeModeIsEnabled() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
@@ -132,7 +64,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because there are no existing nodes in the cluster state
     public void testGetAssignment_NoNodes() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -146,7 +78,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because none of the existing nodes is an ML node
     public void testGetAssignment_NoMlNodes() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -172,7 +104,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     //  - _node_name2 is too old (version 7.9.2)
     public void testGetAssignment_MlNodesAreTooOld() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -199,7 +131,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // In such a case destination index will be created from scratch so that its mappings are up-to-date.
     public void testGetAssignment_MlNodeIsNewerThanTheMlJobButTheAssignmentSuceeds() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.V_7_9_0, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.V_7_9_0, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -221,6 +153,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                     MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                    MachineLearning.MAX_ML_NODE_SIZE,
                     MachineLearning.MAX_LAZY_ML_NODES,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

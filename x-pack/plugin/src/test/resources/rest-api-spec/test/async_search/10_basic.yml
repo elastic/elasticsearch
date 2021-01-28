@@ -77,6 +77,43 @@
   - match:  { response.hits.hits.0._source.max: 1 }
   - match:  { response.aggregations.max.value:  3.0 }
 
+  - do:
+      async_search.submit:
+        index: test-*
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 10s
+        keep_alive: 10m
+        keep_on_completion: true
+        body:
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+
+  - set:    { id:                                  id }
+  - set:    { expiration_time_in_millis: expiration_time_in_millis }
+
+  - do:
+      async_search.get:
+        id: "$id"
+        keep_alive: 5m
+
+  - match: { expiration_time_in_millis: $expiration_time_in_millis }
+
+  - do:
+      async_search.get:
+        id: "$id"
+        keep_alive: 30m
+
+  - gt:  { expiration_time_in_millis: $expiration_time_in_millis }
+
+  - do:
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }
+
   # test with typed_keys:
   - do:
       async_search.submit:
@@ -109,6 +146,14 @@
   - match:  { response.hits.hits.0._source.max:   1 }
   - match:  { response.aggregations.max.value:    3.0 }
 
+  - do:
+      async_search.status:
+        id: "$id"
+  - match:  { id:                             $id   }
+  - match:  { is_running:                     false }
+  - match:  { is_partial:                     false }
+  - match:  { completion_status:                200 }
+
   # test with typed_keys:
   - do:
       async_search.get:
@@ -130,6 +175,11 @@
   - do:
       catch: missing
       async_search.get:
+        id: "$id"
+
+  - do:
+      catch: missing
+      async_search.status:
         id: "$id"
 
   - do:

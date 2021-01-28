@@ -215,8 +215,9 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     public void testResolveDataStreams() {
         String dataStreamName = "foo_logs";
-        IndexMetadata firstBackingIndexMetadata = createBackingIndex(dataStreamName, 1).build();
-        IndexMetadata secondBackingIndexMetadata = createBackingIndex(dataStreamName, 2).build();
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        IndexMetadata firstBackingIndexMetadata = createBackingIndex(dataStreamName, 1, epochMillis).build();
+        IndexMetadata secondBackingIndexMetadata = createBackingIndex(dataStreamName, 2, epochMillis).build();
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder("foo_foo").state(State.OPEN))
@@ -255,13 +256,15 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
             // data stream's corresponding backing indices are resolved
             List<String> indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("foo_*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo",
+                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
 
             // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar",
+                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
         }
 
         {
@@ -272,13 +275,15 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
             // data stream's corresponding backing indices are resolved
             List<String> indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("foo_*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo",
+                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
 
             // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar", ".ds-foo_logs-000001",
-                ".ds-foo_logs-000002"));
+            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar",
+                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
         }
     }
 

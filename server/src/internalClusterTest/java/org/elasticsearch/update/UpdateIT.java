@@ -700,7 +700,7 @@ public class UpdateIT extends ESIntegTestCase {
                                 if (randomBoolean()) {
                                     client().update(ur, new UpdateListener(j));
                                 } else {
-                                    client().prepareBulk().add(ur).execute(ActionListener.map(new UpdateListener(j), br -> {
+                                    client().prepareBulk().add(ur).execute(new UpdateListener(j).map(br -> {
                                         final BulkItemResponse ir = br.getItems()[0];
                                         if (ir.isFailed()) {
                                             throw ir.getFailure().getCause();

@@ -187,13 +187,4 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         return null;
     }
 
-    /**
-     * This will transform a composite aggregation bucket key into the desired format for indexing.
-     *
-     * @param key The bucket key for this group source
-     * @return the transformed bucket key for indexing
-     */
-    public Object transformBucketKey(Object key) {
-        return key;
-    }
 }

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -13,6 +14,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBu
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGridBucket;
+import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<InternalGeoTileGridBucket> {
 
@@ -30,6 +32,13 @@ public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<
     protected Point randomPoint() {
         return new Point(randomDoubleBetween(GeoUtils.MIN_LON, GeoUtils.MAX_LON, true),
             randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, false));
+    }
+
+    @Override
+    protected GeoBoundingBox randomBBox() {
+         return randomValueOtherThanMany(
+            (b) -> b.top() > GeoTileUtils.LATITUDE_MASK || b.bottom() < -GeoTileUtils.LATITUDE_MASK,
+            GeoTestUtils::randomBBox);
     }
 
     @Override

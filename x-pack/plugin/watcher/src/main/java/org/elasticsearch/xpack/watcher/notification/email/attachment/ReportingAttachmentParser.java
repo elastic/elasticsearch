@@ -255,8 +255,8 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         HttpResponse response = httpClient.execute(request);
         if (response.status() != 200) {
             throw new ElasticsearchException("Watch[{}] reporting[{}] Error response when trying to trigger reporting generation " +
-                    "host[{}], port[{}] method[{}], path[{}], status[{}]", watchId, attachmentId, request.host(),
-                    request.port(), request.method(), request.path(), response.status());
+                    "host[{}], port[{}] method[{}], path[{}], response[{}]", watchId, attachmentId, request.host(),
+                    request.port(), request.method(), request.path(), response);
         }
 
         return response;

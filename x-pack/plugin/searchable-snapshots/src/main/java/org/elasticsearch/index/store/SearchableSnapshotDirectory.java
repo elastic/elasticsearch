@@ -134,7 +134,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ShardPath shardPath;
     private final AtomicBoolean closed;
     private final boolean partial;
-    private final FrozenCacheService sharedLfuCache;
+    private final FrozenCacheService frozenCacheService;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
@@ -156,7 +156,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        FrozenCacheService sharedLfuCache
+        FrozenCacheService frozenCacheService
     ) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
@@ -180,7 +180,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.blobStoreCachePath = String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
         this.threadPool = threadPool;
         this.loaded = false;
-        this.sharedLfuCache = sharedLfuCache;
+        this.frozenCacheService = frozenCacheService;
         assert invariant();
     }
 
@@ -392,8 +392,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     fileInfo,
                     context,
                     inputStats,
-                    cacheService.getRangeSize(),
-                    cacheService.getRecoveryRangeSize()
+                    frozenCacheService.getRangeSize(),
+                    frozenCacheService.getRecoveryRangeSize()
                 );
             } else {
                 return new CachedBlobContainerIndexInput(
@@ -557,7 +557,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         LongSupplier currentTimeNanosSupplier,
         ThreadPool threadPool,
         BlobStoreCacheService blobStoreCacheService,
-        FrozenCacheService sharedLfuCache
+        FrozenCacheService frozenCacheService
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -647,7 +647,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 cacheDir,
                 shardPath,
                 threadPool,
-                sharedLfuCache
+                frozenCacheService
             )
         );
     }
@@ -679,7 +679,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {
-        return sharedLfuCache.getFrozenCacheFile(createCacheKey(fileName), length);
+        return frozenCacheService.getFrozenCacheFile(createCacheKey(fileName), length);
     }
 
     private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {

@@ -187,7 +187,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
-    private final SetOnce<FrozenCacheService> sharedLfuCache = new SetOnce<>();
+    private final SetOnce<FrozenCacheService> frozenCacheService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final SetOnce<SearchableSnapshotAllocator> allocator = new SetOnce<>();
@@ -226,6 +226,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
             FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
+            FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING,
+            FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING
@@ -253,13 +255,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.isDataNode(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final FrozenCacheService sharedLfuCache;
+            final FrozenCacheService frozenCacheService;
             try {
-                sharedLfuCache = new FrozenCacheService(settings, threadPool);
+                frozenCacheService = new FrozenCacheService(settings, threadPool);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            this.sharedLfuCache.set(sharedLfuCache);
+            this.frozenCacheService.set(frozenCacheService);
             components.add(cacheService);
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX);
             this.blobStoreCacheService.set(blobStoreCacheService);
@@ -322,7 +324,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 System::nanoTime,
                 threadPool,
                 blobCache,
-                sharedLfuCache.get()
+                frozenCacheService.get()
             );
         });
     }

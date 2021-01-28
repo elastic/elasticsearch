@@ -6,18 +6,17 @@
 
 package org.elasticsearch.index.store.cache;
 
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
@@ -33,6 +32,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
@@ -41,7 +41,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testRandomReads() throws IOException {
         final String fileName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        final byte[] fileData = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+        final byte[] fileData = randomUnicodeOfLength(Math.toIntExact(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() * 10)).getBytes(
+            StandardCharsets.UTF_8
+        );
 
         final Path tempDir = createTempDir().resolve(SHARD_ID.getIndex().getUUID()).resolve(String.valueOf(SHARD_ID.getId()));
         final FileInfo fileInfo = new FileInfo(
@@ -50,14 +52,35 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             new ByteSizeValue(fileData.length)
         );
 
-        final ByteSizeValue cacheRegionSize = new ByteSizeValue(
-            randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeUnit.MB.toBytes(16L))
-        );
-        final ByteSizeValue cacheSize = new ByteSizeValue(randomLongBetween(cacheRegionSize.getBytes(), ByteSizeUnit.GB.toBytes(2L)));
+        final ByteSizeValue rangeSize;
+        if (randomBoolean()) {
+            rangeSize = FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
+        } else {
+            rangeSize = new ByteSizeValue(
+                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofMb(64L).getBytes())
+            );
+        }
+
+        final ByteSizeValue regionSize;
+        if (randomBoolean()) {
+            regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
+        } else {
+            regionSize = new ByteSizeValue(
+                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofMb(64L).getBytes())
+            );
+        }
+
+        final ByteSizeValue cacheSize;
+        if (randomBoolean()) {
+            cacheSize = regionSize;
+        } else {
+            cacheSize = new ByteSizeValue(randomLongBetween(1L, 10L) * regionSize.getBytes());
+        }
 
         final FrozenCacheService cacheService = new FrozenCacheService(
             Settings.builder()
-                .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), cacheRegionSize)
+                .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
                 .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .build(),
             threadPool
@@ -66,15 +89,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         try (TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(cacheService, tempDir, fileInfo, fileData)) {
             directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
 
-            final FrozenIndexInput indexInput = new FrozenIndexInput(
-                directory,
-                fileInfo,
-                newIOContext(random()), // TODO does not test the checksum shortcut
-                new IndexInputStats(fileData.length, System::currentTimeMillis),
-                Math.toIntExact(cacheRegionSize.getBytes()),
-                0 // NB forces division by zero in case the recovery is not finalized/done
-            );
-
+            // TODO does not test the checksum shortcut, does not test using the recovery range size
+            final IndexInput indexInput = directory.openInput(fileName, newIOContext(random()));
+            assertThat(indexInput, instanceOf(FrozenIndexInput.class));
             assertEquals(fileData.length, indexInput.length());
             assertEquals(0, indexInput.getFilePointer());
 
@@ -97,7 +114,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 SHARD_ID,
                 Settings.builder()
                     .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
-                    .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
+                    .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                     .build(),
                 System::currentTimeMillis,
                 mock(CacheService.class),

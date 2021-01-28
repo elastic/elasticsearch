@@ -19,6 +19,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
@@ -42,6 +43,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+
 public class FrozenCacheService {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.frozen-cache.";
@@ -55,6 +58,25 @@ public class FrozenCacheService {
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "region-size",
         ByteSizeValue.ofMb(16),
+        Setting.Property.NodeScope
+    );
+
+    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+
+    public static final Setting<ByteSizeValue> FROZEN_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "range_size",
+        ByteSizeValue.ofMb(16),                                 // default
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "recovery_range_size",
+        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
     );
 
@@ -91,6 +113,8 @@ public class FrozenCacheService {
 
     private final SharedBytes sharedBytes;
     private final long regionSize;
+    private final ByteSizeValue rangeSize;
+    private final ByteSizeValue recoveryRangeSize;
 
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
     private final Entry<CacheFileRegion>[] freqs;
@@ -124,6 +148,16 @@ public class FrozenCacheService {
         freqs = new Entry[maxFreq];
         sharedBytes = new SharedBytes(numRegions, regionSize, Files.createTempFile("cache", "snap"));
         new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings)).rescheduleIfNecessary();
+        this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);
+        this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
+    }
+
+    public int getRangeSize() {
+        return toIntBytes(rangeSize.getBytes());
+    }
+
+    public int getRecoveryRangeSize() {
+        return toIntBytes(recoveryRangeSize.getBytes());
     }
 
     private int getRegion(long position) {
@@ -365,7 +399,7 @@ public class FrozenCacheService {
 
         @Override
         public String toString() {
-            return "shared_cache_decay_task";
+            return "frozen_cache_decay_task";
         }
     }
 
@@ -416,7 +450,7 @@ public class FrozenCacheService {
         volatile int sharedBytesPos = -1;
 
         CacheFileRegion(RegionKey regionKey, long regionSize) {
-            super("CacheFileChunk");
+            super("CacheFileRegion");
             this.regionKey = regionKey;
             tracker = new SparseFileTracker("file", regionSize);
         }

@@ -426,8 +426,8 @@ public class IndicesOptionsTests extends ESTestCase {
         final IndicesOptions defaults = IndicesOptions.LENIENT_EXPAND_OPEN;
         final boolean includeExpandWildcards = randomBoolean();
         final EnumSet<WildcardStates> expectedWildcardStates = includeExpandWildcards ?
-            WildcardStates.parseParameter(randomFrom("all", "none", List.of("open", "closed"), List.of("open", "hidden"),
-                List.of("closed"), List.of("closed", "hidden")), null) :
+            WildcardStates.parseParameter(randomFrom("all", "none", Arrays.asList("open", "closed"), Arrays.asList("open", "hidden"),
+                Collections.singletonList("closed"), Arrays.asList("closed", "hidden")), null) :
             defaults.getExpandWildcards();
         final boolean includeIgnoreUnavailable = randomBoolean();
         final boolean ignoreUnavailable = includeIgnoreUnavailable ? randomBoolean() : defaults.ignoreUnavailable();

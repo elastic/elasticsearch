@@ -186,7 +186,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         CollapseBuilder that = (CollapseBuilder) o;
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
-        if (!field.equals(that.field)) return false;
+        if (field.equals(that.field) == false) return false;
         return Objects.equals(innerHits, that.innerHits);
     }
 

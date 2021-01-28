@@ -314,7 +314,7 @@ public class MetadataRolloverService {
 
         final String matchedV2Template = findV2Template(metadata, rolloverIndexName, isHidden == null ? false : isHidden);
         if (matchedV2Template != null) {
-            List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template);
+            List<Map<String, AliasMetadata>> aliases = MetadataIndexTemplateService.resolveAliases(metadata, matchedV2Template, false);
             for (Map<String, AliasMetadata> aliasConfig : aliases) {
                 if (aliasConfig.containsKey(rolloverRequestAlias)) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,

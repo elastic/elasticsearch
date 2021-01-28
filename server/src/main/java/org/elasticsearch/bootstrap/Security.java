@@ -223,7 +223,7 @@ final class Security {
              */
             try {
                 final Path realPath = path.toRealPath();
-                if (!dataFilesPaths.add(realPath)) {
+                if (dataFilesPaths.add(realPath) == false) {
                     throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
                 }
             } catch (final IOException e) {

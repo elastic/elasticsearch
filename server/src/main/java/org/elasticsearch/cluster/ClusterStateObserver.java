@@ -170,7 +170,7 @@ public class ClusterStateObserver {
         } else {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
             final ObservingContext context = new ObservingContext(listener, statePredicate);
-            if (!observingContext.compareAndSet(null, context)) {
+            if (observingContext.compareAndSet(null, context) == false) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
             clusterApplierService.addTimeoutListener(timeoutTimeLeftMS == null ?

@@ -20,13 +20,14 @@ POST /my-index-000001/_clone/cloned-my-index-000001
 
 `PUT /<index>/_clone/<target-index>`
 
-
 [[clone-index-api-prereqs]]
 ==== {api-prereq-title}
 
-To clone an index,
-the index must be marked as read-only
-and have a <<cluster-health,cluster health>> status of `green`.
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index you want to clone.
+
+* To clone an index, the index must be marked as read-only and have a
+<<cluster-health,cluster health>> status of `green`.
 
 For example,
 the following request prevents write operations on `my_source_index`

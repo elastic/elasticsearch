@@ -23,13 +23,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TermVectorsResponse {
     private final String index;
@@ -127,7 +128,7 @@ public class TermVectorsResponse {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof TermVectorsResponse)) return false;
+        if ((obj instanceof TermVectorsResponse) == false) return false;
         TermVectorsResponse other = (TermVectorsResponse) obj;
         return index.equals(other.index)
             && Objects.equals(id, other.id)
@@ -203,7 +204,7 @@ public class TermVectorsResponse {
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
-            if (!(obj instanceof TermVector)) return false;
+            if ((obj instanceof TermVector) == false) return false;
             TermVector other = (TermVector) obj;
             return fieldName.equals(other.fieldName)
                 && Objects.equals(fieldStatistics, other.fieldStatistics)
@@ -267,7 +268,7 @@ public class TermVectorsResponse {
             @Override
             public boolean equals(Object obj) {
                 if (this == obj) return true;
-                if (!(obj instanceof FieldStatistics)) return false;
+                if ((obj instanceof FieldStatistics) == false) return false;
                 FieldStatistics other = (FieldStatistics) obj;
                 return docCount == other.docCount
                     && sumDocFreq == other.sumDocFreq
@@ -374,7 +375,7 @@ public class TermVectorsResponse {
             @Override
             public boolean equals(Object obj) {
                 if (this == obj) return true;
-                if (!(obj instanceof Term)) return false;
+                if ((obj instanceof Term) == false) return false;
                 Term other = (Term) obj;
                 return term.equals(other.term)
                     && termFreq == other.termFreq
@@ -456,7 +457,7 @@ public class TermVectorsResponse {
             @Override
             public boolean equals(Object obj) {
                 if (this == obj) return true;
-                if (!(obj instanceof Token)) return false;
+                if ((obj instanceof Token) == false) return false;
                 Token other = (Token) obj;
                 return Objects.equals(startOffset, other.startOffset)
                     && Objects.equals(endOffset,other.endOffset)

@@ -19,17 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -41,6 +30,17 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -495,12 +495,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
-        if (reason == MergeReason.INDEX_TEMPLATE) {
-            if (mergeWith.enabled.explicit()) {
+        if (mergeWith.enabled.explicit()) {
+            if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
+            } else if (isEnabled() != mergeWith.isEnabled()){
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
         }
 
         for (Mapper mergeWithMapper : mergeWith) {

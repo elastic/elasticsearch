@@ -346,7 +346,7 @@ public class GeoPolygonDecomposer {
             if (direction) {
                 edges[edgeOffset + i] = new Edge(nextPoint, edges[edgeOffset + i - 1]);
                 edges[edgeOffset + i].component = component;
-            } else if (!edges[edgeOffset + i - 1].coordinate.equals(nextPoint)) {
+            } else if (edges[edgeOffset + i - 1].coordinate.equals(nextPoint) == false) {
                 edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(nextPoint, null);
                 edges[edgeOffset + i - 1].component = component;
             } else {
@@ -385,7 +385,7 @@ public class GeoPolygonDecomposer {
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1.getX(), p2.getX(), dateline);
-            if (!Double.isNaN(position)) {
+            if (Double.isNaN(position) == false) {
                 edges[i].intersection(position);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
@@ -577,7 +577,7 @@ public class GeoPolygonDecomposer {
                         prev.component = visitID;
                         prev = visitedEdge.get(prev.coordinate).v1();
                         ++splitIndex;
-                    } while (!current.coordinate.equals(prev.coordinate));
+                    } while (current.coordinate.equals(prev.coordinate) == false);
                     ++connectedComponents;
                 } else {
                     visitedEdge.put(current.coordinate, new Tuple<Edge, Edge>(prev, current));

@@ -396,7 +396,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 }
                 return true;
             });
-            if (!success) {
+            if (success == false) {
                 throw new BindTransportException(
                     "Failed to bind to " + NetworkAddress.format(hostAddress, portsRange),
                     lastException.get()
@@ -510,7 +510,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (hostPortString.startsWith("[")) {
             // Parse a bracketed host, typically an IPv6 literal.
             Matcher matcher = BRACKET_PATTERN.matcher(hostPortString);
-            if (!matcher.matches()) {
+            if (matcher.matches() == false) {
                 throw new IllegalArgumentException("Invalid bracketed host/port range: " + hostPortString);
             }
             host = matcher.group(1);
@@ -596,7 +596,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // exposed for tests
     static void handleException(TcpChannel channel, Exception e, Lifecycle lifecycle, OutboundHandler outboundHandler) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
             return;

@@ -89,8 +89,12 @@ public class Strings {
 
             char ch = s.charAt(pos++);
             if (ch == '\\') {
-                if (!decode) sb.append(ch);
-                if (pos >= end) break;  // ERROR, or let it go?
+                if (decode == false) {
+                    sb.append(ch);
+                }
+                if (pos >= end) {
+                    break;  // ERROR, or let it go?
+                }
                 ch = s.charAt(pos++);
                 if (decode) {
                     switch (ch) {
@@ -207,12 +211,12 @@ public class Strings {
      * @see java.lang.Character#isWhitespace
      */
     public static boolean hasText(CharSequence str) {
-        if (!hasLength(str)) {
+        if (hasLength(str) == false) {
             return false;
         }
         int strLen = str.length();
         for (int i = 0; i < strLen; i++) {
-            if (!Character.isWhitespace(str.charAt(i))) {
+            if (Character.isWhitespace(str.charAt(i)) == false) {
                 return true;
             }
         }
@@ -241,7 +245,7 @@ public class Strings {
      * @return the trimmed String
      */
     public static String trimLeadingCharacter(String str, char leadingCharacter) {
-        if (!hasLength(str)) {
+        if (hasLength(str) == false) {
             return str;
         }
         StringBuilder sb = new StringBuilder(str);
@@ -279,7 +283,7 @@ public class Strings {
      * @return a String with the replacements
      */
     public static String replace(String inString, String oldPattern, String newPattern) {
-        if (!hasLength(inString) || !hasLength(oldPattern) || newPattern == null) {
+        if (hasLength(inString) == false || hasLength(oldPattern) == false || newPattern == null) {
             return inString;
         }
         StringBuilder sb = new StringBuilder();
@@ -318,7 +322,7 @@ public class Strings {
      * @return the resulting String
      */
     public static String deleteAny(String inString, String charsToDelete) {
-        if (!hasLength(inString) || !hasLength(charsToDelete)) {
+        if (hasLength(inString) == false || hasLength(charsToDelete) == false) {
             return inString;
         }
         StringBuilder sb = new StringBuilder();
@@ -464,7 +468,7 @@ public class Strings {
      *         or <code>null</code> if the delimiter wasn't found in the given input String
      */
     public static String[] split(String toSplit, String delimiter) {
-        if (!hasLength(toSplit) || !hasLength(delimiter)) {
+        if (hasLength(toSplit) == false || hasLength(delimiter) == false) {
             return null;
         }
         int offset = toSplit.indexOf(delimiter);

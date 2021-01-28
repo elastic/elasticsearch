@@ -228,7 +228,7 @@ public final class MergePolicyConfig {
 
     private int adjustMaxMergeAtOnceIfNeeded(int maxMergeAtOnce, double segmentsPerTier) {
         // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
-        if (!(segmentsPerTier >= maxMergeAtOnce)) {
+        if (segmentsPerTier < maxMergeAtOnce) {
             int newMaxMergeAtOnce = (int) segmentsPerTier;
             // max merge at once should be at least 2
             if (newMaxMergeAtOnce <= 1) {

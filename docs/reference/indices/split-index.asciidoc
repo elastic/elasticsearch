@@ -29,11 +29,13 @@ POST /my-index-000001/_split/split-my-index-000001
 [[split-index-api-prereqs]]
 ==== {api-prereq-title}
 
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index.
 
-Before you can split an index:
+* Before you can split an index:
 
-* The index must be read-only.
-* The <<cluster-health, cluster health>> status must be green.
+** The index must be read-only.
+** The <<cluster-health, cluster health>> status must be green.
 
 You can do make an index read-only
 with the following request:

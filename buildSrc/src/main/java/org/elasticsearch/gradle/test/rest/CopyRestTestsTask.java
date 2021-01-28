@@ -73,12 +73,14 @@ public class CopyRestTestsTask extends DefaultTask {
     private final ArchiveOperations archiveOperations;
 
     @Inject
-    public CopyRestTestsTask(ProjectLayout projectLayout,
-                             Factory<PatternSet> patternSetFactory,
-                             FileSystemOperations fileSystemOperations,
-                             ArchiveOperations archiveOperations) {
-        corePatternSet = getPatternSetFactory().create();
-        xpackPatternSet = getPatternSetFactory().create();
+    public CopyRestTestsTask(
+        ProjectLayout projectLayout,
+        Factory<PatternSet> patternSetFactory,
+        FileSystemOperations fileSystemOperations,
+        ArchiveOperations archiveOperations
+    ) {
+        corePatternSet = patternSetFactory.create();
+        xpackPatternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;

@@ -32,7 +32,6 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
@@ -43,7 +42,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -53,14 +51,17 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  * Copies the files needed for the Rest YAML specs to the current projects test resources output directory.
  * This is intended to be be used from {@link RestResourcesPlugin} since the plugin wires up the needed
  * configurations and custom extensions.
+ *
  * @see RestResourcesPlugin
  */
 public class CopyRestApiTask extends DefaultTask {
     private static final String REST_API_PREFIX = "rest-api-spec/api";
+    private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
-    private SourceSet outputSourceSet;
+    private File outputResourceDir;
+    private File sourceResourceDir;
     private boolean skipHasRestTestCheck;
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
@@ -76,10 +77,12 @@ public class CopyRestApiTask extends DefaultTask {
     private final ArchiveOperations archiveOperations;
 
     @Inject
-    public CopyRestApiTask(ProjectLayout projectLayout,
-                           Factory<PatternSet> patternSetFactory,
-                           FileSystemOperations fileSystemOperations,
-                           ArchiveOperations archiveOperations) {
+    public CopyRestApiTask(
+        ProjectLayout projectLayout,
+        Factory<PatternSet> patternSetFactory,
+        FileSystemOperations fileSystemOperations,
+        ArchiveOperations archiveOperations
+    ) {
         corePatternSet = patternSetFactory.create();
         xpackPatternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
@@ -133,7 +136,7 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getOutputResourceDir(), REST_API_PREFIX);
+        return new File(outputResourceDir, REST_API_PREFIX);
     }
 
     @TaskAction
@@ -155,7 +158,7 @@ public class CopyRestApiTask extends DefaultTask {
             );
             fileSystemOperations.copy(c -> {
                 c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
-                c.into(Objects.requireNonNull(getOutputSourceSet().getOutput().getResourcesDir()));
+                c.into(Objects.requireNonNull(outputResourceDir));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
@@ -188,19 +191,18 @@ public class CopyRestApiTask extends DefaultTask {
      * Returns true if any files with a .yml extension exist the test resources rest-api-spec/test directory (from source or output dir)
      */
     private boolean projectHasYamlRestTests() {
-        File testSourceResourceDir = getTestSourceResourceDir();
-        File testOutputResourceDir = getOutputResourceDir(); // check output for cases where tests are copied programmatically
-
-        if (testSourceResourceDir == null && testOutputResourceDir == null) {
+        if (sourceResourceDir == null && outputResourceDir == null) {
             return false;
         }
         try {
-            if (testSourceResourceDir != null && new File(testSourceResourceDir, "rest-api-spec/test").exists()) {
-                return Files.walk(testSourceResourceDir.toPath().resolve("rest-api-spec/test"))
+            // check source folder for tests
+            if (sourceResourceDir != null && new File(sourceResourceDir, REST_TEST_PREFIX).exists()) {
+                return Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))
                     .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
             }
-            if (testOutputResourceDir != null && new File(testOutputResourceDir, "rest-api-spec/test").exists()) {
-                return Files.walk(testOutputResourceDir.toPath().resolve("rest-api-spec/test"))
+            // check output for cases where tests are copied programmatically
+            if (outputResourceDir != null && new File(outputResourceDir, REST_TEST_PREFIX).exists()) {
+                return Files.walk(new File(outputResourceDir, REST_TEST_PREFIX).toPath())
                     .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
             }
         } catch (IOException e) {
@@ -209,37 +211,12 @@ public class CopyRestApiTask extends DefaultTask {
         return false;
     }
 
-    private File getTestSourceResourceDir() {
-        SourceSet testSourceSet = getOutputSourceSet();
-        if (testSourceSet != null) {
-            SourceSet testSources = testSourceSet;
-            Set<File> resourceDir = testSources.getResources()
-                .getSrcDirs()
-                .stream()
-                .filter(f -> f.isDirectory()
-                    && f.getParentFile().getName().equals(testSourceSet.getName())
-                    && f.getName().equals("resources"))
-                .collect(Collectors.toSet());
-            assert resourceDir.size() <= 1;
-            if (resourceDir.size() == 0) {
-                return null;
-            }
-            return resourceDir.iterator().next();
-        } else {
-            return null;
-        }
+    public void setSourceResourceDir(File sourceResourceDir) {
+        this.sourceResourceDir = sourceResourceDir;
     }
 
-    private File getOutputResourceDir() {
-        return outputSourceSet.getOutput().getResourcesDir();
-    }
-
-    private SourceSet getOutputSourceSet() {
-        return outputSourceSet;
-    }
-
-    public void setOutputSourceSet(SourceSet outputSourceSet) {
-        this.outputSourceSet = outputSourceSet;
+    public void setOutputResourceDir(File outputResourceDir) {
+        this.outputResourceDir = outputResourceDir;
     }
 
     public void setSkipHasRestTestCheck(boolean skipHasRestTestCheck) {
@@ -279,4 +256,5 @@ public class CopyRestApiTask extends DefaultTask {
     public FileCollection getXpackConfig() {
         return xpackConfig;
     }
+
 }

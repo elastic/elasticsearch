@@ -67,9 +67,17 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         setupDependencies(project, yamlTestSourceSet);
 
         // setup the copy for the rest resources
-        project.getTasks()
-            .withType(CopyRestApiTask.class)
-            .configureEach(copyRestApiTask -> { copyRestApiTask.setOutputSourceSet(yamlTestSourceSet); });
+        project.getTasks().withType(CopyRestApiTask.class).configureEach(copyRestApiTask -> {
+            copyRestApiTask.setOutputResourceDir(yamlTestSourceSet.getOutput().getResourcesDir());
+            copyRestApiTask.setSourceResourceDir(
+                yamlTestSourceSet.getResources()
+                    .getSrcDirs()
+                    .stream()
+                    .filter(f -> f.isDirectory() && f.getName().equals("resources"))
+                    .findFirst()
+                    .orElse(null)
+            );
+        });
         project.getTasks()
             .named(yamlTestSourceSet.getProcessResourcesTaskName())
             .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));

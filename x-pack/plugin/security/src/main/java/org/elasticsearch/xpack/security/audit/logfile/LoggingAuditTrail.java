@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -94,6 +93,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -221,10 +221,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             Setting.affixKeySetting(FILTER_POLICY_PREFIX, "indices",
                     (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
                             value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
-    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRIVILEGES =
-        Setting.affixKeySetting(FILTER_POLICY_PREFIX, "privileges",
+    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDEX_PRIVILEGES =
+        Setting.affixKeySetting(FILTER_POLICY_PREFIX, "index_privileges",
                     (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
                             value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
+    protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_CLUSTER_PRIVILEGES =
+        Setting.affixKeySetting(FILTER_POLICY_PREFIX, "cluster_privileges",
+            (key) -> Setting.listSetting(key, Collections.singletonList("*"), Function.identity(),
+                value -> EventFilterPolicy.parsePredicate(value), Property.NodeScope, Property.Dynamic));
 
     private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
 
@@ -284,10 +288,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).changeIndicesFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
-        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRIVILEGES, (policyName, filtersList) -> {
+        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_INDEX_PRIVILEGES, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).
-                changePrivilegesFilter(filtersList);
+                changeIndexPrivilegesFilter(filtersList);
+            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
+        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_CLUSTER_PRIVILEGES, (policyName, filtersList) -> {
+            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
+            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).
+                changeClusterPrivilegesFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
         // this log filter ensures that audit events are not filtered out because of the log level
@@ -1345,13 +1355,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         settings.add(FILTER_POLICY_IGNORE_INDICES);
         settings.add(FILTER_POLICY_IGNORE_ROLES);
         settings.add(FILTER_POLICY_IGNORE_REALMS);
-        settings.add(FILTER_POLICY_IGNORE_PRIVILEGES);
+        settings.add(FILTER_POLICY_IGNORE_INDEX_PRIVILEGES);
+        settings.add(FILTER_POLICY_IGNORE_CLUSTER_PRIVILEGES);
     }
 
     /**
      * Builds the predicate for a single policy filter. The predicate matches events
      * that will be ignored, aka filtered out, aka not logged. The event can be
-     * filtered by the following fields : `user`, `realm`, `role` and `index`.
+     * filtered by the following fields : `user`, `realm`, `role`, `index`, and
+     * (`index_privilege` or `cluster_privilege`).
      * Predicates on each field are ANDed together to form the filter predicate of
      * the policy.
      */
@@ -1361,14 +1373,25 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final Predicate<String> ignoreRealmsPredicate;
         private final Predicate<String> ignoreRolesPredicate;
         private final Predicate<String> ignoreIndicesPredicate;
-        private final Predicate<String> ignorePrivilegesPredicate;
+        private final Predicate<String> ignoreIndexPrivilegesPredicate;
+        private final Predicate<String> ignoreClusterPrivilegesPredicate;
 
         EventFilterPolicy(String name, Settings settings) {
             this(name, parsePredicate(FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)),
                     parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings)),
                     parsePredicate(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings)),
                     parsePredicate(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings)),
-                    parsePredicate(FILTER_POLICY_IGNORE_PRIVILEGES.getConcreteSettingForNamespace(name).get(settings)));
+                    parsePredicate(FILTER_POLICY_IGNORE_INDEX_PRIVILEGES.getConcreteSettingForNamespace(name).get(settings)),
+                    parsePredicate(FILTER_POLICY_IGNORE_CLUSTER_PRIVILEGES.getConcreteSettingForNamespace(name).get(settings)));
+
+            if (FILTER_POLICY_IGNORE_INDEX_PRIVILEGES.getConcreteSettingForNamespace(name).exists(settings) &&
+                FILTER_POLICY_IGNORE_CLUSTER_PRIVILEGES.getConcreteSettingForNamespace(name).exists(settings)) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "Both Index and Cluster privilege ignore filters are set for policy [%s]. " +
+                        "Please update your configuration settings and remove one of these filters to avoid ambiguity.", this.name);
+                throw new IllegalArgumentException(message);
+            }
         }
 
         /**
@@ -1378,39 +1401,45 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
          */
         EventFilterPolicy(String name, Predicate<String> ignorePrincipalsPredicate, Predicate<String> ignoreRealmsPredicate,
                 Predicate<String> ignoreRolesPredicate, Predicate<String> ignoreIndicesPredicate,
-                Predicate<String> ignoreActionsPredicate) {
+                Predicate<String> ignoreIndexPrivilegesPredicate, Predicate<String> ignoreClusterPrivilegesPredicate) {
             this.name = name;
             // "null" values are "unexpected" and should not match any ignore policy
             this.ignorePrincipalsPredicate = ignorePrincipalsPredicate;
             this.ignoreRealmsPredicate = ignoreRealmsPredicate;
             this.ignoreRolesPredicate = ignoreRolesPredicate;
             this.ignoreIndicesPredicate = ignoreIndicesPredicate;
-            this.ignorePrivilegesPredicate = ignoreActionsPredicate;
+            this.ignoreIndexPrivilegesPredicate = ignoreIndexPrivilegesPredicate;
+            this.ignoreClusterPrivilegesPredicate = ignoreClusterPrivilegesPredicate;
         }
 
         private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, parsePredicate(filtersList), ignoreRealmsPredicate, ignoreRolesPredicate,
-                    ignoreIndicesPredicate, ignorePrivilegesPredicate);
+                    ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, ignoreClusterPrivilegesPredicate);
         }
 
         private EventFilterPolicy changeRealmsFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, parsePredicate(filtersList), ignoreRolesPredicate,
-                    ignoreIndicesPredicate, ignorePrivilegesPredicate);
+                    ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, ignoreClusterPrivilegesPredicate);
         }
 
         private EventFilterPolicy changeRolesFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, parsePredicate(filtersList),
-                    ignoreIndicesPredicate, ignorePrivilegesPredicate);
+                    ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, ignoreClusterPrivilegesPredicate);
         }
 
         private EventFilterPolicy changeIndicesFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
-                    parsePredicate(filtersList), ignorePrivilegesPredicate);
+                    parsePredicate(filtersList), ignoreIndexPrivilegesPredicate, ignoreClusterPrivilegesPredicate);
         }
 
-        private EventFilterPolicy changePrivilegesFilter(List<String> filtersList) {
+        private EventFilterPolicy changeIndexPrivilegesFilter(List<String> filtersList) {
             return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
-                ignoreIndicesPredicate, parsePredicate(filtersList));
+                ignoreIndicesPredicate, parsePredicate(filtersList), ignoreClusterPrivilegesPredicate);
+        }
+
+        private EventFilterPolicy changeClusterPrivilegesFilter(List<String> filtersList) {
+            return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
+                ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, parsePredicate(filtersList));
         }
 
         static Predicate<String> parsePredicate(List<String> l) {
@@ -1430,14 +1459,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return l.stream().map(f -> f.isEmpty() ? "//" : f).collect(Collectors.toList());
         }
 
-        private boolean ignorePrivilegesPredicateTest(String action) {
-            Collection<String> privileges = null;
-            if (AuthorizationService.isIndexAction(action)) {
-                privileges = IndexPrivilege.findPrivilegesThatGrant(action);
-            } else if (ClusterPrivilegeResolver.isClusterAction(action)) {
-                privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, null, null);
-            }
-            return privileges != null ? privileges.stream().anyMatch((s) -> ignorePrivilegesPredicate.test(s)) : false;
+        private boolean ignoreIndexPrivilegesPredicateTest(String action) {
+            if (ignoreIndexPrivilegesPredicate.test(action)) return true;
+            Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
+            return privileges != null && privileges.stream().anyMatch((s) -> ignoreIndexPrivilegesPredicate.test(s));
+        }
+
+        private boolean ignoreClusterPrivilegesPredicateTest(String action) {
+            if (ignoreClusterPrivilegesPredicate.test(action)) return true;
+            Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action, null, null);
+            return privileges != null && privileges.stream().anyMatch((s) -> ignoreClusterPrivilegesPredicate.test(s));
         }
 
         /**
@@ -1448,8 +1479,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         Predicate<AuditEventMetaInfo> ignorePredicate() {
             return eventInfo -> eventInfo.principal != null && ignorePrincipalsPredicate.test(eventInfo.principal)
                     && eventInfo.realm != null && ignoreRealmsPredicate.test(eventInfo.realm)
-                    && eventInfo.action != null && (ignorePrivilegesPredicate.test(eventInfo.action) ||
-                                                    ignorePrivilegesPredicateTest(eventInfo.action))
+                    && eventInfo.action != null && (ignoreIndexPrivilegesPredicateTest(eventInfo.action) &&
+                                                    ignoreClusterPrivilegesPredicateTest(eventInfo.action))
                     && eventInfo.roles.get().allMatch(role -> role != null && ignoreRolesPredicate.test(role))
                     && eventInfo.indices.get().allMatch(index -> index != null && ignoreIndicesPredicate.test(index));
         }
@@ -1457,8 +1488,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         @Override
         public String toString() {
             return "[users]:" + ignorePrincipalsPredicate.toString() + "&[realms]:" + ignoreRealmsPredicate.toString() + "&[roles]:"
-                    + ignoreRolesPredicate.toString() + "&[indices]:" + ignoreIndicesPredicate.toString() + "&[actions]:"
-                    + ignorePrivilegesPredicate.toString();
+                    + ignoreRolesPredicate.toString() + "&[indices]:" + ignoreIndicesPredicate.toString() + "&[index privileges]:"
+                    + ignoreIndexPrivilegesPredicate.toString() + "&[cluster privileges]:" + ignoreClusterPrivilegesPredicate.toString();
         }
     }
 

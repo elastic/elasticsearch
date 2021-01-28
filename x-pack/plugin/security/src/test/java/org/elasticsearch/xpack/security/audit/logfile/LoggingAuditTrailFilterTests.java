@@ -62,6 +62,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -125,10 +127,17 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.indicesPolicy.indices", filteredIndices);
         // filter by privileges
-        final List<String> filteredActions = randomNonEmptyListOfFilteredActions();
+        final boolean clusterActionsFilter = randomBoolean();
+        final List<String> filteredActions = clusterActionsFilter? randomNonEmptyListOfFilteredClusterActions() :
+            randomNonEmptyListOfFilteredIndexActions();
         final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredActions);
-        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.privilegesPolicy.privileges",
-            randomBoolean() ? filteredPrivileges : filteredActions);
+        if (clusterActionsFilter) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.privilegesPolicy.cluster_privileges",
+                randomBoolean() ? filteredPrivileges : filteredActions);
+        } else {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.privilegesPolicy.index_privileges",
+                randomBoolean() ? filteredPrivileges : filteredActions);
+        }
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
@@ -216,10 +225,17 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.indices", filteredIndices);
         // filter by privileges
-        final List<String> filteredActions = randomNonEmptyListOfFilteredActions();
+        final boolean clusterActionsFilter = randomBoolean();
+        final List<String> filteredActions = clusterActionsFilter? randomNonEmptyListOfFilteredClusterActions() :
+            randomNonEmptyListOfFilteredIndexActions();
         final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredActions);
-        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.privileges",
-            randomBoolean() ? filteredPrivileges : filteredActions);
+        if (clusterActionsFilter) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.cluster_privileges",
+                randomBoolean() ? filteredPrivileges : filteredActions);
+        } else {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.index_privileges",
+                randomBoolean() ? filteredPrivileges : filteredActions);
+        }
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
@@ -342,10 +358,17 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.indices", filteredIndices);
         filteredIndices.remove("");
         // filter by privileges
-        final List<String> filteredActions = randomNonEmptyListOfFilteredActions();
+        final boolean clusterActionsFilter = randomBoolean();
+        final List<String> filteredActions = clusterActionsFilter? randomNonEmptyListOfFilteredClusterActions() :
+            randomNonEmptyListOfFilteredIndexActions();
         final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredActions);
-        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.privileges",
-            randomBoolean() ? filteredPrivileges : filteredActions);
+        if (clusterActionsFilter) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.cluster_privileges",
+                randomBoolean() ? filteredPrivileges : filteredActions);
+        } else {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.index_privileges",
+                randomBoolean() ? filteredPrivileges : filteredActions);
+        }
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
@@ -1885,6 +1908,21 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
     }
 
+    public void testBothClusterAndIndexFiltersExist() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        // create complete filter policy
+        final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.privilegesPolicy.cluster_privileges",
+            "monitor");
+        settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.privilegesPolicy.index_privileges",
+            "read");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext));
+        assertThat(e, hasToString(containsString("Both Index and Cluster privilege ignore filters are set for policy " +
+            "[privilegesPolicy]. Please update your configuration settings and remove one of these filters to avoid ambiguity.")));
+    }
+
     private <T> List<T> randomListFromLengthBetween(List<T> l, int min, int max) {
         assert (min >= 0) && (min <= max) && (max <= l.size());
         final int len = randomIntBetween(min, max);
@@ -1919,7 +1957,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         return filtered;
     }
 
-    private List<String> randomNonEmptyListOfFilteredActions() {
+    private List<String> randomNonEmptyListOfFilteredIndexActions() {
         final List<String> filtered = new ArrayList<>(4);
         final String[] actionPatterns = {
             "internal:transport/proxy/indices:*",
@@ -1940,11 +1978,24 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             "indices:admin/flush*",
             "indices:admin/synced_flush",
             "indices:admin/forcemerge*",
+            "indices:admin/index_template/*",
+            "indices:admin/data_stream/*",
+            "indices:admin/template/*",};
+        Random random = random();
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            Object name = actionPatterns[random.nextInt(actionPatterns.length)];
+            filtered.add((String)name);
+        }
+        return filtered;
+    }
+
+    private List<String> randomNonEmptyListOfFilteredClusterActions() {
+        final List<String> filtered = new ArrayList<>(4);
+        final String[] actionPatterns = {
             "cluster:admin/xpack/security/*",
             "cluster:admin/xpack/security/saml/*",
             "cluster:admin/xpack/security/oidc/*",
             "cluster:admin/xpack/security/token/*",
-            "cluster:admin/xpack/security/api_key/*",
             "cluster:monitor/*",
             "cluster:monitor/xpack/ml/*",
             "cluster:monitor/text_structure/*",
@@ -1952,8 +2003,6 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             "cluster:monitor/xpack/watcher/*",
             "cluster:monitor/xpack/rollup/*",
             "cluster:*",
-            "indices:admin/index_template/*",
-            "indices:admin/data_stream/*",
             "cluster:admin/xpack/ml/*",
             "cluster:admin/data_frame/*",
             "cluster:monitor/data_frame/*",
@@ -1962,7 +2011,6 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             "cluster:admin/xpack/watcher/*",
             "cluster:monitor/nodes/liveness",
             "cluster:monitor/state",
-            "indices:admin/template/*",
             "cluster:admin/component_template/*",
             "cluster:admin/ingest/pipeline/*",
             "cluster:admin/xpack/rollup/*",

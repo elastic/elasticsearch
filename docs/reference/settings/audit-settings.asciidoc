@@ -149,13 +149,26 @@ A list of authentication realm names or wildcards. The specified policy will
 not print audit events for users in these realms.
 // end::xpack-sa-lf-events-ignore-realms-tag[]
 
-[[xpack-sa-lf-events-ignore-privileges]]
-// tag::xpack-sa-lf-events-ignore-privileges-tag[]
-`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.privileges`::
+[[xpack-sa-lf-events-ignore-index-privileges]]
+// tag::xpack-sa-lf-events-ignore-index-privileges-tag[]
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.index_privileges`::
 (<<dynamic-cluster-setting,Dynamic>>)
-A list of privileges. The specified policy will not print audit events for actions
+A list of index privileges. The specified policy will not print audit events for actions
 requiring any of these privileges.
-// end::xpack-sa-lf-events-ignore-privileges-tag[]
+// end::xpack-sa-lf-events-ignore-index-privileges-tag[]
+
+[[xpack-sa-lf-events-ignore-cluster-privileges]]
+// tag::xpack-sa-lf-events-ignore-cluster-privileges-tag[]
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.cluster_privileges`::
+(<<dynamic-cluster-setting,Dynamic>>)
+A list of cluster privileges. The specified policy will not print audit events for actions
+requiring any of these privileges.
+// end::xpack-sa-lf-events-ignore-cluster-privileges-tag[]
+
+[NOTE]
+Either `cluster_privileges` or `index_privileges` ignore filter can be specified
+for the same policy.
+If you need to filter out both index and cluster actions, you can create two different policies.
 
 [[xpack-sa-lf-events-ignore-roles]]
 // tag::xpack-sa-lf-events-ignore-roles-tag[]

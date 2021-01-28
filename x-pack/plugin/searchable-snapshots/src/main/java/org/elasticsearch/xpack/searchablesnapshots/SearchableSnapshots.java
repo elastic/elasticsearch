@@ -106,8 +106,14 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  */
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, EnginePlugin, ActionPlugin, ClusterPlugin, SystemIndexPlugin {
 
-    public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
+    public static final Setting<String> SNAPSHOT_REPOSITORY_NAME_SETTING = Setting.simpleString(
         "index.store.snapshot.repository_name",
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
+    );
+    public static final Setting<String> SNAPSHOT_REPOSITORY_UUID_SETTING = Setting.simpleString(
+        "index.store.snapshot.repository_uuid",
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex,
         Setting.Property.NotCopyableOnResize
@@ -191,7 +197,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_REPOSITORY_UUID_SETTING,
+            SNAPSHOT_REPOSITORY_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_ID_SETTING,
             SNAPSHOT_INDEX_NAME_SETTING,

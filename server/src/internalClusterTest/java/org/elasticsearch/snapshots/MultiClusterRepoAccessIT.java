@@ -104,7 +104,10 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
         assertThat(cause.getMessage(), containsString("[" + repoNameOnFirstCluster +
-                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository"));
+                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository."
+                + " The last cluster to write to this repository was ["
+                + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
+                + "] at generation [4]."));
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");

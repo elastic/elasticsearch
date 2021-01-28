@@ -21,6 +21,12 @@ POST /my-index-000001/_cache/clear
 
 `POST /_cache/clear`
 
+[[clear-cache-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
 
 [[clear-cache-api-path-params]]
 ==== {api-path-parms-title}

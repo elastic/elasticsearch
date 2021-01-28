@@ -95,7 +95,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
     boolean validate(Metadata metadata) {
         // check index exists
-        if (!metadata.hasIndex(index.getName())) {
+        if (metadata.hasIndex(index.getName()) == false) {
             throw new IllegalStateException(index + " exists in routing does not exists in metadata");
         }
         IndexMetadata indexMetadata = metadata.index(index.getName());
@@ -124,7 +124,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                                  "], got [" + routingNumberOfReplicas + "]");
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
-                if (!shardRouting.index().equals(index)) {
+                if (shardRouting.index().equals(index) == false) {
                     throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
                                                     "from the routing table");
                 }
@@ -182,7 +182,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                             }
                         }
                     }
-                    if (!excluded) {
+                    if (excluded == false) {
                         nodes.add(currentNodeId);
                     }
                 }
@@ -275,8 +275,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         IndexRoutingTable that = (IndexRoutingTable) o;
 
-        if (!index.equals(that.index)) return false;
-        if (!shards.equals(that.shards)) return false;
+        if (index.equals(that.index) == false) return false;
+        if (shards.equals(that.shards) == false) return false;
 
         return true;
     }
@@ -387,7 +387,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         private Builder initializeAsRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards,
                                             boolean asNew, UnassignedInfo unassignedInfo) {
             assert indexMetadata.getIndex().equals(index);
-            if (!shards.isEmpty()) {
+            if (shards.isEmpty() == false) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
@@ -414,7 +414,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          */
         private Builder initializeEmpty(IndexMetadata indexMetadata, UnassignedInfo unassignedInfo) {
             assert indexMetadata.getIndex().equals(index);
-            if (!shards.isEmpty()) {
+            if (shards.isEmpty() == false) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
@@ -471,15 +471,15 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                 // first check if there is one that is not assigned to a node, and remove it
                 boolean removed = false;
                 for (ShardRouting shardRouting : indexShard) {
-                    if (!shardRouting.primary() && !shardRouting.assignedToNode()) {
+                    if (shardRouting.primary() == false && shardRouting.assignedToNode() == false) {
                         builder.removeShard(shardRouting);
                         removed = true;
                         break;
                     }
                 }
-                if (!removed) {
+                if (removed == false) {
                     for (ShardRouting shardRouting : indexShard) {
-                        if (!shardRouting.primary()) {
+                        if (shardRouting.primary() == false) {
                             builder.removeShard(shardRouting);
                             break;
                         }

@@ -192,7 +192,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        if (!enabled) {
+        if (enabled == false) {
             return;
         }
         scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(gcThresholds, gcOverheadThreshold) {
@@ -343,7 +343,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        if (!enabled) {
+        if (enabled == false) {
             return;
         }
         scheduledFuture.cancel();

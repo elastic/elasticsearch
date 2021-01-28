@@ -83,7 +83,7 @@ public class CollectionUtils {
             sort(array);
             int uniqueCount = 1;
             for (int i = 1; i < len; ++i) {
-                if (!Arrays.equals(array.get(i), array.get(i - 1))) {
+                if (Arrays.equals(array.get(i), array.get(i - 1)) == false) {
                     array.set(uniqueCount++, array.get(i));
                 }
             }
@@ -191,7 +191,7 @@ public class CollectionUtils {
             if (distance < 0 || distance >= list.size()) {
                 throw new IllegalArgumentException();
             }
-            if (!(list instanceof RandomAccess)) {
+            if ((list instanceof RandomAccess) == false) {
                 throw new IllegalArgumentException();
             }
             this.in = list;
@@ -256,7 +256,7 @@ public class CollectionUtils {
         bytes.get(previous, indices[0]);
         for (int i = 1; i < numValues; ++i) {
             bytes.get(current, indices[i]);
-            if (!previous.get().equals(current.get())) {
+            if (previous.get().equals(current.get()) == false) {
                 indices[uniqueCount++] = indices[i];
             }
             BytesRefBuilder tmp = previous;

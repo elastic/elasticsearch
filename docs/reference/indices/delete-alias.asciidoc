@@ -22,6 +22,11 @@ DELETE /my-index-000001/_alias/alias1
 
 `DELETE /<index>/_aliases/<alias>`
 
+[[delete-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for both the index and index alias.
 
 [[delete-alias-api-path-params]]
 ==== {api-path-parms-title}

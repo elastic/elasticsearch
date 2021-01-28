@@ -236,7 +236,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     private static String getClassname(String name, PluginType type, String classname) {
         if (type == PluginType.BOOTSTRAP) {
-            if (!Strings.isNullOrEmpty(classname)) {
+            if (Strings.isNullOrEmpty(classname) == false) {
                 throw new IllegalArgumentException(
                     "property [classname] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
                 );
@@ -395,7 +395,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         PluginInfo that = (PluginInfo) o;
 
-        if (!name.equals(that.name)) return false;
+        if (name.equals(that.name) == false) return false;
         // TODO: since the plugins are unique by their directory name, this should only be a name check, version should not matter?
         if (version != null ? !version.equals(that.version) : that.version != null) return false;
 

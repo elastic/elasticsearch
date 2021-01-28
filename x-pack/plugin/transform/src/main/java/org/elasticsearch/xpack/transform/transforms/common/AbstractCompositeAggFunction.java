@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.transforms.Function;
-import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -88,7 +87,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         .collect(Collectors.toList());
 
                     listener.onResponse(docs);
-                } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
+                } catch (AggregationValueExtractor.AggregationExtractionException extractionException) {
                     listener.onFailure(new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
                 }
             }, listener::onFailure)

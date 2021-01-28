@@ -39,6 +39,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.transform.transforms.common.AggregationValueExtractor.getExtractor;
+import static org.elasticsearch.xpack.transform.transforms.common.AggregationValueExtractorTests.createPercentilesAgg;
+import static org.elasticsearch.xpack.transform.transforms.common.AggregationValueExtractorTests.createSingleBucketAgg;
+import static org.elasticsearch.xpack.transform.transforms.common.AggregationValueExtractorTests.createSingleMetricAgg;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -147,15 +151,15 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 assertEquals("double", mappings.get("p_rating.10"));
                 assertEquals("double", mappings.get("p_rating.99_9"));
 
-                Aggregation agg = AggregationResultUtilsTests.createSingleMetricAgg("avg_rating", 33.3, "33.3");
-                assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(33.3));
+                Aggregation agg = createSingleMetricAgg("avg_rating", 33.3, "33.3");
+                assertThat(getExtractor(agg).value(agg, mappings, ""), equalTo(33.3));
 
-                agg = AggregationResultUtilsTests.createPercentilesAgg(
+                agg = createPercentilesAgg(
                     "p_agg",
                     Arrays.asList(new Percentile(1, 0), new Percentile(50, 1.2), new Percentile(99, 2.4), new Percentile(99.5, 4.3))
                 );
                 assertThat(
-                    AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""),
+                    getExtractor(agg).value(agg, mappings, ""),
                     equalTo(asMap("1", 0.0, "50", 1.2, "99", 2.4, "99_5", 4.3))
                 );
             }
@@ -217,50 +221,50 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 assertEquals("object", mappings.get("filter_4.filter_4_1.filter_4_1_2"));
                 assertEquals("double", mappings.get("filter_4.filter_4_1.filter_4_1_2.min_drinks_4"));
 
-                Aggregation agg = AggregationResultUtilsTests.createSingleBucketAgg("filter_1", 36363);
-                assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(36363L));
+                Aggregation agg = createSingleBucketAgg("filter_1", 36363);
+                assertThat(getExtractor(agg).value(agg, mappings, ""), equalTo(36363L));
 
-                agg = AggregationResultUtilsTests.createSingleBucketAgg(
+                agg = createSingleBucketAgg(
                     "filter_2",
                     23144,
-                    AggregationResultUtilsTests.createSingleMetricAgg("max_drinks_2", 45.0, "forty_five")
+                    createSingleMetricAgg("max_drinks_2", 45.0, "forty_five")
                 );
-                assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(asMap("max_drinks_2", 45L)));
+                assertThat(getExtractor(agg).value(agg, mappings, ""), equalTo(asMap("max_drinks_2", 45L)));
 
-                agg = AggregationResultUtilsTests.createSingleBucketAgg(
+                agg = createSingleBucketAgg(
                     "filter_3",
                     62426,
-                    AggregationResultUtilsTests.createSingleBucketAgg(
+                    createSingleBucketAgg(
                         "filter_3_1",
                         33365,
-                        AggregationResultUtilsTests.createSingleMetricAgg("max_drinks_3", 35.0, "thirty_five")
+                        createSingleMetricAgg("max_drinks_3", 35.0, "thirty_five")
                     )
                 );
                 assertThat(
-                    AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""),
+                    getExtractor(agg).value(agg, mappings, ""),
                     equalTo(asMap("filter_3_1", asMap("max_drinks_3", 35.0)))
                 );
 
-                agg = AggregationResultUtilsTests.createSingleBucketAgg(
+                agg = createSingleBucketAgg(
                     "filter_4",
                     62426,
-                    AggregationResultUtilsTests.createSingleBucketAgg(
+                    createSingleBucketAgg(
                         "filter_4_1",
                         33365,
-                        AggregationResultUtilsTests.createSingleBucketAgg(
+                        createSingleBucketAgg(
                             "filter_4_1_1",
                             12543,
-                            AggregationResultUtilsTests.createSingleMetricAgg("max_drinks_4", 1.0, "a small one")
+                            createSingleMetricAgg("max_drinks_4", 1.0, "a small one")
                         ),
-                        AggregationResultUtilsTests.createSingleBucketAgg(
+                        createSingleBucketAgg(
                             "filter_4_1_2",
                             526,
-                            AggregationResultUtilsTests.createSingleMetricAgg("min_drinks_4", 7395.0, "a lot")
+                            createSingleMetricAgg("min_drinks_4", 7395.0, "a lot")
                         )
                     )
                 );
                 assertThat(
-                    AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""),
+                    getExtractor(agg).value(agg, mappings, ""),
                     equalTo(
                         asMap(
                             "filter_4_1",

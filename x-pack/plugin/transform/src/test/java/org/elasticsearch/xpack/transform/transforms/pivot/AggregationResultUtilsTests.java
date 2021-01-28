@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -21,7 +20,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
-import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
@@ -33,11 +31,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.GeoBounds;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.ParsedAvg;
 import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
 import org.elasticsearch.search.aggregations.metrics.ParsedExtendedStats;
@@ -47,9 +42,6 @@ import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.ParsedStats;
 import org.elasticsearch.search.aggregations.metrics.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.search.aggregations.metrics.Percentiles;
-import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -62,10 +54,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
-import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils.BucketKeyExtractor;
+import org.elasticsearch.xpack.transform.transforms.common.AggregationValueExtractor;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -77,11 +68,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class AggregationResultUtilsTests extends ESTestCase {
 
@@ -574,12 +560,12 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertNotEquals(resultFirstRun, resultSecondRun);
 
         Set<String> documentIdsFirstRun = new HashSet<>();
-        resultFirstRun.forEach(m -> { documentIdsFirstRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD)); });
+        resultFirstRun.forEach(m -> documentIdsFirstRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD)));
 
         assertEquals(4, documentIdsFirstRun.size());
 
         Set<String> documentIdsSecondRun = new HashSet<>();
-        resultSecondRun.forEach(m -> { documentIdsSecondRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD)); });
+        resultSecondRun.forEach(m -> documentIdsSecondRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD)));
 
         assertEquals(4, documentIdsSecondRun.size());
         assertEquals(documentIdsFirstRun, documentIdsSecondRun);
@@ -611,8 +597,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
 
         AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
-        AggregationResultUtils.AggregationExtractionException exception = expectThrows(
-            AggregationResultUtils.AggregationExtractionException.class,
+        AggregationValueExtractor.AggregationExtractionException exception = expectThrows(
+            AggregationValueExtractor.AggregationExtractionException.class,
             () -> AggregationResultUtils.updateDocument(document, "foo.bar.baz", 2000L)
         );
         assertThat(exception.getMessage(), equalTo("duplicate key value pairs key [foo.bar.baz] old value [1000] duplicate value [2000]"));
@@ -622,274 +608,11 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
 
         AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
-        AggregationResultUtils.AggregationExtractionException exception = expectThrows(
-            AggregationResultUtils.AggregationExtractionException.class,
+        AggregationValueExtractor.AggregationExtractionException exception = expectThrows(
+            AggregationValueExtractor.AggregationExtractionException.class,
             () -> AggregationResultUtils.updateDocument(document, "foo.bar", 2000L)
         );
         assertThat(exception.getMessage(), equalTo("mixed object types of nested and non-nested fields [foo.bar]"));
-    }
-
-    public static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, Double value, String valueAsString) {
-        NumericMetricsAggregation.SingleValue agg = mock(NumericMetricsAggregation.SingleValue.class);
-        when(agg.value()).thenReturn(value);
-        when(agg.getValueAsString()).thenReturn(valueAsString);
-        when(agg.getName()).thenReturn(name);
-        return agg;
-    }
-
-    public void testSingleValueAggExtractor() {
-        Aggregation agg = createSingleMetricAgg("metric", Double.NaN, "NaN");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "double"), ""), is(nullValue()));
-
-        agg = createSingleMetricAgg("metric", Double.POSITIVE_INFINITY, "NaN");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "double"), ""), is(nullValue()));
-
-        agg = createSingleMetricAgg("metric", 100.0, "100.0");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "double"), ""), equalTo(100.0));
-
-        agg = createSingleMetricAgg("metric", 100.0, "one_hundred");
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "double"), ""), equalTo(100.0));
-
-        agg = createSingleMetricAgg("metric", 100.0, "one_hundred");
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "string"), ""),
-            equalTo("one_hundred")
-        );
-
-        agg = createSingleMetricAgg("metric", 100.0, "one_hundred");
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("metric", "unsigned_long"), ""),
-            equalTo(100L)
-        );
-    }
-
-    private ScriptedMetric createScriptedMetric(Object returnValue) {
-        ScriptedMetric agg = mock(ScriptedMetric.class);
-        when(agg.aggregation()).thenReturn(returnValue);
-        return agg;
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testScriptedMetricAggExtractor() {
-        Aggregation agg = createScriptedMetric(null);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), is(nullValue()));
-
-        agg = createScriptedMetric(Collections.singletonList("values"));
-        Object val = AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), "");
-        assertThat((List<String>) val, hasItem("values"));
-
-        agg = createScriptedMetric(Collections.singletonMap("key", 100));
-        val = AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), "");
-        assertThat(((Map<String, Object>) val).get("key"), equalTo(100));
-    }
-
-    private GeoCentroid createGeoCentroid(GeoPoint point, long count) {
-        GeoCentroid agg = mock(GeoCentroid.class);
-        when(agg.centroid()).thenReturn(point);
-        when(agg.count()).thenReturn(count);
-        return agg;
-    }
-
-    public void testGeoCentroidAggExtractor() {
-        Aggregation agg = createGeoCentroid(null, 0);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), is(nullValue()));
-
-        agg = createGeoCentroid(new GeoPoint(100.0, 101.0), 0);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), is(nullValue()));
-
-        agg = createGeoCentroid(new GeoPoint(100.0, 101.0), randomIntBetween(1, 100));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo("100.0, 101.0"));
-    }
-
-    private GeoBounds createGeoBounds(GeoPoint tl, GeoPoint br) {
-        GeoBounds agg = mock(GeoBounds.class);
-        when(agg.bottomRight()).thenReturn(br);
-        when(agg.topLeft()).thenReturn(tl);
-        return agg;
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testGeoBoundsAggExtractor() {
-        final int numberOfRuns = 25;
-        Aggregation agg = createGeoBounds(null, new GeoPoint(100.0, 101.0));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), is(nullValue()));
-
-        agg = createGeoBounds(new GeoPoint(100.0, 101.0), null);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), is(nullValue()));
-
-        String type = "point";
-        for (int i = 0; i < numberOfRuns; i++) {
-            Map<String, Object> expectedObject = new HashMap<>();
-            expectedObject.put("type", type);
-            double lat = randomDoubleBetween(-90.0, 90.0, false);
-            double lon = randomDoubleBetween(-180.0, 180.0, false);
-            expectedObject.put("coordinates", Arrays.asList(lon, lat));
-            agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat, lon));
-            assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(expectedObject));
-        }
-
-        type = "linestring";
-        for (int i = 0; i < numberOfRuns; i++) {
-            double lat = randomDoubleBetween(-90.0, 90.0, false);
-            double lon = randomDoubleBetween(-180.0, 180.0, false);
-            double lat2 = lat;
-            double lon2 = lon;
-            if (randomBoolean()) {
-                lat2 = randomDoubleBetween(-90.0, 90.0, false);
-            } else {
-                lon2 = randomDoubleBetween(-180.0, 180.0, false);
-            }
-            agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat2, lon2));
-            Object val = AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), "");
-            Map<String, Object> geoJson = (Map<String, Object>) val;
-            assertThat(geoJson.get("type"), equalTo(type));
-            List<Double[]> coordinates = (List<Double[]>) geoJson.get("coordinates");
-            for (Double[] coor : coordinates) {
-                assertThat(coor.length, equalTo(2));
-            }
-            assertThat(coordinates.get(0)[0], equalTo(lon));
-            assertThat(coordinates.get(0)[1], equalTo(lat));
-            assertThat(coordinates.get(1)[0], equalTo(lon2));
-            assertThat(coordinates.get(1)[1], equalTo(lat2));
-        }
-
-        type = "polygon";
-        for (int i = 0; i < numberOfRuns; i++) {
-            double lat = randomDoubleBetween(-90.0, 90.0, false);
-            double lon = randomDoubleBetween(-180.0, 180.0, false);
-            double lat2 = randomDoubleBetween(-90.0, 90.0, false);
-            double lon2 = randomDoubleBetween(-180.0, 180.0, false);
-            while (Double.compare(lat, lat2) == 0 || Double.compare(lon, lon2) == 0) {
-                lat2 = randomDoubleBetween(-90.0, 90.0, false);
-                lon2 = randomDoubleBetween(-180.0, 180.0, false);
-            }
-            agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat2, lon2));
-            Object val = AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), "");
-            Map<String, Object> geoJson = (Map<String, Object>) val;
-            assertThat(geoJson.get("type"), equalTo(type));
-            List<List<Double[]>> coordinates = (List<List<Double[]>>) geoJson.get("coordinates");
-            assertThat(coordinates.size(), equalTo(1));
-            assertThat(coordinates.get(0).size(), equalTo(5));
-            List<List<Double>> expected = Arrays.asList(
-                Arrays.asList(lon, lat),
-                Arrays.asList(lon2, lat),
-                Arrays.asList(lon2, lat2),
-                Arrays.asList(lon, lat2),
-                Arrays.asList(lon, lat)
-            );
-            for (int j = 0; j < 5; j++) {
-                Double[] coordinate = coordinates.get(0).get(j);
-                assertThat(coordinate.length, equalTo(2));
-                assertThat(coordinate[0], equalTo(expected.get(j).get(0)));
-                assertThat(coordinate[1], equalTo(expected.get(j).get(1)));
-            }
-        }
-    }
-
-    public static Percentiles createPercentilesAgg(String name, List<Percentile> percentiles) {
-        Percentiles agg = mock(Percentiles.class);
-
-        when(agg.iterator()).thenReturn(percentiles.iterator());
-        when(agg.getName()).thenReturn(name);
-        return agg;
-    }
-
-    public void testPercentilesAggExtractor() {
-        Aggregation agg = createPercentilesAgg(
-            "p_agg",
-            Arrays.asList(new Percentile(1, 0), new Percentile(50, 22.2), new Percentile(99, 43.3), new Percentile(99.5, 100.3))
-        );
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""),
-            equalTo(asMap("1", 0.0, "50", 22.2, "99", 43.3, "99_5", 100.3))
-        );
-    }
-
-    public void testPercentilesAggExtractorNaN() {
-        Aggregation agg = createPercentilesAgg("p_agg", Arrays.asList(new Percentile(1, Double.NaN), new Percentile(50, Double.NaN)));
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(asMap("1", null, "50", null)));
-    }
-
-    public static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, Aggregation... subAggregations) {
-        SingleBucketAggregation agg = mock(SingleBucketAggregation.class);
-        when(agg.getDocCount()).thenReturn(docCount);
-        when(agg.getName()).thenReturn(name);
-        if (subAggregations != null) {
-            org.elasticsearch.search.aggregations.Aggregations subAggs = new org.elasticsearch.search.aggregations.Aggregations(
-                Arrays.asList(subAggregations)
-            );
-            when(agg.getAggregations()).thenReturn(subAggs);
-        } else {
-            when(agg.getAggregations()).thenReturn(null);
-        }
-        return agg;
-    }
-
-    public void testSingleBucketAggExtractor() {
-        Aggregation agg = createSingleBucketAgg("sba", 42L);
-        assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(42L));
-
-        agg = createSingleBucketAgg("sba1", 42L, createSingleMetricAgg("sub1", 100.0, "100.0"));
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""),
-            equalTo(Collections.singletonMap("sub1", 100.0))
-        );
-
-        agg = createSingleBucketAgg(
-            "sba2",
-            42L,
-            createSingleMetricAgg("sub1", 100.0, "hundred"),
-            createSingleMetricAgg("sub2", 33.33, "thirty_three")
-        );
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, asStringMap("sba2.sub1", "long", "sba2.sub2", "float"), ""),
-            equalTo(asMap("sub1", 100L, "sub2", 33.33))
-        );
-
-        agg = createSingleBucketAgg(
-            "sba3",
-            42L,
-            createSingleMetricAgg("sub1", 100.0, "hundred"),
-            createSingleMetricAgg("sub2", 33.33, "thirty_three"),
-            createSingleBucketAgg("sub3", 42L)
-        );
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, asStringMap("sba3.sub1", "long", "sba3.sub2", "double"), ""),
-            equalTo(asMap("sub1", 100L, "sub2", 33.33, "sub3", 42L))
-        );
-
-        agg = createSingleBucketAgg(
-            "sba4",
-            42L,
-            createSingleMetricAgg("sub1", 100.0, "hundred"),
-            createSingleMetricAgg("sub2", 33.33, "thirty_three"),
-            createSingleBucketAgg("sub3", 42L, createSingleMetricAgg("subsub1", 11.1, "eleven_dot_eleven"))
-        );
-        assertThat(
-            AggregationResultUtils.getExtractor(agg)
-                .value(agg, asStringMap("sba4.sub3.subsub1", "double", "sba4.sub2", "float", "sba4.sub1", "long"), ""),
-            equalTo(asMap("sub1", 100L, "sub2", 33.33, "sub3", asMap("subsub1", 11.1)))
-        );
-    }
-
-    public void testDefaultBucketKeyExtractor() {
-        BucketKeyExtractor extractor = new AggregationResultUtils.DefaultBucketKeyExtractor();
-
-        assertThat(extractor.value(42.0, "long"), equalTo(42L));
-        assertThat(extractor.value(42.2, "double"), equalTo(42.2));
-        assertThat(extractor.value(1577836800000L, "date"), equalTo("2020-01-01T00:00:00.000Z"));
-        assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo("2020-01-01T00:00:00.000Z"));
-        assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
-    }
-
-    public void testDatesAsEpochBucketKeyExtractor() {
-        BucketKeyExtractor extractor = new AggregationResultUtils.DatesAsEpochBucketKeyExtractor();
-
-        assertThat(extractor.value(42.0, "long"), equalTo(42L));
-        assertThat(extractor.value(42.2, "double"), equalTo(42.2));
-        assertThat(extractor.value(1577836800000L, "date"), equalTo(1577836800000L));
-        assertThat(extractor.value(1577836800000L, "date_nanos"), equalTo(1577836800000L));
-        assertThat(extractor.value(1577836800000L, "long"), equalTo(1577836800000L));
     }
 
     private void executeTest(
@@ -916,7 +639,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         // remove the document ids and test uniqueness
         Set<String> documentIds = new HashSet<>();
-        result.forEach(m -> { documentIds.add((String) m.remove(TransformField.DOCUMENT_ID_FIELD)); });
+        result.forEach(m -> documentIds.add((String) m.remove(TransformField.DOCUMENT_ID_FIELD)));
 
         assertEquals(result.size(), documentIds.size());
         assertEquals(expected, result);

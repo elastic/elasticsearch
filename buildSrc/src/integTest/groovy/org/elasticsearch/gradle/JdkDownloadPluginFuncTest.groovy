@@ -74,7 +74,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def result = WiremockFixture.withWireMock(mockRepoUrl, mockedContent) { server ->
             buildFile << repositoryMockSetup(server, jdkVendor, jdkVersion)
-            gradleRunner("getJdk", '-i', '--stacktrace', '-g', '/Users/rene/dev/temp/debugguh').build()
+            gradleRunner("getJdk").build()
         }
 
         then:

@@ -41,9 +41,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testRandomReads() throws IOException {
         final String fileName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        final byte[] fileData = randomUnicodeOfLength(Math.toIntExact(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes() * 10)).getBytes(
-            StandardCharsets.UTF_8
-        );
+        final byte[] fileData = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
 
         final Path tempDir = createTempDir().resolve(SHARD_ID.getIndex().getUUID()).resolve(String.valueOf(SHARD_ID.getId()));
         final FileInfo fileInfo = new FileInfo(

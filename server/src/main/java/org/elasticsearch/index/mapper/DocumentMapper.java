@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -93,7 +92,6 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     private final String type;
-    private final Text typeText;
     private final CompressedXContent mappingSource;
     private final DocumentParser documentParser;
     private final MappingLookup mappingLookup;
@@ -105,7 +103,6 @@ public class DocumentMapper implements ToXContentFragment {
                            DocumentParser documentParser,
                            Mapping mapping) {
         this.type = mapping.root().name();
-        this.typeText = new Text(this.type);
         this.documentParser = documentParser;
         this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
 
@@ -131,10 +128,6 @@ public class DocumentMapper implements ToXContentFragment {
 
     public String type() {
         return this.type;
-    }
-
-    public Text typeText() {
-        return this.typeText;
     }
 
     public Map<String, Object> meta() {
@@ -231,7 +224,6 @@ public class DocumentMapper implements ToXContentFragment {
     public String toString() {
         return "DocumentMapper{" +
             "type='" + type + '\'' +
-            ", typeText=" + typeText +
             ", mappingSource=" + mappingSource +
             ", documentParser=" + documentParser +
             ", mappingLookup=" + mappingLookup +

@@ -751,6 +751,12 @@ public class NumberFieldMapper extends FieldMapper {
          * Returns true if the object is a number and has a decimal part
          */
         public static boolean hasDecimalPart(Object number) {
+            if (number instanceof Byte
+                || number instanceof Short
+                || number instanceof Integer
+                || number instanceof Long) {
+                return false;
+            }
             if (number instanceof Number) {
                 double doubleValue = ((Number) number).doubleValue();
                 return doubleValue % 1 != 0;
@@ -796,7 +802,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         /**
-         * Converts and Object to a {@code long} by checking it against known
+         * Converts an Object to a {@code long} by checking it against known
          * types and checking its range.
          */
         public static long objectToLong(Object value, boolean coerce) {

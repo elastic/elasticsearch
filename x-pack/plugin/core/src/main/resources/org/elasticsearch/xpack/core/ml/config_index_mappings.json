@@ -25,10 +25,19 @@
         "properties" : {
           "classification" : {
             "properties" : {
+              "alpha" : {
+                "type" : "double"
+              },
               "dependent_variable" : {
                 "type" : "keyword"
               },
+              "downsample_factor" : {
+                "type" : "double"
+              },
               "eta" : {
+                "type" : "double"
+              },
+              "eta_growth_rate_per_tree" : {
                 "type" : "double"
               },
               "feature_bag_fraction" : {
@@ -42,6 +51,9 @@
               },
               "lambda" : {
                 "type" : "double"
+              },
+              "max_optimization_rounds_per_hyperparameter" : {
+                "type" : "integer"
               },
               "max_trees" : {
                 "type" : "integer"
@@ -57,6 +69,12 @@
               },
               "prediction_field_name" : {
                 "type" : "keyword"
+              },
+              "soft_tree_depth_limit" : {
+                "type" : "double"
+              },
+              "soft_tree_depth_tolerance" : {
+                "type" : "double"
               },
               "training_percent" : {
                 "type" : "double"
@@ -78,10 +96,19 @@
           },
           "regression" : {
             "properties" : {
+              "alpha" : {
+                "type" : "double"
+              },
               "dependent_variable" : {
                 "type" : "keyword"
               },
+              "downsample_factor" : {
+                "type" : "double"
+              },
               "eta" : {
+                "type" : "double"
+              },
+              "eta_growth_rate_per_tree" : {
                 "type" : "double"
               },
               "feature_bag_fraction" : {
@@ -102,6 +129,9 @@
               "loss_function_parameter" : {
                 "type" : "double"
               },
+              "max_optimization_rounds_per_hyperparameter" : {
+                "type" : "integer"
+              },
               "max_trees" : {
                 "type" : "integer"
               },
@@ -110,6 +140,12 @@
               },
               "prediction_field_name" : {
                 "type" : "keyword"
+              },
+              "soft_tree_depth_limit" : {
+                "type" : "double"
+              },
+              "soft_tree_depth_tolerance" : {
+                "type" : "double"
               },
               "training_percent" : {
                 "type" : "double"

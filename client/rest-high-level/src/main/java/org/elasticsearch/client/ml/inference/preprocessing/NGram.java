@@ -24,8 +24,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntFunction;
+import java.util.stream.IntStream;
 
 
 /**
@@ -134,6 +138,10 @@ public class NGram implements PreProcessor {
         return custom;
     }
 
+    public List<String> outputFields() {
+        return allPossibleNGramOutputFeatureNames();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -150,6 +158,30 @@ public class NGram implements PreProcessor {
     @Override
     public int hashCode() {
         return Objects.hash(field, featurePrefix, start, length, custom, nGrams);
+    }
+
+    private String nGramFeature(int nGram, int pos) {
+        return featurePrefix
+            + "."
+            + nGram
+            + pos;
+    }
+
+    private List<String> allPossibleNGramOutputFeatureNames() {
+        int totalNgrams = 0;
+        for (int nGram : nGrams) {
+            totalNgrams += (length - (nGram - 1));
+        }
+        if (totalNgrams <= 0) {
+            return Collections.emptyList();
+        }
+        List<String> ngramOutputs = new ArrayList<>(totalNgrams);
+
+        for (int nGram : nGrams) {
+            IntFunction<String> func = i -> nGramFeature(nGram, i);
+            IntStream.range(0, (length - (nGram - 1))).mapToObj(func).forEach(ngramOutputs::add);
+        }
+        return ngramOutputs;
     }
 
     public static Builder builder(String field) {

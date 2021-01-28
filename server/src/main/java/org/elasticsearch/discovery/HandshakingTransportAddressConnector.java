@@ -51,11 +51,11 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     // connection timeout for probes
     public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.probe.connect_timeout",
-            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(30), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
     // handshake timeout for probes
     public static final Setting<TimeValue> PROBE_HANDSHAKE_TIMEOUT_SETTING =
         Setting.timeSetting("discovery.probe.handshake_timeout",
-            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(30), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final TransportService transportService;
     private final TimeValue probeConnectTimeout;

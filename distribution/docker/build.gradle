@@ -57,7 +57,7 @@ ext.expansions = { Architecture architecture, boolean oss, DockerBase base, bool
     buildArgs = """
 ARG BASE_REGISTRY=nexus-docker-secure.levelup-nexus.svc.cluster.local:18082
 ARG BASE_IMAGE=redhat/ubi/ubi8
-ARG BASE_TAG=8.2
+ARG BASE_TAG=8.3
 """
   }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
@@ -94,14 +93,14 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        SourceConfig source = new SourceConfig(new String[] { "existing_source_index" }, QueryConfig.matchAll());
+        SourceConfig source = new SourceConfig("existing_source_index");
         Function pivot = new Pivot(getValidPivotConfig(), randomAlphaOfLength(10), new SettingsConfig(), Version.CURRENT);
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        SourceConfig source = new SourceConfig(new String[] { "non_existing_source_index" }, QueryConfig.matchAll());
+        SourceConfig source = new SourceConfig("non_existing_source_index");
         Function pivot = new Pivot(getValidPivotConfig(), randomAlphaOfLength(10), new SettingsConfig(), Version.CURRENT);
 
         assertInvalidTransform(client, source, pivot);
@@ -132,7 +131,7 @@ public class PivotTests extends ESTestCase {
     public void testSearchFailure() throws Exception {
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
-        SourceConfig source = new SourceConfig(new String[] { "existing_source_index_with_failing_shards" }, QueryConfig.matchAll());
+        SourceConfig source = new SourceConfig("existing_source_index_with_failing_shards");
 
         Function pivot = new Pivot(getValidPivotConfig(), randomAlphaOfLength(10), new SettingsConfig(), Version.CURRENT);
 
@@ -142,7 +141,7 @@ public class PivotTests extends ESTestCase {
     public void testValidateAllSupportedAggregations() throws Exception {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
-            SourceConfig source = new SourceConfig(new String[] { "existing_source" }, QueryConfig.matchAll());
+            SourceConfig source = new SourceConfig("existing_source");
 
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),

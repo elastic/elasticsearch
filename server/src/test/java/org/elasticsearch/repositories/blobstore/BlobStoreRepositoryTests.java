@@ -202,13 +202,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
-        final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(),future1);
+        final PlainActionFuture<RepositoryData> future = PlainActionFuture.newFuture();
+        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(), future);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
-        expectThrows(RepositoryException.class,
-            () -> writeIndexGen(repository, repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId()));
+        final RepositoryData fresherRepositoryData = repositoryData.withGenId(startingGeneration + 1);
+        expectThrows(RepositoryException.class, () -> writeIndexGen(repository, fresherRepositoryData, repositoryData.getGenId()));
     }
 
     public void testBadChunksize() throws Exception {
@@ -258,6 +258,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             client.admin().cluster().preparePutRepository(repositoryName)
                                     .setType(REPO_TYPE)
                                     .setSettings(Settings.builder().put(node().settings()).put("location", location))
+                                    .setVerify(false) // prevent eager reading of repo data
                                     .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

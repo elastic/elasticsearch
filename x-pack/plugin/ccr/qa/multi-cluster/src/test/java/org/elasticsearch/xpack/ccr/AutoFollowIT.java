@@ -10,27 +10,22 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -676,55 +671,6 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         Map<?, ?> response = toMap(client.performRequest(statsRequest));
         response = (Map<?, ?>) response.get("auto_follow_stats");
         return (Integer) response.get("number_of_successful_follow_indices");
-    }
-
-    private void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
-        Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
-            bodyBuilder.startObject();
-            {
-                bodyBuilder.startArray("leader_index_patterns");
-                {
-                    bodyBuilder.value(pattern);
-                }
-                bodyBuilder.endArray();
-                bodyBuilder.field("remote_cluster", remoteCluster);
-            }
-            bodyBuilder.endObject();
-            request.setJsonEntity(Strings.toString(bodyBuilder));
-        }
-        assertOK(client.performRequest(request));
-    }
-
-    private static String backingIndexName(String dataStreamName, int generation) {
-        return DataStream.getDefaultBackingIndexName(dataStreamName, generation);
-    }
-
-    private static void verifyDocuments(final RestClient client,
-                                        final String index,
-                                        final int expectedNumDocs) throws IOException {
-        final Request request = new Request("GET", "/" + index + "/_search");
-        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-        Map<String, ?> response = toMap(client.performRequest(request));
-
-        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertThat(index, numDocs, equalTo(expectedNumDocs));
-    }
-
-    static void verifyDataStream(final RestClient client,
-                                         final String name,
-                                         final String... expectedBackingIndices) throws IOException {
-        Request request = new Request("GET", "/_data_stream/" + name);
-        Map<String, ?> response = toMap(client.performRequest(request));
-        List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
-        assertThat(retrievedDataStreams, hasSize(1));
-        List<?> actualBackingIndices = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
-        assertThat(actualBackingIndices, hasSize(expectedBackingIndices.length));
-        for (int i = 0; i < expectedBackingIndices.length; i++) {
-            Map<?, ?> actualBackingIndex = (Map<?, ?>) actualBackingIndices.get(i);
-            String expectedBackingIndex = expectedBackingIndices[i];
-            assertThat(actualBackingIndex.get("index_name"), equalTo(expectedBackingIndex));
-        }
     }
 
     private void deleteDataStream(String name) throws IOException {

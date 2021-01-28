@@ -170,7 +170,9 @@ public class SSLDriverTests extends ESTestCase {
             // fips JSSE does not support TLSv1.3 yet
             serverProtocols = new String[]{"TLSv1.2"};
             clientProtocols = new String[]{"TLSv1.1"};
-            expectedMessageMatcher = is("org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)");
+            expectedMessageMatcher = anyOf(is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences " +
+                    "[TLS12]"), is("org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)"), is("Client requested protocol TLSv1.1 " +
+                    "not enabled or not supported"));
         } else if (JavaVersion.current().compareTo(JavaVersion.parse("16")) >= 0) {
             // JDK16 https://jdk.java.net/16/release-notes does not permit protocol TLSv1.1 OOB
             serverProtocols = new String[]{"TLSv1.3"};

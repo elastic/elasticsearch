@@ -32,7 +32,7 @@ import java.util.Set;
 
 abstract class OutboundMessage extends NetworkMessage {
 
-    private final Writeable message;
+    protected final Writeable message;
 
     OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
         super(threadContext, version, status, requestId);
@@ -133,6 +133,12 @@ abstract class OutboundMessage extends NetworkMessage {
 
             return status;
         }
+
+
+        @Override
+        public String toString() {
+            return "Request{" + action + "}{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}";
+        }
     }
 
     static class Response extends OutboundMessage {
@@ -165,6 +171,12 @@ abstract class OutboundMessage extends NetworkMessage {
             }
 
             return status;
+        }
+
+        @Override
+        public String toString() {
+            return "Response{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}{"
+                    + message.getClass() + "}";
         }
     }
 

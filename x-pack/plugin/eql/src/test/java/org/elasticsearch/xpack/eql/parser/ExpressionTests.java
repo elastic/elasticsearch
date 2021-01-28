@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -274,8 +275,8 @@ public class ExpressionTests extends ESTestCase {
             new UnresolvedAttribute(null, "some.field"),
             new Literal(null, "test string", DataTypes.KEYWORD)
         );
-        UnresolvedFunction.ResolutionType resolutionType = UnresolvedFunction.ResolutionType.STANDARD;
-        Expression expected = new UnresolvedFunction(null, "concat", resolutionType, arguments);
+        FunctionResolutionStrategy resolutionStrategy = FunctionResolutionStrategy.DEFAULT;
+        Expression expected = new UnresolvedFunction(null, "concat", resolutionStrategy, arguments);
 
         assertEquals(expected, expr("concat(some.field, \"test string\")"));
     }

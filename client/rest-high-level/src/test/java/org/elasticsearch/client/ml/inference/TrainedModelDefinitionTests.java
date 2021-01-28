@@ -19,6 +19,8 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncodingTests;
+import org.elasticsearch.client.ml.inference.preprocessing.MultiTests;
+import org.elasticsearch.client.ml.inference.preprocessing.NGramTests;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncodingTests;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
@@ -66,9 +68,12 @@ public class TrainedModelDefinitionTests extends AbstractXContentTestCase<Traine
         return new TrainedModelDefinition.Builder()
             .setPreProcessors(
                 randomBoolean() ? null :
-                    Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
+                    Stream.generate(() -> randomFrom(
+                        FrequencyEncodingTests.createRandom(),
                         OneHotEncodingTests.createRandom(),
-                        TargetMeanEncodingTests.createRandom()))
+                        TargetMeanEncodingTests.createRandom(),
+                        NGramTests.createRandom(),
+                        MultiTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
             .setTrainedModel(randomFrom(TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 6, targetType),

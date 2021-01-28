@@ -66,7 +66,7 @@ public class NamedFormatter {
                     replacement = matcher.group(1);
                 } else {
                     final String paramName = matcher.group(3);
-                    if (values.containsKey(paramName) == true) {
+                    if (values.containsKey(paramName)) {
                         replacement = values.get(paramName).toString();
                     } else {
                         throw new IllegalArgumentException("No parameter value for %(" + paramName + ")");

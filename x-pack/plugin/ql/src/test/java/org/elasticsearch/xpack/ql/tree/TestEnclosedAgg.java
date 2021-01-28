@@ -27,9 +27,6 @@ public class TestEnclosedAgg extends AggregateFunction implements EnclosedAgg {
 
     @Override
     public TestEnclosedAgg replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new TestEnclosedAgg(source(), newChildren.get(0));
     }
 

@@ -117,6 +117,7 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -541,7 +542,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private static void clearClusters() throws Exception {
-        if (!clusters.isEmpty()) {
+        if (clusters.isEmpty() == false) {
             IOUtils.close(clusters.values());
             clusters.clear();
         }
@@ -611,7 +612,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             success = true;
         } finally {
-            if (!success) {
+            if (success == false) {
                 // if we failed here that means that something broke horribly so we should clear all clusters
                 // TODO: just let the exception happen, WTF is all this horseshit
                 // afterTestRule.forceFailure();
@@ -639,7 +640,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static InternalTestCluster internalCluster() {
-        if (!isInternalCluster()) {
+        if (isInternalCluster() == false) {
             throw new UnsupportedOperationException("current test cluster is immutable");
         }
         return (InternalTestCluster) currentCluster;
@@ -771,7 +772,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 created.add(name);
                 success = true;
             } finally {
-                if (!success && !created.isEmpty()) {
+                if (success == false && created.isEmpty() == false) {
                     cluster().wipeIndices(created.toArray(new String[created.size()]));
                 }
             }
@@ -886,7 +887,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getExcludeSettings(n, builder);
         }
         Settings build = builder.build();
-        if (!build.isEmpty()) {
+        if (build.isEmpty() == false) {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
             client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
         }
@@ -1527,7 +1528,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             types.add(builder.request().type());
         }
         Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
-        if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
+        if (random.nextBoolean() && builders.isEmpty() == false && dummyDocuments) {
             builders = new ArrayList<>(builders);
             // inject some bogus docs
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
@@ -1591,7 +1592,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         assertThat(actualErrors, emptyIterable());
-        if (!bogusIds.isEmpty()) {
+        if (bogusIds.isEmpty() == false) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (List<String> doc : bogusIds) {
                 assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(2) + "]",
@@ -1629,7 +1630,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static void setClusterReadOnly(boolean value) {
         Settings settings = value ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build() :
             Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build()  ;
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(settings).setTransientSettings(settings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
@@ -2300,7 +2302,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 INSTANCE.setupSuiteScopeCluster();
                 success = true;
             } finally {
-                if (!success) {
+                if (success == false) {
                     afterClass();
                 }
             }
@@ -2412,6 +2414,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+    }
+
+    protected void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {
+        Map<String, PersistedClusterStateService> lucenePersistedStateFactories = Stream.of(internalCluster().getNodeNames())
+            .collect(Collectors.toMap(Function.identity(),
+                nodeName -> internalCluster().getInstance(PersistedClusterStateService.class, nodeName)));
+        final ClusterState clusterState = clusterStateBuilder.build();
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                final PersistedClusterStateService lucenePersistedStateFactory = lucenePersistedStateFactories.get(nodeName);
+                try (PersistedClusterStateService.Writer writer = lucenePersistedStateFactory.createWriter()) {
+                    writer.writeFullStateAndCommit(clusterState.term(), clusterState);
+                }
+                return super.onNodeStopped(nodeName);
+            }
+        });
     }
 
     /**

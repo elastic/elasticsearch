@@ -86,34 +86,9 @@
   - match: { jobs.0.analysis_limits.model_memory_limit: "1024mb" }
 
   - do:
-      indices.get_alias:
-        name: ".ml-anomalies-job-crud-test-apis"
-  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-job-crud-test-apis.filter.term.job_id.value: job-crud-test-apis }
-
-  - do:
-      indices.get_alias:
-        name: ".ml-anomalies-.write-job-crud-test-apis"
-  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: { is_hidden: true } }
-
-  - do:
       ml.delete_job:
         job_id: "job-crud-test-apis"
   - match: { acknowledged: true }
-
-  - do:
-      indices.exists:
-        index: ".ml-anomalies-job-crud-test-apis"
-  - is_false: ''
-
-  - do:
-      indices.exists_alias:
-        name: ".ml-anomalies-job-crud-test-apis"
-  - is_false: ''
-
-  - do:
-      indices.exists_alias:
-        name: ".ml-anomalies-.write-job-crud-test-apis"
-  - is_false: ''
 
 ---
 "Test put job with model_memory_limit as number":
@@ -517,70 +492,6 @@
           }
 
 ---
-"Test cannot decrease model_memory_limit below current usage":
-  - skip:
-      features: headers
-  - do:
-      ml.put_job:
-        job_id: jobs-crud-model-memory-limit-decrease
-        body:  >
-          {
-            "job_id":"jobs-crud-model-memory-limit-decrease",
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"count"}]
-            },
-            "analysis_limits": {
-              "model_memory_limit": "50mb"
-            },
-            "data_description" : {
-                "time_field":"time"
-            }
-          }
-  - match: { job_id: "jobs-crud-model-memory-limit-decrease" }
-
-  - do:
-      headers:
-        Content-Type: application/json
-      index:
-        index: .ml-anomalies-shared
-        id: jobs-crud-model-memory-limit-decrease_model_size_stats_1517443200000
-        body:
-          job_id: jobs-crud-model-memory-limit-decrease
-          result_type: model_size_stats
-          log_time: 1517443200000
-          timestamp: 1517443200000
-          model_bytes: 10000000
-
-  - do:
-      indices.refresh:
-        index: ".ml-anomalies*"
-        expand_wildcards: all
-
-  - do:
-      catch: /Invalid update value for analysis_limits[:] model_memory_limit cannot be decreased below current usage; current usage \[9mb\], update had \[5mb\]/
-      ml.update_job:
-        job_id: jobs-crud-model-memory-limit-decrease
-        body:  >
-          {
-            "analysis_limits": {
-              "model_memory_limit": "5mb"
-            }
-          }
-
-  # Decreasing over current usage works
-  - do:
-      ml.update_job:
-        job_id: jobs-crud-model-memory-limit-decrease
-        body:  >
-          {
-            "analysis_limits": {
-              "model_memory_limit": "30mb"
-            }
-          }
-  - match: { analysis_limits.model_memory_limit: "30mb" }
-
----
 "Test delete job that does not exist":
   - do:
       catch: missing
@@ -659,7 +570,6 @@
   - skip:
       features:
         - "headers"
-        - "warnings"
   - do:
       ml.put_job:
         job_id: jobs-crud-close-job
@@ -682,21 +592,6 @@
   - do:
       ml.open_job:
         job_id: jobs-crud-close-job
-
-  - do:
-      warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
-      ml.post_data:
-        job_id: jobs-crud-close-job
-        body: >
-          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
-          {"airline":"JZA","responsetime":"990.4628","time":"1403481700"}
-
-
-  - do:
-      ml.flush_job:
-        job_id: jobs-crud-close-job
-  - match: { flushed: true }
 
   - do:
       headers:
@@ -881,7 +776,6 @@
   - skip:
       features:
         - "warnings"
-
   - do:
       ml.close_job:
         job_id: "missing-*"
@@ -901,7 +795,6 @@
   - skip:
       features:
         - "warnings"
-
   - do:
       catch: missing
       ml.close_job:
@@ -921,7 +814,6 @@
   - skip:
       features:
         - "headers"
-        - "warnings"
   - do:
       ml.put_job:
         job_id: jobs-crud-force-close-job
@@ -947,21 +839,6 @@
   - do:
       ml.open_job:
         job_id: jobs-crud-force-close-job
-
-  - do:
-      warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
-      ml.post_data:
-        job_id: jobs-crud-force-close-job
-        body: >
-          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
-          {"airline":"JZA","responsetime":"990.4628","time":"1403481700"}
-
-
-  - do:
-      ml.flush_job:
-        job_id: jobs-crud-force-close-job
-  - match: { flushed: true }
 
   - do:
       headers:
@@ -1030,100 +907,6 @@
       catch: missing
       ml.close_job:
         job_id: jobs-crud-some-missing-job-i-made-up
-
----
-"Test cannot create job with existing categorizer state document":
-
-  - do:
-      index:
-        index: .ml-state-000001
-        id: jobs-crud-existing-docs_categorizer_state#1
-        body:
-          key: value
-
-  - do:
-      indices.refresh:
-        expand_wildcards: all
-
-  - do:
-      catch: /status_exception/
-      ml.put_job:
-        job_id: jobs-crud-existing-docs
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-            }
-          }
-
----
-"Test cannot create job with existing quantiles document":
-
-  - do:
-      index:
-        index: .ml-state-000001
-        id: jobs-crud-existing-docs_quantiles
-        body:
-          key: value
-
-  - do:
-      indices.refresh:
-        expand_wildcards: all
-
-  - do:
-      catch: /status_exception/
-      ml.put_job:
-        job_id: jobs-crud-existing-docs
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-            }
-          }
-
-
----
-"Test cannot create job with existing result document":
-  - skip:
-      features: headers
-  - do:
-      headers:
-        Content-Type: application/json
-      index:
-        index:  .ml-anomalies-shared
-        id:     "jobs-crud-existing-result-docs_1464739200000_1"
-        body:
-          {
-            "job_id": "jobs-crud-existing-result-docs",
-            "result_type": "bucket",
-            "timestamp": "2016-06-01T00:00:00Z",
-            "anomaly_score": 90.0,
-            "bucket_span":1
-          }
-
-  - do:
-      indices.refresh:
-        expand_wildcards: all
-
-  - do:
-      catch: /status_exception/
-      ml.put_job:
-        job_id: jobs-crud-existing-result-docs
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-            }
-          }
 
 ---
 "Test cannot create job with model snapshot id set":
@@ -1210,68 +993,6 @@
             },
             "data_description": {
                 "time_field": "@timestamp"
-            }
-          }
-
----
-"Test put job after closing results index":
-  - skip:
-      features: ["allowed_warnings"]
-
-  - do:
-      indices.create:
-        index: ".ml-anomalies-shared"
-
-  - do:
-      indices.close:
-        index: ".ml-anomalies-shared"
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
-
-  - do:
-      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-anomalies-shared\]/
-      ml.put_job:
-        job_id: closed-results-job
-        body:  >
-          {
-            "description":"Analysis of response time by airline",
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-                "time_field":"time"
-            }
-          }
-
----
-"Test put job after closing state index":
-  - skip:
-      features: ["allowed_warnings"]
-
-  - do:
-      indices.create:
-        index: ".ml-state-000001"
-
-  - do:
-      indices.close:
-        index: ".ml-state-000001"
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
-
-  - do:
-      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state-000001\]/
-      ml.put_job:
-        job_id: closed-results-job
-        body:  >
-          {
-            "description":"Analysis of response time by airline",
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-                "time_field":"time"
             }
           }
 

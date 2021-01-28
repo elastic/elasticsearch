@@ -68,9 +68,6 @@ A node that has `xpack.ml.enabled` and the `ml` role, which is the default
 behavior in the {es} {default-dist}. If you want to use {ml-features}, there
 must be at least one {ml} node in your cluster. For more information about
 {ml-features}, see {ml-docs}/index.html[Machine learning in the {stack}].
-+
-IMPORTANT: If you use the {oss-dist}, do not add the `ml` role. Otherwise, the
-node fails to start.
 
 <<transform-node,{transform-cap} node>>::
 
@@ -325,7 +322,7 @@ requests. If `xpack.ml.enabled` is set to `true` and the node does not have the
 If you want to use {ml-features} in your cluster, you must enable {ml}
 (set `xpack.ml.enabled` to `true`) on all master-eligible nodes. If you want to
 use {ml-features} in clients (including {kib}), it must also be enabled on all
-coordinating nodes. If you have the {oss-dist}, do not use these settings.
+coordinating nodes.
 
 For more information about these settings, see <<ml-settings>>.
 
@@ -343,9 +340,8 @@ Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 
-{transform-cap} nodes run {transforms} and handle {transform} API requests. If
-you have the {oss-dist}, do not use these settings. For more information, see
-<<transform-settings>>.
+{transform-cap} nodes run {transforms} and handle {transform} API requests. For
+more information, see <<transform-settings>>.
 
 To create a dedicated {transform} node in the {default-dist}, set:
 

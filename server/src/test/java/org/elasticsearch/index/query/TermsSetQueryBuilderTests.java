@@ -38,7 +38,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -331,28 +330,6 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 }
             });
         }
-    }
-
-    public void testConversion() {
-        List<Object> list = Arrays.asList();
-        assertSame(Collections.emptyList(), TermsSetQueryBuilder.convert(list));
-        assertEquals(list, TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
-
-        list = Arrays.asList("abc");
-        assertEquals(Arrays.asList(new BytesRef("abc")), TermsSetQueryBuilder.convert(list));
-        assertEquals(list, TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
-
-        list = Arrays.asList("abc", new BytesRef("def"));
-        assertEquals(Arrays.asList(new BytesRef("abc"), new BytesRef("def")), TermsSetQueryBuilder.convert(list));
-        assertEquals(Arrays.asList("abc", "def"), TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42L);
-        assertEquals(Arrays.asList(5L, 42L), TermsSetQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5L, 42L), TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42d);
-        assertEquals(Arrays.asList(5, 42d), TermsSetQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5, 42d), TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
     }
 
 }

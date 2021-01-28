@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,6 +65,11 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
 
     public TimeValue getMaxAge() {
         return maxAge;
+    }
+
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+
+        return validationException;
     }
 
     @Override

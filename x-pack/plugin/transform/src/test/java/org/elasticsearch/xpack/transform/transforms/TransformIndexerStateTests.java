@@ -180,7 +180,7 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         @Override
         void refreshDestinationIndex(RefreshRequest refreshRequest, ActionListener<RefreshResponse> responseListener) {
-            responseListener.onResponse(new RefreshResponse(1,1,0,Collections.emptyList()));
+            responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
         }
 
         @Override

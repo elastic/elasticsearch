@@ -424,26 +424,20 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        refreshDestinationIndex(
-            new RefreshRequest(transformConfig.getDestination().getIndex()),
-            ActionListener.wrap(
-                response -> {
-                    if (response.getFailedShards() > 0) {
-                        logger.warn(
-                            "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
-                            getJobId()
-                        );
-                    }
-                    // delete data defined by retention policy
-                    if (transformConfig.getRetentionPolicyConfig() != null) {
-                        executeRetentionPolicy(listener);
-                    } else {
-                        finalizeCheckpoint(listener);
-                    }
-                },
-                listener::onFailure
-            )
-        );
+        refreshDestinationIndex(new RefreshRequest(transformConfig.getDestination().getIndex()), ActionListener.wrap(response -> {
+            if (response.getFailedShards() > 0) {
+                logger.warn(
+                    "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                    getJobId()
+                );
+            }
+            // delete data defined by retention policy
+            if (transformConfig.getRetentionPolicyConfig() != null) {
+                executeRetentionPolicy(listener);
+            } else {
+                finalizeCheckpoint(listener);
+            }
+        }, listener::onFailure));
     }
 
     private void executeRetentionPolicy(ActionListener<Void> listener) {
@@ -463,11 +457,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
             logger.trace("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse);
             if (bulkByScrollResponse.getDeleted() > 0) {
-                logger.debug(
-                    "[{}] deleted [{}] documents as part of the retention policy.",
-                    getJobId(),
-                    bulkByScrollResponse.getDeleted()
-                );
+                logger.debug("[{}] deleted [{}] documents as part of the retention policy.", getJobId(), bulkByScrollResponse.getDeleted());
             }
 
             // this should not happen as part of checkpointing
@@ -477,11 +467,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     getJobId(),
                     bulkByScrollResponse.getDeleted()
                 );
-                }
+            }
 
-                finalizeCheckpoint(listener);
-            }, listener::onFailure)
-        );
+            finalizeCheckpoint(listener);
+        }, listener::onFailure));
     }
 
     private void finalizeCheckpoint(ActionListener<Void> listener) {

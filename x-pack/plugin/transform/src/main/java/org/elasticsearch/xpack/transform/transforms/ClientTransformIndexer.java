@@ -382,7 +382,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
                     // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
-                    //   seqNoPrimaryTermAndIndex
+                    // seqNoPrimaryTermAndIndex
                     // - for tests fail(assert), so we can debug the problem
                     logger.error(
                         new ParameterizedMessage(

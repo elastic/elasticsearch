@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
-
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -24,6 +20,10 @@ import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.DateUtils;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some

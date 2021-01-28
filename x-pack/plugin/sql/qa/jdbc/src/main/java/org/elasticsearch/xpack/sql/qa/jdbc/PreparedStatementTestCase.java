@@ -442,6 +442,10 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    // Each time the tests pass a random time in millis/nanos and this method slightly changes this timestamp
+    // for each document (based on the iteration index i) so that the test can assert that the filtering is working
+    // properly and only the desired docs are returned (id of each doc is also based on i and relates to the adjusted
+    // timestamp).
     private static long adjustTimestampForEachDocument(long randomMillis, int i) {
         return randomMillis - 2 + i;
     }
@@ -450,8 +454,8 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         setupIndexForDateTimeTests(randomMillis, false);
     }
 
-    private static void setupIndexForDateTimeTestsWithNanos(long randomMillis) throws IOException {
-        setupIndexForDateTimeTests(randomMillis, true);
+    private static void setupIndexForDateTimeTestsWithNanos(long randomNanos) throws IOException {
+        setupIndexForDateTimeTests(randomNanos, true);
     }
 
     private static void setupIndexForDateTimeTests(long randomMillisOrNanos, boolean isNanos) throws IOException {

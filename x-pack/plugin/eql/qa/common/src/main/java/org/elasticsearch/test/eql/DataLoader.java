@@ -93,6 +93,8 @@ public class DataLoader {
         //
         // Date_Nanos index
         //
+        // The data for this index are identical to the endgame-140.data with only the values for @timestamp changed.
+        // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
         load(client, DATE_NANOS_INDEX, false, p);
     }
 

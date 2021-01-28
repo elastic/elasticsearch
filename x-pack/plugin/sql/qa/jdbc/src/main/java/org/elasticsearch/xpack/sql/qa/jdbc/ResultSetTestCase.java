@@ -76,7 +76,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.junit.Before;
 
-@SuppressWarnings("CheckStyle")
 public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     static final Set<String> fieldsNames = Stream.of(
@@ -1246,7 +1245,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    public void testGettingDateWithoutCalendar_DateNanos() throws Exception {
+    public void testGettingDateWithoutCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
@@ -1301,7 +1300,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    public void testGettingDateWithCalendar_DateNanos() throws Exception {
+    public void testGettingDateWithCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
@@ -1354,7 +1353,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    public void testGettingTimeWithoutCalendar_DateNanos() throws Exception {
+    public void testGettingTimeWithoutCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
@@ -1407,7 +1406,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    public void testGettingTimeWithCalendar_DateNanos() throws Exception {
+    public void testGettingTimeWithCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
@@ -1458,7 +1457,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    public void testGettingTimestampWithoutCalendar_DateNanos() throws Exception {
+    public void testGettingTimestampWithoutCalendarWithNanos() throws Exception {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
@@ -1480,7 +1479,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    public void testGettingTimestampWithoutCalendar_DateNanos_OldDriver() throws Exception {
+    public void testGettingTimestampWithoutCalendarWithNanosAgainstDriverWithoutSupport() throws Exception {
         assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] supports DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();

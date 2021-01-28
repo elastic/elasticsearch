@@ -23,6 +23,7 @@ import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.MIN_COMPATIBILITY_VERSION;
 
 public final class StringUtils {
 
@@ -84,7 +85,7 @@ public final class StringUtils {
 
     // This method doesn't support compatibility with older JDBC drivers
     public static String toString(Object value) {
-        return toString(value, null);
+        return toString(value, MIN_COMPATIBILITY_VERSION);
     }
 
     public static String toString(Object value, SqlVersion sqlVersion) {

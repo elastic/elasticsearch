@@ -20,15 +20,12 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.Project;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -46,7 +43,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -63,7 +59,8 @@ public class CopyRestApiTask extends DefaultTask {
     private static final String REST_API_PREFIX = "rest-api-spec/api";
     private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
-    private String sourceSetName;
+
+    private SourceSet sourceSet;
     private boolean skipHasRestTestCheck;
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
@@ -109,11 +106,6 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     @Input
-    String getSourceSetName() {
-        return sourceSetName;
-    }
-
-    @Input
     public boolean isSkipHasRestTestCheck() {
         return skipHasRestTestCheck;
     }
@@ -149,12 +141,7 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(
-            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
-                .getOutput()
-                .getResourcesDir(),
-            REST_API_PREFIX
-        );
+        return new File(getOutputResourceDir(), REST_API_PREFIX);
     }
 
     @TaskAction
@@ -176,8 +163,7 @@ public class CopyRestApiTask extends DefaultTask {
             );
             getFileSystemOperations().copy(c -> {
                 c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
-                // this ends up as the same dir as outputDir
-                c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
+                c.into(Objects.requireNonNull(getSourceSet().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
@@ -211,7 +197,7 @@ public class CopyRestApiTask extends DefaultTask {
      */
     private boolean projectHasYamlRestTests() {
         File testSourceResourceDir = getTestSourceResourceDir();
-        File testOutputResourceDir = getTestOutputResourceDir(); // check output for cases where tests are copied programmatically
+        File testOutputResourceDir = getOutputResourceDir(); // check output for cases where tests are copied programmatically
 
         if (testSourceResourceDir == null && testOutputResourceDir == null) {
             return false;
@@ -232,13 +218,15 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getTestSourceResourceDir() {
-        Optional<SourceSet> testSourceSet = getSourceSet();
-        if (testSourceSet.isPresent()) {
-            SourceSet testSources = testSourceSet.get();
+        SourceSet testSourceSet = getSourceSet();
+        if (testSourceSet != null) {
+            SourceSet testSources = testSourceSet;
             Set<File> resourceDir = testSources.getResources()
                 .getSrcDirs()
                 .stream()
-                .filter(f -> f.isDirectory() && f.getParentFile().getName().equals(getSourceSetName()) && f.getName().equals("resources"))
+                .filter(f -> f.isDirectory()
+                    && f.getParentFile().getName().equals(testSourceSet.getName())
+                    && f.getName().equals("resources"))
                 .collect(Collectors.toSet());
             assert resourceDir.size() <= 1;
             if (resourceDir.size() == 0) {
@@ -250,20 +238,16 @@ public class CopyRestApiTask extends DefaultTask {
         }
     }
 
-    private File getTestOutputResourceDir() {
-        Optional<SourceSet> testSourceSet = getSourceSet();
-        return testSourceSet.map(sourceSet -> sourceSet.getOutput().getResourcesDir()).orElse(null);
+    private File getOutputResourceDir() {
+        return sourceSet.getOutput().getResourcesDir();
     }
 
-    private Optional<SourceSet> getSourceSet() {
-        Project project = getProject();
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
-            ? Optional.empty()
-            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
+    private SourceSet getSourceSet() {
+        return sourceSet;
     }
 
-    public void setSourceSetName(String sourceSetName) {
-        this.sourceSetName = sourceSetName;
+    public void setSourceSet(SourceSet sourceSet) {
+        this.sourceSet = sourceSet;
     }
 
     public void setSkipHasRestTestCheck(boolean skipHasRestTestCheck) {

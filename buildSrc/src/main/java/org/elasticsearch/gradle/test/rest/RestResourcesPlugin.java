@@ -26,6 +26,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
 import java.util.Map;
@@ -92,6 +93,9 @@ public class RestResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        SourceSet defaultSourceSet = sourceSets.getByName(TEST_SOURCE_SET_NAME);
+
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
         Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
@@ -133,7 +137,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.getIncludeXpack().set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
                 task.setCoreConfig(specConfig);
-                task.setSourceSetName(TEST_SOURCE_SET_NAME);
+                task.setSourceSet(defaultSourceSet);
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
@@ -152,7 +156,6 @@ public class RestResourcesPlugin implements Plugin<Project> {
             });
 
         project.getPlugins().withType(JavaBasePlugin.class).configureEach(javaBasePlugin -> {
-            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             sourceSets.matching(sourceSet -> sourceSet.getName().equals(TEST_SOURCE_SET_NAME))
                 .configureEach(
                     testSourceSet -> project.getTasks()

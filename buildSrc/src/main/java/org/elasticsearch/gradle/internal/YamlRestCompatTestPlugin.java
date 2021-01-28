@@ -99,7 +99,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestApi().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestApi().getIncludeXpack());
-                task.setSourceSetName(SOURCE_SET_NAME);
+                task.setSourceSet(yamlCompatTestSourceSet);
                 task.setSkipHasRestTestCheck(true);
                 task.setCoreConfigToFileTree(
                     config -> project.fileTree(

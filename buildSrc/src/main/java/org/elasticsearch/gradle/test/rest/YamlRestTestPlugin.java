@@ -69,7 +69,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         // setup the copy for the rest resources
         project.getTasks()
             .withType(CopyRestApiTask.class)
-            .configureEach(copyRestApiTask -> { copyRestApiTask.setSourceSetName(SOURCE_SET_NAME); });
+            .configureEach(copyRestApiTask -> { copyRestApiTask.setSourceSet(yamlTestSourceSet); });
         project.getTasks()
             .named(yamlTestSourceSet.getProcessResourcesTaskName())
             .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));

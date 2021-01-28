@@ -139,8 +139,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             script,
             leafFactory(context),
             name(),
-            BytesRefs.toString(Objects.requireNonNull(lowerTerm)),
-            BytesRefs.toString(Objects.requireNonNull(upperTerm)),
+            lowerTerm == null ? null : BytesRefs.toString(lowerTerm),
+            upperTerm == null ? null : BytesRefs.toString(upperTerm),
             includeLower,
             includeUpper
         );

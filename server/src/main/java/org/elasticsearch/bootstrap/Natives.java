@@ -53,7 +53,7 @@ final class Natives {
     }
 
     static void tryMlockall() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot mlockall because JNA is not available");
             return;
         }
@@ -61,7 +61,7 @@ final class Natives {
     }
 
     static boolean definitelyRunningAsRoot() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot check if running as root because JNA is not available");
             return false;
         }
@@ -69,7 +69,7 @@ final class Natives {
     }
 
     static void tryVirtualLock() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot virtual lock because JNA is not available");
             return;
         }
@@ -83,7 +83,7 @@ final class Natives {
      * @return the short path name (or the original path if getting the short path name fails for any reason)
      */
     static String getShortPathName(final String path) {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot obtain short path for [{}] because JNA is not available", path);
             return path;
         }
@@ -91,7 +91,7 @@ final class Natives {
     }
 
     static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot register console handler because JNA is not available");
             return;
         }
@@ -99,14 +99,14 @@ final class Natives {
     }
 
     static boolean isMemoryLocked() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             return false;
         }
         return JNANatives.LOCAL_MLOCKALL;
     }
 
     static void tryInstallSystemCallFilter(Path tmpFile) {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot install system call filter because JNA is not available");
             return;
         }
@@ -114,7 +114,7 @@ final class Natives {
     }
 
     static void trySetMaxNumberOfThreads() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot getrlimit RLIMIT_NPROC because JNA is not available");
             return;
         }
@@ -122,7 +122,7 @@ final class Natives {
     }
 
     static void trySetMaxSizeVirtualMemory() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot getrlimit RLIMIT_AS because JNA is not available");
             return;
         }
@@ -130,7 +130,7 @@ final class Natives {
     }
 
     static void trySetMaxFileSize() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             logger.warn("cannot getrlimit RLIMIT_FSIZE because JNA is not available");
             return;
         }
@@ -138,7 +138,7 @@ final class Natives {
     }
 
     static boolean isSystemCallFilterInstalled() {
-        if (!JNA_AVAILABLE) {
+        if (JNA_AVAILABLE == false) {
             return false;
         }
         return JNANatives.LOCAL_SYSTEM_CALL_FILTER;

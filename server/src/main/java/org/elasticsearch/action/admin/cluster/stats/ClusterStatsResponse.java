@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -51,11 +52,15 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         String clusterUUID = in.readOptionalString();
         MappingStats mappingStats = in.readOptionalWriteable(MappingStats::new);
         AnalysisStats analysisStats = in.readOptionalWriteable(AnalysisStats::new);
+        VersionStats versionStats = null;
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            versionStats = in.readOptionalWriteable(VersionStats::new);
+        }
         this.clusterUUID = clusterUUID;
 
         // built from nodes rather than from the stream directly
         nodesStats = new ClusterStatsNodes(getNodes());
-        indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats);
+        indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats, versionStats);
     }
 
     public ClusterStatsResponse(long timestamp,
@@ -64,12 +69,13 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                                 List<ClusterStatsNodeResponse> nodes,
                                 List<FailedNodeException> failures,
                                 MappingStats mappingStats,
-                                AnalysisStats analysisStats) {
+                                AnalysisStats analysisStats,
+                                VersionStats versionStats) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
-        indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats);
+        indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -109,6 +115,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         out.writeOptionalString(clusterUUID);
         out.writeOptionalWriteable(indicesStats.getMappings());
         out.writeOptionalWriteable(indicesStats.getAnalysis());
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(indicesStats.getVersions());
+        }
     }
 
     @Override

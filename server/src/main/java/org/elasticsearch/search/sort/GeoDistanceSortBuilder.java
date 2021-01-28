@@ -657,14 +657,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     static void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {
-        while (!parser.nextToken().equals(XContentParser.Token.END_ARRAY)) {
+        while (parser.nextToken().equals(XContentParser.Token.END_ARRAY) == false) {
             if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 // we might get here if the geo point is " number, number] " and the parser already moved over the
                 // opening bracket in this case we cannot use GeoUtils.parseGeoPoint(..) because this expects an opening
                 // bracket
                 double lon = parser.doubleValue();
                 parser.nextToken();
-                if (!parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER)) {
+                if (parser.currentToken().equals(XContentParser.Token.VALUE_NUMBER) == false) {
                     throw new ElasticsearchParseException(
                             "geo point parsing: expected second number but got [{}] instead",
                             parser.currentToken());

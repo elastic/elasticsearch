@@ -1213,6 +1213,7 @@ public final class OptimizerRules {
                 try {
                     expression = new Literal(expression.source(), expression.fold(), expression.dataType());
                 } catch (ArithmeticException | DateTimeException e) {
+                    // null signals that folding would result in an over-/underflow (such as Long.MAX_VALUE+1); the optimisation is skipped.
                     expression = null;
                 }
             }
@@ -1245,7 +1246,7 @@ public final class OptimizerRules {
             }
 
             // can it be quickly fast-tracked that the operation can't be reduced?
-            boolean isUnsafe(BiFunction<DataType, DataType, Boolean> typesCompatible) {
+            final boolean isUnsafe(BiFunction<DataType, DataType, Boolean> typesCompatible) {
                 if (opLiteral == null) {
                     // one of the arithm. operands must be a literal, otherwise the operation wouldn't simplify anything
                     return true;
@@ -1265,10 +1266,10 @@ public final class OptimizerRules {
                     return true;
                 }
 
-                return opSpecificIsUnsafe();
+                return isOpUnsafe();
             }
 
-            Expression apply() {
+            final Expression apply() {
                 // force float point folding for FlP field
                 Literal bcl = operation.dataType().isRational()
                     ? Literal.of(bcLiteral, ((Number) bcLiteral.value()).doubleValue())
@@ -1278,16 +1279,16 @@ public final class OptimizerRules {
                     .create(bcl.source(), bcl, opRight);
                 bcRightExpression = tryFolding(bcRightExpression);
                 return bcRightExpression != null
-                    ? opSpecificPostApply((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
+                    ? postProcess((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
                     : comparison;
             }
 
             // operation-specific operations:
             //  - fast-tracking of simplification unsafety
-            abstract boolean opSpecificIsUnsafe();
+            abstract boolean isOpUnsafe();
 
-            //  - post adjustments
-            Expression opSpecificPostApply(BinaryComparison binaryComparison) {
+            //  - post optimisation adjustments
+            Expression postProcess(BinaryComparison binaryComparison) {
                 return binaryComparison;
             }
         }
@@ -1299,7 +1300,7 @@ public final class OptimizerRules {
             }
 
             @Override
-            boolean opSpecificIsUnsafe() {
+            boolean isOpUnsafe() {
                 // no ADD/SUB with floating fields
                 if (operation.dataType().isRational()) {
                     return true;
@@ -1326,7 +1327,7 @@ public final class OptimizerRules {
             }
 
             @Override
-            boolean opSpecificIsUnsafe() {
+            boolean isOpUnsafe() {
                 // Integer divisions are not safe to optimise: x / 5 > 1 <=/=> x > 5 for x in [6, 9]; same for the `==` comp
                 if (operation.dataType().isInteger() && isDiv) {
                     return true;
@@ -1343,7 +1344,7 @@ public final class OptimizerRules {
             }
 
             @Override
-            Expression opSpecificPostApply(BinaryComparison binaryComparison) {
+            Expression postProcess(BinaryComparison binaryComparison) {
                 // negative multiplication/division changes the direction of the comparison
                 return opRightSign < 0 ? binaryComparison.reverse() : binaryComparison;
             }

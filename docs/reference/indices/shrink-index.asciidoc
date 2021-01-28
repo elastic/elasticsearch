@@ -25,11 +25,14 @@ POST /my-index-000001/_shrink/shrunk-my-index-000001
 [[shrink-index-api-prereqs]]
 ==== {api-prereq-title}
 
-Before you can shrink an index:
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index.
 
-* The index must be read-only.
-* All primary shards for the index must reside on the same node.
-* The index must have a `green` <<cluster-health,health status>>.
+* Before you can shrink an index:
+
+** The index must be read-only.
+** All primary shards for the index must reside on the same node.
+** The index must have a `green` <<cluster-health,health status>>.
 
 To make shard allocation easier, we recommend you also remove the index's
 replica shards. You can later re-add replica shards as part of the shrink

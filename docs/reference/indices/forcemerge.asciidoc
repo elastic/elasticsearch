@@ -22,6 +22,12 @@ POST /my-index-000001/_forcemerge
 
 `POST /_forcemerge`
 
+[[forcemerge-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `maintenance`
+or `manage` <<privileges-list-indices,index privilege>> for the target data
+stream, index, or index alias.
 
 [[forcemerge-api-desc]]
 ==== {api-description-title}

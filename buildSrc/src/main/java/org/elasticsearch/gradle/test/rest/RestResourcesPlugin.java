@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.test.rest;
 
-import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Plugin;

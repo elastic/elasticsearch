@@ -23,6 +23,12 @@ through the parameter include_type_name. For more details, please see <<removal-
 
 `GET /<target>`
 
+[[get-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
 
 [[get-index-api-path-params]]
 ==== {api-path-parms-title}

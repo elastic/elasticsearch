@@ -38,6 +38,12 @@ DELETE _index_template/template_*
 
 `PUT /_index_template/<index-template>`
 
+[[put-index-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[put-index-template-api-desc]]
 ==== {api-description-title}

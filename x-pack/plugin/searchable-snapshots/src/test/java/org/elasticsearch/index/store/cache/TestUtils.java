@@ -174,6 +174,10 @@ public final class TestUtils {
         assertThat(timedCounter.totalNanoseconds(), equalTo(totalNanoseconds));
     }
 
+    public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
+        return cacheFile.getCompletedRanges().stream().mapToLong(range -> range.v2() - range.v1()).sum();
+    }
+
     /**
      * A {@link BlobContainer} that can read a single in-memory blob.
      * Any attempt to read a different blob will throw a {@link FileNotFoundException}

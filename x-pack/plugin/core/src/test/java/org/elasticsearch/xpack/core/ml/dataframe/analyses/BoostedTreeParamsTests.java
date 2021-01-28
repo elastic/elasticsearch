@@ -57,19 +57,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
     }
 
     public static BoostedTreeParams mutateForVersion(BoostedTreeParams instance, Version version) {
-        BoostedTreeParams.Builder builder = new BoostedTreeParams.Builder(instance);
-        if (version.before(Version.V_7_6_0)) {
-            builder.setNumTopFeatureImportanceValues(null);
-        }
-        if (version.before(Version.V_8_0_0)) {
-            builder.setAlpha(null);
-            builder.setEtaGrowthRatePerTree(null);
-            builder.setSoftTreeDepthLimit(null);
-            builder.setSoftTreeDepthTolerance(null);
-            builder.setDownsampleFactor(null);
-            builder.setMaxOptimizationRoundsPerHyperparameter(null);
-        }
-        return builder.build();
+        return instance;
     }
 
     @Override

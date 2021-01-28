@@ -326,7 +326,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private void submitStateUpdateTask(final String source, final ClusterStateTaskConfig config,
                                        final Function<ClusterState, ClusterState> executor,
                                        final ClusterApplyListener listener) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -345,7 +345,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
             // to be done here...
-            if (!lifecycle.stoppedOrClosed()) {
+            if (lifecycle.stoppedOrClosed() == false) {
                 throw e;
             }
         }
@@ -377,7 +377,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     private void runTask(UpdateTask task) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             logger.debug("processing [{}]: ignoring, cluster applier service not started", task.source);
             return;
         }

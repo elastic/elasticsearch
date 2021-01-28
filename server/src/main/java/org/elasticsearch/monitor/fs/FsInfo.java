@@ -454,7 +454,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         Set<String> seenDevices = new HashSet<>(paths.length);
         for (Path subPath : paths) {
             if (subPath.path != null) {
-                if (!seenDevices.add(subPath.path)) {
+                if (seenDevices.add(subPath.path) == false) {
                     continue; // already added numbers for this device;
                 }
             }

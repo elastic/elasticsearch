@@ -1421,6 +1421,40 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testFormatWithMissing() throws IOException {
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("name")
+            .field("number")
+            .format("$###.00")
+            .missing(randomFrom(42, "$42", 42.0));
+
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            final int numDocs = 10;
+            iw.addDocument(singleton(new NumericDocValuesField("not_number", 0)));
+            for (int i = 1; i < numDocs; i++) {
+                iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+            }
+        }, (Consumer<InternalTerms<?, ?>>) terms -> assertTrue(AggregationInspectionHelper.hasValue(terms)), fieldType);
+    }
+
+    public void testFormatCannotParseMissing() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("name").field("number").format("$###.00").missing("42");
+
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            final int numDocs = 10;
+            iw.addDocument(singleton(new NumericDocValuesField("not_number", 0)));
+            for (int i = 1; i < numDocs; i++) {
+                iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+            }
+        }, (Consumer<InternalTerms<?, ?>>) terms -> fail("Should have thrown"), fieldType));
+
+        assertThat(ex.getMessage(), equalTo("Cannot parse the value [42] using the pattern [$###.00]"));
+    }
+
     public void testOrderByCardinality() throws IOException {
         boolean bIsString = randomBoolean();
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("a").field("a")

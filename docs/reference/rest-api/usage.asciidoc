@@ -360,7 +360,6 @@ GET /_xpack/usage
   }
 }
 ------------------------------------------------------------
-// TESTRESPONSE[skip:Awaits fix https://github.com/elastic/elasticsearch/issues/68101]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
@@ -369,7 +368,6 @@ GET /_xpack/usage
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
-// TESTRESPONSE[s/"total" : 0/"total" : $body.watcher.execution.actions.logging.total/]
 // These replacements do a few things:
 // 1. Ignore the contents of the `policy_stats` object because we don't know all
 //    of the policies that will be in it. And because we figure folks don't need

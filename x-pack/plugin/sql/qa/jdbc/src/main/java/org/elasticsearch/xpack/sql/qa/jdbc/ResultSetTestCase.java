@@ -292,14 +292,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Byte]", randomString),
                 sqle.getMessage()
             );
-
-            Pattern dateToByteErrorMessagePattern =
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [Byte]"));
             
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToByteErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Byte.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Byte.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToByteErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Byte.class, randomDate);
         });
     }
 
@@ -420,13 +417,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 sqle.getMessage()
             );
 
-            Pattern dateToShortErrorMessagePattern =
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [Short]"));
-
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToShortErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Short.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Short.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToShortErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Short.class, randomDate);
         });
     }
 
@@ -540,13 +534,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 sqle.getMessage()
             );
 
-            Pattern dateToIntErrorMessagePattern =
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [Integer]"));
-
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToIntErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Integer.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Integer.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToIntErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Integer.class, randomDate);
         });
     }
 
@@ -646,13 +637,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 sqle.getMessage()
             );
 
-            Pattern dateToLongErrorMessagePattern =
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [Long]"));
-
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToLongErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Long.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Long.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToLongErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Long.class, randomDate);
         });
     }
 
@@ -740,14 +728,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Double]", randomString),
                 sqle.getMessage()
             );
-
-            Pattern dateToDoubleErrorMessagePattern =
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [Double]"));
             
             sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToDoubleErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Double.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToDoubleErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Double.class, randomDate);
         });
     }
 
@@ -827,13 +812,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 sqle.getMessage()
             );
 
-            Pattern dateToDoubleErrorMessagePattern =
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [Float]"));
-            
             sqle = expectThrows(SQLException.class, () -> results.getFloat("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToDoubleErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Float.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Float.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToDoubleErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, Float.class, randomDate);
         });
     }
 
@@ -1038,13 +1020,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 sqle.getMessage()
             );
 
-            Pattern dateToBigDecErrorMessagePattern =
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [BigDecimal]"));
-
             sqle = expectThrows(SQLException.class, () -> results.getBigDecimal("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToBigDecErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, BigDecimal.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", BigDecimal.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToBigDecErrorMessagePattern, randomDate);
+            assertErrorMessageForDateTimeValues(sqle, BigDecimal.class, randomDate);
         });
     }
 
@@ -1108,9 +1087,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
             }
             SQLException sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            Pattern dateToBoolErrorMessagePattern = 
-                compile(quote("Unable to convert value [") + "(?<instant>.*?)" + quote("] of type [DATETIME] to [Boolean]"));
-            assertMessageWithInstant(sqle.getMessage(), dateToBoolErrorMessagePattern, randomDate1);
+            assertErrorMessageForDateTimeValues(sqle, Boolean.class, randomDate1);
 
             results.next();
             assertFalse(results.getBoolean("test_boolean"));
@@ -1119,10 +1096,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 assertEquals("Expected: <false> but was: <true> for field " + fld, false, results.getObject(fld, Boolean.class));
             }
             sqle = expectThrows(SQLException.class, () -> results.getBoolean("test_date"));
-            assertMessageWithInstant(sqle.getMessage(), dateToBoolErrorMessagePattern, randomDate2);
+            assertErrorMessageForDateTimeValues(sqle, Boolean.class, randomDate2);
 
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Boolean.class));
-            assertMessageWithInstant(sqle.getMessage(), dateToBoolErrorMessagePattern, randomDate2);
+            assertErrorMessageForDateTimeValues(sqle, Boolean.class, randomDate2);
 
             results.next();
             for (String fld : fieldsNames.stream().filter(f -> !f.equals("test_keyword")).collect(Collectors.toCollection(HashSet::new))) {
@@ -2037,8 +2014,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsUnsupportedAndExpectErrorMessage(r, "Writes not supported");
     }
 
-    private void assertMessageWithInstant(String actualMessage, Pattern expectedPattern, long epochMillis) {
-        Matcher matcher = expectedPattern.matcher(actualMessage);
+    private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis) {
+        Pattern expectedPattern = compile(quote("Unable to convert value [") + "(?<instant>.*?)" 
+                + quote("] of type [DATETIME] to [" + expectedType.getName() + "]"));
+        Matcher matcher = expectedPattern.matcher(ex.getMessage());
         assertTrue(matcher.matches());
         assertEquals(OffsetDateTime.parse(matcher.group("instant")).toInstant().toEpochMilli(), epochMillis);
     }

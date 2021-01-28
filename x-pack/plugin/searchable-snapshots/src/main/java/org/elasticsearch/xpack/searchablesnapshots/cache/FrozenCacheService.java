@@ -612,6 +612,11 @@ public class FrozenCacheService {
             }
             listener.onFailure(e);
         }
+
+        @Override
+        protected void alreadyClosed() {
+            throwAlreadyEvicted();
+        }
     }
 
     public class FrozenCacheFile {

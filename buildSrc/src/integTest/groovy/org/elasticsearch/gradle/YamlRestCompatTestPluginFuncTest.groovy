@@ -45,8 +45,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
     }
 
     def "yamlRestCompatTest executes and copies api and tests from :bwc:minor"() {
@@ -96,8 +96,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SUCCESS
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).exists()
@@ -116,10 +116,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
     }
-    
+
     def "yamlRestCompatTest is wired into check and checkRestCompat"() {
         given:
 
@@ -144,8 +144,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
 
         when:
         buildFile << """
@@ -157,7 +157,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
     }
 }

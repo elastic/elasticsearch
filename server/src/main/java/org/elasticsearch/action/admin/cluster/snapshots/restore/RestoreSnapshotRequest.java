@@ -61,7 +61,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
-    private boolean skipOperatorSettings = false;
+    private boolean skipOperatorOnly = false;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -449,12 +449,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         return snapshotUuid;
     }
 
-    public boolean skipOperatorSettings() {
-        return skipOperatorSettings;
+    public boolean skipOperatorOnly() {
+        return skipOperatorOnly;
     }
 
-    public void skipOperatorSettings(boolean skipOperatorSettings) {
-        this.skipOperatorSettings = skipOperatorSettings;
+    public void skipOperatorOnly(boolean skipOperatorOnly) {
+        this.skipOperatorOnly = skipOperatorOnly;
     }
 
     /**

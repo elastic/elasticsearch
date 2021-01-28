@@ -445,7 +445,7 @@ public class RestoreService implements ClusterStateApplier {
                             if (metadata.persistentSettings() != null) {
                                 Settings settings = metadata.persistentSettings();
                                 clusterSettings.validateUpdate(settings);
-                                if (request.skipOperatorSettings()) {
+                                if (request.skipOperatorOnly()) {
                                     // Skip any operator-only settings from the snapshot. This happens when operator privileges are enabled
                                     Set<String> operatorSettingKeys = Stream.concat(
                                         settings.keySet().stream(), currentState.metadata().persistentSettings().keySet().stream())
@@ -474,6 +474,7 @@ public class RestoreService implements ClusterStateApplier {
                                     if (RepositoriesMetadata.TYPE.equals(cursor.key) == false
                                             && DataStreamMetadata.TYPE.equals(cursor.key) == false
                                             && cursor.value instanceof Metadata.NonRestorableCustom == false) {
+                                        // TODO: Check request.skipOperatorOnly for Autoscaling policies (NonRestorableCustom)
                                         // Don't restore repositories while we are working with them
                                         // TODO: Should we restore them at the end?
                                         // Also, don't restore data streams here, we already added them to the metadata builder above

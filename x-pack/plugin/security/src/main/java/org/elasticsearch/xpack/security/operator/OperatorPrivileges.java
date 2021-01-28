@@ -85,11 +85,8 @@ public class OperatorPrivileges {
         }
 
         public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {
-            if (false == shouldProcess()) {
-                return;
-            }
             if (request instanceof RestoreSnapshotRequest) {
-                ((RestoreSnapshotRequest) request).skipOperatorSettings(true);
+                ((RestoreSnapshotRequest) request).skipOperatorOnly(shouldProcess());
             }
         }
 
@@ -110,6 +107,9 @@ public class OperatorPrivileges {
 
         @Override
         public void maybeInterceptRequest(ThreadContext threadContext, TransportRequest request) {
+            if (request instanceof RestoreSnapshotRequest) {
+                ((RestoreSnapshotRequest) request).skipOperatorOnly(false);
+            }
         }
     };
 }

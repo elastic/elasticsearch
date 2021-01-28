@@ -58,63 +58,37 @@ public interface XContent {
     /**
      * Creates a parser over the provided string content.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
+        throws IOException;
 
     /**
      * Creates a parser over the provided input stream.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
+        throws IOException;
+
+    /**
+     * Creates a parser over the provided bytes.
+     */
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
+        throws IOException;
 
     /**
      * Creates a parser over the provided bytes.
      */
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException;
-
-    /**
-     * Creates a parser over the provided bytes.
-     */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
+                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
 
     /**
      * Creates a parser over the provided reader.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, Reader reader) throws IOException;
-
-    /**
-     * Creates a parser over the provided string content.
-     */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, String content, boolean useCompatibility) throws IOException;
+    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
+        throws IOException;
 
     /**
      * Creates a parser over the provided input stream.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, InputStream is, boolean useCompatibility) throws IOException;
+    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                                InputStream is, boolean useCompatibility) throws IOException;
 
-    /**
-     * Creates a parser over the provided bytes.
-     */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, byte[] data, boolean useCompatibility) throws IOException;
-
-    /**
-     * Creates a parser over the provided bytes.
-     */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
-                                boolean useCompatibility) throws IOException;
-
-    /**
-     * Creates a parser over the provided reader.
-     */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, Reader reader, boolean useCompatibility) throws IOException;
-
-    //TODO: deprecate the non useCompatibility variants
 }

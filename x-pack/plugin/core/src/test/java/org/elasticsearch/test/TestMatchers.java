@@ -66,6 +66,7 @@ public class TestMatchers extends Matchers {
         };
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> Matcher<Predicate<T>> predicateMatches(T value) {
         return new CustomMatcher<Predicate<T>>("Matches " + value) {
             @Override

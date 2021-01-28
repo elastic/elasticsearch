@@ -78,7 +78,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         Mockito.doAnswer(invocation -> {
             UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
             assertThat(request.getFollowerIndex(), equalTo("follower-index"));
-            ActionListener listener = (ActionListener) invocation.getArguments()[2];
+            ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
@@ -115,7 +115,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
         Mockito.doAnswer(invocation -> {
             UnfollowAction.Request request = (UnfollowAction.Request) invocation.getArguments()[1];
             assertThat(request.getFollowerIndex(), equalTo("follower-index"));
-            ActionListener listener = (ActionListener) invocation.getArguments()[2];
+            ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());

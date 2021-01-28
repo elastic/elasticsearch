@@ -76,6 +76,7 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a map
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getAsMap() {
         return (Map<String, Object>) data();
     }
@@ -90,6 +91,7 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a list
      */
+    @SuppressWarnings("unchecked")
     public List<Object> getAsList() {
         return (List<Object>) data();
     }

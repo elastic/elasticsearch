@@ -111,7 +111,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         try {
             // No need to check the type, IndexShard#get does it for us
             result = context.indexShard().get(new Engine.Get(false, false, request.id()));
-            if (!result.exists()) {
+            if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
             context.parsedQuery(context.getSearchExecutionContext().toQuery(request.query()));

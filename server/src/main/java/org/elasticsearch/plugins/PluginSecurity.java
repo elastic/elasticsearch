@@ -66,10 +66,10 @@ class PluginSecurity {
     }
 
     private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
-        if (!batch) {
+        if (batch == false) {
             terminal.println(Verbosity.NORMAL, "");
             String text = terminal.readText("Continue with installation? [y/N]");
-            if (!text.equalsIgnoreCase("y")) {
+            if (text.equalsIgnoreCase("y") == false) {
                 throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
             }
         }

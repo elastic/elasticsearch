@@ -20,6 +20,7 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -116,7 +117,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final int shards = 3;
             final String index = "test-index";
             createIndex(client, index, shards);
-            createRepository(client, repoName, false);
+            createRepository(client, repoName, false, true);
             createSnapshot(client, repoName, "snapshot-" + TEST_STEP, index);
             final String snapshotToDeleteName = "snapshot-to-delete";
             // Create a snapshot and delete it right away again to test the impact of each version's cleanup functionality that is run
@@ -161,7 +162,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
             final int shards = 3;
             final boolean readOnly = TEST_STEP.ordinal() > 1; // only restore from read-only repo in steps 3 and 4
-            createRepository(client, repoName, readOnly);
+            createRepository(client, repoName, readOnly, true);
             final String index = "test-index";
             if (readOnly == false) {
                 createIndex(client, index, shards);
@@ -193,13 +194,25 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    private static final List<Class<? extends Exception>> EXPECTED_BWC_EXCEPTIONS =
+            List.of(ResponseException.class, ElasticsearchStatusException.class);
+
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
             final int shards = 3;
             final String index=  "test-index";
             createIndex(client, index, shards);
-            createRepository(client, repoName, false);
+            final Version minNodeVersion = minimumNodeVersion();
+            // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
+            // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
+            // to check behavior on other operations below.
+            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER || SnapshotsService.includesClusterUUID(minNodeVersion)
+                    || minNodeVersion.before(Version.V_7_12_0);
+            if (verify == false) {
+                expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(client, repoName, false, true));
+            }
+            createRepository(client, repoName, false, verify);
             // only create some snapshots in the first two steps
             if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP2_NEW_CLUSTER) {
                 createSnapshot(client, repoName, "snapshot-" + TEST_STEP, index);
@@ -220,14 +233,12 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     ensureSnapshotRestoreWorks(client, repoName, "snapshot-2", shards);
                 }
             } else {
-                if (SnapshotsService.includesRepositoryUuid(minimumNodeVersion()) == false) {
+                if (SnapshotsService.includesClusterUUID(minNodeVersion) == false) {
                     assertThat(TEST_STEP, is(TestStep.STEP3_OLD_CLUSTER));
-                    final List<Class<? extends Exception>> expectedExceptions =
-                        List.of(ResponseException.class, ElasticsearchStatusException.class);
-                    expectThrowsAnyOf(expectedExceptions, () -> listSnapshots(repoName));
-                    expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-1"));
-                    expectThrowsAnyOf(expectedExceptions, () -> deleteSnapshot(client, repoName, "snapshot-2"));
-                    expectThrowsAnyOf(expectedExceptions, () -> createSnapshot(client, repoName, "snapshot-impossible", index));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> listSnapshots(repoName));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(client, repoName, "snapshot-1"));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> deleteSnapshot(client, repoName, "snapshot-2"));
+                    expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createSnapshot(client, repoName, "snapshot-impossible", index));
                 } else {
                     assertThat(listSnapshots(repoName), hasSize(2));
                     if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
@@ -280,9 +291,11 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         assertThat(restoreInfo.successfulShards(), equalTo(shards));
     }
 
-    private static void createRepository(RestHighLevelClient client, String repoName, boolean readOnly) throws IOException {
+    private static void createRepository(RestHighLevelClient client, String repoName, boolean readOnly,
+                                         boolean verify) throws IOException {
         assertThat(client.snapshot().createRepository(new PutRepositoryRequest(repoName).type("fs").settings(
-            Settings.builder().put("location", "./" + repoName).put("readonly", readOnly)), RequestOptions.DEFAULT).isAcknowledged(),
+            Settings.builder().put("location", "./" + repoName).put("readonly", readOnly)).verify(verify), RequestOptions.DEFAULT)
+                .isAcknowledged(),
             is(true));
     }
 

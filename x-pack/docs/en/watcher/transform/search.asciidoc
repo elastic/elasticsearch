@@ -68,8 +68,9 @@ The following table lists all available settings for the search
                                                                                   a REST `_search` request. The body can be static text
                                                                                   or include `mustache` <<templates,templates>>.
 
-| `request.indices_options.expand_wildcards`    | no        | `open`            | Determines how to expand indices wildcards. Can be one
-                                                                                  of `open`, `closed`, `none` or `all`
+| `request.indices_options.expand_wildcards`    | no        | `open`            | Determines how to expand indices wildcards. An array
+                                                                                  consisting of a combination of `open`, `closed`,
+                                                                                  and `hidden`. Alternatively a value of `none` or `all`.
                                                                                   (see <<multi-index,multi-index support>>)
 
 | `request.indices_options.ignore_unavailable`  | no        | `true`            | A boolean value that determines whether the search

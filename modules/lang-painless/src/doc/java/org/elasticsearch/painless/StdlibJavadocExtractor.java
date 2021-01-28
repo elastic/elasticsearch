@@ -95,11 +95,11 @@ public class StdlibJavadocExtractor {
             methods.put(
                 MethodSignature.fromDeclaration(declaration),
                 new ParsedMethod(
-                    declaration.getJavadoc().map(Javadoc::toText).orElse(""),
-                    declaration.getParameters()
-                        .stream()
-                        .map(p -> p.getName().asString())
-                        .collect(Collectors.toList())
+                        declaration.getJavadoc().map(Javadoc::toText).orElse(""),
+                        declaration.getParameters()
+                                .stream()
+                                .map(p -> p.getName().asString())
+                                .collect(Collectors.toList())
                 )
             );
         }
@@ -108,11 +108,11 @@ public class StdlibJavadocExtractor {
             constructors.put(
                 declaration.getParameters().stream().map(p -> stripTypeParameters(p.getType().asString())).collect(Collectors.toList()),
                 new ParsedMethod(
-                    declaration.getJavadoc().map(Javadoc::toText).orElse(""),
-                    declaration.getParameters()
-                        .stream()
-                        .map(p -> p.getName().asString())
-                        .collect(Collectors.toList())
+                        declaration.getJavadoc().map(Javadoc::toText).orElse(""),
+                        declaration.getParameters()
+                                .stream()
+                                .map(p -> p.getName().asString())
+                                .collect(Collectors.toList())
                 )
             );
         }
@@ -170,11 +170,11 @@ public class StdlibJavadocExtractor {
 
         public static MethodSignature fromDeclaration(MethodDeclaration declaration) {
             return new MethodSignature(
-                declaration.getNameAsString(),
-                declaration.getParameters()
-                    .stream()
-                    .map(p -> p.getType().asString())
-                    .collect(Collectors.toList())
+                    declaration.getNameAsString(),
+                    declaration.getParameters()
+                            .stream()
+                            .map(p -> p.getType().asString())
+                            .collect(Collectors.toList())
             );
         }
 

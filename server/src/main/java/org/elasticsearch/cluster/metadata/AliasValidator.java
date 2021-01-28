@@ -86,7 +86,7 @@ public class AliasValidator {
     public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetadata> indexLookup) {
         validateAliasStandalone(alias, indexRouting);
 
-        if (!Strings.hasText(index)) {
+        if (Strings.hasText(index) == false) {
             throw new IllegalArgumentException("index name is required");
         }
 
@@ -97,7 +97,7 @@ public class AliasValidator {
     }
 
     void validateAliasStandalone(String alias, String indexRouting) {
-        if (!Strings.hasText(alias)) {
+        if (Strings.hasText(alias) == false) {
             throw new IllegalArgumentException("alias name is required");
         }
         MetadataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);

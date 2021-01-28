@@ -71,7 +71,7 @@ public class StartJoinRequest extends TransportRequest {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof StartJoinRequest)) return false;
+        if ((o instanceof StartJoinRequest) == false) return false;
 
         StartJoinRequest that = (StartJoinRequest) o;
 

@@ -103,7 +103,7 @@ public class HunspellService {
                 throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
-        if (!HUNSPELL_LAZY_LOAD.get(settings)) {
+        if (HUNSPELL_LAZY_LOAD.get(settings) == false) {
             scanAndLoadDictionaries();
         }
 

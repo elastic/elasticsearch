@@ -464,9 +464,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     }
 
     private void setFlag(Flag flag, boolean set) {
-        if (set && !flagsEnum.contains(flag)) {
+        if (set && flagsEnum.contains(flag) == false) {
             flagsEnum.add(flag);
-        } else if (!set) {
+        } else if (set == false) {
             flagsEnum.remove(flag);
             assert (!flagsEnum.contains(flag));
         }

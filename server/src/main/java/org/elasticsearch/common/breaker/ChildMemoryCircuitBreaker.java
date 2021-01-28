@@ -149,7 +149,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             }
             // Attempt to set the new used value, but make sure it hasn't changed
             // underneath us, if it has, keep trying until we are able to set it
-        } while (!this.used.compareAndSet(currentUsed, newUsed));
+        } while (this.used.compareAndSet(currentUsed, newUsed) == false);
         return newUsed;
     }
 

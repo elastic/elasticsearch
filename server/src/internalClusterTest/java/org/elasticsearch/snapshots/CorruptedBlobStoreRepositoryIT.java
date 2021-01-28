@@ -214,7 +214,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 Collections.emptyMap(),
                 Collections.emptyMap(),
                 ShardGenerations.EMPTY,
-                IndexMetaDataGenerations.EMPTY);
+                IndexMetaDataGenerations.EMPTY,
+                RepositoryData.MISSING_UUID); // old-format repository has no cluster UUID
 
         Files.write(repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
             BytesReference.toBytes(BytesReference.bytes(
@@ -347,7 +348,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getVersion)),
                 repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
                 ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, "0").build(),
-                repositoryData.indexMetaDataGenerations());
+                repositoryData.indexMetaDataGenerations(), repositoryData.getClusterUUID());
         Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
                 BytesReference.toBytes(BytesReference.bytes(
                         brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))),

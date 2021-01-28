@@ -204,11 +204,11 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final String index=  "test-index";
             createIndex(client, index, shards);
             final Version minNodeVersion = minimumNodeVersion();
-            // 7.11.1+ and newer will try to load RepositoryData during repo creation if verify is true, which is impossible in case
-            // of version incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using
-            // verify=false to check behavior on other operations below.
-            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER ||
-                    SnapshotsService.includesClusterUUID(minNodeVersion) || minNodeVersion.onOrBefore(Version.V_7_11_0);
+            // 7.12.0+ will try to load RepositoryData during repo creation if verify is true, which is impossible in case of version
+            // incompatibility in the downgrade test step. We verify that it is impossible here and then create the repo using verify=false
+            // to check behavior on other operations below.
+            final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER || SnapshotsService.includesClusterUUID(minNodeVersion)
+                    || minNodeVersion.before(Version.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(client, repoName, false, true));
             }

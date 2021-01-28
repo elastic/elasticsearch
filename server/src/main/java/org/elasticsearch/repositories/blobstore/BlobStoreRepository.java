@@ -1975,15 +1975,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * to find the latest repository generation and then reading the cluster UUID of the last writer from the {@link RepositoryData} found
      * at this generation.
      *
-     * @return cluster UUID of the last cluster to write to this repository or {@code null} if none was recorded
+     * @return tuple of repository generation and cluster UUID of the last cluster to write to this repository
      */
-    @Nullable
     private Tuple<Long, String> readLastWriterInfo() throws IOException {
         assert bestEffortConsistency == false : "This should only be used for adding information to errors in consistent mode";
         final long latestGeneration = latestIndexBlobId();
         final RepositoryData actualRepositoryData = getRepositoryData(latestGeneration);
-        return Tuple.tuple(latestGeneration,
-                actualRepositoryData.getClusterUUID().equals(MISSING_UUID) == false ? actualRepositoryData.getClusterUUID() : null);
+        return Tuple.tuple(latestGeneration, actualRepositoryData.getClusterUUID());
     }
 
     /**

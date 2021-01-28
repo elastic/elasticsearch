@@ -436,9 +436,27 @@ public final class RepositoryData {
     /**
      * For test purposes, make a copy of this instance with the UUID removed and all other fields unchanged, as if from an older version.
      */
-    public RepositoryData withoutUuid() {
+    public RepositoryData withoutRepositoryUUID() {
         return new RepositoryData(
                 MISSING_UUID,
+                genId,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations,
+                clusterUUID);
+    }
+
+    /**
+     * For test purposes, make a copy of this instance with the cluster UUID removed and all other fields unchanged, as if from an older
+     * version.
+     */
+    public RepositoryData withoutClusterUUID() {
+        return new RepositoryData(
+                uuid,
                 genId,
                 snapshotIds,
                 snapshotStates,

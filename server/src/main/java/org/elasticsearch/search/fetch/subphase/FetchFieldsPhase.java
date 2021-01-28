@@ -48,12 +48,14 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         }
 
         SearchLookup searchLookup = fetchContext.searchLookup();
-        if (fetchContext.getQueryShardContext().isSourceEnabled() == false) {
+        if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
             throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is disabled " +
                 "in the mappings for index [" + fetchContext.getIndexName() + "]");
         }
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getQueryShardContext(), searchLookup, fetchFieldsContext.fields());
+        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(),
+            searchLookup,
+            fetchFieldsContext.fields());
 
         return new FetchSubPhaseProcessor() {
             @Override

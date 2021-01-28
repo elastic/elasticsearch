@@ -164,7 +164,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
 
         ImmutableOpenIntMap that = (ImmutableOpenIntMap) o;
 
-        if (!map.equals(that.map)) return false;
+        if (map.equals(that.map) == false) return false;
 
         return true;
     }

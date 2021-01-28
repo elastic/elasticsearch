@@ -24,9 +24,6 @@ public class PercentileRank extends PercentileAggregate {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return new PercentileRank(source(), newChildren.get(0), newChildren.get(1), method(), methodParameter());
     }
 

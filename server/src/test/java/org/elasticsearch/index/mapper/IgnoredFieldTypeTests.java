@@ -33,10 +33,10 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
         Query expected = new PrefixQuery(new Term("_ignored", new BytesRef("foo*")));
-        assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
+        assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.prefixQuery("foo*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
                         "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
     }
@@ -45,10 +45,10 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
         Query expected = new RegexpQuery(new Term("_ignored", new BytesRef("foo?")));
-        assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));
+        assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.regexpQuery("foo?", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }
@@ -57,10 +57,10 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
         Query expected = new WildcardQuery(new Term("_ignored", new BytesRef("foo*")));
-        assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_QSC));
+        assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> ft.wildcardQuery("valu*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> ft.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 ee.getMessage());
     }

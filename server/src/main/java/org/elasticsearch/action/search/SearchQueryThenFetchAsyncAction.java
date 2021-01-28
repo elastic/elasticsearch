@@ -93,6 +93,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         if (queryResult.isNull() == false
                 // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
                 && getRequest().scroll() == null
+                // top docs are already consumed if the query was cancelled or in error.
+                && queryResult.hasConsumedTopDocs() == false
                 && queryResult.topDocs() != null
                 && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
             TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;

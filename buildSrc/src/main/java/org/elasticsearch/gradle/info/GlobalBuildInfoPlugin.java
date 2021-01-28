@@ -195,9 +195,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private InstallationLocation getJavaInstallation(File javaHome) {
-        return javaInstallationRegistry.listInstallations()
-            .stream()
-            .filter(installationLocation -> isSameFile(javaHome, installationLocation))
+        return getAvailableJavaInstallationLocationSteam().filter(installationLocation -> isSameFile(javaHome, installationLocation))
             .findFirst()
             .get();
     }
@@ -215,12 +213,19 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * To make transition more reliable we only take env var provided installations into account for now
      */
     private List<JavaHome> getAvailableJavaVersions() {
-        return javaInstallationRegistry.listInstallations().stream().map(installationLocation -> {
+        return getAvailableJavaInstallationLocationSteam().map(installationLocation -> {
             File installationDir = installationLocation.getLocation();
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(installationDir);
             int actualVersion = Integer.parseInt(metadata.getLanguageVersion().getMajorVersion());
             return JavaHome.of(actualVersion, providers.provider(() -> installationDir));
         }).collect(Collectors.toList());
+    }
+
+    private Stream<InstallationLocation> getAvailableJavaInstallationLocationSteam() {
+        return Stream.concat(
+            javaInstallationRegistry.listInstallations().stream(),
+            Stream.of(new InstallationLocation(Jvm.current().getJavaHome(), "Current JVM"))
+        );
     }
 
     private static String getTestSeed() {

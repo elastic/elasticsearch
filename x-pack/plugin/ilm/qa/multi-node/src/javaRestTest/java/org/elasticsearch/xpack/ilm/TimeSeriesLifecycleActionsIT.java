@@ -110,7 +110,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
         String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
         String secondIndex = index + "-000002";
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "javaRestTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
@@ -187,7 +187,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             String failedStep = getFailedStepForIndex(index);
             assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // update policy to be correct
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards));
@@ -496,7 +496,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-        });
+        }, 30, TimeUnit.SECONDS);
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 

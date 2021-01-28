@@ -88,8 +88,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_QSC);
+            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_CONTEXT);
+            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_CONTEXT);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
         IOUtils.close(reader, dir);
@@ -98,36 +98,36 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     public void testRoundsUpperBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft
             = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
-        Query scaledFloatQ = ft.rangeQuery(null, 0.1, true, false, MOCK_QSC);
+        Query scaledFloatQ = ft.rangeQuery(null, 0.1, true, false, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.1, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.1, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.095, true, false, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.095, true, false, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.095, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.095, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.105, true, false, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.105, true, false, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.105, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.105, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 79.99, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 79.99, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 7999]", scaledFloatQ.toString());
     }
 
     public void testRoundsLowerBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft
             = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
-        Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, MOCK_QSC);
+        Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.1, null, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.1, null, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.095, null, false, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.095, null, false, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.095, null, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.095, null, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.105, null, false, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.105, null, false, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.105, null, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.105, null, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
     }
 

@@ -10,7 +10,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 public class NdJsonFileStructureFinder implements FileStructureFinder {
 
     private final List<String> sampleMessages;
-    private final FileStructure structure;
+    private final TextStructure structure;
 
     static NdJsonFileStructureFinder makeNdJsonFileStructureFinder(
         List<String> explanation,
@@ -53,7 +53,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
             timeoutChecker.check("NDJSON parsing");
         }
 
-        FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.NDJSON).setCharset(charsetName)
+        TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.NDJSON).setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)
             .setSampleStart(sampleMessages.stream().limit(2).collect(Collectors.joining("\n", "", "\n")))
             .setNumLinesAnalyzed(sampleMessages.size())
@@ -100,14 +100,14 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
         }
 
-        FileStructure structure = structureBuilder.setMappings(
+        TextStructure structure = structureBuilder.setMappings(
             Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings)
         ).setExplanation(explanation).build();
 
         return new NdJsonFileStructureFinder(sampleMessages, structure);
     }
 
-    private NdJsonFileStructureFinder(List<String> sampleMessages, FileStructure structure) {
+    private NdJsonFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }
@@ -118,7 +118,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
     }
 
     @Override
-    public FileStructure getStructure() {
+    public TextStructure getStructure() {
         return structure;
     }
 }

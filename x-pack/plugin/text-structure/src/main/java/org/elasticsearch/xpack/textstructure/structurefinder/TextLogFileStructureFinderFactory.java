@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -16,8 +16,8 @@ public class TextLogFileStructureFinderFactory implements FileStructureFinderFac
     private static final Pattern TWO_NON_BLANK_LINES_PATTERN = Pattern.compile(".\n+.");
 
     @Override
-    public boolean canFindFormat(FileStructure.Format format) {
-        return format == null || format == FileStructure.Format.SEMI_STRUCTURED_TEXT;
+    public boolean canFindFormat(TextStructure.Format format) {
+        return format == null || format == TextStructure.Format.SEMI_STRUCTURED_TEXT;
     }
 
     /**

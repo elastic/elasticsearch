@@ -718,7 +718,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(context);
         if (analyzer != null) {
             if (context.getIndexAnalyzers().get(analyzer) == null) {

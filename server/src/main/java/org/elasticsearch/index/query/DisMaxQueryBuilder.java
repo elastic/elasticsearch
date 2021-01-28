@@ -180,7 +180,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         // return null if there are no queries at all
         Collection<Query> luceneQueries = toQueries(queries, context);
         if (luceneQueries.isEmpty()) {
@@ -191,11 +191,11 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         DisMaxQueryBuilder newBuilder = new DisMaxQueryBuilder();
         boolean changed = false;
         for (QueryBuilder query : queries) {
-            QueryBuilder result = query.rewrite(queryShardContext);
+            QueryBuilder result = query.rewrite(queryRewriteContext);
             if (result != query) {
                 changed = true;
             }

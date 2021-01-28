@@ -164,10 +164,10 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         IndexTemplateMetadata that = (IndexTemplateMetadata) o;
 
         if (order != that.order) return false;
-        if (!mappings.equals(that.mappings)) return false;
-        if (!name.equals(that.name)) return false;
-        if (!settings.equals(that.settings)) return false;
-        if (!patterns.equals(that.patterns)) return false;
+        if (mappings.equals(that.mappings) == false) return false;
+        if (name.equals(that.name) == false) return false;
+        if (settings.equals(that.settings) == false) return false;
+        if (patterns.equals(that.patterns) == false) return false;
 
         return Objects.equals(aliases, that.aliases) &&
             Objects.equals(version, that.version);

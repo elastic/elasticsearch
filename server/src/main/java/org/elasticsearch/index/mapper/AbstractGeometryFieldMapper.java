@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -117,13 +117,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         @Override
-        public final Query termQuery(Object value, QueryShardContext context) {
+        public final Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Geometry fields do not support exact searching, use dedicated geometry queries instead: ["
                     + name() + "]");
         }
 
         @Override
-        public final ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);

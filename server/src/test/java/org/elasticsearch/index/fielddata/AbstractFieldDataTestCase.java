@@ -44,7 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -71,7 +71,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected List<LeafReaderContext> readerContexts = null;
     protected DirectoryReader topLevelReader = null;
     protected IndicesFieldDataCache indicesFieldDataCache;
-    protected QueryShardContext shardContext;
+    protected SearchExecutionContext searchExecutionContext;
 
     protected abstract String getFieldDataType();
 
@@ -127,7 +127,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else {
             throw new UnsupportedOperationException(type);
         }
-        return shardContext.getForField(fieldType);
+        return searchExecutionContext.getForField(fieldType);
     }
 
     @Before
@@ -139,7 +139,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer = new IndexWriter(
             new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
-        shardContext = indexService.newQueryShardContext(0, 0, null, () -> 0, null, emptyMap());
+        searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
     }
 
     protected final List<LeafReaderContext> refreshReader() throws Exception {
@@ -159,7 +159,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             topLevelReader.close();
         }
         writer.close();
-        shardContext = null;
+        searchExecutionContext = null;
     }
 
     protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {

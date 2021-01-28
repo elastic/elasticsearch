@@ -611,7 +611,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             Settings initialSettings = initialSettingsBuilder.build();
             logger.info("--> using initial block settings {}", initialSettings);
 
-            if (!initialSettings.isEmpty()) {
+            if (initialSettings.isEmpty() == false) {
                 logger.info("--> apply initial blocks to index");
                 client().admin().indices().prepareUpdateSettings("test-idx").setSettings(initialSettingsBuilder).get();
             }

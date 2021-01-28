@@ -30,7 +30,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -344,7 +344,7 @@ public abstract class SearchContext implements Releasable {
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
 
-    public abstract QueryShardContext getQueryShardContext();
+    public abstract SearchExecutionContext getSearchExecutionContext();
 
     @Override
     public String toString() {

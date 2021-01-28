@@ -36,7 +36,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -107,7 +107,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     }
 
     @Override
-    public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+    public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
         IndexFieldData<?> factorField =
                 this.factorField == null ? null : context.getForField(context.getFieldType(this.factorField));
         return new ExampleRescoreContext(windowSize, factor, factorField);

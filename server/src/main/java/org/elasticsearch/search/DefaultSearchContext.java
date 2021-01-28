@@ -38,7 +38,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -136,7 +136,7 @@ final class DefaultSearchContext extends SearchContext {
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
-    private final QueryShardContext queryShardContext;
+    private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
     DefaultSearchContext(ReaderContext readerContext,
@@ -164,7 +164,7 @@ final class DefaultSearchContext extends SearchContext {
 
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
-        queryShardContext = indexService.newQueryShardContext(
+        searchExecutionContext = indexService.newSearchExecutionContext(
             request.shardId().id(),
             request.shardRequestIndex(),
             searcher,
@@ -230,7 +230,7 @@ final class DefaultSearchContext extends SearchContext {
         // initialize the filtering alias based on the provided filters
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
-            aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(queryShardContext);
+            aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(searchExecutionContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -254,8 +254,8 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-        NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
-        if (queryShardContext.hasNested()
+        NestedHelper nestedHelper = new NestedHelper(searchExecutionContext::getObjectMapper, searchExecutionContext::isFieldMapped);
+        if (searchExecutionContext.hasNested()
                 && nestedHelper.mightMatchNestedDocs(query)
                 && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter());
@@ -266,7 +266,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            Query slicedQuery = sliceBuilder.toFilter(request, queryShardContext);
+            Query slicedQuery = sliceBuilder.toFilter(request, searchExecutionContext);
             if (slicedQuery instanceof MatchNoDocsQuery) {
                 return slicedQuery;
             } else {
@@ -708,8 +708,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public QueryShardContext getQueryShardContext() {
-        return queryShardContext;
+    public SearchExecutionContext getSearchExecutionContext() {
+        return searchExecutionContext;
     }
 
     @Override

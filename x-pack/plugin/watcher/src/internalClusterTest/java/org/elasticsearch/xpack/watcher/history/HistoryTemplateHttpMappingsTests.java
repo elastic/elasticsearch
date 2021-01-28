@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure that the mapping for the watch_record are correct
@@ -95,7 +96,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 

@@ -64,4 +64,13 @@ public final class RankFeatureQueryBuilders {
         return new RankFeatureQueryBuilder(fieldName, new RankFeatureQueryBuilder.ScoreFunction.Sigmoid(pivot, exp));
     }
 
+    /**
+     * Return a new {@link RankFeatureQueryBuilder} that will score documents as
+     * {@code S)} where S is the indexed value of the static feature.
+     * @param fieldName     field that stores features
+     */
+    public static RankFeatureQueryBuilder linear(String fieldName) {
+        return new RankFeatureQueryBuilder(fieldName, new RankFeatureQueryBuilder.ScoreFunction.Linear());
+    }
+
 }

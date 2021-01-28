@@ -302,6 +302,7 @@ public final class Role {
         public static final String MONITOR_TRANSFORM_DEPRECATED = "monitor_data_frame_transforms";
         public static final String MONITOR_TRANSFORM = "monitor_transform";
         public static final String MONITOR_ML = "monitor_ml";
+        public static final String MONITOR_TEXT_STRUCTURE = "monitor_text_structure";
         public static final String MONITOR_WATCHER = "monitor_watcher";
         public static final String MONITOR_ROLLUP = "monitor_rollup";
         public static final String MANAGE = "manage";
@@ -326,7 +327,7 @@ public final class Role {
         public static final String READ_ILM = "read_ilm";
         public static final String MANAGE_ENRICH = "manage_enrich";
         public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_TRANSFORM_DEPRECATED, MONITOR_TRANSFORM,
-            MONITOR_ML, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE, MANAGE_TRANSFORM_DEPRECATED, MANAGE_TRANSFORM,
+            MONITOR_ML, MONITOR_TEXT_STRUCTURE, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE, MANAGE_TRANSFORM_DEPRECATED, MANAGE_TRANSFORM,
             MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, READ_PIPELINE,
             TRANSPORT_CLIENT, MANAGE_SECURITY, MANAGE_SAML, MANAGE_OIDC, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_AUTOSCALING, MANAGE_CCR,
             READ_CCR, MANAGE_ILM, READ_ILM, MANAGE_ENRICH };

@@ -50,6 +50,12 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
     public void validate(AutoscalingPolicy policy) {
         policy.deciders().forEach((name, configuration) -> validate(name, configuration, policy.roles()));
+        SortedMap<String, Settings> deciders = addDefaultDeciders(policy);
+        if (deciders.isEmpty()) {
+            throw new IllegalArgumentException(
+                "no default nor user configured deciders for policy [" + policy.name() + "] with roles [" + policy.roles() + "]"
+            );
+        }
     }
 
     private void validate(final String deciderName, final Settings configuration, SortedSet<String> roles) {
@@ -249,6 +255,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         @Override
         public Set<DiscoveryNode> nodes() {
             return currentNodes;
+        }
+
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
+            return roles;
         }
 
         private boolean calculateCurrentCapacityAccurate() {

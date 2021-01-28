@@ -60,7 +60,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -95,7 +94,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -111,6 +110,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -136,6 +136,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -240,11 +241,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 long bytesToPreallocate,
                                                 int maxBucket,
                                                 MappedFieldType... fieldTypes) throws IOException {
-        /*
-         * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
-         * we're passed gets a chance to break.
-         */
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
         MappingLookup mappingLookup = new MappingLookup(
             Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
@@ -270,11 +266,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {}
         });
-        QueryShardContext queryShardContext = new QueryShardContext(
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,
             indexSettings,
-            bigArrays,
             bitsetFilterCache,
             fieldDataBuilder,
             null,
@@ -295,12 +290,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         AggregationContext context = new ProductionAggregationContext(
-            queryShardContext,
+            searchExecutionContext,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService),
             bytesToPreallocate,
             () -> query,
             null,
             consumer,
-            () -> buildSubSearchContext(indexSettings, queryShardContext, bitsetFilterCache),
+            () -> buildSubSearchContext(indexSettings, searchExecutionContext, bitsetFilterCache),
             bitsetFilterCache,
             randomInt(),
             () -> 0L,
@@ -331,7 +327,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     private SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
-        QueryShardContext queryShardContext,
+        SearchExecutionContext searchExecutionContext,
         BitsetFilterCache bitsetFilterCache
     ) {
         SearchContext ctx = mock(SearchContext.class);
@@ -350,8 +346,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         try {
             when(ctx.searcher()).thenReturn(
                 new ContextIndexSearcher(
-                    queryShardContext.searcher().getIndexReader(),
-                    queryShardContext.searcher().getSimilarity(),
+                    searchExecutionContext.searcher().getIndexReader(),
+                    searchExecutionContext.searcher().getSimilarity(),
                     queryCache,
                     queryCachingPolicy,
                     false
@@ -367,10 +363,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * don't try to fetch them which would require mocking a whole menagerie
          * of stuff.
          */
-        QueryShardContext subQSC = spy(queryShardContext);
+        SearchExecutionContext subContext = spy(searchExecutionContext);
         MappingLookup disableNestedLookup = new MappingLookup(Mapping.EMPTY, Set.of(), Set.of(), Set.of(), null, null, null);
-        doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subQSC).getNestedDocuments();
-        when(ctx.getQueryShardContext()).thenReturn(subQSC);
+        doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subContext).getNestedDocuments();
+        when(ctx.getSearchExecutionContext()).thenReturn(subContext);
 
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
@@ -433,6 +429,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       AggregationBuilder builder,
                                                                                       int maxBucket,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
+        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
+    }
+
+    /**
+     * Collects all documents that match the provided query {@link Query} and
+     * returns the reduced {@link InternalAggregation}.
+     * <p>
+     * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
+     *          for each leaf as though it were a separate index. If false this aggregates
+     *          all leaves together, like we do in production.
+     */
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
+                                                                                      IndexSearcher searcher,
+                                                                                      Query query,
+                                                                                      AggregationBuilder builder,
+                                                                                      int maxBucket,
+                                                                                      boolean splitLeavesIntoSeparateAggregators,
+                                                                                      MappedFieldType... fieldTypes) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -449,7 +463,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
         C root = createAggregator(builder, context);
 
-        if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {
+        if (splitLeavesIntoSeparateAggregators && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();
@@ -525,6 +539,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);
+
+                verifyOutputFieldNames(aggregationBuilder, agg);
             }
         }
     }
@@ -547,6 +563,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 verify.accept(searcher, createAggregator(aggregationBuilder, context));
             }
         }
+    }
+
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void verifyOutputFieldNames(T aggregationBuilder, V agg)
+        throws IOException {
+        if (aggregationBuilder.getOutputFieldNames().isEmpty()) {
+            // aggregation does not support output field names yet
+            return;
+        }
+
+        assert agg instanceof NumericMetricsAggregation.MultiValue : "only multi value aggs are supported";
+
+        NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
+        Set<String> valueNames = new HashSet<>();
+        for (String name : multiValueAgg.valueNames()) {
+            valueNames.add(name);
+        }
+
+        assertEquals(aggregationBuilder.getOutputFieldNames().get(), valueNames);
     }
 
     /**

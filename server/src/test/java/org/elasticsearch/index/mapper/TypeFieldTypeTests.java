@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.mockito.Mockito;
 
@@ -68,7 +68,7 @@ public class TypeFieldTypeTests extends MapperServiceTestCase {
     }
 
     public void testTermsQuery() {
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
 
         TypeFieldType ft = new TypeFieldType("_doc");
 
@@ -89,7 +89,7 @@ public class TypeFieldTypeTests extends MapperServiceTestCase {
     }
 
     public void testExistsQuery() {
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
         TypeFieldType ft = new TypeFieldType("_doc");
         Query query = ft.existsQuery(context);
         assertEquals(new MatchAllDocsQuery(), query);

@@ -322,7 +322,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {
@@ -333,7 +333,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");

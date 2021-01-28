@@ -40,8 +40,6 @@ import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequestTests;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
-import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -96,7 +94,6 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStatsNamedXContentProvider;
-import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelConfigTests;
@@ -121,7 +118,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1049,85 +1045,6 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_ml/info"));
         assertNull(request.getEntity());
-    }
-
-    public void testFindFileStructure() throws Exception {
-
-        String sample = randomAlphaOfLength(randomIntBetween(1000, 2000));
-        FindFileStructureRequest findFileStructureRequest = FindFileStructureRequestTests.createTestRequestWithoutSample();
-        findFileStructureRequest.setSample(sample.getBytes(StandardCharsets.UTF_8));
-        Request request = MLRequestConverters.findFileStructure(findFileStructureRequest);
-
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/find_file_structure", request.getEndpoint());
-        if (findFileStructureRequest.getLinesToSample() != null) {
-            assertEquals(findFileStructureRequest.getLinesToSample(), Integer.valueOf(request.getParameters().get("lines_to_sample")));
-        } else {
-            assertNull(request.getParameters().get("lines_to_sample"));
-        }
-        if (findFileStructureRequest.getTimeout() != null) {
-            assertEquals(findFileStructureRequest.getTimeout().toString(), request.getParameters().get("timeout"));
-        } else {
-            assertNull(request.getParameters().get("timeout"));
-        }
-        if (findFileStructureRequest.getCharset() != null) {
-            assertEquals(findFileStructureRequest.getCharset(), request.getParameters().get("charset"));
-        } else {
-            assertNull(request.getParameters().get("charset"));
-        }
-        if (findFileStructureRequest.getFormat() != null) {
-            assertEquals(findFileStructureRequest.getFormat(), FileStructure.Format.fromString(request.getParameters().get("format")));
-        } else {
-            assertNull(request.getParameters().get("format"));
-        }
-        if (findFileStructureRequest.getColumnNames() != null) {
-            assertEquals(findFileStructureRequest.getColumnNames(),
-                Arrays.asList(Strings.splitStringByCommaToArray(request.getParameters().get("column_names"))));
-        } else {
-            assertNull(request.getParameters().get("column_names"));
-        }
-        if (findFileStructureRequest.getHasHeaderRow() != null) {
-            assertEquals(findFileStructureRequest.getHasHeaderRow(), Boolean.valueOf(request.getParameters().get("has_header_row")));
-        } else {
-            assertNull(request.getParameters().get("has_header_row"));
-        }
-        if (findFileStructureRequest.getDelimiter() != null) {
-            assertEquals(findFileStructureRequest.getDelimiter().toString(), request.getParameters().get("delimiter"));
-        } else {
-            assertNull(request.getParameters().get("delimiter"));
-        }
-        if (findFileStructureRequest.getQuote() != null) {
-            assertEquals(findFileStructureRequest.getQuote().toString(), request.getParameters().get("quote"));
-        } else {
-            assertNull(request.getParameters().get("quote"));
-        }
-        if (findFileStructureRequest.getShouldTrimFields() != null) {
-            assertEquals(findFileStructureRequest.getShouldTrimFields(),
-                Boolean.valueOf(request.getParameters().get("should_trim_fields")));
-        } else {
-            assertNull(request.getParameters().get("should_trim_fields"));
-        }
-        if (findFileStructureRequest.getGrokPattern() != null) {
-            assertEquals(findFileStructureRequest.getGrokPattern(), request.getParameters().get("grok_pattern"));
-        } else {
-            assertNull(request.getParameters().get("grok_pattern"));
-        }
-        if (findFileStructureRequest.getTimestampFormat() != null) {
-            assertEquals(findFileStructureRequest.getTimestampFormat(), request.getParameters().get("timestamp_format"));
-        } else {
-            assertNull(request.getParameters().get("timestamp_format"));
-        }
-        if (findFileStructureRequest.getTimestampField() != null) {
-            assertEquals(findFileStructureRequest.getTimestampField(), request.getParameters().get("timestamp_field"));
-        } else {
-            assertNull(request.getParameters().get("timestamp_field"));
-        }
-        if (findFileStructureRequest.getExplain() != null) {
-            assertEquals(findFileStructureRequest.getExplain(), Boolean.valueOf(request.getParameters().get("explain")));
-        } else {
-            assertNull(request.getParameters().get("explain"));
-        }
-        assertEquals(sample, requestEntityToString(request));
     }
 
     public void testSetUpgradeMode() {

@@ -266,7 +266,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             30L,
-            Instant.ofEpochMilli(timestamp)
+            Instant.ofEpochMilli(timestamp),
+            null
         );
 
         assertAsync(
@@ -281,7 +282,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             63L,
-            Instant.ofEpochMilli(timestamp)
+            Instant.ofEpochMilli(timestamp),
+            null
         );
         assertAsync(
             listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),
@@ -296,7 +298,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             new TransformCheckpointStats(1, null, null, timestamp, 0L),
             new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
             0L,
-            Instant.ofEpochMilli(timestamp)
+            Instant.ofEpochMilli(timestamp),
+            null
         );
         assertAsync(
             listener -> getCheckpoint(transformCheckpointService, transformId, 1, position, progress, listener),

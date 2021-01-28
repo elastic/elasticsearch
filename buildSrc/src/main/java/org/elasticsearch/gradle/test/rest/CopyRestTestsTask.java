@@ -32,6 +32,7 @@ import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSet;
@@ -57,16 +58,16 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  */
 public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
-    final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
-    final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
+    private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
+    private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
-    String sourceSetName;
-    FileCollection coreConfig;
-    FileCollection xpackConfig;
-    FileCollection additionalConfig;
-    Function<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
-    Function<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
-    Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
+    private String sourceSetName;
+    private FileCollection coreConfig;
+    private FileCollection xpackConfig;
+    private FileCollection additionalConfig;
+    private Function<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
+    private Function<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
+    private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
@@ -197,5 +198,43 @@ public class CopyRestTestsTask extends DefaultTask {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
+    }
+
+    public void setSourceSetName(String sourceSetName) {
+        this.sourceSetName = sourceSetName;
+    }
+
+    public void setCoreConfig(FileCollection coreConfig) {
+        this.coreConfig = coreConfig;
+    }
+
+    public void setXpackConfig(FileCollection xpackConfig) {
+        this.xpackConfig = xpackConfig;
+    }
+
+    public void setAdditionalConfig(FileCollection additionalConfig) {
+        this.additionalConfig = additionalConfig;
+    }
+
+    public void setCoreConfigToFileTree(Function<FileCollection, FileTree> coreConfigToFileTree) {
+        this.coreConfigToFileTree = coreConfigToFileTree;
+    }
+
+    public void setXpackConfigToFileTree(Function<FileCollection, FileTree> xpackConfigToFileTree) {
+        this.xpackConfigToFileTree = xpackConfigToFileTree;
+    }
+
+    public void setAdditionalConfigToFileTree(Function<FileCollection, FileTree> additionalConfigToFileTree) {
+        this.additionalConfigToFileTree = additionalConfigToFileTree;
+    }
+
+    @Internal
+    public FileCollection getCoreConfig() {
+        return coreConfig;
+    }
+
+    @Internal
+    public FileCollection getXpackConfig() {
+        return xpackConfig;
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -171,6 +172,14 @@ public class HasherTests extends ESTestCase {
                 .toCharArray()),
             sameInstance(Hasher.PBKDF2_STRETCH_1000000));
         assertThat(Hasher.resolveFromHash("notavalidhashformat".toCharArray()), sameInstance(Hasher.NOOP));
+    }
+
+    public void testPbkdf2WithShortPasswordThrowsInFips() {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 13)).toCharArray());
+        Hasher pbkdfHasher = randomFrom(Hasher.PBKDF2, Hasher.PBKDF2_50000, Hasher.PBKDF2_1000000);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> pbkdfHasher.hash(passwd));
+        assertThat(e.getMessage(), containsString("Error using PBKDF2 implementation from the selected Security Provider"));
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) {

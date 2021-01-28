@@ -39,12 +39,16 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
     }
 
     public static FrequencyEncoding createRandom(Boolean isCustom) {
+        return createRandom(isCustom, randomAlphaOfLength(10));
+    }
+
+    public static FrequencyEncoding createRandom(Boolean isCustom, String inputField) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new FrequencyEncoding(randomAlphaOfLength(10),
+        return new FrequencyEncoding(inputField,
             randomAlphaOfLength(10),
             valueMap,
             isCustom);

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.List;
 
@@ -17,7 +17,7 @@ public interface FileStructureFinderFactory {
      * @return <code>true</code> if {@code format} is <code>null</code> or the factory
      *         can produce a {@link FileStructureFinder} that can find {@code format}.
      */
-    boolean canFindFormat(FileStructure.Format format);
+    boolean canFindFormat(TextStructure.Format format);
 
     /**
      * Given a sample of a file, decide whether this factory will be able

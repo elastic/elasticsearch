@@ -34,7 +34,7 @@ public class JsonLogLine {
     public static final ObjectParser<JsonLogLine, Void> ES_LOG_LINE = createESParser(true);
 
 
-    private String type;
+    private String dataset;
     private String timestamp;
     private String level;
     private String component;
@@ -49,7 +49,7 @@ public class JsonLogLine {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("JsonLogLine{");
-        sb.append("type='").append(type).append('\'');
+        sb.append("dataset='").append(dataset).append('\'');
         sb.append(", timestamp='").append(timestamp).append('\'');
         sb.append(", level='").append(level).append('\'');
         sb.append(", component='").append(component).append('\'');
@@ -64,8 +64,8 @@ public class JsonLogLine {
         return sb.toString();
     }
 
-    public String getType() {
-        return type;
+    public String getDataset() {
+        return dataset;
     }
 
     public String getTimestamp() {
@@ -108,8 +108,8 @@ public class JsonLogLine {
         return stacktrace;
     }
 
-    public void setType(String type) {
-        this.type = type;
+    public void setDataset(String dataset) {
+        this.dataset = dataset;
     }
 
     public void setTimestamp(String timestamp) {
@@ -154,14 +154,14 @@ public class JsonLogLine {
 
     private static ObjectParser<JsonLogLine, Void> createECSParser(boolean ignoreUnknownFields) {
         ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("json_log_line", ignoreUnknownFields, JsonLogLine::new);
-        parser.declareString(JsonLogLine::setType, new ParseField("type"));
+        parser.declareString(JsonLogLine::setDataset, new ParseField("event.dataset"));
         parser.declareString(JsonLogLine::setTimestamp, new ParseField("@timestamp"));
         parser.declareString(JsonLogLine::setLevel, new ParseField("log.level"));
         parser.declareString(JsonLogLine::setComponent, new ParseField("log.logger"));
-        parser.declareString(JsonLogLine::setClusterName, new ParseField("cluster.name"));
-        parser.declareString(JsonLogLine::setNodeName, new ParseField("node.name"));
-        parser.declareString(JsonLogLine::setClusterUuid, new ParseField("cluster.uuid"));
-        parser.declareString(JsonLogLine::setNodeId, new ParseField("node.id"));
+        parser.declareString(JsonLogLine::setClusterName, new ParseField("elasticsearch.cluster.name"));
+        parser.declareString(JsonLogLine::setNodeName, new ParseField("elasticsearch.node.name"));
+        parser.declareString(JsonLogLine::setClusterUuid, new ParseField("elasticsearch.cluster.uuid"));
+        parser.declareString(JsonLogLine::setNodeId, new ParseField("elasticsearch.node.id"));
         parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
         parser.declareStringArray(JsonLogLine::setTags, new ParseField("tags"));
         parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("error.stack_trace"));
@@ -171,7 +171,7 @@ public class JsonLogLine {
 
     private static ObjectParser<JsonLogLine, Void> createESParser(boolean ignoreUnknownFields) {
         ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, JsonLogLine::new);
-        parser.declareString(JsonLogLine::setType, new ParseField("type"));
+        parser.declareString(JsonLogLine::setDataset, new ParseField("type"));
         parser.declareString(JsonLogLine::setTimestamp, new ParseField("timestamp"));
         parser.declareString(JsonLogLine::setLevel, new ParseField("level"));
         parser.declareString(JsonLogLine::setComponent, new ParseField("component"));

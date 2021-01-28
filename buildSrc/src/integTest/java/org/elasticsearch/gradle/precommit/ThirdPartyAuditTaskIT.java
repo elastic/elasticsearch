@@ -49,18 +49,6 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         assertNoDeprecationWarning(result);
     }
 
-    public void testWithEmptyRules() {
-        getGradleRunner("thirdPartyAudit").withArguments(
-            ":clean",
-            ":empty",
-            "-s",
-            "-PcompileOnlyGroup=other.gradle:broken-log4j",
-            "-PcompileOnlyVersion=0.0.1",
-            "-PcompileGroup=other.gradle:dummy-io",
-            "-PcompileVersion=0.0.1"
-        ).buildAndFail();
-    }
-
     public void testViolationFoundAndCompileOnlyIgnored() {
         BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
             ":clean",

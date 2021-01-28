@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -573,7 +573,7 @@ public final class FileStructureFinderManager {
                 )
             );
 
-        } else if (quote != null || shouldTrimFields != null || FileStructure.Format.DELIMITED.equals(overrides.getFormat())) {
+        } else if (quote != null || shouldTrimFields != null || TextStructure.Format.DELIMITED.equals(overrides.getFormat())) {
             allowedFractionOfBadLines = DelimitedFileStructureFinderFactory.FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
 
             // The delimiter is not specified, but some other aspect of delimited files is,

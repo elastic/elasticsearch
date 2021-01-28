@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
 import java.util.List;
@@ -70,7 +70,7 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
     }

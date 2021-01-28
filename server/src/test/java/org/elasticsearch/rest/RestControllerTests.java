@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -101,8 +100,7 @@ public class RestControllerTests extends ESTestCase {
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
-        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -122,8 +120,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", true)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -159,8 +156,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", false)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -174,8 +170,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", false)));
-        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -229,8 +224,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
         RestRequest.Method secondMethod =
@@ -264,7 +258,7 @@ public class RestControllerTests extends ESTestCase {
                 h -> {
                     assertSame(handler, h);
                     return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-                }, client, circuitBreakerService, usageService, CompatibleVersion.CURRENT_VERSION);
+                }, client, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -327,8 +321,7 @@ public class RestControllerTests extends ESTestCase {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (r, c, client) -> c.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -639,12 +632,11 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            (a,c,h)->Version.CURRENT.minimumRestCompatibilityVersion());//always return compatible version
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
+        final String mimeType = randomCompatibleMediaType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -675,12 +667,11 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleRequestToNewlyAddedHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            (a,c,h)->Version.CURRENT.minimumRestCompatibilityVersion());//always return compatible version
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
+        final String mimeType = randomCompatibleMediaType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -730,9 +721,9 @@ public class RestControllerTests extends ESTestCase {
             }));
     }
 
-    private String randomCompatibleMimeType(byte version) {
+    private String randomCompatibleMediaType(byte version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
-        return ParsedMediaType.parseMediaType(type.mediaType())
+        return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));
     }
 

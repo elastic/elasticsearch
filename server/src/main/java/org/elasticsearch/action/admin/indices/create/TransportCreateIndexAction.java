@@ -81,16 +81,18 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
         final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
 
-        if (isSystemIndex && state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
-            final String message = "Cannot create system index [" + descriptor.getPrimaryIndex() + "] in a mixed-version cluster";
-            logger.warn(message);
-            listener.onFailure(new IllegalStateException(message));
-            return;
+        final CreateIndexClusterStateUpdateRequest updateRequest;
+        if (isSystemIndex) {
+            final String message = descriptor.checkMinimumNodeVersion("create index", state.nodes().getMinNodeVersion());
+            if (message != null) {
+                logger.warn(message);
+                listener.onFailure(new IllegalStateException(message));
+                return;
+            }
+            updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor);
+        } else {
+            updateRequest = buildUpdateRequest(request, cause, indexName);
         }
-
-        final CreateIndexClusterStateUpdateRequest updateRequest = isSystemIndex
-            ? buildSystemIndexUpdateRequest(request, cause, descriptor)
-            : buildUpdateRequest(request, cause, indexName);
 
         createIndexService.createIndex(updateRequest, listener.map(response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));

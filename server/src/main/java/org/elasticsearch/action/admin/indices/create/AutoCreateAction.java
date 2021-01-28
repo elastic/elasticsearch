@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -155,17 +156,22 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
                         final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
 
-                        if (isSystemIndex && state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
-                            final String messsage = "Cannot auto-create system index ["
-                                + descriptor.getPrimaryIndex()
-                                + "] in a mixed-version cluster";
-                            logger.warn(messsage);
-                            throw new IllegalStateException(messsage);
-                        }
+                        final CreateIndexClusterStateUpdateRequest updateRequest;
 
-                        CreateIndexClusterStateUpdateRequest updateRequest = isSystemIndex
-                            ? buildSystemIndexUpdateRequest(descriptor)
-                            : buildUpdateRequest(indexName);
+                        if (isSystemIndex) {
+                            final String message = descriptor.checkMinimumNodeVersion(
+                                "auto-create index",
+                                state.nodes().getMinNodeVersion()
+                            );
+                            if (message != null) {
+                                logger.warn(message);
+                                throw new IllegalStateException(message);
+                            }
+
+                            updateRequest = buildSystemIndexUpdateRequest(descriptor);
+                        } else {
+                            updateRequest = buildUpdateRequest(indexName);
+                        }
 
                         return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                     }

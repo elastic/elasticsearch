@@ -15,6 +15,12 @@ DELETE /_dangling/<index-uuid>?accept_data_loss=true
 --------------------------------------------------
 // TEST[skip:Difficult to set up]
 
+[[dangling-index-delete-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[dangling-index-delete-api-desc]]
 ==== {api-description-title}
 

@@ -32,6 +32,12 @@ DELETE _component_template/template_1
 
 `DELETE /_component_template/<component-template>`
 
+[[delete-component-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[delete-component-template-api-desc]]
 ==== {api-description-title}

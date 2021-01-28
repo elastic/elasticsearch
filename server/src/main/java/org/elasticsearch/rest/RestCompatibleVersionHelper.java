@@ -1,23 +1,43 @@
 /*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.compat;
+package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
-import org.elasticsearch.rest.RestStatus;
 
-public class CompatibleVersionPlugin extends Plugin implements RestCompatibilityPlugin {
+/**
+ * A helper that is responsible for parsing a Compatible REST API version from RestRequest.
+ * It also performs a validation of allowed combination of versions provided on those headers.
+ * Package scope as it is only aimed to be used by RestRequest
+ */
+class RestCompatibleVersionHelper {
 
-    @Override
-    public Version getCompatibleVersion(
+    static Version getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,
         @Nullable ParsedMediaType contentTypeHeader,
         boolean hasContent
@@ -85,7 +105,6 @@ public class CompatibleVersionPlugin extends Plugin implements RestCompatibility
         return Version.CURRENT;
     }
 
-    // scope for testing
     static Byte parseVersion(ParsedMediaType parsedMediaType) {
         if (parsedMediaType != null) {
             String version = parsedMediaType.getParameters().get(MediaType.COMPATIBLE_WITH_PARAMETER_NAME);

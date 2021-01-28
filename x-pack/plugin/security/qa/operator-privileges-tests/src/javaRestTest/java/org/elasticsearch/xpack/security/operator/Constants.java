@@ -101,6 +101,7 @@ public class Constants {
         "cluster:admin/xpack/enrich/execute",
         "cluster:admin/xpack/enrich/get",
         "cluster:admin/xpack/enrich/put",
+        "cluster:admin/xpack/enrich/reindex",
         "cluster:admin/xpack/license/basic_status",
         // "cluster:admin/xpack/license/delete",
         "cluster:admin/xpack/license/feature_usage",

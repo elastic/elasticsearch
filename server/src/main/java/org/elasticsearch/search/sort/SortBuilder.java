@@ -158,7 +158,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             sortFields.add(sf.field);
             sortFormats.add(sf.format);
         }
-        if (!sortFields.isEmpty()) {
+        if (sortFields.isEmpty() == false) {
             // optimize if we just sort on score non reversed, we don't really
             // need sorting
             boolean sort;

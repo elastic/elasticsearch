@@ -564,7 +564,7 @@ final class SystemCallFilter {
     // windows impl via job ActiveProcessLimit
 
     static void windowsImpl() {
-        if (!Constants.WINDOWS) {
+        if (Constants.WINDOWS == false) {
             throw new IllegalStateException("bug: should not be trying to initialize ActiveProcessLimit for an unsupported OS");
         }
 
@@ -581,7 +581,7 @@ final class SystemCallFilter {
             int clazz = JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;
             JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION limits = new JNAKernel32Library.JOBOBJECT_BASIC_LIMIT_INFORMATION();
             limits.write();
-            if (!lib.QueryInformationJobObject(job, clazz, limits.getPointer(), limits.size(), null)) {
+            if (lib.QueryInformationJobObject(job, clazz, limits.getPointer(), limits.size(), null) == false) {
                 throw new UnsupportedOperationException("QueryInformationJobObject: " + Native.getLastError());
             }
             limits.read();
@@ -589,11 +589,11 @@ final class SystemCallFilter {
             limits.ActiveProcessLimit = 1;
             limits.LimitFlags = JNAKernel32Library.JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
             limits.write();
-            if (!lib.SetInformationJobObject(job, clazz, limits.getPointer(), limits.size())) {
+            if (lib.SetInformationJobObject(job, clazz, limits.getPointer(), limits.size()) == false) {
                 throw new UnsupportedOperationException("SetInformationJobObject: " + Native.getLastError());
             }
             // assign ourselves to the job
-            if (!lib.AssignProcessToJobObject(job, lib.GetCurrentProcess())) {
+            if (lib.AssignProcessToJobObject(job, lib.GetCurrentProcess()) == false) {
                 throw new UnsupportedOperationException("AssignProcessToJobObject: " + Native.getLastError());
             }
         } finally {

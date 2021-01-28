@@ -96,7 +96,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.realms",
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.roles",
                 "xpack.security.audit.logfile.events.ignore_filters.invalid.indices",
-                "xpack.security.audit.logfile.events.ignore_filters.invalid.privileges"};
+                "xpack.security.audit.logfile.events.ignore_filters.invalid.index_privileges"};
         settingsBuilder.put(randomFrom(allSettingsKeys), invalidLuceneRegex);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder.build()).get());
@@ -226,7 +226,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
             if (randomBoolean()) {
                 // filter by privileges
                 final List<String> filteredPrivileges = randomNonEmptyListOfFilteredNames();
-                settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".privileges",
+                settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".index_privileges",
                     filteredPrivileges);
             }
         } while (settingsBuilder.build().isEmpty());

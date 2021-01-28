@@ -41,9 +41,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     private static final Version SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION = Version.V_7_4_0;
+    private static final Version INTRODUCED_MULTI_VALUE_EXTRACTION = Version.V_7_12_0; // TODO: update if merging in 7.13.0
 
     public enum MultiValueHandling {
-        FAIL_IIF_MULTIVALUE {
+        FAIL_IF_MULTIVALUE {
             @Override
             public Object handle(Object object, String fieldName) {
                 return extractOneValue(object, fieldName, true);
@@ -68,7 +69,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             if (object instanceof List) { // is this a multi-value?
                 List<?> list = (List<?>) object;
                 if (list.size() > 1 && failIfMultiValue) {
-                    throw new QlIllegalArgumentException("Cannot return multiple values for field [{}]; call ARRAY({}) instead",
+                    throw new QlIllegalArgumentException("Cannot return multiple values for field [{}]; use ARRAY({}) instead",
                         fieldName, fieldName);
                 }
                 return list.isEmpty() ? null : list.get(0);
@@ -94,7 +95,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     private final String[] path;
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
-        this(name, null, dataType, zoneId, useDocValue, null, MultiValueHandling.FAIL_IIF_MULTIVALUE);
+        this(name, null, dataType, zoneId, useDocValue, null, MultiValueHandling.FAIL_IF_MULTIVALUE);
     }
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue,
@@ -132,7 +133,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
-        multiValueHandling = in.readEnum(MultiValueHandling.class);
+        if (in.getVersion().onOrAfter(INTRODUCED_MULTI_VALUE_EXTRACTION)) {
+            multiValueHandling = in.readEnum(MultiValueHandling.class);
+        } else {
+            multiValueHandling = in.readBoolean() ? MultiValueHandling.EXTRACT_ONE : MultiValueHandling.FAIL_IF_MULTIVALUE;
+        }
         path = sourcePath(fieldName, useDocValue, hitName);
         zoneId = readZoneId(in);
     }
@@ -152,7 +157,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
-        out.writeEnum(multiValueHandling);
+        if (out.getVersion().onOrAfter(INTRODUCED_MULTI_VALUE_EXTRACTION)) {
+            out.writeEnum(multiValueHandling);
+        } else {
+            out.writeBoolean(multiValueHandling != MultiValueHandling.FAIL_IF_MULTIVALUE);
+        }
     }
 
     @Override

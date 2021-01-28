@@ -89,6 +89,7 @@ public class SqlDataTypes {
     public static final DataType SHAPE =     new DataType("shape",     Integer.MAX_VALUE, false, false, false);
 
     // arrays
+    // note: only field types can form arrays currently; this excludes SQL's specific types (time, date, intervals)
     public static final DataType BOOLEAN_ARRAY      = of(BOOLEAN);
     // integer numeric
     public static final DataType BYTE_ARRAY         = of(BYTE);
@@ -222,7 +223,7 @@ public class SqlDataTypes {
     private static final Map<String, DataType> SQL_TO_ES;
 
     static {
-        Map<String, DataType> sqlToEs = new HashMap<>(mapSize(45)); // TODO: is this magic number 1) needed & 2) up to date?
+        Map<String, DataType> sqlToEs = new HashMap<>(mapSize(TYPES.size() + ODBC_TO_ES.size() - /*obj., nest.*/2 + /*"special" ones*/3));
         // first add ES types
         for (DataType type : types()) {
             if (type != OBJECT && type != NESTED) {

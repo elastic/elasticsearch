@@ -39,7 +39,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ARRAY;
-import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IIF_MULTIVALUE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IF_MULTIVALUE;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ONE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -56,7 +56,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, null, randomZone(), randomBoolean(), hitName, FAIL_IIF_MULTIVALUE);
+        return new FieldHitExtractor(name, null, null, randomZone(), randomBoolean(), hitName, FAIL_IF_MULTIVALUE);
     }
 
     @Override
@@ -205,7 +205,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testToString() {
         assertEquals("hit.field@hit@Europe/Berlin",
-                new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", FAIL_IIF_MULTIVALUE)
+                new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", FAIL_IF_MULTIVALUE)
                     .toString());
     }
 
@@ -216,7 +216,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
-            "call ARRAY(" + fieldName + ") instead"));
+            "use ARRAY(" + fieldName + ") instead"));
     }
 
     public void testMultiValuedSourceValue() throws IOException {
@@ -232,7 +232,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         hit.sourceRef(sourceRef);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
-            "call ARRAY(" + fieldName + ") instead"));
+            "use ARRAY(" + fieldName + ") instead"));
     }
 
     public void testSingleValueArrayInSource() throws IOException {
@@ -270,7 +270,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", asList(value, value));
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a]; call ARRAY(a) instead"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a]; use ARRAY(a) instead"));
     }
 
     public void testMultiValuedSourceAllowed() {
@@ -317,7 +317,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             path[i] = randomAlphaOfLength(randomIntBetween(1, 10));
             sj.add(path[i]);
         }
-        MultiValueHandling extractionMode = randomFrom(FAIL_IIF_MULTIVALUE, EXTRACT_ONE, EXTRACT_ARRAY);
+        MultiValueHandling extractionMode = randomFrom(FAIL_IF_MULTIVALUE, EXTRACT_ONE, EXTRACT_ARRAY);
         FieldHitExtractor fe = new FieldHitExtractor(sj.toString(), null, UTC, false, extractionMode);
 
         List<String> paths = new ArrayList<>(path.length);
@@ -366,12 +366,12 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             assertEquals(extractionMode == EXTRACT_ARRAY ? expectList : expectSingleton, fe.extractFromSource(map));
         } else {
             switch (extractionMode) {
-                case FAIL_IIF_MULTIVALUE:
+                case FAIL_IF_MULTIVALUE:
                     // if we have an array with more than one value in it, check that we throw the correct exception and exception message
                     final Map<String, Object> map2 = map;
                     QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
                     assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + expected+ "]; " +
-                        "call ARRAY(" + expected + ") instead"));
+                        "use ARRAY(" + expected + ") instead"));
                     break;
                 case EXTRACT_ONE:
                     assertEquals(expectSingleton, fe.extractFromSource(map));
@@ -422,7 +422,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         map.put("a.b", singletonMap("c", singletonMap("d.e", singletonMap("f.g", value))));
         map.put("a", singletonMap("b.c", singletonMap("d.e", singletonMap("f", singletonMap("g", value)))));
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a.b.c.d.e.f.g]; call ARRAY(a.b.c.d.e.f.g) instead"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a.b.c.d.e.f.g]; use ARRAY(a.b.c.d.e.f.g) instead"));
     }
 
     public void testFieldsWithSingleValueArrayAsSubfield() {
@@ -440,7 +440,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         // "a" : [{"b" : "value1"}, {"b" : "value2"}]
         map.put("a", asList(singletonMap("b", randomNonNullValue()), singletonMap("b", randomNonNullValue())));
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a.b]; call ARRAY(a.b) instead"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a.b]; use ARRAY(a.b) instead"));
     }
 
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists() {
@@ -458,7 +458,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         // "a" : [{"b" : [{"c" : ["value1", "value2"]}]}]
         map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", asList("value1", "value2"))))));
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map));
-        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a.b.c]; call ARRAY(a.b.c) instead"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a.b.c]; use ARRAY(a.b.c) instead"));
     }
 
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists2() {
@@ -489,7 +489,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         assertEquals(emptyList(), feb.extractFromSource(map));
     }
 
-    // "a": [i1, i2, ..]
+    // "a": [i1, i2, ..] as Map
     public void testMultiValueImmediateFromMap() {
         String fieldName = randomAlphaOfLength(5);
         Map<String, Object> map = new HashMap<>();
@@ -499,7 +499,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         assertEquals(list, fe.extractFromSource(map));
     }
 
-    // "a": [i1, i2, ..]
+    // "a": [i1, i2, ..] XContentBuilder-serialized
     public void testMultiValueImmediateFromHit() throws IOException {
         String fieldName = randomAlphaOfLength(5);
         List<Long> list = randomList(2, 10, ESTestCase::randomLong);
@@ -738,7 +738,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         map2.put(fieldName, asList("POINT (1 2)", "POINT (3 4)"));
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extractFromSource(map2));
         assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
-            "call ARRAY(" + fieldName + ") instead"));
+            "use ARRAY(" + fieldName + ") instead"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName,
             randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false, EXTRACT_ONE);
@@ -808,7 +808,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, false);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
-            "call ARRAY(" + fieldName + ") instead"));
+            "use ARRAY(" + fieldName + ") instead"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, false, EXTRACT_ONE);
         assertEquals(geoShapes.get(0), lenientFe.extract(hit));
@@ -835,7 +835,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
-            "call ARRAY(" + fieldName + ") instead"));
+            "use ARRAY(" + fieldName + ") instead"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, GEO_POINT, UTC, true, EXTRACT_ONE);
         assertEquals(new GeoShape(1, 2), lenientFe.extract(hit));

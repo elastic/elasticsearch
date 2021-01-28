@@ -85,7 +85,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ARRAY;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ONE;
-import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IIF_MULTIVALUE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IF_MULTIVALUE;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -493,14 +493,14 @@ public class Querier {
                 return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(),
                         f.asArray()
                             ? EXTRACT_ARRAY
-                            : (multiValueFieldLeniency ? EXTRACT_ONE : FAIL_IIF_MULTIVALUE));
+                            : (multiValueFieldLeniency ? EXTRACT_ONE : FAIL_IF_MULTIVALUE));
             }
 
             // TODO: this is dead code; remove? (and possibly simplify FieldReference out?)
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
                 return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true,
-                    multiValueFieldLeniency ? EXTRACT_ONE : FAIL_IIF_MULTIVALUE);
+                    multiValueFieldLeniency ? EXTRACT_ONE : FAIL_IF_MULTIVALUE);
             }
 
             if (ref instanceof ComputedRef) {

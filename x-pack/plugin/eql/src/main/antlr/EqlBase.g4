@@ -117,6 +117,7 @@ functionExpression
 
 functionName
     : IDENTIFIER
+    | TILDE_IDENTIFIER
     ;
 
 constant
@@ -224,6 +225,10 @@ IDENTIFIER
 
 QUOTED_IDENTIFIER
     : '`' ( ~'`' | '``' )* '`'
+    ;
+
+TILDE_IDENTIFIER
+    : LETTER (LETTER | DIGIT | '_')* '~'
     ;
 
 eventValue

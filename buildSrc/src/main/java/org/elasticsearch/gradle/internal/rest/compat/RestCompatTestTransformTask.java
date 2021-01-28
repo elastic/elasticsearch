@@ -29,17 +29,12 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.test.rest.transform.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaPluginConvention;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
-import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
@@ -52,7 +47,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class RestCompatTestTransformTask extends DefaultTask {
 
@@ -68,7 +62,6 @@ public class RestCompatTestTransformTask extends DefaultTask {
         "application/vnd.elasticsearch+json;compatible-with=7"
     );
 
-    private SourceSet sourceSet;
     private FileCollection input;
     private File output;
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
@@ -76,28 +69,17 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations;
 
-    private String inputResourceParent = "";
 
-    public RestCompatTestTransformTask() {
-        testPatternSet = getPatternSetFactory().create();
-        testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
+    @Inject
+    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
+        this.testPatternSet = patternSetFactory.create();
+        this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         transformations = Collections.singletonList(new InjectHeaders(headers));
     }
 
-    @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
-        throw new UnsupportedOperationException();
-    }
-
-
     @OutputDirectory
     public File getOutputDir() {
-        return new File(
-            sourceSet
-                .getOutput()
-                .getResourcesDir(),
-            REST_TEST_PREFIX
-        );
+        return output;
     }
 
     @SkipWhenEmpty
@@ -115,10 +97,11 @@ public class RestCompatTestTransformTask extends DefaultTask {
             List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
             // convert to url to ensure forward slashes
             String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
-            assert testFileParts.length == 2; // before and after the REST_TEST_PREFIX
+            if (testFileParts.length != 2) {
+                throw new IllegalArgumentException("could not split " + file + " into expected parts");
+            }
             File output = new File(getOutputDir(), testFileParts[1]);
-            boolean mkdirs = output.getParentFile().mkdirs();
-            assert mkdirs : "could not make directories for " + output;
+            output.getParentFile().mkdirs();
             try (SequenceWriter sequenceWriter = WRITER.writeValues(output)) {
                 for (ObjectNode transformedTest : transformRestTests) {
                     sequenceWriter.write(transformedTest);
@@ -127,19 +110,11 @@ public class RestCompatTestTransformTask extends DefaultTask {
         }
     }
 
-    public void setSourceSet(SourceSet sourceSet) {
-        this.sourceSet = sourceSet;
-    }
-
     public void setInput(FileCollection input) {
         this.input = input;
     }
 
     public void setOutput(File output) {
         this.output = output;
-    }
-
-    public void setInputResourceParent(String inputResourceParent) {
-        this.inputResourceParent = inputResourceParent;
     }
 }

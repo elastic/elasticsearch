@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
-import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.junit.After;
 import org.junit.Before;
 
@@ -62,9 +61,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static final String NUMERICAL_FEATURE_FIELD = "feature";
     private static final String DISCRETE_NUMERICAL_FEATURE_FIELD = "discrete-feature";
     static final String DEPENDENT_VARIABLE_FIELD = "variable";
-    private static final List<Double> NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(1.0, 2.0, 3.0);
-    private static final List<Long> DISCRETE_NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(10L, 20L, 30L);
-    private static final List<Double> DEPENDENT_VARIABLE_VALUES = org.elasticsearch.common.collect.List.of(10.0, 20.0, 30.0);
+
+    // It's important that the values here do not work in a way where
+    // one of the feature is the average of the other features as it may
+    // result in empty feature importance and we want to assert it gets
+    // written out correctly.
+    private static final List<Double> NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(5.0, 2.0, 3.0);
+    private static final List<Long> DISCRETE_NUMERICAL_FEATURE_VALUES = org.elasticsearch.common.collect.List.of(50L, 20L, 30L);
+    private static final List<Double> DEPENDENT_VARIABLE_VALUES = org.elasticsearch.common.collect.List.of(500.0, 200.0, 300.0);
 
     private String jobId;
     private String sourceIndex;
@@ -139,6 +143,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(resultsObject.get("is_training"), is(destDoc.containsKey(DEPENDENT_VARIABLE_FIELD)));
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
+
             assertThat(importanceArray, hasSize(greaterThan(0)));
             assertThat(
                 importanceArray.stream().filter(m -> NUMERICAL_FEATURE_FIELD.equals(m.get("feature_name"))
@@ -425,7 +430,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59664")
     public void testWithDatastream() throws Exception {
         initialize("regression_with_datastream");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";

@@ -39,7 +39,7 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
             randomStringLiteral(),
             randomStringLiteral(),
             randomStringLiteral(),
-            randomStringLiteral(),
+            randomBooleanLiteral(),
             randomBoolean())
             .makePipe());
     }

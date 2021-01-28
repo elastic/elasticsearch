@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.util.Check;
 
@@ -35,13 +33,7 @@ public class BetweenFunctionProcessor implements Processor {
         left = in.readNamedWriteable(Processor.class);
         right = in.readNamedWriteable(Processor.class);
         greedy = in.readNamedWriteable(Processor.class);
-
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            caseInsensitive = in.readBoolean();
-        } else {
-            in.readNamedWriteable(Processor.class);
-            caseInsensitive = true;
-        }
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
@@ -50,11 +42,7 @@ public class BetweenFunctionProcessor implements Processor {
         out.writeNamedWriteable(left);
         out.writeNamedWriteable(right);
         out.writeNamedWriteable(greedy);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeBoolean(caseInsensitive);
-        } else {
-            out.writeNamedWriteable(new ConstantProcessor(Boolean.TRUE));
-        }
+        out.writeBoolean(caseInsensitive);
     }
 
     @Override

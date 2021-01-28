@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 public enum EqlFunctionResolution implements FunctionResolutionStrategy {
 
     /**
-     * Indicate the function should be insensitive {@code ~startwith()},
+     * Indicate the function should be insensitive {@code startwith~()},
      */
     CASE_INSENSITIVE {
         @Override

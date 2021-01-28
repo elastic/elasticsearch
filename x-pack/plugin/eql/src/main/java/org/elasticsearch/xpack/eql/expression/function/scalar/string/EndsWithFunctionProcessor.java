@@ -20,25 +20,25 @@ public class EndsWithFunctionProcessor implements Processor {
 
     private final Processor input;
     private final Processor pattern;
-    private final boolean isCaseInsensitive;
+    private final boolean caseInsensitive;
 
-    public EndsWithFunctionProcessor(Processor input, Processor pattern, boolean isCaseInsensitive) {
+    public EndsWithFunctionProcessor(Processor input, Processor pattern, boolean caseInsensitive) {
         this.input = input;
         this.pattern = pattern;
-        this.isCaseInsensitive = isCaseInsensitive;
+        this.caseInsensitive = caseInsensitive;
     }
 
     public EndsWithFunctionProcessor(StreamInput in) throws IOException {
         input = in.readNamedWriteable(Processor.class);
         pattern = in.readNamedWriteable(Processor.class);
-        isCaseInsensitive = in.readBoolean();
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(input);
         out.writeNamedWriteable(pattern);
-        out.writeBoolean(isCaseInsensitive);
+        out.writeBoolean(caseInsensitive);
     }
 
     @Override
@@ -76,7 +76,7 @@ public class EndsWithFunctionProcessor implements Processor {
     }
 
     protected boolean isCaseInsensitive() {
-        return isCaseInsensitive;
+        return caseInsensitive;
     }
 
     @Override

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.expression.function;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistryTests.DummyFunction;
@@ -57,16 +56,18 @@ public class EqlFunctionRegistryTests extends ESTestCase {
         boolean caseAware = randomBoolean();
         boolean hasOptional = randomBoolean();
         UnresolvedFunction ur = uf(caseAware ? EqlFunctionResolution.CASE_INSENSITIVE : DEFAULT,
-            mock(Expression.class), mock(Expression.class), mock(Expression.class), Literal.TRUE);
+            mock(Expression.class), mock(Expression.class), mock(Expression.class));
         FunctionDefinition definition = def(DummyFunction.class,
             (Source l, Expression one, Expression two, Expression three, boolean insensitive) -> {
-                assertEquals(caseAware, insensitive == false);
+                assertEquals(caseAware, insensitive);
                 assertSame(one, ur.children().get(0));
                 assertSame(two, ur.children().get(1));
+                assertSame(three, ur.children().get(2));
                 return new DummyFunction(l);
             }, "DUMMY_FUNCTION");
         FunctionRegistry r = new EqlFunctionRegistry(definition);
         FunctionDefinition def = r.resolveFunction(ur.name());
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         assertEquals(EqlFunctionDefinition.class, def.getClass());
         assertFalse(((EqlFunctionDefinition) def).isCaseAware());

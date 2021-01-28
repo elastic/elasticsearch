@@ -143,7 +143,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
         PipelineConfiguration that = (PipelineConfiguration) o;
 
-        if (!id.equals(that.id)) return false;
+        if (id.equals(that.id) == false) return false;
         return getConfigAsMap().equals(that.getConfigAsMap());
 
     }

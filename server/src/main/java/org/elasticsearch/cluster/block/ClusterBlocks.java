@@ -337,7 +337,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         public Builder blocks(ClusterBlocks blocks) {
             global.addAll(blocks.global());
             for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks.indices()) {
-                if (!indices.containsKey(entry.key)) {
+                if (indices.containsKey(entry.key) == false) {
                     indices.put(entry.key, new HashSet<>());
                 }
                 indices.get(entry.key).addAll(entry.value);
@@ -391,7 +391,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
 
         public Builder addIndexBlock(String index, ClusterBlock block) {
-            if (!indices.containsKey(index)) {
+            if (indices.containsKey(index) == false) {
                 indices.put(index, new HashSet<>());
             }
             indices.get(index).add(block);
@@ -399,7 +399,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public Builder removeIndexBlocks(String index) {
-            if (!indices.containsKey(index)) {
+            if (indices.containsKey(index) == false) {
                 return this;
             }
             indices.remove(index);
@@ -411,7 +411,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public Builder removeIndexBlock(String index, ClusterBlock block) {
-            if (!indices.containsKey(index)) {
+            if (indices.containsKey(index) == false) {
                 return this;
             }
             indices.get(index).remove(block);

@@ -181,7 +181,7 @@ public class MetadataCreateIndexService {
      */
     public void validateIndexName(String index, ClusterState state) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
-        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
+        if (index.toLowerCase(Locale.ROOT).equals(index) == false) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
 
@@ -227,7 +227,7 @@ public class MetadataCreateIndexService {
      * Validate the name for an index or alias against some static rules.
      */
     public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
-        if (!Strings.validFileName(index)) {
+        if (Strings.validFileName(index) == false) {
             throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
         if (index.contains("#")) {
@@ -956,7 +956,7 @@ public class MetadataCreateIndexService {
 
     private static ClusterBlocks.Builder createClusterBlocksBuilder(ClusterState currentState, String index, Set<ClusterBlock> blocks) {
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
-        if (!blocks.isEmpty()) {
+        if (blocks.isEmpty() == false) {
             for (ClusterBlock block : blocks) {
                 blocksBuilder.addIndexBlock(index, block);
             }
@@ -970,7 +970,7 @@ public class MetadataCreateIndexService {
                                                              @Nullable IndexMetadata sourceMetadata) throws IOException {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Map<String, Object>> mapping : mappings) {
-            if (!mapping.isEmpty()) {
+            if (mapping.isEmpty() == false) {
                 assert mapping.size() == 1 : mapping;
                 Map.Entry<String, Map<String, Object>> entry = mapping.entrySet().iterator().next();
                 mapperService.merge(entry.getKey(), entry.getValue(), MergeReason.INDEX_TEMPLATE);
@@ -1047,7 +1047,7 @@ public class MetadataCreateIndexService {
     private static List<String> validateIndexCustomPath(Settings settings, @Nullable Path sharedDataPath) {
         String customPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
-        if (!Strings.isEmpty(customPath)) {
+        if (Strings.isEmpty(customPath) == false) {
             if (sharedDataPath == null) {
                 validationErrors.add("path.shared_data must be set in order to use custom data paths");
             } else {

@@ -199,7 +199,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             repositoriesMetadata.add(repositoryMetadata);
                         }
                     }
-                    if (!found) {
+                    if (found == false) {
                         logger.info("put repository [{}]", request.name());
                         repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
                     } else {

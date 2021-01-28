@@ -319,7 +319,7 @@ public class InboundHandler {
     }
 
     private void handleException(final TransportResponseHandler<?> handler, Throwable error) {
-        if (!(error instanceof RemoteTransportException)) {
+        if ((error instanceof RemoteTransportException) == false) {
             error = new RemoteTransportException(error.getMessage(), error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;

@@ -1165,7 +1165,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             if (Character.isUpperCase(c)) {
-                if (!changed) {
+                if (changed == false) {
                     // copy it over here
                     for (int j = 0; j < i; j++) {
                         sb.append(value.charAt(j));
@@ -1187,7 +1187,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
             }
         }
-        if (!changed) {
+        if (changed == false) {
             return value;
         }
         return sb.toString();

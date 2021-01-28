@@ -185,7 +185,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             }
             return true;
         });
-        if (!success) {
+        if (success == false) {
             throw new BindHttpException(
                 "Failed to bind to " + NetworkAddress.format(hostAddress, port),
                 lastException.get()

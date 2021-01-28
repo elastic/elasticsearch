@@ -153,7 +153,7 @@ public final class ShardCoreKeyMap {
     }
 
     private synchronized boolean assertSize() {
-        if (!Assertions.ENABLED) {
+        if (Assertions.ENABLED == false) {
             throw new AssertionError("only run this if assertions are enabled");
         }
         Collection<Set<IndexReader.CacheKey>> values = indexToCoreKey.values();

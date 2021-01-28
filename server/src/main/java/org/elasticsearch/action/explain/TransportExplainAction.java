@@ -124,7 +124,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             // No need to check the type, IndexShard#get does it for us
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
             result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
-            if (!result.exists()) {
+            if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
             context.parsedQuery(context.getSearchExecutionContext().toQuery(request.query()));

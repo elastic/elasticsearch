@@ -199,7 +199,7 @@ public class OperationRouting {
                         break;
                     }
                 }
-                if (!found) {
+                if (found == false) {
                     return null;
                 }
                 // no more preference

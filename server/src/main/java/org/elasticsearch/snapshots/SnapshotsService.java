@@ -2739,13 +2739,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                         if (readyToExecute == false || inFlightShardStates.isActive(indexName, i)) {
                             shardSnapshotStatus = ShardSnapshotStatus.UNASSIGNED_QUEUED;
-                        } else if (primary == null || !primary.assignedToNode()) {
+                        } else if (primary == null || primary.assignedToNode() == false) {
                             shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING,
                                     "primary shard is not allocated", shardRepoGeneration);
                         } else if (primary.relocating() || primary.initializing()) {
                             shardSnapshotStatus = new ShardSnapshotStatus(
                                     primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
-                        } else if (!primary.started()) {
+                        } else if (primary.started() == false) {
                             shardSnapshotStatus =
                                     new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
                                             "primary shard hasn't been started yet", shardRepoGeneration);
@@ -3076,7 +3076,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static ShardSnapshotStatus startShardSnapshotAfterClone(ClusterState currentState, String shardGeneration, ShardId shardId) {
         final ShardRouting primary = currentState.routingTable().index(shardId.getIndex()).shard(shardId.id()).primaryShard();
         final ShardSnapshotStatus shardSnapshotStatus;
-        if (primary == null || !primary.assignedToNode()) {
+        if (primary == null || primary.assignedToNode() == false) {
             shardSnapshotStatus = new ShardSnapshotStatus(
                     null, ShardState.MISSING, "primary shard is not allocated", shardGeneration);
         } else if (primary.relocating() || primary.initializing()) {

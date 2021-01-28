@@ -268,7 +268,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
 
         for (ShardRouting shardEntry : this) {
-            if (!shardEntry.getIndexName().equals(index)) {
+            if (shardEntry.getIndexName().equals(index) == false) {
                 continue;
             }
             for (ShardRoutingState state : states) {

@@ -309,7 +309,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         @Override
         V get(Object key, int hash) {
             final int hash6 = hash & HASH_MASK;
-            if (!exists(hash6)) {
+            if (exists(hash6) == false) {
                 return null;
             }
             final int slot = slot(hash6);
@@ -397,7 +397,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         @Override
         InnerNode<K, V> remove(Object key, int hash) {
             final int hash6 = hash & HASH_MASK;
-            if (!exists(hash6)) {
+            if (exists(hash6) == false) {
                 return this;
             }
             final int slot = slot(hash6);

@@ -250,7 +250,7 @@ public class XContentHelper {
     public static boolean update(Map<String, Object> source, Map<String, Object> changes, boolean checkUpdatesAreUnequal) {
         boolean modified = false;
         for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
-            if (!source.containsKey(changesEntry.getKey())) {
+            if (source.containsKey(changesEntry.getKey()) == false) {
                 // safe to copy, change does not exist in source
                 source.put(changesEntry.getKey(), changesEntry.getValue());
                 modified = true;
@@ -268,7 +268,7 @@ public class XContentHelper {
             if (modified) {
                 continue;
             }
-            if (!checkUpdatesAreUnequal) {
+            if (checkUpdatesAreUnequal == false) {
                 modified = true;
                 continue;
             }
@@ -283,7 +283,7 @@ public class XContentHelper {
      */
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
         for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
-            if (!content.containsKey(defaultEntry.getKey())) {
+            if (content.containsKey(defaultEntry.getKey()) == false) {
                 // copy it over, it does not exists in the content
                 content.put(defaultEntry.getKey(), defaultEntry.getValue());
             } else {
@@ -321,7 +321,7 @@ public class XContentHelper {
                         // just make sure not to add the same value twice
                         mergedList.addAll(defaultList);
                         for (Object o : contentList) {
-                            if (!mergedList.contains(o)) {
+                            if (mergedList.contains(o) == false) {
                                 mergedList.add(o);
                             }
                         }
@@ -334,7 +334,7 @@ public class XContentHelper {
 
     private static boolean allListValuesAreMapsOfOne(List list) {
         for (Object o : list) {
-            if (!(o instanceof Map)) {
+            if ((o instanceof Map) == false) {
                 return false;
             }
             if (((Map) o).size() != 1) {

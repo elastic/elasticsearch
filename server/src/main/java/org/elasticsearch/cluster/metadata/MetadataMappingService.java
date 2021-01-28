@@ -166,7 +166,7 @@ public class MetadataMappingService {
             }
         }
 
-        if (!dirty) {
+        if (dirty == false) {
             return currentState;
         }
         return ClusterState.builder(currentState).metadata(mdBuilder).build();

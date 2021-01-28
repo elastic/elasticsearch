@@ -201,7 +201,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private void runTasks(TaskInputs taskInputs) {
         final String summary = taskInputs.summary;
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             logger.debug("processing [{}]: ignoring, master service not started", summary);
             return;
         }
@@ -209,7 +209,7 @@ public class MasterService extends AbstractLifecycleComponent {
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
 
-        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyWhenMaster()) {
+        if (previousClusterState.nodes().isLocalNodeElectedMaster() == false && taskInputs.runOnlyWhenMaster()) {
             logger.debug("failing [{}]: local node is no longer master", summary);
             taskInputs.onNoLongerMaster();
             return;
@@ -784,7 +784,7 @@ public class MasterService extends AbstractLifecycleComponent {
     public <T> void submitStateUpdateTasks(final String source,
                                            final Map<T, ClusterStateTaskListener> tasks, final ClusterStateTaskConfig config,
                                            final ClusterStateTaskExecutor<T> executor) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -799,7 +799,7 @@ public class MasterService extends AbstractLifecycleComponent {
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
             // to be done here...
-            if (!lifecycle.stoppedOrClosed()) {
+            if (lifecycle.stoppedOrClosed() == false) {
                 throw e;
             }
         }

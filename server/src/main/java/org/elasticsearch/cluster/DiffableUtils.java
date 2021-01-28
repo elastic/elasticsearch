@@ -184,7 +184,7 @@ public final class DiffableUtils {
             assert after != null && before != null;
 
             for (K key : before.keySet()) {
-                if (!after.containsKey(key)) {
+                if (after.containsKey(key) == false) {
                     deletes.add(key);
                 }
             }
@@ -245,7 +245,7 @@ public final class DiffableUtils {
             assert after != null && before != null;
 
             for (ObjectCursor<K> key : before.keys()) {
-                if (!after.containsKey(key.value)) {
+                if (after.containsKey(key.value) == false) {
                     deletes.add(key.value);
                 }
             }
@@ -317,7 +317,7 @@ public final class DiffableUtils {
             assert after != null && before != null;
 
             for (IntCursor key : before.keys()) {
-                if (!after.containsKey(key.value)) {
+                if (after.containsKey(key.value) == false) {
                     deletes.add(key.value);
                 }
             }

@@ -201,7 +201,7 @@ public final class BulkRequestParser {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
                             if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (!allowExplicitIndex) {
+                                if (allowExplicitIndex == false) {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());

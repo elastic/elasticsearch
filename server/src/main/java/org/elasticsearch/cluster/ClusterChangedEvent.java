@@ -97,7 +97,7 @@ public class ClusterChangedEvent {
      */
     public boolean indexRoutingTableChanged(String index) {
         Objects.requireNonNull(index, "index must not be null");
-        if (!state.routingTable().hasIndex(index) && !previousState.routingTable().hasIndex(index)) {
+        if (state.routingTable().hasIndex(index) == false && previousState.routingTable().hasIndex(index) == false) {
             return false;
         }
         if (state.routingTable().hasIndex(index) && previousState.routingTable().hasIndex(index)) {
@@ -110,13 +110,13 @@ public class ClusterChangedEvent {
      * Returns the indices created in this event
      */
     public List<String> indicesCreated() {
-        if (!metadataChanged()) {
+        if (metadataChanged() == false) {
             return Collections.emptyList();
         }
         List<String> created = null;
         for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
             String index = cursor.value;
-            if (!previousState.metadata().hasIndex(index)) {
+            if (previousState.metadata().hasIndex(index) == false) {
                 if (created == null) {
                     created = new ArrayList<>();
                 }

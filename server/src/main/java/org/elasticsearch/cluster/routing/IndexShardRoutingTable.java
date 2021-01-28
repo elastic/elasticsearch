@@ -472,7 +472,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
         }
         preferred.addAll(notPreferred);
-        if (!allInitializingShards.isEmpty()) {
+        if (allInitializingShards.isEmpty() == false) {
             preferred.addAll(allInitializingShards);
         }
         return new PlainShardIterator(shardId, preferred);
@@ -485,8 +485,8 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
-        if (!shardId.equals(that.shardId)) return false;
-        if (!shards.equals(that.shards)) return false;
+        if (shardId.equals(that.shardId) == false) return false;
+        if (shards.equals(that.shards) == false) return false;
 
         return true;
     }

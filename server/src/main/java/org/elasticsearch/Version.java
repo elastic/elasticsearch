@@ -192,7 +192,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
-        if (!Strings.hasLength(version)) {
+        if (Strings.hasLength(version) == false) {
             return Version.CURRENT;
         }
         final Version cached = stringToVersion.get(version);

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -33,33 +34,50 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 
@@ -225,7 +243,7 @@ public class TransformIndexerTests extends ESTestCase {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
             return new IterationResult<>(
-                Collections.singletonList(new IndexRequest()),
+                singletonList(new IndexRequest()),
                 new TransformIndexerPosition(null, null),
                 numberOfLoops == 0
             );
@@ -338,6 +356,49 @@ public class TransformIndexerTests extends ESTestCase {
             assertEquals(0L, indexer.getStats().getNumDeletedDocuments());
             assertEquals(0L, indexer.getStats().getDeleteTime());
         }
+    }
+
+    public void testGetWarnings_SyncTimeFieldIsAScriptBasedRuntimeField() {
+        PivotConfig pivotConfig =
+            new PivotConfig(
+                GroupConfigTests.randomGroupConfig(Version.CURRENT, singletonList(SingleGroupSource.Type.TERMS)),
+                AggregationConfigTests.randomAggregationConfig(),
+                null);
+        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
+        assertThat(TransformIndexer.getWarnings(function, sourceConfig, null), is(empty()));
+
+        SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
+        assertThat(TransformIndexer.getWarnings(function, sourceConfig, syncConfig), is(empty()));
+
+        Map<String, Object> runtimeMappings = new HashMap<>() {{
+            put("rt-field-A", singletonMap("type", "keyword"));
+            put("rt-field-B", singletonMap("script", "some script"));
+            put("rt-field-C", singletonMap("script", "some other script"));
+        }};
+        sourceConfig =
+            new SourceConfig(generateRandomStringArray(10, 10, false, false), QueryConfigTests.randomQueryConfig(), runtimeMappings);
+        assertThat(TransformIndexer.getWarnings(function, sourceConfig, syncConfig), is(empty()));
+
+        syncConfig = new TimeSyncConfig("rt-field-B", null);
+        assertThat(
+            TransformIndexer.getWarnings(function, sourceConfig, syncConfig),
+            contains("sync time field is a script-based runtime field, this transform might run slowly, please check your configuration."));
+    }
+
+    public void testGetWarnings_CouldNotFindAnyOptimization() {
+        PivotConfig pivotConfig =
+            new PivotConfig(
+                GroupConfigTests.randomGroupConfig(Version.CURRENT, singletonList(SingleGroupSource.Type.HISTOGRAM)),
+                AggregationConfigTests.randomAggregationConfig(),
+                null);
+        Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
+        SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
+        assertThat(
+            TransformIndexer.getWarnings(function, sourceConfig, syncConfig),
+            contains("could not find any optimizations for continuous execution, "
+                + "this transform might run slowly, please check your configuration."));
     }
 
     private MockedTransformIndexer createMockIndexer(

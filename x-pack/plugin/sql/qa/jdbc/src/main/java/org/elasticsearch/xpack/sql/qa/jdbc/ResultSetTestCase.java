@@ -2016,7 +2016,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis) {
         Pattern expectedPattern = compile(quote("Unable to convert value [") + "(?<instant>.*?)" 
-                + quote("] of type [DATETIME] to [" + expectedType.getName() + "]"));
+                + quote("] of type [DATETIME] to [" + expectedType.getSimpleName() + "]"));
         Matcher matcher = expectedPattern.matcher(ex.getMessage());
         assertTrue(matcher.matches());
         assertEquals(OffsetDateTime.parse(matcher.group("instant")).toInstant().toEpochMilli(), epochMillis);

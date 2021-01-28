@@ -243,6 +243,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67696")
     public void testMountCorruptedRepositoryData() throws Exception {
         disableRepoConsistencyCheck("This test intentionally corrupts the repository contents");
         Client client = client();

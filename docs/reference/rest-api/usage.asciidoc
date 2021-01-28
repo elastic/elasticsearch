@@ -360,6 +360,7 @@ GET /_xpack/usage
   }
 }
 ------------------------------------------------------------
+// TESTRESPONSE[skip:Awaits fix https://github.com/elastic/elasticsearch/issues/68101]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]

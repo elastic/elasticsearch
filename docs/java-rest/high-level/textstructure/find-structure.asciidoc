@@ -7,8 +7,6 @@
 [id="{upid}-{api}"]
 === Find structure API
 
-experimental::[]
-
 Determines the structure of text and other information that will be
 useful to import its contents to an {es} index. It accepts a +{request}+ object
 and responds with a +{response}+ object.
@@ -28,7 +26,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 
 ==== Optional arguments
 
-The following arguments are optional.
+The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

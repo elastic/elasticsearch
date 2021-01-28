@@ -336,12 +336,18 @@ public final class ReservedFieldNames {
             Classification.NUM_TOP_CLASSES.getPreferredName(),
             Classification.TRAINING_PERCENT.getPreferredName(),
             Classification.FEATURE_PROCESSORS.getPreferredName(),
+            BoostedTreeParams.ALPHA.getPreferredName(),
+            BoostedTreeParams.DOWNSAMPLE_FACTOR.getPreferredName(),
             BoostedTreeParams.LAMBDA.getPreferredName(),
             BoostedTreeParams.GAMMA.getPreferredName(),
             BoostedTreeParams.ETA.getPreferredName(),
+            BoostedTreeParams.ETA_GROWTH_RATE_PER_TREE.getPreferredName(),
+            BoostedTreeParams.MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName(),
             BoostedTreeParams.MAX_TREES.getPreferredName(),
             BoostedTreeParams.FEATURE_BAG_FRACTION.getPreferredName(),
             BoostedTreeParams.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(),
+            BoostedTreeParams.SOFT_TREE_DEPTH_LIMIT.getPreferredName(),
+            BoostedTreeParams.SOFT_TREE_DEPTH_TOLERANCE.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

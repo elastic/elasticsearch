@@ -52,6 +52,7 @@ public class Regression implements DataFrameAnalysis {
     public static final ParseField LOSS_FUNCTION = new ParseField("loss_function");
     public static final ParseField LOSS_FUNCTION_PARAMETER = new ParseField("loss_function_parameter");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
+    public static final ParseField EARLY_STOPPING_ENABLED = new ParseField("early_stopping_enabled");
 
     private static final String STATE_DOC_ID_INFIX = "_regression_state#";
 
@@ -66,13 +67,14 @@ public class Regression implements DataFrameAnalysis {
             a -> new Regression(
                 (String) a[0],
                 new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6],
-                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12], (Boolean) a[13]),
-                (String) a[14],
-                (Double) a[15],
-                (Long) a[16],
-                (LossFunction) a[17],
-                (Double) a[18],
-                (List<PreProcessor>) a[19]));
+                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12]),
+                (String) a[13],
+                (Double) a[14],
+                (Long) a[15],
+                (LossFunction) a[16],
+                (Double) a[17],
+                (List<PreProcessor>) a[18],
+                (Boolean) a[19]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
@@ -86,6 +88,7 @@ public class Regression implements DataFrameAnalysis {
                 p.namedObject(StrictlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true)),
             (regression) -> {/*TODO should we throw if this is not set?*/},
             FEATURE_PROCESSORS);
+        parser.declareBoolean(optionalConstructorArg(), EARLY_STOPPING_ENABLED);
         return parser;
     }
 
@@ -124,6 +127,7 @@ public class Regression implements DataFrameAnalysis {
     private final LossFunction lossFunction;
     private final Double lossFunctionParameter;
     private final List<PreProcessor> featureProcessors;
+    private final Boolean earlyStoppingEnabled;
 
     public Regression(String dependentVariable,
                       BoostedTreeParams boostedTreeParams,
@@ -132,7 +136,8 @@ public class Regression implements DataFrameAnalysis {
                       @Nullable Long randomizeSeed,
                       @Nullable LossFunction lossFunction,
                       @Nullable Double lossFunctionParameter,
-                      @Nullable List<PreProcessor> featureProcessors) {
+                      @Nullable List<PreProcessor> featureProcessors,
+                      @Nullable Boolean earlyStoppingEnabled) {
         if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
         }
@@ -148,10 +153,11 @@ public class Regression implements DataFrameAnalysis {
         }
         this.lossFunctionParameter = lossFunctionParameter;
         this.featureProcessors = featureProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(featureProcessors);
+        this.earlyStoppingEnabled = earlyStoppingEnabled == null ? true : earlyStoppingEnabled;
     }
 
     public Regression(String dependentVariable) {
-        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null, null, null);
+        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null, null, null, null);
     }
 
     public Regression(StreamInput in) throws IOException {
@@ -166,6 +172,11 @@ public class Regression implements DataFrameAnalysis {
             featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
         } else {
             featureProcessors = Collections.emptyList();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            earlyStoppingEnabled = in.readOptionalBoolean();
+        } else {
+            earlyStoppingEnabled = null;
         }
     }
 
@@ -202,6 +213,10 @@ public class Regression implements DataFrameAnalysis {
         return featureProcessors;
     }
 
+    public Boolean getEarlyStoppingEnabled() {
+        return earlyStoppingEnabled;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
@@ -218,6 +233,9 @@ public class Regression implements DataFrameAnalysis {
         out.writeOptionalDouble(lossFunctionParameter);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeNamedWriteableList(featureProcessors);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeOptionalBoolean(earlyStoppingEnabled);
         }
     }
 
@@ -242,6 +260,9 @@ public class Regression implements DataFrameAnalysis {
         if (featureProcessors.isEmpty() == false) {
             NamedXContentObjectHelper.writeNamedObjects(builder, params, true, FEATURE_PROCESSORS.getPreferredName(), featureProcessors);
         }
+        if (earlyStoppingEnabled != null) {
+            builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
+        }
         builder.endObject();
         return builder;
     }
@@ -262,6 +283,9 @@ public class Regression implements DataFrameAnalysis {
         if (featureProcessors.isEmpty() == false) {
             params.put(FEATURE_PROCESSORS.getPreferredName(),
                 featureProcessors.stream().map(p -> Collections.singletonMap(p.getName(), p)).collect(Collectors.toList()));
+        }
+        if (earlyStoppingEnabled != null) {
+            params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         }
         return params;
     }
@@ -348,13 +372,14 @@ public class Regression implements DataFrameAnalysis {
             && randomizeSeed == that.randomizeSeed
             && lossFunction == that.lossFunction
             && Objects.equals(featureProcessors, that.featureProcessors)
-            && Objects.equals(lossFunctionParameter, that.lossFunctionParameter);
+            && Objects.equals(lossFunctionParameter, that.lossFunctionParameter)
+            && Objects.equals(earlyStoppingEnabled, that.earlyStoppingEnabled);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, boostedTreeParams, predictionFieldName, trainingPercent, randomizeSeed, lossFunction,
-            lossFunctionParameter, featureProcessors);
+            lossFunctionParameter, featureProcessors, earlyStoppingEnabled);
     }
 
     public enum LossFunction {

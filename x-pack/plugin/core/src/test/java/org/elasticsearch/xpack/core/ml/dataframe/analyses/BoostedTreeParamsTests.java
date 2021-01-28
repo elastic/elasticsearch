@@ -29,7 +29,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
                 BoostedTreeParams.NAME,
                 true,
                 a -> new BoostedTreeParams((Double) a[0], (Double) a[1], (Double) a[2], (Integer) a[3], (Double) a[4], (Integer) a[5],
-                    (Double) a[6], (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Integer) a[11], (Boolean) a[12]));
+                    (Double) a[6], (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Integer) a[11]));
         BoostedTreeParams.declareFields(objParser);
         return objParser.apply(parser, null);
     }
@@ -53,7 +53,6 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
             .setSoftTreeDepthTolerance(randomBoolean() ? null : randomDoubleBetween(0.01, Double.MAX_VALUE, true))
             .setDownsampleFactor(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
             .setMaxOptimizationRoundsPerHyperparameter(randomBoolean() ? null : randomIntBetween(0, 20))
-            .setEarlyStoppingEnabled(randomBoolean())
             .build();
     }
 
@@ -248,7 +247,6 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
             .setSoftTreeDepthTolerance(randomDoubleBetween(0.01, Double.MAX_VALUE, true))
             .setDownsampleFactor(randomDoubleBetween(0.0, 1.0, false))
             .setMaxOptimizationRoundsPerHyperparameter(randomIntBetween(0, 20))
-            .setEarlyStoppingEnabled(randomBoolean())
             .build();
 
         Map<String, Object> expectedParams = new HashMap<>();
@@ -264,7 +262,6 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
         expectedParams.put("soft_tree_depth_tolerance", boostedTreeParams.getSoftTreeDepthTolerance());
         expectedParams.put("downsample_factor", boostedTreeParams.getDownsampleFactor());
         expectedParams.put("max_optimization_rounds_per_hyperparameter", boostedTreeParams.getMaxOptimizationRoundsPerHyperparameter());
-        expectedParams.put("early_stopping_enabled", boostedTreeParams.getEarlyStoppingEnabled());
 
         assertThat(boostedTreeParams.getParams(), equalTo(expectedParams));
     }

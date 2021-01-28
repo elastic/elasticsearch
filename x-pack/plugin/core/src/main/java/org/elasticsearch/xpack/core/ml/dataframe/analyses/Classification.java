@@ -55,6 +55,7 @@ public class Classification implements DataFrameAnalysis {
     public static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
     public static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
     public static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
+    public static final ParseField EARLY_STOPPING_ENABLED = new ParseField("early_stopping_enabled");
 
     private static final String STATE_DOC_ID_INFIX = "_classification_state#";
 
@@ -76,13 +77,14 @@ public class Classification implements DataFrameAnalysis {
             a -> new Classification(
                 (String) a[0],
                 new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6],
-                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12], (Boolean) a[13]),
-                (String) a[14],
-                (ClassAssignmentObjective) a[15],
-                (Integer) a[16],
-                (Double) a[17],
-                (Long) a[18],
-                (List<PreProcessor>) a[19]));
+                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12]),
+                (String) a[13],
+                (ClassAssignmentObjective) a[14],
+                (Integer) a[15],
+                (Double) a[16],
+                (Long) a[17],
+                (List<PreProcessor>) a[18],
+                (Boolean) a[19]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
@@ -96,6 +98,7 @@ public class Classification implements DataFrameAnalysis {
                 p.namedObject(StrictlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true)),
             (classification) -> {/*TODO should we throw if this is not set?*/},
             FEATURE_PROCESSORS);
+        parser.declareBoolean(optionalConstructorArg(), EARLY_STOPPING_ENABLED);
         return parser;
     }
 
@@ -159,6 +162,7 @@ public class Classification implements DataFrameAnalysis {
     private final double trainingPercent;
     private final long randomizeSeed;
     private final List<PreProcessor> featureProcessors;
+    private final Boolean earlyStoppingEnabled;
 
     public Classification(String dependentVariable,
                           BoostedTreeParams boostedTreeParams,
@@ -167,7 +171,8 @@ public class Classification implements DataFrameAnalysis {
                           @Nullable Integer numTopClasses,
                           @Nullable Double trainingPercent,
                           @Nullable Long randomizeSeed,
-                          @Nullable List<PreProcessor> featureProcessors) {
+                          @Nullable List<PreProcessor> featureProcessors,
+                          @Nullable Boolean earlyStoppingEnabled) {
         if (numTopClasses != null && (numTopClasses < -1 || numTopClasses > 1000)) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] must be an integer in [0, 1000] or a special value -1", NUM_TOP_CLASSES.getPreferredName());
@@ -184,10 +189,11 @@ public class Classification implements DataFrameAnalysis {
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
         this.randomizeSeed = randomizeSeed == null ? Randomness.get().nextLong() : randomizeSeed;
         this.featureProcessors = featureProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(featureProcessors);
+        this.earlyStoppingEnabled = earlyStoppingEnabled == null ? true : earlyStoppingEnabled;
     }
 
     public Classification(String dependentVariable) {
-        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null, null, null);
+        this(dependentVariable, BoostedTreeParams.builder().build(), null, null, null, null, null, null, null);
     }
 
     public Classification(StreamInput in) throws IOException {
@@ -210,6 +216,11 @@ public class Classification implements DataFrameAnalysis {
             featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
         } else {
             featureProcessors = Collections.emptyList();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            earlyStoppingEnabled = in.readOptionalBoolean();
+        } else {
+            earlyStoppingEnabled = null;
         }
     }
 
@@ -246,6 +257,10 @@ public class Classification implements DataFrameAnalysis {
         return featureProcessors;
     }
 
+    public Boolean getEarlyStoppingEnabled() {
+        return earlyStoppingEnabled;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
@@ -267,6 +282,9 @@ public class Classification implements DataFrameAnalysis {
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeNamedWriteableList(featureProcessors);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeOptionalBoolean(earlyStoppingEnabled);;
+        }
     }
 
     @Override
@@ -287,6 +305,9 @@ public class Classification implements DataFrameAnalysis {
         }
         if (featureProcessors.isEmpty() == false) {
             NamedXContentObjectHelper.writeNamedObjects(builder, params, true, FEATURE_PROCESSORS.getPreferredName(), featureProcessors);
+        }
+        if(earlyStoppingEnabled != null) {
+            builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         }
         builder.endObject();
         return builder;
@@ -311,6 +332,9 @@ public class Classification implements DataFrameAnalysis {
         if (featureProcessors.isEmpty() == false) {
             params.put(FEATURE_PROCESSORS.getPreferredName(),
                 featureProcessors.stream().map(p -> Collections.singletonMap(p.getName(), p)).collect(Collectors.toList()));
+        }
+        if (earlyStoppingEnabled != null) {
+            params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         }
         return params;
     }
@@ -457,6 +481,7 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(classAssignmentObjective, that.classAssignmentObjective)
             && Objects.equals(numTopClasses, that.numTopClasses)
             && Objects.equals(featureProcessors, that.featureProcessors)
+            && Objects.equals(earlyStoppingEnabled, that.earlyStoppingEnabled)
             && trainingPercent == that.trainingPercent
             && randomizeSeed == that.randomizeSeed;
     }
@@ -464,7 +489,8 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, boostedTreeParams, predictionFieldName, classAssignmentObjective,
-                            numTopClasses, trainingPercent, randomizeSeed, featureProcessors);
+                            numTopClasses, trainingPercent, randomizeSeed, featureProcessors, 
+                            earlyStoppingEnabled);
     }
 
     public enum ClassAssignmentObjective {

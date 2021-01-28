@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.ParsedMediaType;
  * It also performs a validation of allowed combination of versions provided on those headers.
  * Package scope as it is only aimed to be used by RestRequest
  */
-class CompatibleVersionHelper {
+class RestCompatibleVersionHelper {
 
     static Version getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,

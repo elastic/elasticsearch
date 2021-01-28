@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class CompatibleVersionHelperTests extends ESTestCase {
+public class RestCompatibleVersionHelperTests extends ESTestCase {
     int CURRENT_VERSION = Version.CURRENT.major;
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
     int OBSOLETE_VERSION = Version.CURRENT.major - 2;
@@ -296,40 +296,40 @@ public class CompatibleVersionHelperTests extends ESTestCase {
     public void testVersionParsing() {
         byte version = randomNonNegativeByte();
         assertThat(
-            CompatibleVersionHelper.parseVersion(
+            RestCompatibleVersionHelper.parseVersion(
                 ParsedMediaType.parseMediaType("application/vnd.elasticsearch+json;compatible-with=" + version)
             ),
             equalTo(version)
         );
         assertThat(
-            CompatibleVersionHelper.parseVersion(
+            RestCompatibleVersionHelper.parseVersion(
                 ParsedMediaType.parseMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version)
             ),
             equalTo(version)
         );
         assertThat(
-            CompatibleVersionHelper.parseVersion(
+            RestCompatibleVersionHelper.parseVersion(
                 ParsedMediaType.parseMediaType("application/vnd.elasticsearch+smile;compatible-with=" + version)
             ),
             equalTo(version)
         );
         assertThat(
-            CompatibleVersionHelper.parseVersion(
+            RestCompatibleVersionHelper.parseVersion(
                 ParsedMediaType.parseMediaType("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version)
             ),
             equalTo(version)
         );
-        assertThat(CompatibleVersionHelper.parseVersion(ParsedMediaType.parseMediaType("application/json")), nullValue());
+        assertThat(RestCompatibleVersionHelper.parseVersion(ParsedMediaType.parseMediaType("application/json")), nullValue());
 
         assertThat(
-            CompatibleVersionHelper.parseVersion(
+            RestCompatibleVersionHelper.parseVersion(
                 ParsedMediaType.parseMediaType("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version)
             ),
             equalTo(version)
         );
-        assertThat(CompatibleVersionHelper.parseVersion(ParsedMediaType.parseMediaType("APPLICATION/JSON")), nullValue());
+        assertThat(RestCompatibleVersionHelper.parseVersion(ParsedMediaType.parseMediaType("APPLICATION/JSON")), nullValue());
 
-        assertThat(CompatibleVersionHelper.parseVersion(ParsedMediaType.parseMediaType("application/json; sth=123")), is(nullValue()));
+        assertThat(RestCompatibleVersionHelper.parseVersion(ParsedMediaType.parseMediaType("application/json; sth=123")), is(nullValue()));
 
     }
 
@@ -375,7 +375,7 @@ public class CompatibleVersionHelperTests extends ESTestCase {
     private Version requestWith(String accept, String contentType, String body) {
         ParsedMediaType parsedAccept = ParsedMediaType.parseMediaType(accept);
         ParsedMediaType parsedContentType = ParsedMediaType.parseMediaType(contentType);
-        return CompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, body.isEmpty() == false);
+        return RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, body.isEmpty() == false);
     }
 
 }

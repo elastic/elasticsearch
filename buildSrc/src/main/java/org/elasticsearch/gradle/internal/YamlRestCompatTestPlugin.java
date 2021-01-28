@@ -92,14 +92,14 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
-            .register("copyRestApiCompatSpecsTask", CopyRestApiTask.class, task -> {
+            .register("copyRestCompatApiTask", CopyRestApiTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
                 task.setCoreConfig(bwcMinorConfig);
                 task.setXpackConfig(bwcMinorConfig);
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestApi().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestApi().getIncludeXpack());
-                task.setSourceSet(yamlCompatTestSourceSet);
+                task.setOutputSourceSet(yamlCompatTestSourceSet);
                 task.setSkipHasRestTestCheck(true);
                 task.setCoreConfigToFileTree(
                     config -> project.fileTree(
@@ -122,7 +122,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // copy compatible rest tests
         Provider<CopyRestTestsTask> copyCompatYamlTestTask = project.getTasks()
-            .register("copyRestApiCompatTestTask", CopyRestTestsTask.class, task -> {
+            .register("copyRestCompatTestTask", CopyRestTestsTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
                 task.setCoreConfig(bwcMinorConfig);
                 task.setXpackConfig(bwcMinorConfig);

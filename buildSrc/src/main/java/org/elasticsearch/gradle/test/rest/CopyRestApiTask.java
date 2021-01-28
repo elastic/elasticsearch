@@ -60,7 +60,7 @@ public class CopyRestApiTask extends DefaultTask {
     private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
-    private SourceSet sourceSet;
+    private SourceSet outputSourceSet;
     private boolean skipHasRestTestCheck;
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
@@ -163,7 +163,7 @@ public class CopyRestApiTask extends DefaultTask {
             );
             getFileSystemOperations().copy(c -> {
                 c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
-                c.into(Objects.requireNonNull(getSourceSet().getOutput().getResourcesDir()));
+                c.into(Objects.requireNonNull(getOutputSourceSet().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
@@ -218,7 +218,7 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getTestSourceResourceDir() {
-        SourceSet testSourceSet = getSourceSet();
+        SourceSet testSourceSet = getOutputSourceSet();
         if (testSourceSet != null) {
             SourceSet testSources = testSourceSet;
             Set<File> resourceDir = testSources.getResources()
@@ -239,15 +239,15 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getOutputResourceDir() {
-        return sourceSet.getOutput().getResourcesDir();
+        return outputSourceSet.getOutput().getResourcesDir();
     }
 
-    private SourceSet getSourceSet() {
-        return sourceSet;
+    private SourceSet getOutputSourceSet() {
+        return outputSourceSet;
     }
 
-    public void setSourceSet(SourceSet sourceSet) {
-        this.sourceSet = sourceSet;
+    public void setOutputSourceSet(SourceSet outputSourceSet) {
+        this.outputSourceSet = outputSourceSet;
     }
 
     public void setSkipHasRestTestCheck(boolean skipHasRestTestCheck) {

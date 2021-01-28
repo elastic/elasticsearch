@@ -62,16 +62,6 @@ or may become unstable or intolerant of certain failures.
     Sets how long a node will wait before attempting another discovery round.
     Defaults to `1s`.
 
-`discovery.probe.connect_timeout`::
-
-    Sets how long to wait when attempting to connect to each address. Defaults
-    to `3s`.
-
-`discovery.probe.handshake_timeout`::
-
-    Sets how long to wait when attempting to identify the remote node via a
-    handshake. Defaults to `1s`.
-
 `discovery.request_peers_timeout`::
 
     Sets how long a node will wait after asking its peers again before

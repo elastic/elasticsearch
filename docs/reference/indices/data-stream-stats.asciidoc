@@ -62,7 +62,7 @@ for the data stream.
 [[data-stream-stats-api-request]]
 ==== {api-request-title}
 
-`GET /_data_stream/<data-stream>`
+`GET /_data_stream/<data-stream>/_stats`
 
 
 [[data-stream-stats-api-path-params]]

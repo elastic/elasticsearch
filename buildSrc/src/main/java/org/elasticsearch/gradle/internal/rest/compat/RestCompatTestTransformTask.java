@@ -69,7 +69,6 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations;
 
-
     @Inject
     public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
         this.testPatternSet = patternSetFactory.create();

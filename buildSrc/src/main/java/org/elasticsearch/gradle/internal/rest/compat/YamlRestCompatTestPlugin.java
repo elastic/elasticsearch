@@ -166,8 +166,6 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.setInput(project.files(new File(intermediateDir, RELATIVE_TEST_PATH.toString())));
                 task.setOutput(new File(resourceDir, RELATIVE_TEST_PATH.toString()));
 
-
-
                 task.onlyIf(t -> isEnabled(project));
             });
 

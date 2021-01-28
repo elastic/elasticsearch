@@ -101,4 +101,42 @@ public class YamlXContent implements XContent {
             DeprecationHandler deprecationHandler, Reader reader) throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(reader));
     }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, String content,
+                                       boolean useCompatibility) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(content), useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, InputStream is,
+                                       boolean useCompatibility) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is), useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, byte[] data,
+                                       boolean useCompatibility) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data), useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
+                                       boolean useCompatibility) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length),
+            useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, Reader reader,
+                                       boolean useCompatibility) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(reader), useCompatibility);
+    }
+
+    //TODO: deprecate the ones that dont useCompatibitly and make YamlXContentParser support it
 }

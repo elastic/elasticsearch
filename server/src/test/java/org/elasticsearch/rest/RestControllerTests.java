@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -649,6 +650,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                assertThat(request.contentParser().useCompatibility(), is(true));
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -685,6 +687,8 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                assertThat(request.contentParser().useCompatibility(), is(true));
+
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
                 // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler

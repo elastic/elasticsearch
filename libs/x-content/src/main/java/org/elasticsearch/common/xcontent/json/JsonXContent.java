@@ -107,4 +107,42 @@ public class JsonXContent implements XContent {
             DeprecationHandler deprecationHandler, Reader reader) throws IOException {
         return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(reader));
     }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, String content,
+                                       boolean useCompatibility) throws IOException {
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(content), useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, InputStream is,
+                                       boolean useCompatibility) throws IOException {
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(is), useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, byte[] data,
+                                       boolean useCompatibility) throws IOException {
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(data), useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
+                                       boolean useCompatibility) throws IOException {
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(data, offset, length),
+            useCompatibility);
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+                                       DeprecationHandler deprecationHandler, Reader reader,
+                                       boolean useCompatibility) throws IOException {
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(reader), useCompatibility);
+    }
+
+    //TODO: deprecate the version without compatibilty
 }

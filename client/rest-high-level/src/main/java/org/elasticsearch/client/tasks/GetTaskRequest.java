@@ -77,7 +77,7 @@ public class GetTaskRequest implements Validatable {
     @Override
     public Optional<ValidationException> validate() {
         final ValidationException validationException = new ValidationException();
-        if (timeout != null && !waitForCompletion) {
+        if (timeout != null && waitForCompletion == false) {
             validationException.addValidationError("Timeout settings are only accepted if waitForCompletion is also set");
         }
         if (validationException.validationErrors().isEmpty()) {

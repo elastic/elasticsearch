@@ -54,7 +54,7 @@ public class AggregationPhase {
                     }
                 }
                 context.aggregations().aggregators(aggregators);
-                if (!collectors.isEmpty()) {
+                if (collectors.isEmpty() == false) {
                     Collector collector = MultiBucketCollector.wrap(collectors);
                     ((BucketCollector)collector).preCollection();
                     if (context.getProfilers() != null) {
@@ -90,7 +90,7 @@ public class AggregationPhase {
         }
 
         // optimize the global collector based execution
-        if (!globals.isEmpty()) {
+        if (globals.isEmpty() == false) {
             BucketCollector globalsCollector = MultiBucketCollector.wrap(globals);
             Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
 

@@ -5,6 +5,16 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.LongSupplier;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -29,7 +39,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -49,22 +58,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.LongSupplier;
-
-import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 
 public class EnrichPolicyRunner implements Runnable {
 
@@ -361,79 +360,67 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
 
-        // The ContextPreservingActionListener here is for the purpose of dropping the response headers, as we need this reindex to run
-        // in the security context of the user (rather than Enrich's security context) to ensure that DLS/FLS is correctly applied, but
-        // the reindex needs to access the `.enrich` index, which causes a deprecation warning. Since we drop the response headers,
-        // the deprecation warning is also dropped - but this is a hack and will not work once full protections of system indices are
-        // enabled.
-        client.execute(
-            ReindexAction.INSTANCE,
-            reindexRequest,
-            new ContextPreservingActionListener<>(
-                client.threadPool().getThreadContext().newRestorableContext(false),
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                        // Do we want to fail the request if there were failures during the reindex process?
-                        if (bulkByScrollResponse.getBulkFailures().size() > 0) {
-                            logger.warn(
-                                "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
-                                policyName,
-                                bulkByScrollResponse.getBulkFailures().size()
+        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                // Do we want to fail the request if there were failures during the reindex process?
+                if (bulkByScrollResponse.getBulkFailures().size() > 0) {
+                    logger.warn(
+                        "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
+                        policyName,
+                        bulkByScrollResponse.getBulkFailures().size()
+                    );
+                    if (logger.isDebugEnabled()) {
+                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "Policy [{}]: bulk index failed for index [{}], id [{}]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getId()
+                                ),
+                                failure.getCause()
                             );
-                            if (logger.isDebugEnabled()) {
-                                for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                                    logger.debug(
-                                        new ParameterizedMessage(
-                                            "Policy [{}]: bulk index failed for index [{}], id [{}]",
-                                            policyName,
-                                            failure.getIndex(),
-                                            failure.getId()
-                                        ),
-                                        failure.getCause()
-                                    );
-                                }
-                            }
-                            listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
-                        } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
-                            logger.warn(
-                                "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
-                                policyName,
-                                bulkByScrollResponse.getSearchFailures().size()
-                            );
-                            if (logger.isDebugEnabled()) {
-                                for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
-                                    logger.debug(
-                                        new ParameterizedMessage(
-                                            "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
-                                            policyName,
-                                            failure.getIndex(),
-                                            failure.getShardId(),
-                                            failure.getNodeId()
-                                        ),
-                                        failure.getReason()
-                                    );
-                                }
-                            }
-                            listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
-                        } else {
-                            logger.info(
-                                "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
-                                policyName,
-                                bulkByScrollResponse.getCreated(),
-                                destinationIndexName
-                            );
-                            forceMergeEnrichIndex(destinationIndexName, 1);
                         }
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
+                    listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
+                } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
+                    logger.warn(
+                        "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
+                        policyName,
+                        bulkByScrollResponse.getSearchFailures().size()
+                    );
+                    if (logger.isDebugEnabled()) {
+                        for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                            logger.debug(
+                                new ParameterizedMessage(
+                                    "Policy [{}]: search failed for index [{}], shard [{}] on node [{}]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getShardId(),
+                                    failure.getNodeId()
+                                ),
+                                failure.getReason()
+                            );
+                        }
                     }
+                    listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
+                } else {
+                    logger.info(
+                        "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
+                        policyName,
+                        bulkByScrollResponse.getCreated(),
+                        destinationIndexName
+                    );
+                    forceMergeEnrichIndex(destinationIndexName, 1);
                 }
-            )
-        );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void forceMergeEnrichIndex(final String destinationIndexName, final int attempt) {

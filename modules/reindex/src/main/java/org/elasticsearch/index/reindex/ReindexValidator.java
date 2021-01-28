@@ -42,7 +42,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
 
-class ReindexValidator {
+public class ReindexValidator {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ReindexValidator.class);
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. " +
         "Instead consider using query filtering to find the desired subset of data.";
@@ -60,7 +60,7 @@ class ReindexValidator {
         this.autoCreateIndex = autoCreateIndex;
     }
 
-    void initialValidation(ReindexRequest request) {
+    public void initialValidation(ReindexRequest request) {
         checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(), resolver, autoCreateIndex,

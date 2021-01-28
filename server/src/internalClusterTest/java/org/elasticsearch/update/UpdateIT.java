@@ -755,7 +755,7 @@ public class UpdateIT extends ESIntegTestCase {
             }
 
             private void incrementMapValue(int j, Map<Integer,Integer> map) {
-                if (!map.containsKey(j)) {
+                if (map.containsKey(j) == false) {
                     map.put(j, 0);
                 }
                 map.put(j, map.get(j) + 1);

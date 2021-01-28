@@ -110,6 +110,8 @@ public interface Repository extends LifecycleComponent {
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
      * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
      * if there was an error in reading the data.
+     * @param listener listener that may be resolved on different kinds of threads including transport and cluster state applier threads
+     *                 and therefore must fork to a new thread for executing any long running actions
      */
     void getRepositoryData(ActionListener<RepositoryData> listener);
 

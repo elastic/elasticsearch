@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
+import static java.util.Collections.emptyList;
+
+import java.util.List;
+import java.util.function.Function;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -35,35 +40,41 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
-import java.util.function.Function;
-
-import static java.util.Collections.emptyList;
-
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
             Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
 
-    private final ReindexValidator reindexValidator;
+    protected final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
+
+    protected final Client client;
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
-        super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
+        this(ReindexAction.NAME, settings, threadPool, actionFilters, indexNameExpressionResolver, clusterService, scriptService,
+            autoCreateIndex, client, transportService, sslConfig);
+    }
+
+    protected TransportReindexAction(String name, Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
+                                     ScriptService scriptService, AutoCreateIndex autoCreateIndex, Client client,
+                                     TransportService transportService, ReindexSslConfig sslConfig) {
+        super(name, transportService, actionFilters, ReindexRequest::new);
+        this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        reindexValidator.initialValidation(request);
+        validate(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         reindexer.initTask(bulkByScrollTask, request, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
-                reindexer.execute(bulkByScrollTask, request, listener);
+                reindexer.execute(bulkByScrollTask, request, getBulkClient(), listener);
             }
 
             @Override
@@ -71,5 +82,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 listener.onFailure(e);
             }
         });
+    }
+
+    /**
+     * This method can be overridden to specify a different {@link Client} to be used for indexing than that used for the search/input
+     * part of the reindex. For example, a {@link org.elasticsearch.client.FilterClient} can be provided to transform bulk index requests
+     * before they are fully performed.
+     */
+    protected Client getBulkClient() {
+        return client;
+    }
+
+    /**
+     * This method can be overridden if different than usual validation is needed. This method should throw an exception if validation
+     * fails.
+     */
+    protected void validate(ReindexRequest request) {
+        reindexValidator.initialValidation(request);
     }
 }

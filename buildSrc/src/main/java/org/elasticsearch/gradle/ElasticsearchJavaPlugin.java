@@ -24,6 +24,7 @@ import nebula.plugin.info.InfoBrokerPlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
@@ -39,6 +40,7 @@ import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.AbstractCompile;
@@ -127,11 +129,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 }
             });
         };
-        disableTransitiveDeps.accept(JavaPlugin.API_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
+
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        GradleUtils.disableTransitiveDependenciesForSourceSet(project, sourceSets.getByName("main"));
+        GradleUtils.disableTransitiveDependenciesForSourceSet(project, sourceSets.getByName("test"));
     }
 
     /**
@@ -283,10 +284,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
 
         TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
-        javadoc.configure(doc ->
+
         // remove compiled classes from the Javadoc classpath:
         // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-        doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+        javadoc.configure(doc -> doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));

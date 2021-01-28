@@ -37,7 +37,7 @@ public class SystemCallFilterTests extends ESTestCase {
         // otherwise, since we don't have TSYNC support, rules are not applied to the test thread
         // (randomizedrunner class initialization happens in its own thread, after the test thread is created)
         // instead we just forcefully run it for the test thread here.
-        if (!JNANatives.LOCAL_SYSTEM_CALL_FILTER_ALL) {
+        if (JNANatives.LOCAL_SYSTEM_CALL_FILTER_ALL == false) {
             try {
                 SystemCallFilter.init(createTempDir());
             } catch (Exception e) {

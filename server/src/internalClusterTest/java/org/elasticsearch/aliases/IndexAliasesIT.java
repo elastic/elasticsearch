@@ -631,7 +631,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         executor.shutdown();
         boolean done = executor.awaitTermination(20, TimeUnit.SECONDS);
         assertThat(done, equalTo(true));
-        if (!done) {
+        if (done == false) {
             executor.shutdownNow();
         }
     }

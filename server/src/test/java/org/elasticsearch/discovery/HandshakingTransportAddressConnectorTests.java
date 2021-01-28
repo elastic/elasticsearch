@@ -33,6 +33,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -53,6 +54,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
+import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,6 +81,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(CLUSTER_NAME_SETTING.getKey(), "local-cluster")
+            .put(PROBE_HANDSHAKE_TIMEOUT_SETTING.getKey(), "1s") // shorter than default for the sake of test speed
             .build();
         threadPool = new TestThreadPool("node", settings);
 
@@ -211,6 +214,11 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         failureListener.assertFailure();
     }
 
+    public void testTimeoutDefaults() {
+        assertThat(PROBE_HANDSHAKE_TIMEOUT_SETTING.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(30)));
+        assertThat(PROBE_CONNECT_TIMEOUT_SETTING.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
     public void testHandshakeTimesOut() throws InterruptedException {
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
         discoveryAddress = getDiscoveryAddress();
@@ -219,7 +227,6 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        Thread.sleep(PROBE_HANDSHAKE_TIMEOUT_SETTING.get(Settings.EMPTY).millis());
         failureListener.assertFailure();
     }
 
@@ -227,7 +234,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         return randomBoolean() ? remoteNode.getAddress() : buildNewFakeTransportAddress();
     }
 
-    private class FailureListener implements ActionListener<DiscoveryNode> {
+    private static class FailureListener implements ActionListener<DiscoveryNode> {
         final CountDownLatch completionLatch = new CountDownLatch(1);
 
         @Override
@@ -241,7 +248,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         }
 
         void assertFailure() throws InterruptedException {
-            assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
+            assertTrue(completionLatch.await(15, TimeUnit.SECONDS));
         }
     }
 }

@@ -489,7 +489,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(jobId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, Collections.emptyList(), true),
+            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, true),
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
@@ -537,6 +537,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
         @Override
         public Set<DiscoveryNode> nodes() {
+            return null;
+        }
+
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
             return null;
         }
 

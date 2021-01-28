@@ -64,7 +64,7 @@ public class MultiTermVectorsResponse {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof MultiTermVectorsResponse)) return false;
+        if ((obj instanceof MultiTermVectorsResponse) == false) return false;
         MultiTermVectorsResponse other = (MultiTermVectorsResponse) obj;
         return Objects.equals(responses, other.responses);
     }

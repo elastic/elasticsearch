@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
-
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
@@ -32,6 +27,12 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
+
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.

@@ -5,17 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.index;
 
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
-import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,6 +23,17 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
+
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class IndexResolverTests extends ESTestCase {
 

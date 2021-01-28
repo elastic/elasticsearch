@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -159,7 +158,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
 
         long randomTimestampWitnNanos = randomNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
-        setupIndexForDateTimeTests(randomTimestampWitnNanos, true);
+        setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(
@@ -188,7 +187,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
 
         long randomTimestampWitnNanos = randomNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
-        setupIndexForDateTimeTests(randomTimestampWitnNanos, true);
+        setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(
@@ -224,7 +223,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                     for (int i = 1; i <= 3; i++) {
                         assertTrue(results.next());
                         assertEquals(1000 + i, results.getInt(1));
-                        assertEquals(new Timestamp(adjustDateForEachDocument(randomMillis, i)), results.getTimestamp(2));
+                        assertEquals(new Timestamp(adjustTimestampForEachDocument(randomMillis, i)), results.getTimestamp(2));
                     }
                     assertFalse(results.next());
                 }
@@ -443,12 +442,16 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
-    private static long adjustDateForEachDocument(long randomMillis, int i) {
+    private static long adjustTimestampForEachDocument(long randomMillis, int i) {
         return randomMillis - 2 + i;
     }
 
     private static void setupIndexForDateTimeTests(long randomMillis) throws IOException {
         setupIndexForDateTimeTests(randomMillis, false);
+    }
+
+    private static void setupIndexForDateTimeTestsWithNanos(long randomMillis) throws IOException {
+        setupIndexForDateTimeTests(randomMillis, true);
     }
 
     private static void setupIndexForDateTimeTests(long randomMillisOrNanos, boolean isNanos) throws IOException {
@@ -461,7 +464,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         createIndex("emps", Settings.EMPTY, mapping);
         for (int i = 1; i <= 3; i++) {
             int id = 1000 + i;
-            long testMillisOrNanos = adjustDateForEachDocument(randomMillisOrNanos, i);
+            long testMillisOrNanos = adjustTimestampForEachDocument(randomMillisOrNanos, i);
             index("emps", "" + i, builder -> {
                 builder.field("id", id);
                 if (isNanos) {

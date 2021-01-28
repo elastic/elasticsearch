@@ -67,9 +67,9 @@ public class DateUtils {
     private DateUtils() {}
 
     /**
-     * Parses the given string into a DateTime using in the defined timezone.
+     * Parses the given string into a ZonedDateTime using the provided timezone.
      */
-    public static ZonedDateTime asDateTime(String dateFormat, ZoneId zoneId) {
+    public static ZonedDateTime asDateTimeWithNanos(String dateFormat, ZoneId zoneId) {
         return DateFormatters.from(ISO_DATE_WITH_NANOS.parse(dateFormat)).withZoneSameInstant(zoneId);
     }
 

@@ -5,23 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
-import static org.hamcrest.Matchers.arrayWithSize;
-
 import java.util.Arrays;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
+
+import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.hamcrest.Matchers.arrayWithSize;
 
 public class BasicFormatterTests extends ESTestCase {
     private final FormatOption format = randomFrom(FormatOption.values());
     private final SqlQueryResponse firstResponse = new SqlQueryResponse(
         "",
         format == CLI ? Mode.CLI : Mode.PLAIN,
-        SqlVersion.CURRENT,
+        DATE_NANOS_SUPPORT_VERSION,
         false,
         Arrays.asList(
             new ColumnInfo("", "foo", "string", 0),

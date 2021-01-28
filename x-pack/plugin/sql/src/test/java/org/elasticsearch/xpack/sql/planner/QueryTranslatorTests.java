@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -105,6 +104,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
@@ -135,7 +135,7 @@ public class QueryTranslatorTests extends ESTestCase {
             Map<String, EsField> mapping = SqlTypesTests.loadMapping(mappingFile);
             EsIndex test = new EsIndex("test", mapping);
             IndexResolution getIndexResult = IndexResolution.valid(test);
-            analyzer = new Analyzer(SqlTestUtils.TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
+            analyzer = new Analyzer(TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
             optimizer = new Optimizer();
             planner = new Planner();
         }
@@ -370,36 +370,36 @@ public class QueryTranslatorTests extends ESTestCase {
                 functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
                 DATE_FORMAT,
                 nanoPrecision,
-                SqlTestUtils.TEST_CFG.now()
+                TEST_CFG.now()
         );
         testDateRangeWithCurrentFunctions_AndRangeOptimization(
                 functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
                 DATE_FORMAT,
                 nanoPrecision,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
         );
     }
 
     public void testDateRangeWithCurrentDate() {
-        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, null, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
         testDateRangeWithCurrentFunctions_AndRangeOptimization(
                 "CURRENT_DATE()",
                 DATE_FORMAT,
                 null,
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+                DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
         );
     }
 
     public void testDateRangeWithToday() {
-        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, null, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
         testDateRangeWithCurrentFunctions_AndRangeOptimization(
                 "TODAY()",
                 DATE_FORMAT,
                 null,
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+                DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
         );
     }
 
@@ -409,14 +409,14 @@ public class QueryTranslatorTests extends ESTestCase {
                 functionWithPrecision("NOW", nanoPrecision),
                 DATE_FORMAT,
                 nanoPrecision,
-                SqlTestUtils.TEST_CFG.now()
+                TEST_CFG.now()
         );
         testDateRangeWithCurrentFunctions_AndRangeOptimization(
                 functionWithPrecision("NOW", nanoPrecision),
                 DATE_FORMAT,
                 nanoPrecision,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
         );
     }
 
@@ -426,14 +426,14 @@ public class QueryTranslatorTests extends ESTestCase {
                 functionWithPrecision("CURRENT_TIME", nanoPrecision),
                 TIME_FORMAT,
                 nanoPrecision,
-                SqlTestUtils.TEST_CFG.now()
+                TEST_CFG.now()
         );
         testDateRangeWithCurrentFunctions_AndRangeOptimization(
                 functionWithPrecision("CURRENT_TIME", nanoPrecision),
                 TIME_FORMAT,
                 nanoPrecision,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
         );
     }
 

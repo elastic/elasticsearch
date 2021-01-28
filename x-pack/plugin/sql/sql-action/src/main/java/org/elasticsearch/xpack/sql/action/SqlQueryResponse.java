@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
-import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
-
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -28,6 +23,14 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
+
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
+import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.fromId;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 
 /**
  * Response to perform an sql query
@@ -84,7 +87,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersion.fromId(Version.CURRENT.id);
+        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(Version.CURRENT.id);
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -213,7 +216,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         if (value instanceof ZonedDateTime) {
             ZonedDateTime zdt = (ZonedDateTime) value;
             // use the ISO format
-            if (mode == JDBC && SqlVersion.isClientCompatible(sqlVersion) && SqlVersion.V_8_0_0.compareTo(sqlVersion) > 0) {
+            if (mode == JDBC && isClientCompatible(sqlVersion) && DATE_NANOS_SUPPORT_VERSION.compareTo(sqlVersion) > 0) {
                 builder.value(StringUtils.toString(zdt, false));
             } else {
                 builder.value(StringUtils.toString(zdt, true));

@@ -28,6 +28,7 @@ import static org.hamcrest.Matchers.matchesPattern;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
+import java.math.BigDecimal;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -62,6 +63,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
@@ -855,6 +857,220 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [Float]", asDateString(randomDate)),
                 sqle.getMessage()
+            );
+        });
+    }
+
+    //
+    // BigDecimal fetching testing
+    //
+    static final Map<Class<? extends Number>, Integer> JAVA_TO_SQL_NUMERIC_TYPES_MAP = new HashMap<>() {
+        {
+            put(Byte.class, Types.TINYINT);
+            put(Short.class, Types.SMALLINT);
+            put(Integer.class, Types.INTEGER);
+            put(Long.class, Types.BIGINT);
+            put(Float.class, Types.REAL);
+            put(Double.class, Types.DOUBLE);
+            // TODO: no half & scaled float testing
+        }
+    };
+
+    private static <T extends Number> void validateBigDecimalWithoutCasting(ResultSet results, List<T> testValues) throws SQLException {
+
+        ResultSetMetaData resultSetMetaData = results.getMetaData();
+
+        Class<? extends Number> clazz = testValues.get(0).getClass();
+        String primitiveName = clazz.getSimpleName().toLowerCase(Locale.ROOT);
+
+        BigDecimal testVal1 = new BigDecimal(testValues.get(0).toString());
+        BigDecimal testVal2 = new BigDecimal(testValues.get(1).toString());
+        BigDecimal testVal3 = new BigDecimal(testValues.get(2).toString());
+
+        assertEquals(3, resultSetMetaData.getColumnCount());
+        assertEquals(JAVA_TO_SQL_NUMERIC_TYPES_MAP.get(clazz).longValue(), resultSetMetaData.getColumnType(1));
+        assertEquals(JAVA_TO_SQL_NUMERIC_TYPES_MAP.get(clazz).longValue(), resultSetMetaData.getColumnType(2));
+
+        assertTrue(results.next());
+
+        assertEquals(testVal1, results.getBigDecimal(1));
+        assertEquals(testVal1, results.getBigDecimal("test_" + primitiveName));
+        assertEquals(testVal1, results.getObject("test_" + primitiveName, BigDecimal.class));
+        assertEquals(results.getObject(1).getClass(), clazz);
+
+        assertNull(results.getBigDecimal(2));
+        assertTrue(results.wasNull());
+        assertNull(results.getObject("test_null_" + primitiveName));
+        assertTrue(results.wasNull());
+
+        assertTrue(results.next());
+
+        assertEquals(testVal2, results.getBigDecimal(1));
+        assertEquals(testVal2, results.getBigDecimal("test_" + primitiveName));
+        assertEquals(results.getObject(1).getClass(), clazz);
+        assertEquals(testVal3, results.getBigDecimal("test_keyword"));
+
+        assertFalse(results.next());
+    }
+
+    public void testGettingValidBigDecimalFromBooleanWithoutCasting() throws IOException, SQLException {
+        createTestDataForBooleanValueTests();
+
+        doWithQuery("SELECT test_boolean, test_null_boolean, test_keyword FROM test", results -> {
+            ResultSetMetaData resultSetMetaData = results.getMetaData();
+            assertEquals(3, resultSetMetaData.getColumnCount());
+            assertEquals(Types.BOOLEAN, resultSetMetaData.getColumnType(1));
+            assertEquals(Types.BOOLEAN, resultSetMetaData.getColumnType(2));
+
+            assertTrue(results.next());
+
+            assertEquals(BigDecimal.ONE, results.getBigDecimal(1));
+            assertEquals(BigDecimal.ONE, results.getBigDecimal("test_boolean"));
+            assertEquals(BigDecimal.ONE, results.getObject(1, BigDecimal.class));
+
+            assertNull(results.getBigDecimal(2));
+            assertTrue(results.wasNull());
+            assertNull(results.getBigDecimal("test_null_boolean"));
+            assertTrue(results.wasNull());
+
+            assertEquals(BigDecimal.ONE, results.getBigDecimal(3));
+            assertEquals(BigDecimal.ONE, results.getBigDecimal("test_keyword"));
+
+            assertTrue(results.next());
+
+            assertEquals(BigDecimal.ZERO, results.getBigDecimal(1));
+            assertEquals(BigDecimal.ZERO, results.getBigDecimal("test_boolean"));
+            assertEquals(BigDecimal.ZERO, results.getObject(1, BigDecimal.class));
+
+            assertNull(results.getBigDecimal(2));
+            assertTrue(results.wasNull());
+            assertNull(results.getBigDecimal("test_null_boolean"));
+            assertTrue(results.wasNull());
+
+            assertEquals(BigDecimal.ZERO, results.getBigDecimal(3));
+            assertEquals(BigDecimal.ZERO, results.getBigDecimal("test_keyword"));
+
+            assertFalse(results.next());
+        });
+    }
+
+    public void testGettingValidBigDecimalFromByteWithoutCasting() throws IOException, SQLException {
+        List<Byte> byteTestValues = createTestDataForNumericValueTests(ESTestCase::randomByte);
+        doWithQuery(
+                "SELECT test_byte, test_null_byte, test_keyword FROM test",
+                byteTestValues,
+                ResultSetTestCase::validateBigDecimalWithoutCasting
+        );
+    }
+
+    public void testGettingValidBigDecimalFromShortWithoutCasting() throws IOException, SQLException {
+        List<Short> shortTestValues = createTestDataForNumericValueTests(ESTestCase::randomShort);
+        doWithQuery(
+                "SELECT test_short, test_null_short, test_keyword FROM test",
+                shortTestValues,
+                ResultSetTestCase::validateBigDecimalWithoutCasting
+        );
+    }
+
+    public void testGettingValidBigDecimalFromIntegerWithoutCasting() throws IOException, SQLException {
+        List<Integer> integerTestValues = createTestDataForNumericValueTests(ESTestCase::randomInt);
+        doWithQuery(
+                "SELECT test_integer, test_null_integer, test_keyword FROM test",
+                integerTestValues,
+                ResultSetTestCase::validateBigDecimalWithoutCasting
+        );
+    }
+
+    public void testGettingValidBigDecimalFromLongWithoutCasting() throws IOException, SQLException {
+        List<Long> longTestValues = createTestDataForNumericValueTests(ESTestCase::randomLong);
+        doWithQuery(
+                "SELECT test_long, test_null_long, test_keyword FROM test",
+                longTestValues,
+                ResultSetTestCase::validateBigDecimalWithoutCasting
+        );
+    }
+
+    public void testGettingValidBigDecimalFromFloatWithoutCasting() throws IOException, SQLException {
+        List<Float> floatTestValues = createTestDataForNumericValueTests(ESTestCase::randomFloat);
+        doWithQuery(
+                "SELECT test_float, test_null_float, test_keyword FROM test",
+                floatTestValues,
+                ResultSetTestCase::validateBigDecimalWithoutCasting
+        );
+    }
+
+    public void testGettingValidBigDecimalFromDoubleWithoutCasting() throws IOException, SQLException {
+        List<Double> doubleTestValues = createTestDataForNumericValueTests(ESTestCase::randomDouble);
+        doWithQuery(
+                "SELECT test_double, test_null_double, test_keyword FROM test",
+                doubleTestValues,
+                ResultSetTestCase::validateBigDecimalWithoutCasting
+        );
+    }
+
+    public void testGettingValidBigDecimalWithCasting() throws IOException, SQLException {
+        Map<String, Number> map = createTestDataForNumericValueTypes(ESTestCase::randomDouble);
+
+        doWithQuery(SELECT_WILDCARD, results -> {
+            results.next();
+            for (Entry<String, Number> e : map.entrySet()) {
+                BigDecimal actualByObj = results.getObject(e.getKey(), BigDecimal.class);
+                BigDecimal actualByType = results.getBigDecimal(e.getKey());
+
+                BigDecimal expected;
+                if (e.getValue() instanceof Double) {
+                    expected = BigDecimal.valueOf(e.getValue().doubleValue());
+                } else if (e.getValue() instanceof Float) {
+                    expected = new BigDecimal(String.valueOf(e.getValue().floatValue()));
+                } else {
+                    expected = BigDecimal.valueOf(e.getValue().longValue());
+                }
+
+                assertEquals("For field " + e.getKey(), expected, actualByObj);
+                assertEquals("For field " + e.getKey(), expected, actualByType);
+            }
+        });
+    }
+
+    public void testGettingInvalidBigDecimal() throws IOException, SQLException {
+        createIndex("test");
+        updateMappingForNumericValuesTests("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+            builder.startObject("test_date").field("type", "date").endObject();
+        });
+
+        String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
+        long randomDate = randomNonNegativeLong();
+
+        index("test", "1", builder -> {
+            builder.field("test_keyword", randomString);
+            builder.field("test_date", randomDate);
+        });
+
+        doWithQuery(SELECT_WILDCARD, results -> {
+            results.next();
+
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getBigDecimal("test_keyword"));
+            assertEquals(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [BigDecimal]", randomString),
+                    sqle.getMessage()
+            );
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_keyword", BigDecimal.class));
+            assertEquals(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [BigDecimal]", randomString),
+                    sqle.getMessage()
+            );
+
+            sqle = expectThrows(SQLException.class, () -> results.getBigDecimal("test_date"));
+            assertEquals(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]", asDateString(randomDate)),
+                    sqle.getMessage()
+            );
+            sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", BigDecimal.class));
+            assertEquals(
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [DATETIME] to [BigDecimal]", asDateString(randomDate)),
+                    sqle.getMessage()
             );
         });
     }
@@ -1867,6 +2083,29 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
 
+    private <T extends Number> void doWithQuery(
+            String query,
+            List<T> testValues,
+            CheckedBiConsumer<ResultSet, List<T>, SQLException> biConsumer
+    ) throws SQLException {
+        doWithQuery(() -> esJdbc(timeZoneId), query, testValues, biConsumer);
+    }
+
+    private <T extends Number> void doWithQuery(
+            CheckedSupplier<Connection, SQLException> con,
+            String query,
+            List<T> testValues,
+            CheckedBiConsumer<ResultSet, List<T>, SQLException> biConsumer
+    ) throws SQLException {
+        try (Connection connection = con.get()) {
+            try (PreparedStatement statement = connection.prepareStatement(query)) {
+                try (ResultSet results = statement.executeQuery()) {
+                    biConsumer.accept(results, testValues);
+                }
+            }
+        }
+    }
+
     protected static void createIndex(String index) throws IOException {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
@@ -1989,6 +2228,26 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         return Arrays.asList(random1, random2, random3);
+    }
+
+    private void createTestDataForBooleanValueTests() throws IOException {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("test_boolean").field("type", "boolean").endObject();
+            builder.startObject("test_null_boolean").field("type", "boolean").endObject();
+            builder.startObject("test_keyword").field("type", "keyword").endObject();
+        });
+
+        index("test", "1", builder -> {
+            builder.field("test_boolean", Boolean.TRUE);
+            builder.field("test_null_boolean", (Boolean) null);
+            builder.field("test_keyword", "1");
+        });
+        index("test", "2", builder -> {
+            builder.field("test_boolean", Boolean.FALSE);
+            builder.field("test_null_boolean", (Boolean) null);
+            builder.field("test_keyword", "0");
+        });
     }
 
     private void indexSimpleDocumentWithTrueValues(long randomLongDate, Long randomLongNanos) throws IOException {

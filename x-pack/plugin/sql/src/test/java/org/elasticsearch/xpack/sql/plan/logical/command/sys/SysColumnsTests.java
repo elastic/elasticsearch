@@ -5,18 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.ql.TestUtils.UTC;
-import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
-import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,6 +36,18 @@ import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.TestUtils.UTC;
+import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SysColumnsTests extends ESTestCase {
 

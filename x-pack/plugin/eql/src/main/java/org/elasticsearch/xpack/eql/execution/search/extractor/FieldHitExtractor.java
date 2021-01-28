@@ -54,7 +54,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         }
         if (dataType == DATETIME_NANOS) {
             if (values instanceof String) {
-                return DateUtils.asDateTime(values.toString(), zoneId());
+                return DateUtils.asDateTimeWithNanos(values.toString(), zoneId());
             }
         }
 

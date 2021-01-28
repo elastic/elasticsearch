@@ -141,7 +141,4 @@ public class SmileXContent implements XContent {
                                        boolean useCompatibility) throws IOException {
         return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(reader), useCompatibility);
     }
-
-    //TODO: depcrate the non useCompatiblity variant and SmileXContentParser to support the flag
-
 }

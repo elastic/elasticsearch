@@ -143,6 +143,4 @@ public class JsonXContent implements XContent {
                                        boolean useCompatibility) throws IOException {
         return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(reader), useCompatibility);
     }
-
-    //TODO: deprecate the version without compatibilty
 }

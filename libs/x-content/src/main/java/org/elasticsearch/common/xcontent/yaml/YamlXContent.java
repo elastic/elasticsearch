@@ -137,6 +137,4 @@ public class YamlXContent implements XContent {
                                        boolean useCompatibility) throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(reader), useCompatibility);
     }
-
-    //TODO: deprecate the ones that dont useCompatibitly and make YamlXContentParser support it
 }

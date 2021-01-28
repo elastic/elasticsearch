@@ -133,7 +133,6 @@ public class CborXContent implements XContent {
             useCompatibility);
     }
 
-    //TODO: deprecate and CborXContentParser needs to support useCompatibility
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
                                        DeprecationHandler deprecationHandler, Reader reader,

@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -251,6 +252,7 @@ public class SystemIndexDescriptor {
         Objects.requireNonNull(cause);
         if (this.minimumNodeVersion != null && this.minimumNodeVersion.after(actualMinimumNodeVersion)) {
             return String.format(
+                Locale.ROOT,
                 "[%s] failed - system index [%s] requires all cluster nodes to be at least version [%s]",
                 cause,
                 this.getPrimaryIndex(),

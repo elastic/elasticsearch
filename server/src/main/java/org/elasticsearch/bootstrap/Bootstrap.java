@@ -375,8 +375,8 @@ final class Bootstrap {
                 "The Java option es.xcontent.strict_duplicate_detection is set to [%s]; " +
                     "this option is deprecated and non-functional and should be removed from Java configuration.",
                 BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection"));
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.OTHER, "strict_duplicate_detection_setting_removed",
-                message);
+            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.SETTINGS,
+                "strict_duplicate_detection_setting_removed", message);
         }
         if (environment.pidFile() != null) {
             try {

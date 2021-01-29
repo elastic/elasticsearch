@@ -64,19 +64,19 @@ public class JodaCompatibleZonedDateTime
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
 
-    private static void logDeprecated(DeprecationCategory category, String key, String message, Object... params) {
+    private static void logDeprecated(String key, String message, Object... params) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override
             public Void run() {
-                deprecationLogger.deprecate(category, key, message, params);
+                deprecationLogger.deprecate(DeprecationCategory.PARSING, key, message, params);
                 return null;
             }
         });
     }
 
     private static void logDeprecatedMethod(String oldMethod, String newMethod) {
-        logDeprecated(DeprecationCategory.PARSING, oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.",
+        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.",
             oldMethod, newMethod);
     }
 
@@ -520,7 +520,7 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getDayOfWeek() {
-        logDeprecated(DeprecationCategory.PARSING, "getDayOfWeek()",
+        logDeprecated("getDayOfWeek()",
             "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue().");
         return dt.getDayOfWeek().getValue();
     }

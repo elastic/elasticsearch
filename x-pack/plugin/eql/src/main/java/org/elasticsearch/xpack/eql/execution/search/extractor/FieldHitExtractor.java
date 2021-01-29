@@ -15,10 +15,10 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 
 public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
@@ -49,12 +49,12 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                return parseDateString(values);
-            }
-        }
-        if (dataType == DATETIME_NANOS) {
-            if (values instanceof String) {
-                return DateUtils.asDateTimeWithNanos(values.toString(), zoneId());
+                try {
+                    return DateUtils.asDateTimeWithNanos(values.toString(), zoneId());
+                } catch (IllegalArgumentException | DateTimeParseException e) {
+                    // For bwc compatibility during rolling upgrade
+                    return parseDateString(values);
+                }
             }
         }
 

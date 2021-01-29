@@ -15,7 +15,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
@@ -108,7 +107,7 @@ public class TypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("date_nanos");
-        assertThat(field.getDataType(), is(DATETIME_NANOS));
+        assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
         assertThat(field, is(instanceOf(DateEsField.class)));
     }

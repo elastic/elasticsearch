@@ -35,7 +35,7 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         assertTrue(fetch.fetchSource());
         assertArrayEquals(new String[] { "data", "count" }, fetch.includes());
         assertEquals(
-                singletonList(new FieldAndFormat("date", "epoch_millis")),
+                singletonList(new FieldAndFormat("date", "strict_date_optional_time_nanos")),
                 source.docValueFields());
         assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
     }

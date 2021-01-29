@@ -2075,18 +2075,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         assertThat(e.getMessage(), equalTo("Composite source cannot be null"));
     }
 
-    /**
-     * Composite aggregation cannot be a sub-aggregation of a terms aggregation
-     */
-    public void testAsChildOfTerms() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            executeTestCase(false, false, new MatchAllDocsQuery(), List.of(),
-                () -> {return null;},
-                (c) -> {});
-        });
-    }
-
-
     private <T extends Comparable<T>, V extends Comparable<T>> void testRandomTerms(String field,
                                                                                     Supplier<T> randomSupplier,
                                                                                     Function<Object, V> transformKey) throws IOException {

@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -368,9 +369,12 @@ public final class FileStructureFinderManager {
             String charsetName = overrides.getCharset();
             Reader sampleReader;
             if (charsetName != null) {
-                // Creating the reader will throw if the specified character set does not exist
-                sampleReader = new InputStreamReader(fromFile, charsetName);
-                explanation.add("Using specified character encoding [" + charsetName + "]");
+                try {
+                    sampleReader = new InputStreamReader(fromFile, charsetName);
+                    explanation.add("Using specified character encoding [" + charsetName + "]");
+                } catch (UnsupportedEncodingException e) {
+                    throw new IllegalArgumentException("Supplied character encoding [" + charsetName + "] not available", e);
+                }
             } else {
                 CharsetMatch charsetMatch = findCharset(explanation, fromFile, timeoutChecker);
                 charsetName = charsetMatch.getName();

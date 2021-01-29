@@ -61,7 +61,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static {
         if (RollupV2.isEnabled()) {
             ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-                ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
+                ReadOnlyAction.NAME, RollupILMAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
             ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
                 MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
         } else {

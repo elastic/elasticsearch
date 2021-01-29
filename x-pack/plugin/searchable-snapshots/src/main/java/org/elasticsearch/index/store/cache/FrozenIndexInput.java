@@ -19,10 +19,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -32,6 +30,7 @@ import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -370,7 +369,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                         dup.position(newPosition);
                         dup.limit(newPosition + Math.toIntExact(len));
 
-                        int read = Channels.readFromFileChannelWithEofException(channel, channelPos, dup);
+                        final int read = channel.read(dup, channelPos);
+                        if (read < 0) {
+                            throw new EOFException("read past EOF. pos [" + channelPos + "] length: [" + dup.limit() + "]");
+                        }
                         // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
                         assert read == len;
                         return read;
@@ -500,8 +502,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         // TODO we should add this to DirectBlobContainerIndexInput too.
     }
 
-    @SuppressForbidden(reason = "Use positional writes on purpose")
-    private static int positionalWrite(FileChannel fc, long start, ByteBuffer byteBuffer) throws IOException {
+    private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
         assert assertCurrentThreadMayWriteCacheFile();
         return fc.write(byteBuffer, start);
     }
@@ -557,7 +558,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     private int readCacheFile(
-        final FileChannel fc,
+        final SharedBytes.IO fc,
         long channelPos,
         long relativePos,
         long length,
@@ -567,7 +568,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         ReentrantReadWriteLock luceneByteBufLock,
         AtomicBoolean stopAsyncReads
     ) throws IOException {
-        assert assertFileChannelOpen(fc);
         logger.trace(
             "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
             fileInfo.physicalName(),
@@ -604,7 +604,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     + buffer.limit();
                 dup.position(newPosition);
                 dup.limit(newPosition + Math.toIntExact(length));
-                bytesRead = Channels.readFromFileChannel(fc, channelPos, dup);
+                bytesRead = fc.read(dup, channelPos);
                 if (bytesRead == -1) {
                     throw new EOFException(
                         String.format(
@@ -628,14 +628,13 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     private void writeCacheFile(
-        final FileChannel fc,
+        final SharedBytes.IO fc,
         long fileChannelPos,
         long relativePos,
         long length,
         long logicalPos,
         final Consumer<Long> progressUpdater
     ) throws IOException {
-        assert assertFileChannelOpen(fc);
         assert assertCurrentThreadMayWriteCacheFile();
         logger.trace(
             "{}: writing logical {} channel {} pos {} length {} (details: {})",

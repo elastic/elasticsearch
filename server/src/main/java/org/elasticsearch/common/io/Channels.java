@@ -40,7 +40,7 @@ public final class Channels {
     /**
      * The maximum chunk size for writes in bytes
      */
-    private static final int WRITE_CHUNK_SIZE = 8192;
+    public static final int WRITE_CHUNK_SIZE = 8192;
 
     /**
      * read <i>length</i> bytes from <i>position</i> of a file channel

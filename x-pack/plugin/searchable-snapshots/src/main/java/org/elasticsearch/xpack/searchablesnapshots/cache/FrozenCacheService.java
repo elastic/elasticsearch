@@ -31,7 +31,6 @@ import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
@@ -123,7 +122,7 @@ public class FrozenCacheService {
 
     private final AtomicReference<CacheFileRegion>[] regionOwners; // to assert exclusive access of regions
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings("unchecked")
     @SuppressForbidden(reason = "Use temp dir for now")
     public FrozenCacheService(Settings settings, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
@@ -519,7 +518,7 @@ public class FrozenCacheService {
                 ensureOpen();
                 Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final FileChannel fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
                 if (rangeToRead.v1() == rangeToRead.v2()) {
                     // nothing to read, skip
@@ -577,7 +576,7 @@ public class FrozenCacheService {
                 ensureOpen();
                 final Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final FileChannel fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
                     return listener;
                 } else {
@@ -594,7 +593,7 @@ public class FrozenCacheService {
             Tuple<Long, Long> rangeToRead,
             RangeAvailableHandler reader,
             ActionListener<Integer> listener,
-            FileChannel fileChannel
+            SharedBytes.IO fileChannel
         ) {
             return ActionListener.wrap(success -> {
                 final long physicalStartOffset = physicalStartOffset();
@@ -731,12 +730,12 @@ public class FrozenCacheService {
     public interface RangeAvailableHandler {
         // caller that wants to read from x should instead do a positional read from x + relativePos
         // caller should also only read up to length, further bytes will be offered by another call to this method
-        int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length) throws IOException;
+        int onRangeAvailable(SharedBytes.IO channel, long channelPos, long relativePos, long length) throws IOException;
     }
 
     @FunctionalInterface
     public interface RangeMissingHandler {
-        void fillCacheRange(FileChannel channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
+        void fillCacheRange(SharedBytes.IO channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
             throws IOException;
     }
 }

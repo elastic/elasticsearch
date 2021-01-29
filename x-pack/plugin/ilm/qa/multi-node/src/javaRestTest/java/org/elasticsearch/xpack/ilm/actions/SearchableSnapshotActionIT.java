@@ -254,7 +254,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
             new Phase("warm", TimeValue.ZERO,
-                Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME, new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
             null
@@ -322,7 +322,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of()),
             new Phase("warm", TimeValue.ZERO,
-                Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME, new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
             null

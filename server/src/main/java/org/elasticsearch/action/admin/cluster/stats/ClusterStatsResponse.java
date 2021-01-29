@@ -58,7 +58,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             analysisStats = in.readOptionalWriteable(AnalysisStats::new);
         }
         VersionStats versionStats = null;
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             versionStats = in.readOptionalWriteable(VersionStats::new);
         }
         this.clusterUUID = clusterUUID;
@@ -122,7 +122,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             out.writeOptionalWriteable(indicesStats.getMappings());
             out.writeOptionalWriteable(indicesStats.getAnalysis());
         }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             out.writeOptionalWriteable(indicesStats.getVersions());
         }
     }

@@ -1,9 +1,6 @@
 [[term-suggester]]
 ==== Term suggester
 
-NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first.
-
 The `term` suggester suggests terms based on edit distance. The provided
 suggest text is analyzed before terms are suggested. The suggested terms
 are provided per analyzed suggest text token. The `term` suggester

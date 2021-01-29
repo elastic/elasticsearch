@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ilm.actions;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@Repeat(iterations = 40)
 public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     private String policy;

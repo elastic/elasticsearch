@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
@@ -36,6 +35,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
@@ -50,7 +50,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
@@ -70,7 +70,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -382,23 +382,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals(
             "1:8: second argument of [FORMAT(date, int)] must be [string], found value [int] type [integer]",
             error("SELECT FORMAT(date, int) FROM test")
-        );
-    }
-
-    public void testToCharValidArgs() {
-        accept("SELECT TO_CHAR(date, 'HH:MI:SS.FF3 OF') FROM test");
-        accept("SELECT TO_CHAR(date::date, 'MM/DD/YYYY') FROM test");
-        accept("SELECT TO_CHAR(date::time, 'HH:MI:SS OF') FROM test");
-    }
-
-    public void testToCharInvalidArgs() {
-        assertEquals(
-            "1:8: first argument of [TO_CHAR(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
-            error("SELECT TO_CHAR(int, keyword) FROM test")
-        );
-        assertEquals(
-            "1:8: second argument of [TO_CHAR(date, int)] must be [string], found value [int] type [integer]",
-            error("SELECT TO_CHAR(date, int) FROM test")
         );
     }
 

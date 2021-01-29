@@ -44,7 +44,7 @@ final class IndexVersionValue extends VersionValue {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         IndexVersionValue that = (IndexVersionValue) o;
         return Objects.equals(translogLocation, that.translogLocation);
     }

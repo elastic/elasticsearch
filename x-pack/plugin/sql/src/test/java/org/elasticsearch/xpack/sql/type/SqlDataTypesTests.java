@@ -85,9 +85,9 @@ public class SqlDataTypesTests extends ESTestCase {
 
     public void testMetaMinimumScale() {
         assertNull(metaSqlMinimumScale(DATE));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATETIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATETIME_ARRAY));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(TIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(DATETIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(DATETIME_ARRAY));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(LONG));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(LONG_ARRAY));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));
@@ -98,9 +98,9 @@ public class SqlDataTypesTests extends ESTestCase {
 
     public void testMetaMaximumScale() {
         assertNull(metaSqlMinimumScale(DATE));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMaximumScale(DATETIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMaximumScale(DATETIME_ARRAY));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(TIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMaximumScale(DATETIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMaximumScale(DATETIME_ARRAY));
         assertEquals(Short.valueOf((short) 0), metaSqlMaximumScale(LONG));
         assertEquals(Short.valueOf((short) 0), metaSqlMaximumScale(LONG_ARRAY));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));

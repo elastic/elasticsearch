@@ -5,6 +5,17 @@
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
 
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.StringJoiner;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -18,19 +29,9 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
-
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 
@@ -268,6 +269,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above.
                     || dataType == DATETIME
+                    || dataType == DATETIME_NANOS
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }
 

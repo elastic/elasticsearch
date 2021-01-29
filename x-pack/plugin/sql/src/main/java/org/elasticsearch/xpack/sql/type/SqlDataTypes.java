@@ -17,11 +17,13 @@ import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.time.OffsetTime;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -32,6 +34,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
@@ -48,6 +51,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.baseType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isArray;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 public class SqlDataTypes {
@@ -209,16 +213,23 @@ public class SqlDataTypes {
             .collect(toUnmodifiableList());
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
+            .filter(t -> t != DATETIME_NANOS)
             .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
-    private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
-        .filter(e -> e.esType() != null)
-        .filter(e -> e instanceof ArrayDataType == false)
-        .collect(toUnmodifiableMap(DataType::esType, t -> t));
-
     private static final Map<DataType, DataType> TYPE_TO_ARRAY = TYPES.stream()
-        .filter(e -> e instanceof ArrayDataType)
+        .filter(DataTypes::isArray)
         .collect(toUnmodifiableMap(e -> ((ArrayDataType) e).baseType(), t -> t));
+
+    private static final Map<String, DataType> ES_TO_TYPE;
+
+    static {
+        Map<String, DataType> map = TYPES.stream()
+            .filter(e -> e.esType() != null)
+            .filter(e -> isArray(e) == false)
+            .collect(Collectors.toMap(DataType::esType, t -> t));
+        map.put(DATETIME_NANOS.esType(), DATETIME_NANOS);
+        ES_TO_TYPE = Collections.unmodifiableMap(map);
+    }
 
     private static final Map<String, DataType> SQL_TO_ES;
 
@@ -303,7 +314,7 @@ public class SqlDataTypes {
     }
 
     public static boolean isDateBased(DataType type) {
-        return type == DATE || baseType(type) == DATETIME;
+        return isDateTime(type) || type == DATE;
     }
 
     public static boolean isTimeBased(DataType type) {
@@ -311,11 +322,11 @@ public class SqlDataTypes {
     }
 
     public static boolean isDateOrTimeBased(DataType type) {
-        return isDateBased(baseType(type)) || isTimeBased(type);
+        return isDateBased(type) || isTimeBased(type);
     }
 
     public static boolean isDateOrIntervalBased(DataType type) {
-        return isDateBased(baseType(type)) || isInterval(type);
+        return isDateBased(type) || isInterval(type);
     }
 
     public static boolean isGeo(DataType type) {
@@ -324,6 +335,9 @@ public class SqlDataTypes {
     }
 
     public static String format(DataType type) {
+        if (type == DATETIME_NANOS) {
+            return "strict_date_optional_time_nanos";
+        }
         return isDateOrTimeBased(type) ? "epoch_millis" : null;
     }
 
@@ -332,6 +346,7 @@ public class SqlDataTypes {
         return dt == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
                 || dt == DATE         // because of date formats
                 || dt == DATETIME
+                || dt == DATETIME_NANOS
                 || dt == SCALED_FLOAT // because of scaling_factor
                 || dt == GEO_POINT
                 || dt == SHAPE;
@@ -397,7 +412,7 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return JDBCType.VARCHAR;
         }
-        if (dataType == DATETIME) {
+        if (isDateTime(dataType)) {
             return JDBCType.TIMESTAMP;
         }
         if (dataType == IP) {
@@ -524,8 +539,8 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return 32766;
         }
-        if (dataType == DATETIME) {
-            return 3;
+        if (isDateTime(dataType)) {
+            return 9;
         }
         if (dataType == IP) {
             return dataType.size();
@@ -549,7 +564,7 @@ public class SqlDataTypes {
             return 3;
         }
         if (dataType == TIME) {
-            return 3;
+            return 9;
         }
 
         if (dataType == GEO_SHAPE) {
@@ -645,8 +660,8 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return dataType.size();
         }
-        if (dataType == DATETIME) {
-            return 29;
+        if (isDateTime(dataType)) {
+            return 34;
         }
         if (dataType == IP) {
             return dataType.size();
@@ -667,7 +682,7 @@ public class SqlDataTypes {
             return 29;
         }
         if (dataType == TIME) {
-            return 18;
+            return 24;
         }
         if (dataType == GEO_SHAPE) {
             return dataType.size();
@@ -695,7 +710,7 @@ public class SqlDataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (baseType(t) == DATETIME) {
+        if (isDateTime(t)) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -705,9 +720,8 @@ public class SqlDataTypes {
 
     // https://github.com/elastic/elasticsearch/issues/30386
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
-    public static Integer metaSqlDateTimeSub(DataType dt) {
-        DataType t = baseType(dt);
-        if (t == DATETIME) {
+    public static Integer metaSqlDateTimeSub(DataType t) {
+        if (isDateTime(t)) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
         } else if (t == DATE) {
@@ -738,7 +752,7 @@ public class SqlDataTypes {
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (baseType(t) == DATETIME || t == TIME || t.isRational()) {
+        if (isDateTime(t) || t == TIME || t.isRational()) {
             return Short.valueOf((short) defaultPrecision(t));
         }
         return null;

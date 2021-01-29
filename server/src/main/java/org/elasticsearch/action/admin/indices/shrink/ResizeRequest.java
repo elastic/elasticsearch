@@ -118,11 +118,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            boolean hasMaxSinglePrimarySize = maxSinglePrimarySize != null;
-            out.writeBoolean(hasMaxSinglePrimarySize);
-            if (hasMaxSinglePrimarySize) {
-                maxSinglePrimarySize.writeTo(out);
-            }
+            out.writeOptionalWriteable(maxSinglePrimarySize);
         }
     }
 

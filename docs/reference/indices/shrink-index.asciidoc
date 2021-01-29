@@ -230,12 +230,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
 
 `max_single_primary_size`::
 (Optional, <<byte-units, byte units>>)
-The max single primary shard size of the target index, it's used to find an optimum shards number of the target index.
-When this parameter is set properly, each shard's storage of the target index will not be greater than the parameter,
-while the shards number of the target index still be a factor of the source index's shards number, but if the parameter
-is less than the single shard size of the source index, the shards number of the target index will be equal to the source index's shards number.
-For example, when this parameter is set to `50GB`, if the source index has `60` primary shards with `100GB` storage, then the
-target index will have `2` primary shards, each shard's storage is `50GB`; if the source index has `60` primary shards
-with `1000GB` storage, then the target index will have `20` primary shards; if the source index has `60` primary shards
-with `4000GB` storage, then the target index will still have `60` primary shards. This parameter is conflict
-with `number_of_shards` in the `settings` parameter, either of them can be set.
+The max single primary shard size for the target index. Used to find the optimum number of shards for the target index.
+When this parameter is set, each shard's storage in the target index will not be greater than the parameter.
+The shards count of the target index will still be a factor of the source index's shards count, but if the parameter
+is less than the single shard size in the source index, the shards count for the target index will be equal to the source index's shards count.
+For example, when this parameter is set to 50gb, if the source index has 60 primary shards with totaling 100gb, then the
+target index will have 2 primary shards, with each shard size of 50gb; if the source index has 60 primary shards
+with totaling 1000gb, then the target index will have 20 primary shards; if the source index has 60 primary shards
+with totaling 4000gb, then the target index will still have 60 primary shards. This parameter conflicts
+with `number_of_shards` in the `settings`, only one of them may be set.

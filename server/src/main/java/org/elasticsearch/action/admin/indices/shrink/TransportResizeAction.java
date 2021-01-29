@@ -157,11 +157,11 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                         minShardsNum = minShardsNum + 1;
                     }
                     if (minShardsNum > sourceIndexShardsNum) {
-                        logger.info("By setting max_single_primary_size to [" + maxSinglePrimarySize.toString() +
-                            "], the target index [" + targetIndexName + "] will contain [" + minShardsNum +
-                            "] shards, which will be greater than [" + sourceIndexShardsNum +
-                            "] shards of the source index [" + sourceMetadata.getIndex().getName() +
-                            "], use [" + sourceIndexShardsNum + "] as the shards number of the target index [" + targetIndexName + "]");
+                        logger.info("By setting max_single_primary_size to [{}], the target index [{}] will contain [{}] shards," +
+                                " which will be greater than [{}] shards in the source index [{}]," +
+                                " using [{}] for the shard count of the target index [{}]",
+                            maxSinglePrimarySize.toString(), targetIndexName, minShardsNum, sourceIndexShardsNum,
+                            sourceMetadata.getIndex().getName(), sourceIndexShardsNum, targetIndexName);
                         numShards = sourceIndexShardsNum;
                     } else {
                         numShards = calTargetShardsNum(sourceIndexShardsNum, (int)minShardsNum);

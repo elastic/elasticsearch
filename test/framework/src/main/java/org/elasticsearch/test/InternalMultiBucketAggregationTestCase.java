@@ -97,7 +97,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations);
 
-    protected abstract Class<? extends ParsedMultiBucketAggregation> implementationClass();
+    protected abstract Class<? extends ParsedMultiBucketAggregation<?>> implementationClass();
 
     @Override
     protected final void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) {
@@ -149,7 +149,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
-        Class<? extends ParsedMultiBucketAggregation> parsedClass = implementationClass();
+        Class<? extends ParsedMultiBucketAggregation<?>> parsedClass = implementationClass();
         assertNotNull("Parsed aggregation class must not be null", parsedClass);
         assertTrue("Unexpected parsed class, expected instance of: " + actual + ", but was: " + parsedClass,
                 parsedClass.isInstance(actual));

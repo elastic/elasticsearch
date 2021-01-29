@@ -34,7 +34,7 @@ public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCa
     private static final String FILTER_PATH_PARAM_VALUE = "-hits.hits._index,-hits.hits._type,-hits.hits.matched_queries";
 
     public void testUsingFilterPathWithHitsIndexResultsIntoEmptyIndexNameInInnerHit() throws IOException {
-        Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/10");
+        Request doc = new Request(HttpPut.METHOD_NAME, "/company_one/_doc/1");
         doc.setJsonEntity(SAMPLE_DOCUMENT);
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
@@ -43,7 +43,7 @@ public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCa
             .addParameter(FILTER_PATH_PARAM, FILTER_PATH_PARAM_VALUE)
             .build();
 
-        SearchRequest searchRequest = new SearchRequest("company");
+        SearchRequest searchRequest = new SearchRequest("company_one");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);
 
         assertThat(searchResponse.status().getStatus(), equalTo(200));
@@ -53,18 +53,18 @@ public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCa
     }
 
     public void testNotUsingFilterPathResultsIntoIndexNameInInnerHit() throws IOException {
-        Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/11");
+        Request doc = new Request(HttpPut.METHOD_NAME, "/company_two/_doc/1");
         doc.setJsonEntity(SAMPLE_DOCUMENT);
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
         RequestOptions requestOptions = RequestOptions.DEFAULT;
-        SearchRequest searchRequest = new SearchRequest("company");
+        SearchRequest searchRequest = new SearchRequest("company_two");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);
 
         assertThat(searchResponse.status().getStatus(), equalTo(200));
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
-        assertEquals("company", searchResponse.getHits().getHits()[0].getIndex());
+        assertEquals("company_two", searchResponse.getHits().getHits()[0].getIndex());
         assertEquals(SAMPLE_DOCUMENT, searchResponse.getHits().getHits()[0].getSourceAsString());
     }
 

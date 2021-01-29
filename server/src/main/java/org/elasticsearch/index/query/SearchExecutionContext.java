@@ -266,7 +266,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), this::lookup);
+        return (IFD) this.lookup().getForField(fieldType);
     }
 
     public void addNamedQuery(String name, Query query) {

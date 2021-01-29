@@ -87,6 +87,8 @@ public class SearchHitFieldRef implements FieldExtraction {
     }
 
     private static String format(DataType dataType) {
+        // We need epoch_millis for the tiebreaker timestamp field, because parsing timestamp strings
+        // can have a negative performance impact
         return dataType == DATETIME ? "epoch_millis" : null;
     }
 }

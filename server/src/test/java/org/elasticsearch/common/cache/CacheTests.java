@@ -758,7 +758,7 @@ public class CacheTests extends ESTestCase {
             Set<Long> ids = threads.stream().map(t -> t.getId()).collect(Collectors.toSet());
             ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
             long[] deadlockedThreads = mxBean.findDeadlockedThreads();
-            if (!deadlock.get() && deadlockedThreads != null) {
+            if (deadlock.get() == false && deadlockedThreads != null) {
                 for (long deadlockedThread : deadlockedThreads) {
                     // ensure that we detected deadlock on our threads
                     if (ids.contains(deadlockedThread)) {

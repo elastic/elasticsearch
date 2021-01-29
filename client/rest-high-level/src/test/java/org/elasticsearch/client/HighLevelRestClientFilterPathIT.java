@@ -34,7 +34,7 @@ public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCa
     private static final String FILTER_PATH_PARAM_VALUE = "-hits.hits._index,-hits.hits._type,-hits.hits.matched_queries";
 
     public void testUsingFilterPathWithHitsIndexResultsIntoEmptyIndexNameInInnerHit() throws IOException {
-        Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/1");
+        Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/10");
         doc.setJsonEntity(SAMPLE_DOCUMENT);
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
@@ -53,7 +53,7 @@ public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCa
     }
 
     public void testNotUsingFilterPathResultsIntoIndexNameInInnerHit() throws IOException {
-        Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/1");
+        Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/11");
         doc.setJsonEntity(SAMPLE_DOCUMENT);
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));

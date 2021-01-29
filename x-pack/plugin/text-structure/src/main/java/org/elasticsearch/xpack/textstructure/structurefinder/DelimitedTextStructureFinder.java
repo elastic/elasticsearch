@@ -30,7 +30,7 @@ import java.util.Random;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
 
-public class DelimitedFileStructureFinder implements FileStructureFinder {
+public class DelimitedTextStructureFinder implements TextStructureFinder {
 
     private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
@@ -38,14 +38,14 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
-    static DelimitedFileStructureFinder makeDelimitedFileStructureFinder(
+    static DelimitedTextStructureFinder makeDelimitedTextStructureFinder(
         List<String> explanation,
         String sample,
         String charsetName,
         Boolean hasByteOrderMarker,
         CsvPreference csvPreference,
         boolean trimFields,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) throws IOException {
 
@@ -54,9 +54,9 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         List<Integer> lineNumbers = parsed.v2();
 
         // Even if the column names are overridden we need to know if there's a
-        // header in the file, as it affects which rows are considered records
+        // header in the text, as it affects which rows are considered records
         Tuple<Boolean, String[]> headerInfo = findHeaderFromSample(explanation, rows, overrides);
-        boolean isHeaderInFile = headerInfo.v1();
+        boolean isHeaderInText = headerInfo.v1();
         String[] header = headerInfo.v2();
 
         String[] columnNames;
@@ -88,8 +88,8 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         List<String> sampleLines = Arrays.asList(sample.split("\n"));
         List<String> sampleMessages = new ArrayList<>();
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
-        int prevMessageEndLineNumber = isHeaderInFile ? lineNumbers.get(0) : 0; // This is an exclusive end
-        for (int index = isHeaderInFile ? 1 : 0; index < rows.size(); ++index) {
+        int prevMessageEndLineNumber = isHeaderInText ? lineNumbers.get(0) : 0; // This is an exclusive end
+        for (int index = isHeaderInText ? 1 : 0; index < rows.size(); ++index) {
             List<String> row = rows.get(index);
             int lineNumber = lineNumbers.get(index);
             // Indicates an illformatted row. We allow a certain number of these
@@ -114,7 +114,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         // null to allow GC before timestamp search
         sampleLines = null;
 
-        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = FileStructureUtils
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
             .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         SortedMap<String, Object> fieldMappings = mappingsAndFieldStats.v1();
@@ -130,7 +130,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             .setSampleStart(preamble)
             .setNumLinesAnalyzed(lineNumbers.get(lineNumbers.size() - 1))
             .setNumMessagesAnalyzed(sampleRecords.size())
-            .setHasHeaderRow(isHeaderInFile)
+            .setHasHeaderRow(isHeaderInText)
             .setDelimiter(delimiter)
             .setQuote(quoteChar)
             .setColumnNames(columnNamesList);
@@ -140,7 +140,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         String quotePattern = quote.replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
         String optQuotePattern = quotePattern + "?";
         String delimiterPattern = (delimiter == '\t') ? "\\t" : String.valueOf(delimiter).replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1");
-        if (isHeaderInFile) {
+        if (isHeaderInText) {
             structureBuilder.setExcludeLinesPattern(
                 "^"
                     + Arrays.stream(header)
@@ -156,7 +156,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             structureBuilder.setShouldTrimFields(true);
         }
 
-        Tuple<String, TimestampFormatFinder> timeField = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> timeField = TextStructureUtils.guessTimestampField(
             explanation,
             sampleRecords,
             overrides,
@@ -171,7 +171,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(
-                    FileStructureUtils.makeIngestPipelineDefinition(
+                    TextStructureUtils.makeIngestPipelineDefinition(
                         null,
                         Collections.emptyMap(),
                         csvProcessorSettings,
@@ -195,10 +195,10 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                     )
                 );
 
-            fieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
+            fieldMappings.put(TextStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         } else {
             structureBuilder.setIngestPipeline(
-                FileStructureUtils.makeIngestPipelineDefinition(
+                TextStructureUtils.makeIngestPipelineDefinition(
                     null,
                     Collections.emptyMap(),
                     csvProcessorSettings,
@@ -228,13 +228,13 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         }
 
         TextStructure structure = structureBuilder.setMappings(
-            Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings)
+            Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings)
         ).setExplanation(explanation).build();
 
-        return new DelimitedFileStructureFinder(sampleMessages, structure);
+        return new DelimitedTextStructureFinder(sampleMessages, structure);
     }
 
-    private DelimitedFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
+    private DelimitedTextStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }
@@ -299,7 +299,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     static Tuple<Boolean, String[]> findHeaderFromSample(
         List<String> explanation,
         List<List<String>> rows,
-        FileStructureOverrides overrides
+        TextStructureOverrides overrides
     ) {
 
         assert rows.isEmpty() == false;
@@ -307,10 +307,10 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         List<String> overriddenColumnNames = overrides.getColumnNames();
         List<String> firstRow = rows.get(0);
 
-        boolean isHeaderInFile = true;
+        boolean isHeaderInText = true;
         if (overrides.getHasHeaderRow() != null) {
-            isHeaderInFile = overrides.getHasHeaderRow();
-            if (isHeaderInFile && overriddenColumnNames == null) {
+            isHeaderInText = overrides.getHasHeaderRow();
+            if (isHeaderInText && overriddenColumnNames == null) {
                 String duplicateValue = findDuplicateNonEmptyValues(firstRow);
                 if (duplicateValue != null) {
                     throw new IllegalArgumentException(
@@ -321,22 +321,22 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                     );
                 }
             }
-            explanation.add("Sample specified to " + (isHeaderInFile ? "contain" : "not contain") + " a header row");
+            explanation.add("Sample specified to " + (isHeaderInText ? "contain" : "not contain") + " a header row");
         } else {
             if (findDuplicateNonEmptyValues(firstRow) != null) {
-                isHeaderInFile = false;
+                isHeaderInText = false;
                 explanation.add("First row contains duplicate values, so assuming it's not a header");
             } else {
                 if (rows.size() < 3) {
                     explanation.add("Too little data to accurately assess whether header is in sample - guessing it is");
                 } else {
-                    isHeaderInFile = isFirstRowUnusual(explanation, rows);
+                    isHeaderInText = isFirstRowUnusual(explanation, rows);
                 }
             }
         }
 
         String[] header;
-        if (isHeaderInFile) {
+        if (isHeaderInText) {
             // SuperCSV will put nulls in the header if any columns don't have names, but empty strings are better for us
             header = firstRow.stream().map(field -> (field == null) ? "" : field).toArray(String[]::new);
         } else {
@@ -344,7 +344,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             Arrays.fill(header, "");
         }
 
-        return new Tuple<>(isHeaderInFile, header);
+        return new Tuple<>(isHeaderInText, header);
     }
 
     static String findDuplicateNonEmptyValues(List<String> row) {
@@ -762,7 +762,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         assert maxLinesPerMessage > 0;
         assert (timeFieldName == null) == (timeFieldFormat == null);
 
-        // This is the easy case: a file where there are no multi-line fields
+        // This is the easy case: text where there are no multi-line fields
         if (maxLinesPerMessage == 1) {
             explanation.add("Not creating a multi-line start pattern as no sampled message spanned multiple lines");
             return null;
@@ -782,7 +782,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             }
             Object columnMapping = fieldMappings.get(columnName);
             if (columnMapping instanceof Map) {
-                String type = (String) ((Map<?, ?>) columnMapping).get(FileStructureUtils.MAPPING_TYPE_SETTING);
+                String type = (String) ((Map<?, ?>) columnMapping).get(TextStructureUtils.MAPPING_TYPE_SETTING);
                 if (type != null) {
                     String columnPattern;
                     switch (type) {
@@ -821,8 +821,8 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             builder.append(".*?").append(delimiterPattern);
         }
         // TODO: if this happens a lot then we should try looking for the a multi-line END pattern instead of a start pattern.
-        // But this would require changing the find_file_structure response, and the file upload UI, and would make creating Filebeat
-        // configs from the find_file_structure response more complex, so let's wait to see if there's significant demand.
+        // But this would require changing the find_structure response, and the file upload UI, and would make creating Filebeat
+        // configs from the find_structure response more complex, so let's wait to see if there's significant demand.
         explanation.add("Failed to create a suitable multi-line start pattern");
         return null;
     }

@@ -64,7 +64,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
-    public static final String TEST_INTERMEDIATE_DIR_NAME = "v"
+    private static final String TEST_INTERMEDIATE_DIR_NAME = "v"
         + (Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1)
         + "restTests";
 
@@ -158,7 +158,6 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                task.setOutputResourceRoot(TEST_INTERMEDIATE_DIR_NAME);
                 task.onlyIf(t -> isEnabled(project));
             });
 

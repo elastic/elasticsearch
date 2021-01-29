@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 public class RollupSearchIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
-    public void testDatastreamRollupSearch() throws Exception {
+    public void testSearchRollupDatastream() throws Exception {
         Template template = new Template(Settings.builder().put("index.number_of_shards", 1).build(),
             new CompressedXContent("{" +
                 "\"properties\": {\n" +
@@ -46,34 +47,19 @@ public class RollupSearchIT extends ESRestTestCase {
         createComposableTemplate(client(), "logs-template", "logs-foo*", template);
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream,
-            "{ \"@timestamp\": \"2020-01-04T12:10:30Z\", \"temperature\": 27.5, \"units\": \"celcius\" }");
+            "{ \"@timestamp\": \"2020-01-04T12:10:30Z\", \"temperature\": 27.5, \"units\": \"celsius\" }");
         indexDocument(client(), dataStream,
-            "{ \"@timestamp\": \"2020-01-08T07:12:25Z\", \"temperature\": 28.1, \"units\": \"celcius\" }");
+            "{ \"@timestamp\": \"2020-01-08T07:12:25Z\", \"temperature\": 28.1, \"units\": \"celsius\" }");
         indexDocument(client(), dataStream,
-            "{ \"@timestamp\": \"2020-02-02T11:05:37Z\", \"temperature\": 29.2, \"units\": \"celcius\" }");
+            "{ \"@timestamp\": \"2020-02-02T11:05:37Z\", \"temperature\": 29.2, \"units\": \"celsius\" }");
         indexDocument(client(), dataStream,
-            "{ \"@timestamp\": \"2020-02-10T08:05:20Z\", \"temperature\": 19.5, \"units\": \"celcius\" }");
+            "{ \"@timestamp\": \"2020-02-10T08:05:20Z\", \"temperature\": 19.5, \"units\": \"celsius\" }");
         rolloverMaxOneDocCondition(client(), dataStream);
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String firstGenerationRollupIndex = ".rollup-" + firstGenerationIndex;
         assertBusy(() -> assertThat(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2)), is(true)), 30, TimeUnit.SECONDS);
-        rollupIndex(client(), firstGenerationIndex, firstGenerationRollupIndex, "{\n" +
-            "  \"groups\" : {\n" +
-            "    \"date_histogram\": {\n" +
-            "      \"field\": \"@timestamp\",\n" +
-            "      \"calendar_interval\": \"1M\"\n" +
-            "    },\n" +
-            "    \"terms\": {\n" +
-            "      \"fields\": [\"units\"]\n" +
-            "    }\n" +
-            "  },\n" +
-            "  \"metrics\": [\n" +
-            "    {\n" +
-            "      \"field\": \"temperature\",\n" +
-            "      \"metrics\": [\"max\", \"sum\", \"avg\"]\n" +
-            "    }\n" +
-            "  ]\n" +
-            "}");
+        rollupIndex(client(), firstGenerationIndex, firstGenerationRollupIndex, "1M",
+            Set.of("units"), Set.of("temperature"), Set.of("max", "sum", "avg"));
         String query = "{\n" +
             "  \"size\": 0,\n" +
             "  \"aggs\": {\n" +
@@ -100,6 +86,10 @@ public class RollupSearchIT extends ESRestTestCase {
         Map<String, Object> response = search(dataStream, query);
         Map<String, Object> shards = (Map<String, Object>) response.get("_shards");
         assertThat(shards.get("skipped"), equalTo(1));
+
+        // Total hits should only contain the rollup docs (and not the live docs
+        Map<String, Object> hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(2));
         Map<String, Object> aggs = (Map<String, Object>) response.get("aggregations");
         Map<String, Object> monthlyTemps = (Map<String, Object>) aggs.get("monthly_temperatures");
         List<Map<String, Object>> buckets = (List<Map<String, Object>>) monthlyTemps.get("buckets");
@@ -110,15 +100,203 @@ public class RollupSearchIT extends ESRestTestCase {
         assertThat(buckets.get(1).get("doc_count"), equalTo(2));
 
         // Index new doc so that we confirm merging live and rollup indices
+        // The following operation adds a new doc in the first bucket
         indexDocument(client(), dataStream,
-            "{ \"@timestamp\": \"2020-01-30T12:10:30Z\", \"temperature\": 20, \"units\": \"celcius\" }");
+            "{ \"@timestamp\": \"2020-01-30T12:10:30Z\", \"temperature\": 19.4, \"units\": \"celsius\" }");
+        // The following operation adds a new doc in a new bucket
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-03-10T02:10:30Z\", \"temperature\": 23.5, \"units\": \"celsius\" }");
         response = search(dataStream, query);
         aggs = (Map<String, Object>) response.get("aggregations");
         monthlyTemps = (Map<String, Object>) aggs.get("monthly_temperatures");
         buckets = (List<Map<String, Object>>) monthlyTemps.get("buckets");
+        assertThat(buckets.size(), equalTo(3));
         assertThat(buckets.get(0).get("doc_count"), equalTo(3));
         assertEquals(28.1, (Double) ((Map<String, Object>) buckets.get(0).get("max_temperature")).get("value"), 0.0001);
-        assertEquals(25.2, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertEquals(25.0, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertThat(buckets.get(2).get("doc_count"), equalTo(1));
+        assertEquals(23.5, (Double) ((Map<String, Object>) buckets.get(2).get("max_temperature")).get("value"), 0.0001);
+        assertEquals(23.5, (Double) ((Map<String, Object>) buckets.get(2).get("avg_temperature")).get("value"), 0.0001);
+    }
+
+    /**
+     * Test that queries a concrete live index and its concrete rollup index using
+     * index wildcard in the search. Results from both live and rollup data should be
+     * returned.
+     */
+    @SuppressWarnings("unchecked")
+    public void testSearchConcreteRollupIndices() throws Exception {
+        String liveIndex = "logs-foo";
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        String mapping =
+            "\"properties\": {\n" +
+                "  \"@timestamp\": { \"type\": \"date\" },\n" +
+                "  \"units\": { \"type\": \"keyword\"},  \n" +
+                "  \"temperature\": { \"type\": \"double\"}  \n" +
+                "}";
+        createIndex(liveIndex, settings, mapping);
+
+        indexDocument(client(), liveIndex,
+            "{ \"@timestamp\": \"2020-01-04T12:10:30Z\", \"temperature\": 27.5, \"units\": \"celsius\" }");
+        indexDocument(client(), liveIndex,
+            "{ \"@timestamp\": \"2020-01-08T07:12:25Z\", \"temperature\": 28.1, \"units\": \"celsius\" }");
+        indexDocument(client(), liveIndex,
+            "{ \"@timestamp\": \"2020-02-02T11:05:37Z\", \"temperature\": 29.2, \"units\": \"celsius\" }");
+        indexDocument(client(), liveIndex,
+            "{ \"@timestamp\": \"2020-02-10T08:05:20Z\", \"temperature\": 19.5, \"units\": \"celsius\" }");
+        String rollupIndex = "rollup-" + liveIndex;
+
+        rollupIndex(client(), liveIndex, rollupIndex, "1M",
+            Set.of("units"), Set.of("temperature"), Set.of("max", "sum", "avg"));
+
+        String query = "{\n" +
+            "  \"size\": 0,\n" +
+            "  \"aggs\": {\n" +
+            "      \"monthly_temperatures\": {\n" +
+            "          \"date_histogram\": {\n" +
+            "              \"field\": \"@timestamp\",\n" +
+            "              \"calendar_interval\": \"1M\"\n" +
+            "          },\n" +
+            "          \"aggs\": {\n" +
+            "              \"avg_temperature\": {\n" +
+            "                  \"avg\": {\n" +
+            "                      \"field\": \"temperature\"\n" +
+            "                  }\n" +
+            "              },\n" +
+            "              \"max_temperature\": {\n" +
+            "                  \"max\": {\n" +
+            "                      \"field\": \"temperature\"\n" +
+            "                  }\n" +
+            "              }\n" +
+            "          }\n" +
+            "      }\n" +
+            "  }\n" +
+            "}";
+        String indices = "*" + liveIndex + "*";
+        Map<String, Object> response = search(indices, query);
+        Map<String, Object> shards = (Map<String, Object>) response.get("_shards");
+        assertThat(shards.get("skipped"), equalTo(0));
+        assertThat(shards.get("successful"), equalTo(2));
+        Map<String, Object> hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(6)); // 4 docs in the live index + 2 docs in the rollup index
+
+        Map<String, Object> aggs = (Map<String, Object>) response.get("aggregations");
+        Map<String, Object> monthlyTemps = (Map<String, Object>) aggs.get("monthly_temperatures");
+        List<Map<String, Object>> buckets = (List<Map<String, Object>>) monthlyTemps.get("buckets");
+        assertThat(buckets.size(), equalTo(2));
+        assertThat(buckets.get(0).get("doc_count"), equalTo(4));
+        assertEquals(28.1, (Double) ((Map<String, Object>) buckets.get(0).get("max_temperature")).get("value"), 0.0001);
+        assertEquals(27.8, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertThat(buckets.get(1).get("doc_count"), equalTo(4));
+
+        // Delete the index and run the query again. Now only the rollup index should match the query
+        deleteIndex(liveIndex);
+        response = search(indices, query);
+        hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(2));
+        aggs = (Map<String, Object>) response.get("aggregations");
+        monthlyTemps = (Map<String, Object>) aggs.get("monthly_temperatures");
+        buckets = (List<Map<String, Object>>) monthlyTemps.get("buckets");
+        assertThat(buckets.size(), equalTo(2)); // 2 docs in the rollup index
+        assertThat(buckets.get(0).get("doc_count"), equalTo(2));
+        assertEquals(28.1, (Double) ((Map<String, Object>) buckets.get(0).get("max_temperature")).get("value"), 0.0001);
+        assertEquals(27.8, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertThat(buckets.get(1).get("doc_count"), equalTo(2));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSearchMultipleRollupIntervals() throws Exception {
+        Template template = new Template(Settings.builder().put("index.number_of_shards", 1).build(),
+            new CompressedXContent("{" +
+                "\"properties\": {\n" +
+                "  \"@timestamp\": { \"type\": \"date\" },\n" +
+                "  \"units\": { \"type\": \"keyword\"},  \n" +
+                "  \"temperature\": { \"type\": \"double\"}  \n" +
+                "}}"), null);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-01-04T12:10:30Z\", \"temperature\": 27.5, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-01-04T17:12:25Z\", \"temperature\": 28.1, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-01-17T11:12:25Z\", \"temperature\": 25.4, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-02-02T11:00:37Z\", \"temperature\": 29, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-02-02T11:05:37Z\", \"temperature\": 27, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-02-17T08:05:20Z\", \"temperature\": 19.5, \"units\": \"celsius\" }");
+
+        rolloverMaxOneDocCondition(client(), dataStream);
+        String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2)), is(true)), 30, TimeUnit.SECONDS);
+        // Rollup daily and monthly intervals
+        String dailyRollupIndex = ".rollup-daily-" + firstGenerationIndex;
+        rollupIndex(client(), firstGenerationIndex, dailyRollupIndex, "1d",
+            Set.of("units"), Set.of("temperature"), Set.of("max", "sum", "avg"));
+        String monthlyRollupIndex = ".rollup-monthly-" + firstGenerationIndex;
+        rollupIndex(client(), firstGenerationIndex, monthlyRollupIndex, "1M",
+            Set.of("units"), Set.of("temperature"), Set.of("max", "sum", "avg"));
+
+        String query = "{\n" +
+            "  \"size\": 0,\n" +
+            "  \"aggs\": {\n" +
+            "      \"temperatures\": {\n" +
+            "          \"date_histogram\": {\n" +
+            "              \"field\": \"@timestamp\",\n" +
+            "              \"calendar_interval\": \"%s\",\n" +
+            "              \"min_doc_count\": 1\n" +
+            "          },\n" +
+            "          \"aggs\": {\n" +
+            "              \"avg_temperature\": {\n" +
+            "                  \"avg\": {\n" +
+            "                      \"field\": \"temperature\"\n" +
+            "                  }\n" +
+            "              }\n" +
+            "          }\n" +
+            "      }\n" +
+            "  }\n" +
+            "}";
+        Map<String, Object> response = search(dataStream, String.format(query, "1M"));
+        Map<String, Object> shards = (Map<String, Object>) response.get("_shards");
+        assertThat(shards.get("skipped"), equalTo(2));
+
+        // Total hits should only contain the docs in the monthly rollup index
+        Map<String, Object> hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(2));
+        Map<String, Object> aggs = (Map<String, Object>) response.get("aggregations");
+        Map<String, Object> temps = (Map<String, Object>) aggs.get("temperatures");
+        List<Map<String, Object>> buckets = (List<Map<String, Object>>) temps.get("buckets");
+        assertThat(buckets.size(), equalTo(2));
+        assertThat(buckets.get(0).get("doc_count"), equalTo(3));
+        assertEquals(27, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertThat(buckets.get(1).get("doc_count"), equalTo(3));
+
+        // Search for daily results. It should return the results from daily rollup index
+        response =  search(dataStream, String.format(query, "1d"));
+        shards = (Map<String, Object>) response.get("_shards");
+        assertThat(shards.get("skipped"), equalTo(2));
+        hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(4)); // 4 docs in the daily rollup index
+
+        aggs = (Map<String, Object>) response.get("aggregations");
+        temps = (Map<String, Object>) aggs.get("temperatures");
+        buckets = (List<Map<String, Object>>) temps.get("buckets");
+        assertThat(buckets.size(), equalTo(4));
+        assertThat(buckets.get(0).get("doc_count"), equalTo(2));
+        assertEquals(27.8, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertThat(buckets.get(1).get("doc_count"), equalTo(1));
+        assertThat(buckets.get(2).get("doc_count"), equalTo(2));
+        assertThat(buckets.get(3).get("doc_count"), equalTo(1));
+
+        // Search for hourly results. It should return the results from live index, because there are no
+        // rollups that satisfy the hourly interval
+        response =  search(dataStream, String.format(query, "1h"));
+        shards = (Map<String, Object>) response.get("_shards");
+        assertThat(shards.get("skipped"), equalTo(2));
+        hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(6)); // 6 docs in the live index
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
@@ -153,6 +331,28 @@ public class RollupSearchIT extends ESRestTestCase {
         Request rollupRequest = new Request("POST", "/" + indexAbstractionName + "/_rollup/" + rollupIndex);
         rollupRequest.setJsonEntity(rollupConfig);
         client.performRequest(rollupRequest);
+    }
+
+    private static void rollupIndex(RestClient client, String indexAbstractionName, String rollupIndex,
+                                    String interval, Set<String> terms, Set<String> metricFields, Set<String> metrics) throws IOException {
+        String rollupConfig = "{\n" +
+            "  \"groups\" : {\n" +
+            "    \"date_histogram\": {\n" +
+            "      \"field\": \"@timestamp\",\n" +
+            "      \"calendar_interval\": \"" + interval + "\"\n" +
+            "    },\n" +
+            "    \"terms\": {\n" +
+            "      \"fields\": [\"" + String.join("\", \"", terms) + "\"]\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"metrics\": [\n" +
+            "    {\n" +
+            "      \"field\": \"temperature\",\n" +
+            "      \"metrics\": [\"max\", \"sum\", \"avg\"]\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
+        rollupIndex(client, indexAbstractionName, rollupIndex, rollupConfig);
     }
 
     private static void indexDocument(RestClient client, String indexAbstractionName, String documentString) throws IOException {

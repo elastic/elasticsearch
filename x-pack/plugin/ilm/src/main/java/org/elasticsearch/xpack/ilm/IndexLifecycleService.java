@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.RollupStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -40,7 +42,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.io.Closeable;
 import java.time.Clock;
-import java.util.Collections;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDatePars
 public class IndexLifecycleService
     implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Sets.newHashSet(ShrinkStep.NAME, RollupStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 

@@ -127,7 +127,7 @@ public class Regression implements DataFrameAnalysis {
     private final LossFunction lossFunction;
     private final Double lossFunctionParameter;
     private final List<PreProcessor> featureProcessors;
-    private final Boolean earlyStoppingEnabled;
+    private final boolean earlyStoppingEnabled;
 
     public Regression(String dependentVariable,
                       BoostedTreeParams boostedTreeParams,
@@ -153,6 +153,7 @@ public class Regression implements DataFrameAnalysis {
         }
         this.lossFunctionParameter = lossFunctionParameter;
         this.featureProcessors = featureProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(featureProcessors);
+        // Early stopping is true by default
         this.earlyStoppingEnabled = earlyStoppingEnabled == null ? true : earlyStoppingEnabled;
     }
 
@@ -173,10 +174,10 @@ public class Regression implements DataFrameAnalysis {
         } else {
             featureProcessors = Collections.emptyList();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            earlyStoppingEnabled = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            earlyStoppingEnabled = in.readBoolean();
         } else {
-            earlyStoppingEnabled = null;
+            earlyStoppingEnabled = true;
         }
     }
 
@@ -234,8 +235,8 @@ public class Regression implements DataFrameAnalysis {
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeNamedWriteableList(featureProcessors);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalBoolean(earlyStoppingEnabled);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(earlyStoppingEnabled);
         }
     }
 
@@ -260,9 +261,7 @@ public class Regression implements DataFrameAnalysis {
         if (featureProcessors.isEmpty() == false) {
             NamedXContentObjectHelper.writeNamedObjects(builder, params, true, FEATURE_PROCESSORS.getPreferredName(), featureProcessors);
         }
-        if (earlyStoppingEnabled != null) {
-            builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
-        }
+        builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         builder.endObject();
         return builder;
     }
@@ -284,9 +283,7 @@ public class Regression implements DataFrameAnalysis {
             params.put(FEATURE_PROCESSORS.getPreferredName(),
                 featureProcessors.stream().map(p -> Collections.singletonMap(p.getName(), p)).collect(Collectors.toList()));
         }
-        if (earlyStoppingEnabled != null) {
-            params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
-        }
+        params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         return params;
     }
 

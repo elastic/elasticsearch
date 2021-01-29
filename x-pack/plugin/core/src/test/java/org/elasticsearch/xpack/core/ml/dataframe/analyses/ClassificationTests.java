@@ -321,7 +321,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "prediction_field_name", "foo_prediction",
                     "prediction_field_type", "bool",
                     "num_classes", 10L,
-                    "training_percent", 100.0)));
+                    "training_percent", 100.0,
+                    "early_stopping_enabled", true)));
         assertThat(
             new Classification("bar").getParams(fieldInfo),
             equalTo(
@@ -332,7 +333,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "prediction_field_name", "bar_prediction",
                     "prediction_field_type", "int",
                     "num_classes", 20L,
-                    "training_percent", 100.0)));
+                    "training_percent", 100.0,
+                    "early_stopping_enabled", true)));
         assertThat(
             new Classification("baz",
                 BoostedTreeParams.builder().build() ,
@@ -351,7 +353,8 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "prediction_field_name", "baz_prediction",
                     "prediction_field_type", "string",
                     "num_classes", 30L,
-                    "training_percent", 50.0)));
+                    "training_percent", 50.0,
+                    "early_stopping_enabled", true)));
     }
 
     public void testRequiredFieldsIsNonEmpty() {

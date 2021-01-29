@@ -273,6 +273,10 @@ public class FrozenCacheService {
         freeRegions.add(chunk.sharedBytesPos);
     }
 
+    int freeRegionCount() {
+        return freeRegions.size();
+    }
+
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
         boolean found = false;
         for (int i = 0; i < maxFreq; i++) {
@@ -484,6 +488,14 @@ public class FrozenCacheService {
                 return true;
             }
             return false;
+        }
+
+        public boolean isEvicted() {
+            return evicted.get();
+        }
+
+        public boolean isReleased() {
+            return isEvicted() && refCount() == 0;
         }
 
         @Override

@@ -31,3 +31,7 @@ class java.lang.Long {
 class java.lang.String {
     void org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript) @inject_script
 }
+
+class java.time.temporal.TemporalAccessor {
+    void org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript) @inject_script
+}

@@ -14,6 +14,9 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.time.Instant;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,5 +109,21 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
 
     public static void emit(String receiver, DateFieldScript script) {
         script.emit(script.formatter.parseMillis(receiver));
+    }
+
+    public static void emit(TemporalAccessor receiver, DateFieldScript script) {
+        long millis = millis(receiver);
+        assert millis == Instant.from(receiver).toEpochMilli();
+        script.emit(millis);
+    }
+
+    /**
+     * Extract millis since epoch from a {@link TemporalAccessor}.
+     * <p>
+     * Should return the same thing as calling {@code Instant.from(accessor).toEpochMilli()}
+     * but without quite as much ceremony.
+     */
+    static long millis(TemporalAccessor accessor) {
+        return accessor.getLong(ChronoField.INSTANT_SECONDS) * 1000 + accessor.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
     }
 }

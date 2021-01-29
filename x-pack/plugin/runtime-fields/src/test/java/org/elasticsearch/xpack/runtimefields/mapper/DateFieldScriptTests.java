@@ -12,10 +12,12 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -70,5 +72,13 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 );
             }
         }
+    }
+
+    public void testEpochMillis() {
+        long instant = randomLongBetween(
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("-3000-01-01T00:00:00Z"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("3000-01-01T00:00:00Z")
+        );
+        assertThat(DateFieldScript.millis(Instant.ofEpochMilli(instant)), equalTo(instant));
     }
 }

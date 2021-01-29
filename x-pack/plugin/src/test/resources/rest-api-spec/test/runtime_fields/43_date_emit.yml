@@ -125,19 +125,50 @@ setup:
   - match: {hits.hits.1.fields.voltage\.as_millis_since_epoch: ['1970-01-01T00:00:00.004Z']}
 
 ---
-"string.emit":
+"String.emit":
   - do:
       search:
         index: sensor
         body:
           runtime_mappings:
-            voltage.hack_year:
+            timestamp.hack_year:
               type: date
               script: |
                 doc['timestamp'].value.toString().replace('2018', '2020').emit()
           fields:
-            - voltage.hack_year
+            - timestamp.hack_year
           sort: timestamp
   - match: {hits.total.value: 6}
-  - match: {hits.hits.0.fields.voltage\.hack_year: ['2020-01-18T17:41:34.000Z']}
-  - match: {hits.hits.1.fields.voltage\.hack_year: ['2020-01-19T17:41:34.000Z']}
+  - match: {hits.hits.0.fields.timestamp\.hack_year: ['2020-01-18T17:41:34.000Z']}
+  - match: {hits.hits.1.fields.timestamp\.hack_year: ['2020-01-19T17:41:34.000Z']}
+
+  - do:
+      catch: /failed to parse date field \[not a date 2018-01-23T17:41:34.000Z\] with format \[strict_date_optional_time\|\|epoch_millis\]/
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            timestamp.broken:
+              type: date
+              script: |
+                ("not a date " + doc['timestamp'].value.toString()).emit()
+          fields:
+            - timestamp.broken
+
+---
+"TemporalAccessor.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            timestamp.two_years_later:
+              type: date
+              script: |
+                doc['timestamp'].value.plusYears(2).emit()
+          fields:
+            - timestamp.two_years_later
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.timestamp\.two_years_later: ['2020-01-18T17:41:34.000Z']}
+  - match: {hits.hits.1.fields.timestamp\.two_years_later: ['2020-01-19T17:41:34.000Z']}

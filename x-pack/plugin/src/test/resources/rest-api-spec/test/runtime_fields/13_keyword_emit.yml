@@ -131,7 +131,7 @@ setup:
   - match: {hits.hits.1.fields.voltage\.rounded: ['4']}
 
 ---
-"string.emit":
+"String.emit":
   - do:
       search:
         index: sensor

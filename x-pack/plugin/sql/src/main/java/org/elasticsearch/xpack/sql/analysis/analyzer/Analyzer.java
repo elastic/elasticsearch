@@ -434,7 +434,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return result;
         }
 
-        static List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
+        private List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
             List<NamedExpression> expanded = new ArrayList<>();
 
             // a qualifier is specified - since this is a star, it should be a CompoundDataType
@@ -1216,7 +1216,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return e;
         }
     }
-
 
     public static class PruneSubqueryAliases extends AnalyzerRule<SubQueryAlias> {
 

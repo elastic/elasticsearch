@@ -17,7 +17,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
-public class NdJsonFileStructureFinderFactory implements FileStructureFinderFactory {
+public class NdJsonTextStructureFinderFactory implements TextStructureFinderFactory {
 
     @Override
     public boolean canFindFormat(TextStructure.Format format) {
@@ -73,16 +73,16 @@ public class NdJsonFileStructureFinderFactory implements FileStructureFinderFact
     }
 
     @Override
-    public FileStructureFinder createFromSample(
+    public TextStructureFinder createFromSample(
         List<String> explanation,
         String sample,
         String charsetName,
         Boolean hasByteOrderMarker,
         int lineMergeSizeLimit,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) throws IOException {
-        return NdJsonFileStructureFinder.makeNdJsonFileStructureFinder(
+        return NdJsonTextStructureFinder.makeNdJsonTextStructureFinder(
             explanation,
             sample,
             charsetName,

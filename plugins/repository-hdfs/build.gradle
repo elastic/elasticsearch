@@ -134,6 +134,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
         miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
       }
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options
     if (name.equals('haHdfsFixture') || name.equals('secureHaHdfsFixture')) {
@@ -168,6 +169,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     if (name.contains("Secure")) {
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
       if (name.contains("Ha")) {
         dependsOn "secureHaHdfsFixture"
       } else {

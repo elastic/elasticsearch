@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryResponse> {
@@ -81,7 +82,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, mode, false, columns, rows);
+        return new SqlQueryResponse(cursor, mode, DATE_NANOS_SUPPORT_VERSION, false, columns, rows);
     }
 
     public void testToXContent() throws IOException {
@@ -128,6 +129,6 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
             org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
-        return new SqlQueryResponse(response.cursor(), Mode.JDBC, false, response.columns(), response.rows());
+        return new SqlQueryResponse(response.cursor(), Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, response.columns(), response.rows());
     }
 }

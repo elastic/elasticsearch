@@ -185,9 +185,9 @@ public class RepositoryMetadata implements Writeable {
 
         RepositoryMetadata that = (RepositoryMetadata) o;
 
-        if (!name.equals(that.name)) return false;
-        if (!uuid.equals(that.uuid)) return false;
-        if (!type.equals(that.type)) return false;
+        if (name.equals(that.name) == false) return false;
+        if (uuid.equals(that.uuid) == false) return false;
+        if (type.equals(that.type) == false) return false;
         if (generation != that.generation) return false;
         if (pendingGeneration != that.pendingGeneration) return false;
         return settings.equals(that.settings);

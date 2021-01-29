@@ -536,7 +536,13 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                                     }
                                 };
                             case "loop":
-                                return (fieldName, params, lookup, formatter) -> (ctx) -> new DateFieldScript(fieldName, params, lookup, formatter, ctx) {
+                                return (fieldName, params, lookup, formatter) -> (ctx) -> new DateFieldScript(
+                                    fieldName,
+                                    params,
+                                    lookup,
+                                    formatter,
+                                    ctx
+                                ) {
                                     @Override
                                     public void execute() {
                                         leafSearchLookup.doc().get("test");

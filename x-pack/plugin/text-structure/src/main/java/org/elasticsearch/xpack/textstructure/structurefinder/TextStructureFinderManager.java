@@ -281,7 +281,7 @@ public final class TextStructureFinderManager {
     /**
      * These need to be ordered so that the more generic formats come after the more specific ones
      */
-    private static final List<FileStructureFinderFactory> ORDERED_STRUCTURE_FACTORIES = Collections.unmodifiableList(
+    private static final List<TextStructureFinderFactory> ORDERED_STRUCTURE_FACTORIES = Collections.unmodifiableList(
         Arrays.asList(
             // NDJSON will often also be valid (although utterly weird) CSV, so NDJSON must come before CSV
             new NdJsonTextStructureFinderFactory(),

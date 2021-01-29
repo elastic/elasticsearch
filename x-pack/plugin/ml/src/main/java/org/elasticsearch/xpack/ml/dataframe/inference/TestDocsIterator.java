@@ -32,10 +32,11 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
     private Long lastDocId;
     private final Map<String, String> docValueFieldAndFormatPairs;
 
-    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields) {
+    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields, Long lastIncrementalId) {
         super(client, config.getDest().getIndex(), true);
         this.config = Objects.requireNonNull(config);
         this.docValueFieldAndFormatPairs = buildDocValueFieldAndFormatPairs(extractedFields);
+        this.lastDocId = lastIncrementalId;
     }
 
     private static Map<String, String> buildDocValueFieldAndFormatPairs(ExtractedFields extractedFields) {

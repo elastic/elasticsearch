@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.lookup;
 
-import org.elasticsearch.painless.spi.annotation.InjectScriptAnnotation;
-
 import java.lang.invoke.MethodHandle;
 import java.util.Map;
 import java.util.Objects;

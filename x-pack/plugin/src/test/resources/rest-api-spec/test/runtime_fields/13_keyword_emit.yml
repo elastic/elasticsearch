@@ -121,7 +121,7 @@ setup:
             voltage.rounded:
               type: keyword
               script: |
-                long v = ((long) doc['voltage'].value).emit();
+                long v = (long) doc['voltage'].value;
                 v.emit()
           fields:
             - voltage.rounded

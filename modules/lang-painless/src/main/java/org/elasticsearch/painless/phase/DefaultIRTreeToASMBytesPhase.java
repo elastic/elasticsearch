@@ -1262,12 +1262,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irTypedInterfaceReferenceNode.getLocation());
 
-        List<String> captureNames = irTypedInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
         FunctionRef ref = irTypedInterfaceReferenceNode.getDecorationValue(IRDReference.class);
         if (ref.injectScript) {
             methodWriter.loadThis();
         }
         
+        List<String> captureNames = irTypedInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
         if (captureNames != null) {
             for (String captureName : captureNames) {
                 Variable captureVariable = writeScope.getVariable(captureName);
@@ -1394,7 +1394,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     @Override
     public void visitLoadScript(LoadScriptNode irLoadThisNode, WriteScope writeScope) {
         if (currentFunction.hasCondition(IRCStatic.class)) {
-            // NOCOMMIT keep function name around?
+            // TODO we'd love a better error message here, but honestly we'd love to make this work more
             throw irLoadThisNode.getLocation()
                 .createError(new IllegalArgumentException("this function is not available in functions or lambdas"));
         }

@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,12 +30,22 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup;
+    
+    public DefBootstrapTests() {
+        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "def_bootstrap_tests_whitelist.txt"));
+        painlessLookup = PainlessLookupBuilder.buildFromWhitelists(whitelists);
+    }
 
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {
@@ -46,7 +57,9 @@ public class DefBootstrapTests extends ESTestCase {
                                                MethodType.methodType(String.class, Object.class),
                                                0,
                                                DefBootstrap.METHOD_CALL,
-                                               "");
+                                               "", // No recipe
+                                               0   // Did not inject the script
+                                               );
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -68,7 +81,9 @@ public class DefBootstrapTests extends ESTestCase {
                                                MethodType.methodType(String.class, Object.class),
                                                0,
                                                DefBootstrap.METHOD_CALL,
-                                               "");
+                                               "",  // No recipe
+                                               0    // Did not inject the script
+                                               );
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -95,7 +110,9 @@ public class DefBootstrapTests extends ESTestCase {
                                                MethodType.methodType(String.class, Object.class),
                                                0,
                                                DefBootstrap.METHOD_CALL,
-                                               "");
+                                               "",  // No recipe
+                                               0    // Did not inject the script
+                                               );
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -123,7 +140,9 @@ public class DefBootstrapTests extends ESTestCase {
                                                                           MethodType.methodType(int.class, Object.class),
                                                                           0,
                                                                           DefBootstrap.METHOD_CALL,
-                                                                          "");
+                                                                          "",  // No recipe
+                                                                          0    // Did not inject the script
+                                                                          );
         site.depth = DefBootstrap.PIC.MAX_DEPTH; // mark megamorphic
         MethodHandle handle = site.dynamicInvoker();
         assertEquals(2, (int)handle.invokeExact((Object) Arrays.asList("1", "2")));
@@ -243,6 +262,50 @@ public class DefBootstrapTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> {
             assertNotNull((Object)handle.invokeExact(5, (Object)null));
         });
+    }
+
+    public void testInjectScript() throws Throwable {
+        CallSite site = DefBootstrap.bootstrap(painlessLookup,
+                                               new FunctionTable(),
+                                               Collections.emptyMap(),
+                                               MethodHandles.publicLookup(),
+                                               "zap",
+                                               MethodType.methodType(Object.class, Object.class, TestScript.class),
+                                               0,
+                                               DefBootstrap.METHOD_CALL,
+                                               "", // No recipe
+                                               1   // Injected the script
+                                               );
+        MethodHandle handle = site.dynamicInvoker();
+        assertDepthEquals(site, 0);
+
+        // Needed the script injected
+        assertThat(handle.invokeExact((Object) 5, new TestScript(7)), equalTo(35));
+        assertDepthEquals(site, 1);
+
+        // Did not need the script
+        assertThat(handle.invokeExact((Object) 5.5, new TestScript(randomInt())), equalTo(11));
+        assertDepthEquals(site, 2);
+
+        // In fact it'll take null
+        assertThat(handle.invokeExact((Object) 5.5, (TestScript) null), equalTo(11));
+        assertDepthEquals(site, 2); // And, of course, it still caches the call site
+    }
+
+    public static int zap(Integer receiver, TestScript script) {
+        return receiver * script.constant;
+    }
+
+    public static int zap(Double receiver) {
+        return (int) (receiver * 2);
+    }
+
+    public static class TestScript {
+        private final int constant;
+
+        public TestScript(int constant) {
+            this.constant = constant;
+        }
     }
 
     static void assertDepthEquals(CallSite site, int expected) {

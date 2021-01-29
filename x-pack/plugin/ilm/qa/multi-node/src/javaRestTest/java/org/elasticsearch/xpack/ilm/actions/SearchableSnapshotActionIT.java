@@ -257,7 +257,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME,
@@ -328,7 +328,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction())),

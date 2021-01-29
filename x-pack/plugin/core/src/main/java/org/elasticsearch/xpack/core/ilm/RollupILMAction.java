@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -102,13 +103,13 @@ public class RollupILMAction implements LifecycleAction {
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, rollupKey, client);
         if (rollupPolicy == null) {
             Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
+            return Arrays.asList(checkNotWriteIndexStep, readOnlyStep, rollupStep);
         } else {
             StepKey updateRollupIndexPolicyStepKey = new StepKey(phase, NAME, UpdateRollupIndexPolicyStep.NAME);
             Step rollupStep = new RollupStep(rollupKey, updateRollupIndexPolicyStepKey, client, config);
             Step updateRollupIndexPolicyStep = new UpdateRollupIndexPolicyStep(updateRollupIndexPolicyStepKey, nextStepKey,
                 client, rollupPolicy);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep, updateRollupIndexPolicyStep);
+            return Arrays.asList(checkNotWriteIndexStep, readOnlyStep, rollupStep, updateRollupIndexPolicyStep);
         }
     }
 

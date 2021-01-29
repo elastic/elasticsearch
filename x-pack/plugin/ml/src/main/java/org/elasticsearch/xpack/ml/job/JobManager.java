@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -246,7 +247,7 @@ public class JobManager {
         Job job = jobBuilder.build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            deprecationLogger.deprecate("ml_create_job_delimited_data",
+            deprecationLogger.deprecate(DeprecationCategory.API, "ml_create_job_delimited_data",
                 "Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 

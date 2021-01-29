@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -458,7 +459,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                deprecationLogger.deprecate("default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
             }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);
             results.put(DEFAULT_MAPPING, defaultMapper);

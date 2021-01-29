@@ -28,6 +28,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
@@ -95,7 +96,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         // Emit a single deprecation message if any search request contains types.
         for (SearchRequest searchRequest : multiSearchRequest.requests()) {
             if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.TYPES, "msearch_with_types", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }

@@ -43,6 +43,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -86,12 +87,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.support.InvalidationCountingCacheWrapper;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
+import org.elasticsearch.xpack.security.support.InvalidationCountingCacheWrapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -117,12 +119,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.crypto.SecretKeyFactory;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -782,21 +783,21 @@ public class ApiKeyService {
         @Override
         public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate("api_key_field",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, usedName, apiKeyId, modernName);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate("api_key_field",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, usedName, apiKeyId, replacedWith);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate("api_key_field",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely", prefix, usedName, apiKeyId);
         }
     }

@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContent;
@@ -577,7 +578,7 @@ public abstract class InternalOrder extends BucketOrder {
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                deprecationLogger.deprecate("aggregation_order_key",
+                deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "aggregation_order_key",
                     "Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
             }
             switch (orderKey) {

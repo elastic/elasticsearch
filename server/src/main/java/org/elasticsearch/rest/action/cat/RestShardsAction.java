@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -92,7 +93,7 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         if (request.hasParam("local")) {
-            DEPRECATION_LOGGER.deprecate("local", LOCAL_DEPRECATED_MESSAGE);
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "local", LOCAL_DEPRECATED_MESSAGE);
         }
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));

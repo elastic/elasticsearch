@@ -35,6 +35,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -389,7 +390,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
         if (type.equals("string")) {
-            deprecationLogger.deprecate("unmapped_type_string",
+            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "unmapped_type_string",
                 "[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
             type = "keyword";
         }

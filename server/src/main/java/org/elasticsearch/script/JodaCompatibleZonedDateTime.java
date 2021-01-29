@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -68,14 +69,15 @@ public class JodaCompatibleZonedDateTime
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override
             public Void run() {
-                deprecationLogger.deprecate(key, message, params);
+                deprecationLogger.deprecate(DeprecationCategory.PARSING, key, message, params);
                 return null;
             }
         });
     }
 
     private static void logDeprecatedMethod(String oldMethod, String newMethod) {
-        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.", oldMethod, newMethod);
+        logDeprecated(oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.",
+            oldMethod, newMethod);
     }
 
     private ZonedDateTime dt;

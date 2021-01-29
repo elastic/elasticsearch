@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -314,7 +315,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             }
 
             if (useECS == false) {
-                deprecationLogger.deprecate("ecs_false_non_common_schema",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "ecs_false_non_common_schema",
                     "setting [ecs] to false for non-common schema " +
                     "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format");
             }
@@ -357,7 +358,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                 Property value = valueOf(propertyName.toUpperCase(Locale.ROOT));
                 if (DEPRECATED_PROPERTIES.contains(value)) {
                     final String key = "user_agent_processor_property_" + propertyName.replaceAll("[^\\w_]+", "_");
-                        deprecationLogger.deprecate(key,
+                        deprecationLogger.deprecate(DeprecationCategory.PARSING, key,
                         "the [{}] property is deprecated for the user-agent processor", propertyName);
                 }
                 return value;

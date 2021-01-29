@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -66,7 +67,7 @@ public class OperationRouting {
         if (ignoreAwarenessAttr == false) {
             awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
             if (awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "searches_not_routed_on_awareness_attributes",
                     IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
             }
             clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -91,7 +92,7 @@ public class OperationRouting {
         boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
         if (ignoreAwarenessAttr == false) {
             if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "searches_not_routed_on_awareness_attributes",
                     IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
             }
             this.awarenessAttributes = awarenessAttributes;

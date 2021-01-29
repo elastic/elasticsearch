@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
@@ -79,7 +80,7 @@ public class ScoreScriptUtils {
                 docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(fieldName);
             } else if (field instanceof DenseVectorScriptDocValues) {
                 docValues = (DenseVectorScriptDocValues) field;
-                deprecationLogger.deprecate("vector_function_signature", DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "vector_function_signature", DEPRECATION_MESSAGE);
             } else {
                 throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
                     "VectorScriptDocValues");
@@ -237,13 +238,14 @@ public class ScoreScriptUtils {
                 docValues = (SparseVectorScriptDocValues) scoreScript.getDoc().get(fieldName);
             } else if (field instanceof SparseVectorScriptDocValues) {
                 docValues = (SparseVectorScriptDocValues) field;
-                deprecationLogger.deprecate("vector_function_signature", DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "vector_function_signature", DEPRECATION_MESSAGE);
             } else {
                 throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
                     "VectorScriptDocValues");
             }
 
-            deprecationLogger.deprecate("sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "sparse_vector_function",
+                SparseVectorFieldMapper.DEPRECATION_MESSAGE);
         }
 
         BytesRef getEncodedVector() {

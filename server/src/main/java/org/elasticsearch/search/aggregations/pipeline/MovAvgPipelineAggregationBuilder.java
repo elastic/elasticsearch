@@ -19,9 +19,17 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -30,16 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ParseFieldRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     public static final String NAME = "moving_avg";
@@ -299,7 +300,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         Integer predict = null;
         Boolean minimize = null;
 
-        DEPRECATION_LOGGER.deprecate("moving_avg_aggregation",
+        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "moving_avg_aggregation",
             "The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

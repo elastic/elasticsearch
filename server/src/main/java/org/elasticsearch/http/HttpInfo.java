@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -73,6 +74,7 @@ public class HttpInfo implements ReportingService.Info {
         String hostString = publishAddress.address().getHostString();
         if (CNAME_IN_PUBLISH_HOST) {
             deprecationLogger.deprecate(
+                DeprecationCategory.SETTINGS,
                 "cname_in_publish_address",
                 "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
                     "formatting. Remove this property to get rid of this deprecation warning."

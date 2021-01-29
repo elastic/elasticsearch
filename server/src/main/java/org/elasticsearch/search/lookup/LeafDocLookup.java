@@ -20,6 +20,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -64,7 +65,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     public ScriptDocValues<?> get(Object key) {
         // deprecate _type
         if ("_type".equals(key)) {
-            DEPRECATION_LOGGER.deprecate(TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SCRIPTING, TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
         }
         // assume its a string...
         String fieldName = key.toString();

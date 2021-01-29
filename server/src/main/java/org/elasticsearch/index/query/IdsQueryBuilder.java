@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -151,7 +152,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         try {
             IdsQueryBuilder builder = PARSER.apply(parser, null);
             if (builder.types().length > 0) {
-                deprecationLogger.deprecate("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.TYPES, "ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             return builder;
         } catch (IllegalArgumentException e) {

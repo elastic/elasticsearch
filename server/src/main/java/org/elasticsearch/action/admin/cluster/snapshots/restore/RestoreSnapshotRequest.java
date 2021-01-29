@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -489,7 +490,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
-                DEPRECATION_LOGGER.deprecate("RestoreSnapshotRequest#settings",
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "RestoreSnapshotRequest#settings",
                     "specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");

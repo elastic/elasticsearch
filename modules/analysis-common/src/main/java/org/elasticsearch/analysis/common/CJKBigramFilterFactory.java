@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -102,7 +103,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
                     "] cannot be used to parse synonyms");
             }
             else {
-                DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "synonym_tokenfilters", "Token filter [" + name()
                     + "] will not be usable to parse synonyms after v7.0");
             }
         }

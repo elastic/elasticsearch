@@ -41,6 +41,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -160,7 +161,7 @@ public class SyncedFlushService implements IndexEventListener {
                                    final ActionListener<SyncedFlushResponse> listener) {
         final ClusterState state = clusterService.state();
         if (state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            DEPRECATION_LOGGER.deprecate("synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "synced_flush", SYNCED_FLUSH_DEPRECATION_MESSAGE);
         }
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, indicesOptions, aliasesOrIndices);
         final Map<String, List<ShardsSyncedFlushResult>> results = ConcurrentCollections.newConcurrentMap();

@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
@@ -162,7 +163,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             String fieldName;
             if (field == null) {
-                deprecationLogger.deprecate("seed_requires_field",
+                deprecationLogger.deprecate(DeprecationCategory.QUERIES, "seed_requires_field",
                     "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
                 fieldName = IdFieldMapper.NAME;
             } else {

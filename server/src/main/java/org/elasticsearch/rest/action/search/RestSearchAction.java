@@ -30,6 +30,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -186,7 +187,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("search_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "search_with_types", TYPES_DEPRECATION_MESSAGE);
             searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         searchRequest.routing(request.param("routing"));

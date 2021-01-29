@@ -23,6 +23,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -66,7 +67,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             .index(request.param("index"));
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
             template.type(request.param("type"));
         } else {
             template.type(MapperService.SINGLE_MAPPING_NAME);

@@ -32,6 +32,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -141,7 +142,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
         }
         if (minChildren == 0) {
-            deprecationLogger.deprecate("min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
         }
         if (maxChildren < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");

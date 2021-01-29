@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -254,7 +255,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecate("include_in_all",
+                deprecationLogger.deprecate(DeprecationCategory.API, "include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }

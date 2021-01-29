@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -64,10 +65,10 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         if (request.hasParam("template")) {
-            deprecationLogger.deprecate("put_index_template_deprecated_parameter",
+            deprecationLogger.deprecate(DeprecationCategory.API, "put_index_template_deprecated_parameter",
                 "Deprecated parameter [template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));
         } else {

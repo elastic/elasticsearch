@@ -32,6 +32,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
@@ -100,14 +101,14 @@ public class RestGetMappingAction extends BaseRestHandler {
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         if (request.method().equals(HEAD)) {
-            deprecationLogger.deprecate("get_mapping_types_removal",
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "get_mapping_types_removal",
                     "Type exists requests are deprecated, as types have been deprecated.");
         } else if (includeTypeName == false && types.length > 0) {
             throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
                     " include_type_name is set to true.");
         }
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();

@@ -22,6 +22,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -118,7 +119,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
                         + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
                         + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
             } else {
-                deprecationLogger.deprecate("ngram_big_difference",
+                deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "ngram_big_difference",
                     "Deprecated big difference between max_gram and min_gram in NGram Tokenizer,"
                     + "expected difference must be less than or equal to: [" + maxAllowedNgramDiff + "]");
             }

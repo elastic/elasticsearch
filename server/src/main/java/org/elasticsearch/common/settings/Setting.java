@@ -27,6 +27,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
@@ -314,6 +315,16 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Checks whether this is a secure setting.
+     * @param settings used to check whether this setting is secure
+     * @return whether this is a secure setting.
+     */
+    public final boolean isSecure(Settings settings) {
+        final SecureSettings secureSettings = settings.getSecureSettings();
+        return secureSettings != null && secureSettings.getSettingNames().contains(getKey());
+    }
+
+    /**
      * Returns the setting properties
      * @see Property
      */
@@ -515,8 +526,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
-        SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings != null && secureSettings.getSettingNames().contains(getKey())) {
+        if (this.isSecure(settings)) {
             throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
                 " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
         }
@@ -529,8 +539,11 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
+
+            DeprecationCategory category = this.isSecure(settings) ? DeprecationCategory.SECURITY : DeprecationCategory.SETTINGS;
+
             Settings.DeprecationLoggerHolder.deprecationLogger
-                .deprecate(key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                .deprecate(category, key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
                     + "See the breaking changes documentation for the next major version.", key);
         }
     }

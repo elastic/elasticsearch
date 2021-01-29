@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -55,7 +56,7 @@ public final class ScriptProcessor extends AbstractProcessor {
             DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
             "_type", value -> {
-                deprecationLogger.deprecate("script_processor",
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "script_processor",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });

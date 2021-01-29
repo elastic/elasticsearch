@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
@@ -462,8 +463,8 @@ public final class Script implements ToXContentObject, Writeable {
                         throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
                 } else {
-                    deprecationLogger.deprecate("script_unsupported_fields", "script section does not support ["
-                        + parameterName + "]");
+                    deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "script_unsupported_fields",
+                        "script section does not support [" + parameterName + "]");
                 }
             }
             if (script == null) {

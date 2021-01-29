@@ -41,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
@@ -967,7 +968,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         if (moreLikeThisQueryBuilder.isTypeless() == false) {
-            deprecationLogger.deprecate("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.API, "more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         return moreLikeThisQueryBuilder;
     }

@@ -37,6 +37,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -493,7 +494,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate("geo_distance_nested_filter",
+                    deprecationLogger.deprecate(DeprecationCategory.API, "geo_distance_nested_filter",
                         "[nested_filter] has been deprecated in favour of the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
                 } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
@@ -524,7 +525,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate("geo_distance_nested_path",
+                    deprecationLogger.deprecate(DeprecationCategory.API, "geo_distance_nested_path",
                         "[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {

@@ -54,6 +54,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -468,7 +469,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         GetRequest getRequest;
         if (indexedDocumentType != null) {
-            deprecationLogger.deprecate("percolate_with_type", TYPE_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "percolate_with_type", TYPE_DEPRECATION_MESSAGE);
             getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
         } else {
             getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentId);
@@ -537,7 +538,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final List<ParsedDocument> docs = new ArrayList<>();
         String type = context.getType();
         if (documentType != null) {
-            deprecationLogger.deprecate("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE);
             if (documentType.equals(type) == false) {
                 throw new IllegalArgumentException("specified document_type [" + documentType +
                     "] is not equal to the actual type [" + type + "]");

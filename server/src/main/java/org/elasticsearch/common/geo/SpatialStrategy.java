@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
@@ -55,7 +56,8 @@ public enum SpatialStrategy implements Writeable {
                 return strategy;
             }
         }
-        logger.deprecate("geo_strategy", "Unrecognised strategy [" + strategyName + "], falling back to [recursive]");
+        logger.deprecate(DeprecationCategory.OTHER, "geo_strategy",
+            "Unrecognised strategy [" + strategyName + "], falling back to [recursive]");
         return null;
     }
 }

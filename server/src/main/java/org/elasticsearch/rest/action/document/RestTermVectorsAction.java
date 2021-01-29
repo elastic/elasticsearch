@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
@@ -73,7 +74,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
             termVectorsRequest = new TermVectorsRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

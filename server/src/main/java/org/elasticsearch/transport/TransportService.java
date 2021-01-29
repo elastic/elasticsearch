@@ -38,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -223,7 +224,8 @@ public class TransportService extends AbstractLifecycleComponent
         if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
             logger.warn("transport handshakes from incompatible builds are unsafely permitted on this node; remove system property [" +
                     PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] to resolve this warning");
-            DeprecationLogger.getLogger(TransportService.class).deprecate("permit_handshake_from_incompatible_builds",
+            DeprecationLogger.getLogger(TransportService.class).deprecate(DeprecationCategory.OTHER,
+                "permit_handshake_from_incompatible_builds",
                 "system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] is deprecated and should be removed");
         }
     }

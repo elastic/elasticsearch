@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -216,7 +217,7 @@ public class DynamicTemplate implements ToXContentObject {
                 if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
                     throw e;
                 } else {
-                    deprecationLogger.deprecate("invalid_mapping_type",
+                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "invalid_mapping_type",
                         "match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
                         + e.getMessage());
                     // this template is on an unknown type so it will never match anything

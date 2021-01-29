@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTest
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
-import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATETIME_WITH_NANOS;
 
 public class DateAddProcessorTests extends AbstractSqlWireSerializingTestCase<DateAddProcessor> {
 
@@ -196,6 +196,6 @@ public class DateAddProcessorTests extends AbstractSqlWireSerializingTestCase<Da
     }
 
     private String toString(ZonedDateTime dateTime) {
-        return ISO_DATE_WITH_NANOS.format(dateTime);
+        return ISO_DATETIME_WITH_NANOS.format(dateTime);
     }
 }

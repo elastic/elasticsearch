@@ -225,7 +225,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             private void validateParsed(float value) {
-                if (!Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))) {
+                if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -321,7 +321,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             private void validateParsed(float value) {
-                if (!Float.isFinite(value)) {
+                if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -392,7 +392,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             private void validateParsed(double value) {
-                if (!Double.isFinite(value)) {
+                if (Double.isFinite(value) == false) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
             }
@@ -405,7 +405,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
                 }
-                if (!coerce && doubleValue % 1 != 0) {
+                if (coerce == false && doubleValue % 1 != 0) {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
@@ -466,7 +466,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
                 }
-                if (!coerce && doubleValue % 1 != 0) {
+                if (coerce == false && doubleValue % 1 != 0) {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
@@ -523,7 +523,7 @@ public class NumberFieldMapper extends FieldMapper {
                 if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
                 }
-                if (!coerce && doubleValue % 1 != 0) {
+                if (coerce == false && doubleValue % 1 != 0) {
                     throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
@@ -559,7 +559,7 @@ public class NumberFieldMapper extends FieldMapper {
                 int upTo = 0;
 
                 for (Object value : values) {
-                    if (!hasDecimalPart(value)) {
+                    if (hasDecimalPart(value) == false) {
                         v[upTo++] = parse(value, true);
                     }
                 }
@@ -664,7 +664,7 @@ public class NumberFieldMapper extends FieldMapper {
                 int upTo = 0;
 
                 for (Object value : values) {
-                    if (!hasDecimalPart(value)) {
+                    if (hasDecimalPart(value) == false) {
                         v[upTo++] = parse(value, true);
                     }
                 }
@@ -816,7 +816,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
                 throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
             }
-            if (!coerce && doubleValue % 1 != 0) {
+            if (coerce == false && doubleValue % 1 != 0) {
                 throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
             }
 

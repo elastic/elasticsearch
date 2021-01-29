@@ -568,7 +568,7 @@ public class MatchQuery {
             OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
 
             stream.reset();
-            if (!stream.incrementToken()) {
+            if (stream.incrementToken() == false) {
                 throw new AssertionError();
             }
             final Term term = new Term(field, termAtt.getBytesRef());

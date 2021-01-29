@@ -1372,7 +1372,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             logger.trace("[{}] loading un-cached repository data with best known repository generation [{}]", metadata.name(),
                     latestKnownRepoGen);
-            if (bestEffortConsistency) {
+            // Don't deduplicate repo data loading if we don't have strong consistency guarantees between the repo and the cluster state
+            // Also, if we are not caching repository data (for tests) we assume that the contents of the repository data at a given
+            // generation may change
+            if (bestEffortConsistency || cacheRepositoryData == false) {
                 threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
             } else {
                 repoDataDeduplicator.executeOnce(metadata, listener, (metadata, l) ->

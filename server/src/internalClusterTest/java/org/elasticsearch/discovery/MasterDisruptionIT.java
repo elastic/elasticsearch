@@ -202,10 +202,10 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             if (nodeState.nodes().getMasterNode() == null) {
                 success = false;
             }
-            if (!nodeState.blocks().global().isEmpty()) {
+            if (nodeState.blocks().global().isEmpty() == false) {
                 success = false;
             }
-            if (!success) {
+            if (success == false) {
                 fail("node [" + node + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
                         + nodeState);
             }

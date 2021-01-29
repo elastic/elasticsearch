@@ -81,13 +81,13 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
     public void testValidateLinesToSample() {
 
         FindStructureAction.Request request = new FindStructureAction.Request();
-        request.setLinesToSample(randomIntBetween(-1, 0));
+        request.setLinesToSample(randomIntBetween(-1, 1));
         request.setSample(new BytesArray("foo\n"));
 
         ActionRequestValidationException e = request.validate();
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
-        assertThat(e.getMessage(), containsString(" [lines_to_sample] must be positive if specified"));
+        assertThat(e.getMessage(), containsString(" [lines_to_sample] must be at least [2] if specified"));
     }
 
     public void testValidateLineMergeSizeLimit() {

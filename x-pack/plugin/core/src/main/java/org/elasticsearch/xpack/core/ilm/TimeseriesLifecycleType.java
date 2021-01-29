@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.rollup.RollupV2;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,28 +41,43 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String COLD_PHASE = "cold";
     static final String DELETE_PHASE = "delete";
     static final List<String> VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, DELETE_PHASE);
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-        ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
+    static final List<String> ORDERED_VALID_HOT_ACTIONS;
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
-    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-        MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
+    static final List<String> ORDERED_VALID_COLD_ACTIONS;
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
-    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
+    static final Set<String> VALID_HOT_ACTIONS;
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
-    static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
+    static final Set<String> VALID_COLD_ACTIONS;
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
-    private static final Map<String, Set<String>> ALLOWED_ACTIONS = Map.of(
-        HOT_PHASE, VALID_HOT_ACTIONS,
-        WARM_PHASE, VALID_WARM_ACTIONS,
-        COLD_PHASE, VALID_COLD_ACTIONS,
-        DELETE_PHASE, VALID_DELETE_ACTIONS);
+    private static final Map<String, Set<String>> ALLOWED_ACTIONS;
 
     static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ReadOnlyAction.NAME, ShrinkAction.NAME,
-        ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
+        ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
     // a set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot
     static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME);
+        FreezeAction.NAME, SearchableSnapshotAction.NAME, RollupILMAction.NAME);
+
+    static {
+        if (RollupV2.isEnabled()) {
+            ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
+                ReadOnlyAction.NAME, RollupILMAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
+            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
+                MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
+        } else {
+            ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
+                ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
+            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
+                MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
+        }
+        VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
+        VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
+        ALLOWED_ACTIONS = new HashMap<>();
+        ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);
+        ALLOWED_ACTIONS.put(WARM_PHASE, VALID_WARM_ACTIONS);
+        ALLOWED_ACTIONS.put(COLD_PHASE, VALID_COLD_ACTIONS);
+        ALLOWED_ACTIONS.put(DELETE_PHASE, VALID_DELETE_ACTIONS);
+    }
 
     private TimeseriesLifecycleType() {
     }

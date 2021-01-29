@@ -171,7 +171,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
+                if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && refreshFailed == false) {
                     assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
@@ -179,14 +179,15 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     .setSize(numCreated + numInitialDocs).addSort("_uid", SortOrder.ASC).get();
                 logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(),
                         numShards.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
+                if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && refreshFailed == false) {
                     assertResultsAndLogOnFailure(numCreated + numInitialDocs, searchResponse);
                 }
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("SearchPhaseException: [{}]", ex.getMessage());
                 // if a scheduled refresh or flush fails all shards we see all shards failed here
-                if (!(expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0 ||
-                        ex.getMessage().contains("all shards failed"))) {
+                if ((expectAllShardsFailed
+                    || refreshResponse.getSuccessfulShards() == 0
+                    || ex.getMessage().contains("all shards failed")) == false) {
                     throw ex;
                 }
             }

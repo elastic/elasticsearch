@@ -30,7 +30,7 @@ public class MacAddressProvider {
         if (en != null) {
             while (en.hasMoreElements()) {
                 NetworkInterface nint = en.nextElement();
-                if (!nint.isLoopback()) {
+                if (nint.isLoopback() == false) {
                     // Pick the first valid non loopback address we find
                     byte[] address = nint.getHardwareAddress();
                     if (isValidAddress(address)) {
@@ -63,7 +63,7 @@ public class MacAddressProvider {
             // address will be set below
         }
 
-        if (!isValidAddress(address)) {
+        if (isValidAddress(address) == false) {
             address = constructDummyMulticastAddress();
         }
 

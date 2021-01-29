@@ -20,6 +20,10 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+
 public class TopHitsAggExtractor implements BucketExtractor {
 
     static final String NAME = "th";
@@ -75,8 +79,10 @@ public class TopHitsAggExtractor implements BucketExtractor {
         }
 
         Object value = agg.getHits().getAt(0).getFields().values().iterator().next().getValue();
-        if (SqlDataTypes.isDateBased(fieldDataType)) {
-            return DateUtils.asDateTime(Long.parseLong(value.toString()), zoneId);
+        if (fieldDataType == DATETIME || fieldDataType == DATE) {
+            return DateUtils.asDateTimeWithMillis(Long.parseLong(value.toString()), zoneId);
+        } else if (fieldDataType == DATETIME_NANOS) {
+            return DateUtils.asDateTimeWithNanos(value.toString());
         } else if (SqlDataTypes.isTimeBased(fieldDataType)) {
             return DateUtils.asTimeOnly(Long.parseLong(value.toString()), zoneId);
         } else {

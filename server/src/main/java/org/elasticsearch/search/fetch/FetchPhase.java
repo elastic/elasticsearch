@@ -205,7 +205,7 @@ public class FetchPhase {
 
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+            if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
             boolean loadSource = sourceRequired(context);
@@ -345,7 +345,7 @@ public class FetchPhase {
 
             if (needSource) {
                 SourceLookup rootLookup = innerHitsContext.getRootLookup();
-                rootSourceAsMap = rootLookup.loadSourceIfNeeded();
+                rootSourceAsMap = rootLookup.source();
                 rootSourceContentType = rootLookup.sourceContentType();
             }
         } else {

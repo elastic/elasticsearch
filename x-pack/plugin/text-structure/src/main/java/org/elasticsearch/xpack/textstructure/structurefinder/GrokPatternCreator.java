@@ -822,8 +822,11 @@ public final class GrokPatternCreator {
             TimeoutChecker timeoutChecker
         ) {
 
-            explanation.add("A full message Grok pattern [" + grokPattern.substring(2, grokPattern.length() - 1) + "] looks appropriate");
-
+            if (grokPattern.startsWith("%{") && grokPattern.endsWith("}")) {
+                explanation.add(
+                    "A full message Grok pattern [" + grokPattern.substring(2, grokPattern.length() - 1) + "] looks appropriate"
+                );
+            }
             if (mappings != null || fieldStats != null) {
                 Map<String, Collection<String>> valuesPerField = new HashMap<>();
 

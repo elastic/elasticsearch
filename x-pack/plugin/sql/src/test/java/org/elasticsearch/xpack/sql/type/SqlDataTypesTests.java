@@ -63,8 +63,8 @@ public class SqlDataTypesTests extends ESTestCase {
 
     public void testMetaMinimumScale() {
         assertNull(metaSqlMinimumScale(DATE));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATETIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(TIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(LONG));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));
         assertNull(metaSqlMinimumScale(KEYWORD));
@@ -72,8 +72,8 @@ public class SqlDataTypesTests extends ESTestCase {
 
     public void testMetaMaximumScale() {
         assertNull(metaSqlMinimumScale(DATE));
-        assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(TIME));
-        assertEquals(Short.valueOf((short) 3), metaSqlMaximumScale(DATETIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMinimumScale(TIME));
+        assertEquals(Short.valueOf((short) 9), metaSqlMaximumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMaximumScale(LONG));
         assertEquals(Short.valueOf((short) defaultPrecision(FLOAT)), metaSqlMaximumScale(FLOAT));
         assertNull(metaSqlMaximumScale(KEYWORD));

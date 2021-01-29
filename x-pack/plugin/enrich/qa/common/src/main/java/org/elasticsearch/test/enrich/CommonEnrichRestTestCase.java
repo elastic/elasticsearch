@@ -182,11 +182,11 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             + "}";
     }
 
-    private static Map<String, Object> toMap(Response response) throws IOException {
+    protected static Map<String, Object> toMap(Response response) throws IOException {
         return toMap(EntityUtils.toString(response.getEntity()));
     }
 
-    private static Map<String, Object> toMap(String response) {
+    protected static Map<String, Object> toMap(String response) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 

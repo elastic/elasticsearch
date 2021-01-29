@@ -1637,6 +1637,7 @@ public class RestHighLevelClient implements Closeable {
                                             CheckedFunction<Response, Resp, IOException> responseConverter,
                                             Set<Integer> ignores) throws IOException {
         Request req = requestConverter.apply(request);
+        options.getParameters().forEach(req::addParameter);
         req.setOptions(options);
         Response response;
         try {
@@ -1677,6 +1678,7 @@ public class RestHighLevelClient implements Closeable {
             throw validationException.get();
         }
         Request req = requestConverter.apply(request);
+        options.getParameters().forEach(req::addParameter);
         req.setOptions(options);
         Response response;
         try {
@@ -1776,8 +1778,8 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return Cancellable.NO_OP;
         }
-        req.setOptions(options);
         options.getParameters().forEach(req::addParameter);
+        req.setOptions(options);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         return client.performRequestAsync(req, responseListener);
@@ -1843,6 +1845,7 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return Cancellable.NO_OP;
         }
+        options.getParameters().forEach(req::addParameter);
         req.setOptions(options);
         ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(),
                 entityParser), listener);

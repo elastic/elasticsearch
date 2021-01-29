@@ -30,8 +30,8 @@ public class SqlVersion implements Comparable<SqlVersion>{
     public static final int MAJOR_MULTIPLIER = REVISION_MULTIPLIER * MINOR_MULTIPLIER;
 
     public static final SqlVersion V_7_7_0 = new SqlVersion(7, 7, 0);
-    public static final SqlVersion V_8_0_0 = new SqlVersion(8, 0, 0);
-    public static final SqlVersion DATE_NANOS_SUPPORT_VERSION = V_8_0_0;
+    public static final SqlVersion V_7_12_0 = new SqlVersion(7, 12, 0);
+    public static final SqlVersion DATE_NANOS_SUPPORT_VERSION = V_7_12_0;
 
     public SqlVersion(byte major, byte minor, byte revision) {
         this(toString(major, minor, revision), major, minor, revision);

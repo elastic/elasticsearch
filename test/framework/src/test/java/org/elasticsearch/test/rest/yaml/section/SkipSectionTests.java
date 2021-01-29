@@ -171,8 +171,9 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         assertThat(e.getMessage(), is("version, features or os is mandatory within skip section"));
     }
 
-    public void testParseSkipSectionOsNoFeatureNoVersion() throws Exception {
+    public void testParseSkipSectionOsNoVersion() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
+                "features:    [\"skip_os\", \"some_feature\"]\n" +
                 "os:          debian-9\n" +
                 "reason:      memory accounting broken, see gh#xyz\n"
         );
@@ -180,14 +181,15 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
         assertThat(skipSection.isVersionCheck(), equalTo(false));
-        assertThat(skipSection.getFeatures().size(), equalTo(0));
+        assertThat(skipSection.getFeatures().size(), equalTo(2));
         assertThat(skipSection.getOperatingSystems().size(), equalTo(1));
         assertThat(skipSection.getOperatingSystems().get(0), equalTo("debian-9"));
         assertThat(skipSection.getReason(), is("memory accounting broken, see gh#xyz"));
     }
 
-    public void testParseSkipSectionOsListNoFeatureNoVersion() throws Exception {
+    public void testParseSkipSectionOsListNoVersion() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
+                "features:    skip_os\n" +
                 "os:          [debian-9,windows-95,ms-dos]\n" +
                 "reason:      see gh#xyz\n"
         );
@@ -200,5 +202,15 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         assertThat(skipSection.getOperatingSystems().get(1), equalTo("windows-95"));
         assertThat(skipSection.getOperatingSystems().get(2), equalTo("ms-dos"));
         assertThat(skipSection.getReason(), is("see gh#xyz"));
+    }
+
+    public void testParseSkipSectionOsNoFeatureNoVersion() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+                "os:          debian-9\n" +
+                "reason:      memory accounting broken, see gh#xyz\n"
+        );
+
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parse(parser));
+        assertThat(e.getMessage(), is("if os is specified, feature skip_os must be set"));
     }
 }

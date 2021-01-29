@@ -152,11 +152,13 @@ for:
 
 `initializing client, minimum es version`
 
-When muting by operating system, a reason is mandatory:
+When muting by operating system, a reason is mandatory and features must contain
+skip_os:
 
 ....
     "Parent":
      - skip:
+          features: skip_os
           os:       debian-8
           reason:   memory accounting problems on debian 8, see gh#xyz
 

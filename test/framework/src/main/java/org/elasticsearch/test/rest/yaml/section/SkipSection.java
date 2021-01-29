@@ -105,6 +105,10 @@ public class SkipSection {
         if (operatingSystems.isEmpty() == false && Strings.hasLength(reason) == false) {
             throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip version section");
         }
+        // make feature "skip_os" mandatory if os is given, this is a temporary solution until language client tests know about os
+        if (operatingSystems.isEmpty() == false && features.contains("skip_os") == false) {
+            throw new ParsingException(parser.getTokenLocation(), "if os is specified, feature skip_os must be set");
+        }
         return new SkipSection(version, features, operatingSystems, reason);
     }
 

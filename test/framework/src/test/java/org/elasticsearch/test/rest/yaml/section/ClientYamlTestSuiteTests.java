@@ -33,6 +33,7 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -387,6 +388,41 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         Exception e = expectThrows(ParsingException.class, () ->
             ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser));
         assertThat(e.getMessage(), containsString("duplicate test section"));
+    }
+
+    public void testParseSkipOs() throws Exception {
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "\"Broken on some os\":\n"
+                + "\n"
+                + "  - skip:\n"
+                + "      features:     skip_os\n"
+                + "      os:           [\"windows95\", \"debian-5\"]\n"
+                + "      reason:      \"not supported\"\n"
+                + "\n"
+                + "  - do:\n"
+                + "      indices.get_mapping:\n"
+                + "        index: test_index\n"
+                + "        type: test_type\n"
+                + "\n"
+                + "  - match: {test_type.properties.text.type:     string}\n"
+                + "  - match: {test_type.properties.text.analyzer: whitespace}\n"
+        );
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getReason(), equalTo("not supported"));
+        assertThat(
+            restTestSuite.getTestSections().get(0).getSkipSection().getOperatingSystems(),
+            containsInAnyOrder("windows95", "debian-5")
+        );
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getFeatures(), containsInAnyOrder("skip_os"));
     }
 
     public void testAddingDoWithoutSkips() {

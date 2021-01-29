@@ -311,7 +311,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         MemoryIndex mindex = new MemoryIndex();
         IndexSearcher searcher = mindex.createSearcher();
         Exception e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
-        assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving fields: test -> test"));
+        assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving runtime fields: test -> test"));
     }
 
     protected final void minimalMapping(XContentBuilder b) throws IOException {

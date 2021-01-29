@@ -110,7 +110,7 @@ public class SearchLookup {
             this.references = new LinkedHashSet<>(references);
             if (this.references.add(field) == false) {
                 String message = String.join(" -> ", this.references) + " -> " + field;
-                throw new IllegalArgumentException("Cyclic dependency detected while resolving fields: " + message);
+                throw new IllegalArgumentException("Cyclic dependency detected while resolving runtime fields: " + message);
             }
             if (this.references.size() > MAX_FIELD_CHAIN_DEPTH) {
                 throw new IllegalArgumentException("Field requires resolving too many dependent fields: "

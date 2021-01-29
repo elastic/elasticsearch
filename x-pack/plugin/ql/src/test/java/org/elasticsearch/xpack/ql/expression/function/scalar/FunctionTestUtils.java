@@ -16,7 +16,6 @@ import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Iterator;
 
-import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;

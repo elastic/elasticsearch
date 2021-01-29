@@ -731,6 +731,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     String name = (String) snapshotInfo.get("snapshot");
                     if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
                         inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
+                        logger.info("snapshot [{}/{}]] is not complete. snapshot info [{}]", repoName, name, snapshotInfo);
                     }
                     logger.debug("wiping snapshot [{}/{}]", repoName, name);
                     adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));

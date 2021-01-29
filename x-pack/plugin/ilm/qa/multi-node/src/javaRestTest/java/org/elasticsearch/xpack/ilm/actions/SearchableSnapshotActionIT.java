@@ -67,6 +67,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        logger.info(" before [{}]: ds [{}], policy [{}], snapshotRepo [{}]", getTestName(), dataStream, policy, snapshotRepo);
     }
 
     @After
@@ -116,7 +117,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67879")
     public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));

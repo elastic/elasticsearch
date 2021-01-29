@@ -220,7 +220,9 @@ Returns `true` if the condition to the right is `false`.
 [source,eql]
 ----
 user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+user.name in~ ("administrator", "system", "network service")
 user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
+user.name not in~ ("administrator", "system", "network service")
 user.name : ("administrator", "system", "network service")
 ----
 
@@ -228,9 +230,17 @@ user.name : ("administrator", "system", "network service")
 Returns `true` if the value is contained in the provided list. For strings,
 matching is case-sensitive.
 
+`in~` (case-insensitive)::
+Returns `true` if the value is contained in the provided list. For strings,
+matching is case-insensitive.
+
 `not in` (case-sensitive)::
 Returns `true` if the value is not contained in the provided list. For strings,
 matching is case-sensitive.
+
+`not in~` (case-insensitive)::
+Returns `true` if the value is not contained in the provided list. For strings,
+matching is case-insensitive.
 
 `:` (case-insensitive)::
 Returns `true` if the value is contained in the provided list. Can only be used
@@ -627,12 +637,25 @@ until [ process where event.type == "stop" ]
 === Functions
 
 You can use EQL functions to convert data types, perform math, manipulate
-strings, and more. Most functions are case-sensitive by default.
+strings, and more. For a list of supported functions, see <<eql-function-ref>>.
 
-For a list of supported functions, see <<eql-function-ref>>.
+[discrete]
+[[eql-case-insensitive-functions]]
+=== Case-insensitive functions
 
-[TIP]
-====
+Most EQL functions are case-sensitive by default. To make a function
+case-insensitive, use the `~` operator after the function name:
+
+[source,eql]
+----
+stringContains(process.name,".exe")  // Matches ".exe" but not ".EXE" or ".Exe"
+stringContains~(process.name,".exe") // Matches ".exe", ".EXE", or ".Exe"
+----
+
+[discrete]
+[[eql-how-functions-impact-search-performance]]
+=== How functions impact search performance
+
 Using functions in EQL queries can result in slower search speeds. If you
 often use functions to transform indexed data, you can speed up search by making
 these changes during indexing instead. However, that often means slower index
@@ -672,7 +695,6 @@ file where file.extension in ("exe", "dll")
 
 We recommend testing and benchmarking any indexing changes before deploying them
 in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
-====
 
 [discrete]
 [[eql-pipes]]
@@ -741,8 +763,10 @@ sub-fields of a `nested` field. However, data streams and indices containing
 {es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
 follows:
 
-* Most operators and functions in {es} EQL are case-sensitive. For
-case-insensitive equality comparisons, use the `:` operator.
+* Most operators and functions in {es} EQL are case-sensitive by default. For
+case-insensitive equality comparisons, use the `:` operator. To make a function
+case-insensitive, use the `~` operator after the function name. See
+<<eql-case-insensitive-functions>>.
 
 * Comparisons using the `==` and `!=` operators do not expand wildcard
 characters. For example, `process_name == "cmd*.exe"` interprets `*` as a

@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
@@ -167,8 +168,13 @@ public class ExpressionBuilder extends IdentifierBuilder {
         switch (predicate.kind.getType()) {
             case EqlBaseParser.SEQ:
                 return Predicates.combineOr(expressions(predicate.constant()).stream()
+                    .map(c -> new InsensitiveWildcardEquals(source, expr, c, zoneId))
+                    .collect(toList()));
+            case EqlBaseParser.IN_INSENSITIVE:
+                Expression insensitiveIn = Predicates.combineOr(expressions(predicate.expression()).stream()
                     .map(c -> new InsensitiveEquals(source, expr, c, zoneId))
                     .collect(toList()));
+                return predicate.NOT() != null ? new Not(source, insensitiveIn) : insensitiveIn;
             case EqlBaseParser.IN:
                 List<Expression> container = expressions(predicate.expression());
                 Expression checkInSet = new In(source, expr, container, zoneId);

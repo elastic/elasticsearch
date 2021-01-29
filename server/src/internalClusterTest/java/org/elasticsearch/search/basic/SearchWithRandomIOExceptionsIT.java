@@ -185,8 +185,9 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             } catch (SearchPhaseExecutionException ex) {
                 logger.info("SearchPhaseException: [{}]", ex.getMessage());
                 // if a scheduled refresh or flush fails all shards we see all shards failed here
-                if (false == (expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0 ||
-                        ex.getMessage().contains("all shards failed"))) {
+                if ((expectAllShardsFailed
+                    || refreshResponse.getSuccessfulShards() == 0
+                    || ex.getMessage().contains("all shards failed")) == false) {
                     throw ex;
                 }
             }

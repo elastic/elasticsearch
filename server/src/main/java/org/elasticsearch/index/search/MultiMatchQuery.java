@@ -128,7 +128,7 @@ public class MultiMatchQuery extends MatchQuery {
             MappedFieldType fieldType = context.getFieldType(name);
             if (fieldType != null) {
                 Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
-                if (!groups.containsKey(actualAnalyzer)) {
+                if (groups.containsKey(actualAnalyzer) == false) {
                     groups.put(actualAnalyzer, new ArrayList<>());
                 }
                 float boost = entry.getValue() == null ? 1.0f : entry.getValue();

@@ -951,7 +951,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             do {
                 final AllocationId newAllocationId = AllocationId.newInitializing();
                 // ensure we do not duplicate an allocation ID
-                if (!existingAllocationIds.contains(newAllocationId)) {
+                if (existingAllocationIds.contains(newAllocationId) == false) {
                     return newAllocationId;
                 }
             } while (true);

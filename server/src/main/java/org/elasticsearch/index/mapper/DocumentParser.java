@@ -457,7 +457,7 @@ final class DocumentParser {
         if (nested.isIncludeInRoot()) {
             ParseContext.Document rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
-            if (!nested.isIncludeInParent() || parentDoc != rootDoc) {
+            if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
                 addFields(nestedDoc, rootDoc);
             }
         }
@@ -664,7 +664,7 @@ final class DocumentParser {
 
     /** Creates instances of the fields that the current field should be copied to */
     private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
-        if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
+        if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
                 // In case of a hierarchy of nested documents, we need to figure out

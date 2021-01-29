@@ -139,7 +139,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public Fields getFields() throws IOException {
         if (hasTermVectors() && isExists()) {
-            if (!sourceCopied) { // make the bytes safe
+            if (sourceCopied == false) { // make the bytes safe
                 headerRef = new BytesArray(headerRef.toBytesRef(), true);
                 termVectors = new BytesArray(termVectors.toBytesRef(), true);
             }
@@ -174,7 +174,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.startObject();
         builder.field(FieldStrings._INDEX, index);
         builder.field(FieldStrings._TYPE, type);
-        if (!isArtificial()) {
+        if (isArtificial() == false) {
             builder.field(FieldStrings._ID, id);
         }
         builder.field(FieldStrings._VERSION, docVersion);
@@ -244,7 +244,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     }
 
     private void buildValues(XContentBuilder builder, Terms curTerms, int termFreq) throws IOException {
-        if (!(curTerms.hasPayloads() || curTerms.hasOffsets() || curTerms.hasPositions())) {
+        if ((curTerms.hasPayloads() || curTerms.hasOffsets() || curTerms.hasPositions()) == false) {
             return;
         }
 

@@ -281,7 +281,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
         }
-        if (!nestedObjectMapper.nested().isNested()) {
+        if (nestedObjectMapper.nested().isNested() == false) {
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;

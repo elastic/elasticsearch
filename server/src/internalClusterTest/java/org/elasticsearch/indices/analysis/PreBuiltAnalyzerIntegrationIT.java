@@ -59,7 +59,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             String name = preBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
             Version randomVersion = randomVersion(random());
-            if (!loadedAnalyzers.containsKey(preBuiltAnalyzer)) {
+            if (loadedAnalyzers.containsKey(preBuiltAnalyzer) == false) {
                  loadedAnalyzers.put(preBuiltAnalyzer, new ArrayList<Version>());
             }
             loadedAnalyzers.get(preBuiltAnalyzer).add(randomVersion);

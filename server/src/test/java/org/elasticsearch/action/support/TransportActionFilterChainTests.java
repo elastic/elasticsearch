@@ -104,7 +104,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             if (testFilter.callback == RequestOperation.LISTENER_FAILURE) {
                 errorExpected = true;
             }
-            if (!(testFilter.callback == RequestOperation.CONTINUE_PROCESSING) ) {
+            if (testFilter.callback != RequestOperation.CONTINUE_PROCESSING) {
                 break;
             }
         }
@@ -130,7 +130,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         for (ActionFilter filter : testFiltersByLastExecution) {
             RequestTestFilter testFilter = (RequestTestFilter) filter;
             finalTestFilters.add(testFilter);
-            if (!(testFilter.callback == RequestOperation.CONTINUE_PROCESSING) ) {
+            if (testFilter.callback != RequestOperation.CONTINUE_PROCESSING) {
                 break;
             }
         }
@@ -186,7 +186,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             }
         }, latch));
 
-        if (!latch.await(10, TimeUnit.SECONDS)) {
+        if (latch.await(10, TimeUnit.SECONDS) == false) {
             fail("timeout waiting for the filter to notify the listener as many times as expected");
         }
 

@@ -201,7 +201,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         public Throwable unwrap(Throwable t, Class<? extends Throwable> exceptionType) {
             int counter = 0;
             Throwable result = t;
-            while (!exceptionType.isInstance(result)) {
+            while (exceptionType.isInstance(result) == false) {
                 if (result.getCause() == null) {
                     return null;
                 }

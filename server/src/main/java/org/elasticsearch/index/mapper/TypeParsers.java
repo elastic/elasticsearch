@@ -123,7 +123,7 @@ public class TypeParsers {
                     throw new MapperParsingException("Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot" +
                         " contain '.'");
                 }
-                if (!(multiFieldEntry.getValue() instanceof Map)) {
+                if ((multiFieldEntry.getValue() instanceof Map) == false) {
                     throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");
                 }
                 @SuppressWarnings("unchecked")

@@ -168,7 +168,7 @@ final class IndexShardOperationPermits implements Closeable {
                 queuedActions = Collections.emptyList();
             }
         }
-        if (!queuedActions.isEmpty()) {
+        if (queuedActions.isEmpty() == false) {
             /*
              * Try acquiring permits on fresh thread (for two reasons):
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;

@@ -298,7 +298,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             nodeBuilder.add(newNode("node" + Integer.toString(i)));
         }
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
-        while (!clusterState.routingTable().shardsWithState(UNASSIGNED).isEmpty()) {
+        while (clusterState.routingTable().shardsWithState(UNASSIGNED).isEmpty() == false) {
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         }
 
@@ -328,7 +328,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         }
 
         for (String failedNode : failedNodes) {
-            if (!routingNodes.node(failedNode).isEmpty()) {
+            if (routingNodes.node(failedNode).isEmpty() == false) {
                 fail("shard was re-assigned to failed node " + failedNode);
             }
         }

@@ -96,7 +96,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-        if (!index.origin().isRecovery()) {
+        if (index.origin().isRecovery() == false) {
             totalStats.indexCurrent.dec();
             typeStats(index.type()).indexCurrent.dec();
             totalStats.indexFailed.inc();
@@ -106,7 +106,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-        if (!delete.origin().isRecovery()) {
+        if (delete.origin().isRecovery() == false) {
             totalStats.deleteCurrent.inc();
             typeStats(delete.type()).deleteCurrent.inc();
         }
@@ -118,7 +118,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         switch (result.getResultType()) {
             case SUCCESS:
-                if (!delete.origin().isRecovery()) {
+                if (delete.origin().isRecovery() == false) {
                     long took = result.getTook();
                     totalStats.deleteMetric.inc(took);
                     totalStats.deleteCurrent.dec();
@@ -137,7 +137,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
-        if (!delete.origin().isRecovery()) {
+        if (delete.origin().isRecovery() == false) {
             totalStats.deleteCurrent.dec();
             typeStats(delete.type()).deleteCurrent.dec();
         }

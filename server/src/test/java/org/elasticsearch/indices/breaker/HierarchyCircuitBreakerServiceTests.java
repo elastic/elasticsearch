@@ -539,7 +539,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
                     assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
                     countDown.get().countDown();
-                } while (!Thread.interrupted());
+                } while (Thread.interrupted() == false);
             })).collect(Collectors.toList());
 
         threads.forEach(Thread::start);

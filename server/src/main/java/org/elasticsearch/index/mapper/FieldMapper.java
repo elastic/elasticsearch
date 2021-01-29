@@ -407,7 +407,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!mappers.isEmpty()) {
+            if (mappers.isEmpty() == false) {
                 // sort the mappers so we get consistent serialization format
                 List<FieldMapper> sortedMappers = new ArrayList<>(mappers.values());
                 sortedMappers.sort(Comparator.comparing(FieldMapper::name));
@@ -439,7 +439,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!copyToFields.isEmpty()) {
+            if (copyToFields.isEmpty() == false) {
                 builder.startArray("copy_to");
                 for (String field : copyToFields) {
                     builder.value(field);

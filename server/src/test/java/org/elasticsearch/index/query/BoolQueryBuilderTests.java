@@ -79,7 +79,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(BoolQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        if (!queryBuilder.hasClauses()) {
+        if (queryBuilder.hasClauses() == false) {
             assertThat(query, instanceOf(MatchAllDocsQuery.class));
         } else {
             List<BooleanClause> clauses = new ArrayList<>();

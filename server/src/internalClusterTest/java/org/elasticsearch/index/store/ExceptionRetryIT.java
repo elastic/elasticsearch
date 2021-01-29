@@ -126,8 +126,8 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         long dupCounter = 0;
         boolean found_duplicate_already = false;
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
-            if (!uniqueIds.add(searchResponse.getHits().getHits()[i].getId())) {
-                if (!found_duplicate_already) {
+            if (uniqueIds.add(searchResponse.getHits().getHits()[i].getId()) == false) {
+                if (found_duplicate_already == false) {
                     SearchResponse dupIdResponse = client().prepareSearch("index").setQuery(termQuery("_id",
                         searchResponse.getHits().getHits()[i].getId())).setExplain(true).get();
                     assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));

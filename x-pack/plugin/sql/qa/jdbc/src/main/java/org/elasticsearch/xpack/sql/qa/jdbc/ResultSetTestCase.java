@@ -2270,7 +2270,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertTrue(matcher.matches());
         OffsetDateTime odt = OffsetDateTime.parse(matcher.group("instant"));
         assertEquals(odt.toInstant().toEpochMilli(), epochMillis);
-        if (nanos != null) {
+        if (nanos != null && versionSupportsDateNanos()) {
             assertEquals(odt.getNano(), nanos.intValue());
         }
     }

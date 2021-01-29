@@ -373,6 +373,9 @@ public class SqlDataTypes {
     }
 
     public static SQLType sqlType(DataType dataType) {
+        if (isArray(dataType)) { // needs to be on top, since any other "isType()" below could also match for array types
+            return JDBCType.ARRAY;
+        }
         if (dataType == UNSUPPORTED) {
             return JDBCType.OTHER;
         }
@@ -483,9 +486,6 @@ public class SqlDataTypes {
         }
         if (dataType == INTERVAL_MINUTE_TO_SECOND) {
             return ExtTypes.INTERVAL_MINUTE_TO_SECOND;
-        }
-        if (isArray(dataType)) {
-            return JDBCType.ARRAY;
         }
 
         return null;

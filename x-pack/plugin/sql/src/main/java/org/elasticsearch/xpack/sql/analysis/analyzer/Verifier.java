@@ -224,7 +224,7 @@ public final class Verifier {
                 checkCastOnInexact(p, localFailures);
                 // restricted array usage
                 checkForRestrictedFunctionInsideFunction(p, Array.class, localFailures);
-                checkArrayFunctionUsedInOrderByOrAggregate(p, localFailures);
+                checkArrayFunctionUsedInWhereOrOrderByOrAggregate(p, localFailures);
                 checkArrayFunctionArguments(p, localFailures);
 
                 // everything checks out
@@ -882,12 +882,16 @@ public final class Verifier {
         }));
     }
 
-    private static void checkArrayFunctionUsedInOrderByOrAggregate(LogicalPlan plan, Set<Failure> localFailures) {
+    private static void checkArrayFunctionUsedInWhereOrOrderByOrAggregate(LogicalPlan plan, Set<Failure> localFailures) {
         BiConsumer<Expression, String> check = (exp, clause) -> {
             if (exp instanceof Array) {
                 localFailures.add(fail(exp, "[ARRAY()] may be used in the SELECT clause only, but found in [{}]", clause));
             }
         };
+        // The filter would require a boolean type, so ARRAY() would need to be part of a function call in WHERE; meaning that
+        // checkForRestrictedFunctionInsideFunction() would catch this usage already. However, the error message returned by that check
+        // would be confusing (especially when a "function" use is not obvious, like: "SELECT ARRAY(..) AS x WHERE x IS NOT NULL").
+        plan.forEachDown(Filter.class, e -> e.condition().forEachDown(o -> check.accept(o, "WHERE")));
         plan.forEachDown(OrderBy.class, e -> e.order().forEach(o -> check.accept(o.child(), "ORDER BY")));
         plan.forEachDown(Aggregate.class, e -> e.groupings().forEach(g -> check.accept(g, "GROUP BY")));
     }

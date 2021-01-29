@@ -1231,8 +1231,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testArrayInWhere() {
-        assertEquals("1:35: [ARRAY()] cannot be an argument to a function",
+        assertEquals("1:35: [ARRAY()] may be used in the SELECT clause only, but found in [WHERE]",
             error("SELECT ARRAY(int) FROM test WHERE ARRAY(int) > 1"));
+
+        assertEquals("1:8: [ARRAY()] may be used in the SELECT clause only, but found in [WHERE]",
+            error("SELECT ARRAY(int) a FROM test WHERE a IS NOT NULL"));
     }
 
     public void testArrayInGroupBy() {

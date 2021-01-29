@@ -6,6 +6,7 @@ setup:
           settings:
             index:
               number_of_shards: 2
+              number_of_replicas: 0
           mappings:
             properties:
               numeric_group: { type: integer }

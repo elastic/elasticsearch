@@ -99,7 +99,7 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/780
 //   https://github.com/antlr/antlr4/issues/781
 predicate
-    : NOT? kind=IN LP expression (COMMA expression)* RP
+    : NOT? kind=(IN | IN_INSENSITIVE) LP expression (COMMA expression)* RP
     | kind=SEQ constant
     | kind=SEQ LP constant (COMMA constant)* RP
     ;
@@ -162,6 +162,7 @@ ANY: 'any';
 BY: 'by';
 FALSE: 'false';
 IN: 'in';
+IN_INSENSITIVE : 'in~';
 JOIN: 'join';
 MAXSPAN: 'maxspan';
 NOT: 'not';

@@ -110,6 +110,29 @@ process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 {"terms":{"opcode":[0,1,2,3],"boost":1.0}}
 ;
 
+inFilterInsensitive
+process where process_name in~ ("test")
+;
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+;
+
+inFilterInsensitiveList
+process where process_name in~ ("test", "best")
+;
+{"bool":{"should":[{"term"
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
+inFilterInsensitiveVerbatimMatch
+process where process_name in~ ("test*", "best")
+;
+{"bool":{"should":[{"term"
+"term":{"process_name":{"value":"test*","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
+
 functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true
 ;

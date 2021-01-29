@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.BufferedInputStream;
@@ -41,7 +42,6 @@ import java.util.stream.Collectors;
  */
 public final class FileStructureFinderManager {
 
-    public static final int MIN_SAMPLE_LINE_COUNT = 2;
     public static final int DEFAULT_IDEAL_SAMPLE_LINE_COUNT = 1000;
     public static final int DEFAULT_LINE_MERGE_SIZE_LIMIT = 10000;
 
@@ -307,8 +307,8 @@ public final class FileStructureFinderManager {
      * Given a stream of data from some file, determine its structure.
      * @param idealSampleLineCount Ideally, how many lines from the stream will be read to determine the structure?
      *                             If the stream has fewer lines then an attempt will still be made, providing at
-     *                             least {@link #MIN_SAMPLE_LINE_COUNT} lines can be read.  If <code>null</code>
-     *                             the value of {@link #DEFAULT_IDEAL_SAMPLE_LINE_COUNT} will be used.
+     *                             least {@link FindStructureAction#MIN_SAMPLE_LINE_COUNT} lines can be read.  If
+     *                             <code>null</code> the value of {@link #DEFAULT_IDEAL_SAMPLE_LINE_COUNT} will be used.
      * @param lineMergeSizeLimit Maximum number of characters permitted when lines are merged to create messages.
      *                           If <code>null</code> the value of {@link #DEFAULT_LINE_MERGE_SIZE_LIMIT} will be used.
      * @param fromFile A stream from which the sample will be read.
@@ -377,11 +377,12 @@ public final class FileStructureFinderManager {
                 sampleReader = charsetMatch.getReader();
             }
 
+            assert idealSampleLineCount >= FindStructureAction.MIN_SAMPLE_LINE_COUNT;
             Tuple<String, Boolean> sampleInfo = sampleFile(
                 sampleReader,
                 charsetName,
-                MIN_SAMPLE_LINE_COUNT,
-                Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount),
+                FindStructureAction.MIN_SAMPLE_LINE_COUNT,
+                idealSampleLineCount,
                 timeoutChecker
             );
 

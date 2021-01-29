@@ -60,6 +60,9 @@
               },
               "training_percent" : {
                 "type" : "double"
+              },
+              "early_stopping_enabled" : {
+                "type": "boolean"
               }
             }
           },
@@ -113,6 +116,9 @@
               },
               "training_percent" : {
                 "type" : "double"
+              },
+              "early_stopping_enabled" : {
+                "type": "boolean"
               }
             }
           }

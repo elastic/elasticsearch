@@ -110,9 +110,8 @@ public class JsonXContent implements XContent {
 
     @Override
     public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is,
-                                                       boolean useCompatibility) throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(is), useCompatibility);
+                                                       DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(is), true);
     }
 
 }

@@ -109,9 +109,9 @@ public class CborXContent implements XContent {
 
     @Override
     public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is, boolean useCompatibility)
+                                                       DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is), useCompatibility);
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is), true);
     }
 
 }

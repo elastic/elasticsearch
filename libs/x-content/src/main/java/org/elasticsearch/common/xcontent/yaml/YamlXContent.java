@@ -104,9 +104,8 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is,
-                                                       boolean useCompatibility) throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is), useCompatibility);
+                                                       DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is), true);
     }
 
 }

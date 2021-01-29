@@ -86,9 +86,10 @@ public interface XContent {
         throws IOException;
 
     /**
-     * Creates a parser over the provided input stream.
+     * Creates a parser over the provided input stream and with the indication that a request is using REST compatible API.
+     * Parses XContent using the N-1 compatible logic.
      */
     XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                InputStream is, boolean useCompatibility) throws IOException;
+                                                InputStream is) throws IOException;
 
 }

@@ -111,8 +111,7 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is,
-                                                       boolean useCompatibility) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), useCompatibility);
+                                                       DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), true);
     }
 }

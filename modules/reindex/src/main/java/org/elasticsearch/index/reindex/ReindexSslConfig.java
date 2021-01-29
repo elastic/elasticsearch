@@ -54,7 +54,7 @@ import static org.elasticsearch.common.settings.Setting.simpleString;
  * Loads "reindex.ssl.*" configuration from Settings, and makes the applicable configuration (trust manager / key manager / hostname
  * verification / cipher-suites) available for reindex-from-remote.
  */
-class ReindexSslConfig {
+public class ReindexSslConfig {
 
     private static final Map<String, Setting<?>> SETTINGS = new HashMap<>();
     private static final Map<String, Setting<SecureString>> SECURE_SETTINGS = new HashMap<>();
@@ -89,7 +89,7 @@ class ReindexSslConfig {
         return settings;
     }
 
-    ReindexSslConfig(Settings settings, Environment environment, ResourceWatcherService resourceWatcher) {
+    public ReindexSslConfig(Settings settings, Environment environment, ResourceWatcherService resourceWatcher) {
         final SslConfigurationLoader loader = new SslConfigurationLoader("reindex.ssl.") {
 
             @Override

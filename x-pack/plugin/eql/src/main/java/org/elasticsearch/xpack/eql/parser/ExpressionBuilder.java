@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
@@ -200,7 +201,14 @@ public class ExpressionBuilder extends IdentifierBuilder {
         String name = ctx.name.getText();
         List<Expression> arguments = expressions(ctx.expression());
 
-        return new UnresolvedFunction(source, name, FunctionResolutionStrategy.DEFAULT, arguments);
+        FunctionResolutionStrategy strategy = FunctionResolutionStrategy.DEFAULT;
+
+        if (name.endsWith("~")) {
+            name = name.substring(0, name.length() - 1);
+            strategy = EqlFunctionResolution.CASE_INSENSITIVE;
+        }
+
+        return new UnresolvedFunction(source, name, strategy, arguments);
     }
 
     @Override

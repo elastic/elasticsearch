@@ -472,7 +472,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(f), f.asScript());
             } else {
-                query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Scalars.doTranslate(f, handler);
+                query = ExpressionTranslators.Scalars.doTranslate(f, handler);
             }
 
             return new QueryTranslation(query, aggFilter);

@@ -1,0 +1,56 @@
+[role="xpack"]
+[[ilm-rollup]]
+=== Rollup
+
+Phases allowed: hot, cold.
+
+Aggregates an index's time series data and stores the results in a new read-only
+index. For example, you can roll up hourly data into daily or weekly summaries.
+
+For more information about rollup, see the <<rollup-api, rollup action documentation>>
+
+The name of the rolled up index will be the original index name of the managed index prefixed
+with `rollup-`.
+
+[[ilm-rollup-options]]
+==== Rollup options
+`config`::
+(Required, integer)
+The rollup configuration, a more detailed description of the
+rollup configuration specification can be found <<rollup-api-request-body,here>>.
+
+`rollup_policy`::
+(Optional, string)
+The name of an <<index-lifecycle-management, {ilm}>> ({ilm-init}) policy to associate
+with the newly created rollup index.
+
+[[ilm-rollup-ex]]
+==== Example
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "rollup" : {
+            "config": {
+              "groups": {
+                "date_histogram": {
+                  "field": "@timestamp",
+                  "calendar_interval": "1y"
+                }
+              },
+              "metrics": [
+                { "field": "temperature", "metrics": [ "avg" ] }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

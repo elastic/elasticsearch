@@ -278,6 +278,33 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
         );
     }
 
+    public void testCreateConfigsGivenElasticsearchLogAndInvalidGrokPatternOverride() {
+
+        // This Grok pattern has a low-level syntax error
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setGrokPattern("[").build();
+
+        assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.createFromSample(
+                explanation,
+                TEXT_SAMPLE,
+                charset,
+                hasByteOrderMarker,
+                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                overrides,
+                NOOP_TIMEOUT_CHECKER
+            )
+        );
+
+        assertEquals("Supplied Grok pattern [[] cannot be converted to a valid regex", e.getMessage());
+        assertNotNull(e.getCause());
+        assertEquals("premature end of char-class", e.getCause().getMessage());
+    }
+
     public void testErrorOnIncorrectMessageFormation() {
 
         // This sample causes problems because the (very weird) primary timestamp format

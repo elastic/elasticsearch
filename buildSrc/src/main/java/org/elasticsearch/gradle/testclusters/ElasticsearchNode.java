@@ -1148,6 +1148,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (nodeName != null) {
             baseConfig.put("node.name", nodeName);
         }
+        baseConfig.put("node.processors", "2"); // limit thread pool sizes since we are running loads of parallel es instances
         baseConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         baseConfig.put("path.data", confPathData.toAbsolutePath().toString());
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());

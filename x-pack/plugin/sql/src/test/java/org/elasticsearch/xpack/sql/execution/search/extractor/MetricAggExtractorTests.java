@@ -81,7 +81,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
         double value = randomDouble();
         Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()), value);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTime((long) value , zoneId), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTimeWithMillis((long) value , zoneId), extractor.extract(bucket));
     }
 
     public void testSingleValueInnerKey() {
@@ -101,7 +101,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
         Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()),
             singletonMap(extractor.innerKey(), innerValue));
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTime((long) innerValue , zoneId), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTimeWithMillis((long) innerValue , zoneId), extractor.extract(bucket));
     }
 
     public void testMultiValueProperty() {
@@ -120,7 +120,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
         double value = randomDouble();
         Aggregation agg = new TestMultiValueAggregation(extractor.name(), singletonMap(extractor.property(), value));
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTime((long) value , zoneId), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTimeWithMillis((long) value , zoneId), extractor.extract(bucket));
     }
 
     public static ZoneId extractZoneId(BucketExtractor extractor) {

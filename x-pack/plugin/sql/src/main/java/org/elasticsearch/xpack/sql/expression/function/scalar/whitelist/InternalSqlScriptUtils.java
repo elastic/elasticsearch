@@ -324,11 +324,11 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         }
         if (false == lenient) {
             if (dateTime instanceof Number) {
-                return DateUtils.asDateTime(((Number) dateTime).longValue());
+                return DateUtils.asDateTimeWithMillis(((Number) dateTime).longValue());
             }
 
             if (dateTime instanceof String) {
-                return DateUtils.asDateTime(dateTime.toString());
+                return DateUtils.asDateTimeWithNanos(dateTime.toString());
             }
             throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }

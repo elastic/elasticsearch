@@ -90,7 +90,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         long value = 123456789L;
         Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTime(value, zoneId), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
     }
 
     private SearchHits searchHitsOf(Object value) {

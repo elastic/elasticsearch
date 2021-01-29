@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 public class XmlTextStructureFinderFactoryTests extends TextStructureTestCase {
 
-    private FileStructureFinderFactory factory = new XmlFileStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new XmlTextStructureFinderFactory();
 
     // No need to check NDJSON because it comes earlier in the order we check formats
 

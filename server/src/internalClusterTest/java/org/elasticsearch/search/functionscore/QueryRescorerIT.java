@@ -473,7 +473,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             QueryRescorerBuilder innerRescoreQuery = new QueryRescorerBuilder(matchQuery("field1", "the quick brown").boost(4.0f))
                     .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
-            if (!"".equals(scoreModes[innerMode])) {
+            if ("".equals(scoreModes[innerMode]) == false) {
                 innerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[innerMode]));
             }
 
@@ -495,7 +495,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 QueryRescorerBuilder outerRescoreQuery = new QueryRescorerBuilder(matchQuery("field1", "the quick brown").boost(4.0f))
                         .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f);
 
-                if (!"".equals(scoreModes[outerMode])) {
+                if ("".equals(scoreModes[outerMode]) == false) {
                     outerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[outerMode]));
                 }
 
@@ -542,7 +542,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .should(functionScoreQuery(termQuery("field1", intToEnglish[3]), weightFactorFunction(0.0f)).boostMode(REPLACE)));
                 rescoreQuery.setQueryWeight(primaryWeight).setRescoreQueryWeight(secondaryWeight);
 
-                if (!"".equals(scoreMode)) {
+                if ("".equals(scoreMode) == false) {
                     rescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreMode));
                 }
 

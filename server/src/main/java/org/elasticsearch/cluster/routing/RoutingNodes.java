@@ -1016,7 +1016,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *         this method does nothing.
      */
     public static boolean assertShardStats(RoutingNodes routingNodes) {
-        if (!Assertions.ENABLED) {
+        if (Assertions.ENABLED == false) {
             return true;
         }
         int unassignedPrimaryCount = 0;

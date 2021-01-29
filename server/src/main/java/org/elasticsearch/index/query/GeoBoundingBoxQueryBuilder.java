@@ -311,7 +311,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
-        if (!(fieldType instanceof GeoShapeQueryable)) {
+        if ((fieldType instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(context,
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDatePars
 public class IndexLifecycleService
     implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, RollupStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Sets.newHashSet(ShrinkStep.NAME, RollupStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 

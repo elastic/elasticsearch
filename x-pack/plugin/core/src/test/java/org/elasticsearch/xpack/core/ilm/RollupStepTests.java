@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.mockito.Mockito;
 
-import java.util.List;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,7 +116,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        List.of(indexMetadata.getIndex())))
+                        Collections.singletonList(indexMetadata.getIndex())))
                     .put(indexMetadata, true)
             )
             .build();

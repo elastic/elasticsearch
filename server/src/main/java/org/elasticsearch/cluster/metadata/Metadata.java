@@ -1470,14 +1470,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .map(IndexAbstraction::getName)
                     .collect(Collectors.toList());
                 if (conflictingAliases.isEmpty() == false) {
-                    // After backporting throw an IllegalStateException instead of logging a warning:
-                    // (in 7.x there might be aliases that refer to backing indices of a data stream and
-                    // throwing an exception here would avoid the cluster from functioning)
-                    String warning = "aliases " + conflictingAliases + " cannot refer to backing indices of data streams";
-                    // log as debug, this method is executed each time a new cluster state is created and could result
-                    // in many logs:
-                    logger.debug(warning);
-                    HeaderWarning.addWarning(warning);
+                    throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
                 }
             }
         }

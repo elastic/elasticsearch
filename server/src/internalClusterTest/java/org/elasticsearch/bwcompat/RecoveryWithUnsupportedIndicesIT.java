@@ -56,7 +56,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataDir)) {
             List<Path> dirs = new ArrayList<>();
             for (Path p : stream) {
-                if (!p.getFileName().toString().startsWith("extra")) {
+                if (p.getFileName().toString().startsWith("extra") == false) {
                     dirs.add(p);
                 }
             }

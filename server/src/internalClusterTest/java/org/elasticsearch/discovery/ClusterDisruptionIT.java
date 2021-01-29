@@ -147,10 +147,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 final String name = "indexer_" + indexers.size();
                 final int numPrimaries = getNumShards("test").numPrimaries;
                 Thread thread = new Thread(() -> {
-                    while (!stop.get()) {
+                    while (stop.get() == false) {
                         String id = null;
                         try {
-                            if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
+                            if (semaphore.tryAcquire(10, TimeUnit.SECONDS) == false) {
                                 continue;
                             }
                             logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());

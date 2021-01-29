@@ -51,11 +51,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
@@ -512,6 +514,38 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         unblockNode(repositoryName, blockedNode); // unblock node
         awaitNoMoreRunningOperations();
+    }
+
+    public void testConcurrentCreateAndStatusAPICalls() throws Exception {
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            createIndexWithContent("test-idx-" + i);
+        }
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final int snapshots = randomIntBetween(10, 20);
+        final List<ActionFuture<SnapshotsStatusResponse>> statuses = new ArrayList<>(snapshots);
+        final List<ActionFuture<GetSnapshotsResponse>> gets = new ArrayList<>(snapshots);
+        final Client dataNodeClient = dataNodeClient();
+        final String[] snapshotNames = createNSnapshots(repoName, snapshots).toArray(Strings.EMPTY_ARRAY);
+
+        for (int i = 0; i < snapshots; i++) {
+            statuses.add(dataNodeClient.admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotNames).execute());
+            gets.add(dataNodeClient.admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotNames).execute());
+        }
+
+        for (ActionFuture<SnapshotsStatusResponse> status : statuses) {
+            assertThat(status.get().getSnapshots(), hasSize(snapshots));
+            for (SnapshotStatus snapshot : status.get().getSnapshots()) {
+                assertThat(snapshot.getState(), allOf(not(SnapshotsInProgress.State.FAILED), not(SnapshotsInProgress.State.ABORTED)));
+            }
+        }
+        for (ActionFuture<GetSnapshotsResponse> get : gets) {
+            final List<SnapshotInfo> snapshotInfos = get.get().getSnapshots(repoName);
+            assertThat(snapshotInfos, hasSize(snapshots));
+            for (SnapshotInfo snapshotInfo : snapshotInfos) {
+                assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+            }
+        }
     }
 
     private static SnapshotIndexShardStatus stateFirstShard(SnapshotStatus snapshotStatus, String indexName) {

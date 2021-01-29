@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -375,6 +376,50 @@ public class IndicesOptionsTests extends ESTestCase {
         assertFalse(fromXContentOptions.expandWildcardsClosed());
         assertFalse(fromXContentOptions.expandWildcardsHidden());
         assertFalse(fromXContentOptions.expandWildcardsOpen());
+    }
+
+    public void testFromXContentWithDefaults() throws Exception {
+        XContentType type = randomFrom(XContentType.values());
+        final IndicesOptions defaults = IndicesOptions.LENIENT_EXPAND_OPEN;
+        final boolean includeExpandWildcards = randomBoolean();
+        final EnumSet<WildcardStates> expectedWildcardStates = includeExpandWildcards ?
+            WildcardStates.parseParameter(randomFrom("all", "none", List.of("open", "closed"), List.of("open", "hidden"),
+                List.of("closed"), List.of("closed", "hidden")), null) :
+            defaults.getExpandWildcards();
+        final boolean includeIgnoreUnavailable = randomBoolean();
+        final boolean ignoreUnavailable = includeIgnoreUnavailable ? randomBoolean() : defaults.ignoreUnavailable();
+        final boolean includeAllowNoIndices = randomBoolean();
+        final boolean allowNoIndices = includeAllowNoIndices ? randomBoolean() : defaults.allowNoIndices();
+
+        BytesReference xContentBytes;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
+            builder.startObject();
+            if (includeExpandWildcards) {
+                builder.startArray("expand_wildcards");
+                for (WildcardStates state : expectedWildcardStates) {
+                    builder.value(state.toString().toLowerCase(Locale.ROOT));
+                }
+                builder.endArray();
+            }
+
+            if (includeIgnoreUnavailable) {
+                builder.field("ignore_unavailable", ignoreUnavailable);
+            }
+            if (includeAllowNoIndices) {
+                builder.field("allow_no_indices", allowNoIndices);
+            }
+            builder.endObject();
+            xContentBytes = BytesReference.bytes(builder);
+        }
+
+        IndicesOptions fromXContentOptions;
+        try (XContentParser parser = type.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, xContentBytes.streamInput())) {
+            fromXContentOptions = IndicesOptions.fromXContent(parser, defaults);
+        }
+        assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
+        assertEquals(allowNoIndices, fromXContentOptions.allowNoIndices());
+        assertEquals(expectedWildcardStates, fromXContentOptions.getExpandWildcards());
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {

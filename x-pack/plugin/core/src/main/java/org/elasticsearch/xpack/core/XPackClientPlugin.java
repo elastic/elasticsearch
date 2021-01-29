@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.RollupILMAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -422,7 +423,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(Arrays.asList(
             // graph
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
             // logstash
@@ -526,7 +527,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // Data Tiers
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.RUNTIME_FIELDS, RuntimeFieldsFeatureSetUsage::new)
-        );
+        ));
+
+        if (RollupV2.isEnabled()) {
+            namedWriteables.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new));
+        }
+
+        return namedWriteables;
     }
 
     @Override

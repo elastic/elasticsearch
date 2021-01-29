@@ -9,6 +9,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
+import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -158,7 +159,12 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             if (interimTimestampField == null) {
                 interimTimestampField = "timestamp";
             }
-            grokPatternCreator.validateFullLineGrokPattern(grokPattern, interimTimestampField);
+            // Since this Grok pattern came from the end user, it might contain a syntax error
+            try {
+                grokPatternCreator.validateFullLineGrokPattern(grokPattern, interimTimestampField);
+            } catch (SyntaxException e) {
+                throw new IllegalArgumentException("Supplied Grok pattern [" + grokPattern + "] cannot be converted to a valid regex", e);
+            }
         } else {
             Tuple<String, String> timestampFieldAndFullMatchGrokPattern = grokPatternCreator.findFullLineGrokPattern(interimTimestampField);
             if (timestampFieldAndFullMatchGrokPattern != null) {

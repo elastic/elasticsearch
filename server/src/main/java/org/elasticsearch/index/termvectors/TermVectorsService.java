@@ -186,7 +186,7 @@ public class TermVectorsService  {
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
             MappedFieldType fieldType = indexShard.mapperService().fieldType(field);
-            if (!isValidField(fieldType)) {
+            if (isValidField(fieldType) == false) {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
@@ -289,10 +289,10 @@ public class TermVectorsService  {
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
             MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
-            if (!isValidField(fieldType)) {
+            if (isValidField(fieldType) == false) {
                 continue;
             }
-            if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {
+            if (request.selectedFields() != null && request.selectedFields().contains(field.name()) == false) {
                 continue;
             }
             if (seenFields.contains(field.name())) {

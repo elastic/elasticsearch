@@ -413,7 +413,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // make sure we see throttling kicking in:
         boolean done = false;
         long start = System.currentTimeMillis();
-        while (!done) {
+        while (done == false) {
             for(int i=0; i<100; i++) {
                 // Provoke slowish merging by making many unique terms:
                 StringBuilder sb = new StringBuilder();
@@ -1145,7 +1145,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     executionFailures.get().add(e);
                     latch.countDown();
                 }
-                while (!stop.get()) {
+                while (stop.get() == false) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
                     final IndexResponse response =
                         client()
@@ -1173,7 +1173,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 final IndicesStatsRequest request = new IndicesStatsRequest();
                 request.all();
                 request.indices(new String[0]);
-                while (!stop.get()) {
+                while (stop.get() == false) {
                     try {
                         final IndicesStatsResponse response = client().admin().indices().stats(request).get();
                         if (response.getFailedShards() > 0) {

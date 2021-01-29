@@ -118,7 +118,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             logger.info("shutting down...");
             // JDK stack is broken, it does not iterate in the expected order (http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4475301)
             final List<Closeable> reverse = new ArrayList<>();
-            while (!closeables.isEmpty()) {
+            while (closeables.isEmpty() == false) {
                 reverse.add(closeables.pop());
             }
             IOUtils.close(reverse);

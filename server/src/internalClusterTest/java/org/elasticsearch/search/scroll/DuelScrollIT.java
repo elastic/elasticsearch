@@ -128,7 +128,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         int numMissingDocs = scaledRandomIntBetween(0, numDocs / 100);
         IntHashSet missingDocs = new IntHashSet(numMissingDocs);
         for (int i = 0; i < numMissingDocs; i++) {
-            while (!missingDocs.add(randomInt(numDocs))) {}
+            while (missingDocs.add(randomInt(numDocs)) == false) {}
         }
 
         for (int i = 1; i <= numDocs; i++) {

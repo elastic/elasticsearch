@@ -305,7 +305,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 assertThat(searchResponse.getHits().getAt(i).getSortValues()[0].toString(), equalTo(next.getKey().utf8ToString()));
             }
         }
-        if (!sparseBytes.isEmpty()) {
+        if (sparseBytes.isEmpty() == false) {
             int size = between(1, sparseBytes.size());
             SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery())
                     .setPostFilter(QueryBuilders.existsQuery("sparse_bytes")).setSize(size).addSort("sparse_bytes", SortOrder.ASC).get();

@@ -59,7 +59,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         }
 
         Priority prevPriority = null;
-        while (!queue.isEmpty()) {
+        while (queue.isEmpty() == false) {
             if (prevPriority == null) {
                 prevPriority = queue.poll();
             } else {

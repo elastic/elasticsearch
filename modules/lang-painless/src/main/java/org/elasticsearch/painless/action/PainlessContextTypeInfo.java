@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.action;
 
-import java.util.Map;
-
 public class PainlessContextTypeInfo {
     /**
      * Translates array types from internal java Field Descriptors (JVM Spec 4.3.2) to readable names.  Also translates

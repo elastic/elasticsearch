@@ -137,16 +137,16 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (filterBuilder != null) {
-            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryShardContext);
+            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryRewriteContext);
             if (rewrittenFilter != filterBuilder) {
                 SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metadata);
                 rewritten.backgroundFilter(rewrittenFilter);
                 return rewritten;
             }
         }
-        return super.doRewrite(queryShardContext);
+        return super.doRewrite(queryRewriteContext);
     }
 
     @Override

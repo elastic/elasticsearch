@@ -24,7 +24,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -35,7 +35,7 @@ import java.util.List;
 
 public class ShapeQueryProcessor  {
 
-    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         validateIsShapeFieldType(fieldName, context);
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
@@ -48,7 +48,7 @@ public class ShapeQueryProcessor  {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    private void validateIsShapeFieldType(String fieldName, QueryShardContext context) {
+    private void validateIsShapeFieldType(String fieldName, SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof ShapeFieldMapper.ShapeFieldType == false) {
             throw new QueryShardException(context, "Expected " + ShapeFieldMapper.CONTENT_TYPE
@@ -56,7 +56,7 @@ public class ShapeQueryProcessor  {
         }
     }
 
-    private Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    private Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         final LuceneGeometryCollector visitor = new LuceneGeometryCollector(fieldName, context);
         queryShape.visit(visitor);
         final List<XYGeometry> geometries = visitor.geometries();
@@ -70,9 +70,9 @@ public class ShapeQueryProcessor  {
     private static class LuceneGeometryCollector implements GeometryVisitor<Void, RuntimeException> {
         private final List<XYGeometry> geometries = new ArrayList<>();
         private final String name;
-        private final QueryShardContext context;
+        private final SearchExecutionContext context;
 
-        private LuceneGeometryCollector(String name, QueryShardContext context) {
+        private LuceneGeometryCollector(String name, SearchExecutionContext context) {
             this.name = name;
             this.context = context;
         }

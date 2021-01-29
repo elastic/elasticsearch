@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.List;
 
@@ -21,5 +21,5 @@ public interface FileStructureFinder {
      * Retrieve the structure of the file used to instantiate the finder.
      * @return The file structure.
      */
-    FileStructure getStructure();
+    TextStructure getStructure();
 }

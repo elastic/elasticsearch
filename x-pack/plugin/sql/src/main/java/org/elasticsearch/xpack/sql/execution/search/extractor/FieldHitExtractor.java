@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
@@ -89,7 +90,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
-    
+
     @Override
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return SqlDataTypes.isFromDocValuesOnly(dataType);
@@ -126,7 +127,12 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         }
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId());
+                return DateUtils.asDateTimeWithMillis(Long.parseLong(values.toString()), zoneId());
+            }
+        }
+        if (dataType == DATETIME_NANOS) {
+            if (values instanceof String) {
+                return DateUtils.asDateTimeWithNanos(values.toString()).withZoneSameInstant(zoneId());
             }
         }
 

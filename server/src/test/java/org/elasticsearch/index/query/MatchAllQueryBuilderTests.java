@@ -35,7 +35,7 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 

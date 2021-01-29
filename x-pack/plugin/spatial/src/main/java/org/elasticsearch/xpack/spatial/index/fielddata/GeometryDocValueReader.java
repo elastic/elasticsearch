@@ -95,7 +95,7 @@ public class GeometryDocValueReader {
     /**
      * Visit the triangle tree with the provided visitor
      */
-    protected void visit(TriangleTreeReader.Visitor visitor) {
+    public void visit(TriangleTreeReader.Visitor visitor) {
         Extent extent = getExtent();
         int thisMaxX = extent.maxX();
         int thisMinX = extent.minX();
@@ -105,4 +105,5 @@ public class GeometryDocValueReader {
             TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY);
         }
     }
+
 }

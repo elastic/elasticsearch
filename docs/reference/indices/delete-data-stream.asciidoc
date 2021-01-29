@@ -40,6 +40,12 @@ DELETE /_index_template/template
 
 `DELETE /_data_stream/<data-stream>`
 
+[[delete-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
 
 [[delete-data-stream-api-path-params]]
 ==== {api-path-parms-title}

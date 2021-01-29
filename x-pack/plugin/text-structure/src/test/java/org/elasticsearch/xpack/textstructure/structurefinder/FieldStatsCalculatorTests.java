@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FieldStatsCalculatorTests extends FileStructureTestCase {
+public class FieldStatsCalculatorTests extends TextStructureTestCase {
 
     private static final Map<String, String> LONG = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long");
     private static final Map<String, String> DOUBLE = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "double");

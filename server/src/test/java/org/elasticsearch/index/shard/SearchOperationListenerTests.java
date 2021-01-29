@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -140,7 +140,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         Collections.shuffle(indexingOperationListeners, random());
         SearchOperationListener.CompositeListener compositeListener =
             new SearchOperationListener.CompositeListener(indexingOperationListeners, logger);
-        SearchContext ctx = new TestSearchContext((QueryShardContext) null);
+        SearchContext ctx = new TestSearchContext((SearchExecutionContext) null);
         compositeListener.onQueryPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
         assertEquals(0, preQuery.get());

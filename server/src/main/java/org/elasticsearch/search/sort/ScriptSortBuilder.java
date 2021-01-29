@@ -46,7 +46,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.NumberSortScript;
@@ -232,19 +232,19 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
 
     @Override
-    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         return new SortFieldAndFormat(
                 new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
                 DocValueFormat.RAW);
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
         throws IOException {
         return fieldComparatorSource(context).newBucketedSort(bigArrays, order, DocValueFormat.RAW, bucketSize, extra);
     }
 
-    private IndexFieldData.XFieldComparatorSource fieldComparatorSource(QueryShardContext context) throws IOException {
+    private IndexFieldData.XFieldComparatorSource fieldComparatorSource(SearchExecutionContext context) throws IOException {
         MultiValueMode valueMode = null;
         if (sortMode != null) {
             valueMode = MultiValueMode.fromString(sortMode.toString());

@@ -172,11 +172,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (mandatoryPlugins.isEmpty() == false) {
             Set<String> missingPlugins = new HashSet<>();
             for (String mandatoryPlugin : mandatoryPlugins) {
-                if (!pluginsNames.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
+                if (pluginsNames.contains(mandatoryPlugin) == false && missingPlugins.contains(mandatoryPlugin) == false) {
                     missingPlugins.add(mandatoryPlugin);
                 }
             }
-            if (!missingPlugins.isEmpty()) {
+            if (missingPlugins.isEmpty() == false) {
                 final String message = String.format(
                         Locale.ROOT,
                         "missing mandatory plugins [%s], found plugins [%s]",

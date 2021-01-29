@@ -65,7 +65,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -370,7 +370,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
-        context.getQueryShardContext().freezeContext();
+        context.getSearchExecutionContext().freezeContext();
         if (canCache) {
             indicesService.loadIntoContext(request, context, queryPhase);
         } else {
@@ -792,9 +792,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
-            QueryShardContext context = new QueryShardContext(searchContext.getQueryShardContext());
+            SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
             Rewriteable.rewrite(request.getRewriteable(), context, true);
-            assert searchContext.getQueryShardContext().isCacheable();
+            assert searchContext.getSearchExecutionContext().isCacheable();
             success = true;
         } finally {
             if (success == false) {
@@ -903,17 +903,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return;
         }
         SearchShardTarget shardTarget = context.shardTarget();
-        QueryShardContext queryShardContext = context.getQueryShardContext();
+        SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         context.from(source.from());
         context.size(source.size());
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
             InnerHitContextBuilder.extractInnerHits(source.query(), innerHitBuilders);
-            context.parsedQuery(queryShardContext.toQuery(source.query()));
+            context.parsedQuery(searchExecutionContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
             InnerHitContextBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
-            context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
+            context.parsedPostFilter(searchExecutionContext.toQuery(source.postFilter()));
         }
         if (innerHitBuilders.size() > 0) {
             for (Map.Entry<String, InnerHitContextBuilder> entry : innerHitBuilders.entrySet()) {
@@ -926,7 +926,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.sorts() != null) {
             try {
-                Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());
+                Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(source.sorts(), context.getSearchExecutionContext());
                 if (optionalSort.isPresent()) {
                     context.sort(optionalSort.get());
                 }
@@ -955,7 +955,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
-                context.getQueryShardContext(),
+                context.getSearchExecutionContext(),
                 bigArrays,
                 source.aggregations().bytesToPreallocate(),
                 /*
@@ -982,7 +982,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.suggest() != null) {
             try {
-                context.suggest(source.suggest().build(queryShardContext));
+                context.suggest(source.suggest().build(searchExecutionContext));
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create SuggestionSearchContext", e);
             }
@@ -990,7 +990,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.rescores() != null) {
             try {
                 for (RescorerBuilder<?> rescore : source.rescores()) {
-                    context.addRescore(rescore.buildContext(queryShardContext));
+                    context.addRescore(rescore.buildContext(searchExecutionContext));
                 }
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create RescoreSearchContext", e);
@@ -1003,7 +1003,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(context.getQueryShardContext(), source.docValueFields());
+            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(
+                context.getSearchExecutionContext(), source.docValueFields());
             context.docValuesContext(docValuesContext);
         }
         if (source.fetchFields() != null) {
@@ -1013,13 +1014,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();
             try {
-                context.highlight(highlightBuilder.build(queryShardContext));
+                context.highlight(highlightBuilder.build(searchExecutionContext));
             } catch (IOException e) {
                 throw new SearchException(shardTarget, "failed to create SearchContextHighlighter", e);
             }
         }
         if (source.scriptFields() != null && source.size() != 0) {
-            int maxAllowedScriptFields = queryShardContext.getIndexSettings().getMaxScriptFields();
+            int maxAllowedScriptFields = searchExecutionContext.getIndexSettings().getMaxScriptFields();
             if (source.scriptFields().size() > maxAllowedScriptFields) {
                 throw new IllegalArgumentException(
                         "Trying to retrieve too many script_fields. Must be less than or equal to: [" + maxAllowedScriptFields
@@ -1028,7 +1029,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 FieldScript.Factory factory = scriptService.compile(field.script(), FieldScript.CONTEXT);
-                SearchLookup lookup = context.getQueryShardContext().lookup();
+                SearchLookup lookup = context.getSearchExecutionContext().lookup();
                 FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), lookup);
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
@@ -1089,7 +1090,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.rescore() != null && context.rescore().isEmpty() == false) {
                 throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
             }
-            final CollapseContext collapseContext = source.collapse().build(queryShardContext);
+            final CollapseContext collapseContext = source.collapse().build(searchExecutionContext);
             context.collapse(collapseContext);
         }
     }
@@ -1230,7 +1231,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             }
             try (canMatchSearcher) {
-                QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), 0,
+                SearchExecutionContext context = indexService.newSearchExecutionContext(request.shardId().id(), 0,
                     canMatchSearcher, request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
                 final boolean canMatch = queryStillMatchesAfterRewrite(request, context);
                 final MinAndMax<?> minMax;

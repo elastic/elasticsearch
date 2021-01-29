@@ -936,7 +936,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Item[] likeItems = new Item[this.likeItems.length];
         for (int i = 0; i < likeItems.length; i++) {
             likeItems[i] = new Item(this.likeItems[i]);
@@ -1026,7 +1026,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
+    private Query handleItems(SearchExecutionContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
                               boolean include, List<String> moreLikeFields, boolean useDefaultField) throws IOException {
         // set default index, type and fields if not specified
         for (Item item : likeItems) {
@@ -1060,7 +1060,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return boolQuery.build();
     }
 
-    private static void setDefaultIndexTypeFields(QueryShardContext context, Item item, List<String> moreLikeFields,
+    private static void setDefaultIndexTypeFields(SearchExecutionContext context, Item item, List<String> moreLikeFields,
                                                   boolean useDefaultField) {
         if (item.index() == null) {
             item.index(context.index().getName());
@@ -1108,7 +1108,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
+    private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, SearchExecutionContext context) {
         MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
             // no mappings, nothing to exclude

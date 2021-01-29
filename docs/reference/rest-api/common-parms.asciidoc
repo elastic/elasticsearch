@@ -678,7 +678,7 @@ objects define the `group by` fields and the aggregation to reduce the data.
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following aggregations are 
+Defines how to aggregate the grouped data. The following aggregations are
 currently supported:
 +
 --
@@ -705,7 +705,7 @@ currently supported:
 end::pivot-aggs[]
 
 tag::pivot-group-by[]
-Defines how to group the data. More than one grouping can be defined per pivot. 
+Defines how to group the data. More than one grouping can be defined per pivot.
 The following groupings are currently supported:
 +
 --
@@ -917,6 +917,10 @@ A query clause that retrieves a subset of data from the source index. See
 <<query-dsl>>.
 end::source-query-transforms[]
 
+tag::source-runtime-mappings-transforms[]
+Definitions of search-time runtime fields that can be used by the transform.
+end::source-runtime-mappings-transforms[]
+
 tag::state-transform[]
 The status of the {transform}, which can be one of the following values:
 +
@@ -968,7 +972,7 @@ default value is `60s`.
 end::sync-time-delay[]
 
 tag::transform-latest[]
-The `latest` method transforms the data by finding the latest document for each 
+The `latest` method transforms the data by finding the latest document for each
 unique key.
 end::transform-latest[]
 

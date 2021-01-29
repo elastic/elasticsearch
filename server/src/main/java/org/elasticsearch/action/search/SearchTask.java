@@ -58,8 +58,4 @@ public class SearchTask extends CancellableTask {
         return progressListener;
     }
 
-    @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
-    }
 }

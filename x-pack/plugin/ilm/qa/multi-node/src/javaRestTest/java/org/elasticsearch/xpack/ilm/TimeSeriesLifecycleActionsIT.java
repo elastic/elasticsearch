@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -41,6 +42,8 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.RollupILMAction;
+import org.elasticsearch.xpack.core.ilm.RollupStep;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
@@ -50,12 +53,17 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -110,7 +118,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
         String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
         String secondIndex = index + "-000002";
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "javaRestTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
@@ -187,7 +195,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             String failedStep = getFailedStepForIndex(index);
             assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // update policy to be correct
         createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards));
@@ -496,7 +504,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-        });
+        }, 30, TimeUnit.SECONDS);
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
@@ -1466,6 +1474,40 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 return false;
             }
         }, 30, TimeUnit.SECONDS));
+    }
+
+    public void testRollupIndex() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String rollupIndex = RollupStep.getRollupIndexName(index);
+        index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
+        RollupActionConfig rollupConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
+
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
+        updatePolicy(index, policy);
+
+        assertBusy(() -> assertTrue(indexExists(rollupIndex)));
+        assertBusy(() -> assertFalse(getOnlyIndexSettings(client(), rollupIndex).containsKey(LifecycleSettings.LIFECYCLE_NAME)));
+        assertBusy(() -> assertTrue(indexExists(index)));
+    }
+
+    public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
+        index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
+        RollupActionConfig rollupConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
+
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));
+        updatePolicy(index, policy);
+
+        assertBusy(() -> assertTrue(indexExists(rollupIndex)));
+        assertBusy(() -> assertThat(getOnlyIndexSettings(client(), rollupIndex).get(LifecycleSettings.LIFECYCLE_NAME), equalTo(policy)));
+        assertBusy(() -> assertTrue(indexExists(index)));
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own

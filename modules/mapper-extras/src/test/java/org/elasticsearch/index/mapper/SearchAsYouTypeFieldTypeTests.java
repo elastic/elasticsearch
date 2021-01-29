@@ -96,18 +96,18 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
-        assertThat(fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockShardContext()),
+        assertThat(fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
             equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm)))));
 
         // our defaults don't allow a situation where a term can be too small
 
         // this term should be too long to be rewriteable to a term query on the prefix field
         final String longTerm = "toolongforourprefixfieldthistermis";
-        assertThat(fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC),
+        assertThat(fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
             equalTo(new PrefixQuery(new Term(NAME, longTerm))));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
+                () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
                 "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
     }

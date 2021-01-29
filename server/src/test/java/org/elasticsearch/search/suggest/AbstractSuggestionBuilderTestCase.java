@@ -44,7 +44,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -184,11 +184,11 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
             MappingLookup lookup = new MappingLookup(Mapping.EMPTY, mappers, emptyList(), emptyList(), null, null, null);
-            QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, null,
+            SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings, null,
                 null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
                     System::currentTimeMillis, null, null, () -> true, null, emptyMap());
 
-            SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
+            SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());
             if (suggestionBuilder.text() != null && suggestionBuilder.prefix() == null) {
                 assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getPrefix());
@@ -201,7 +201,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertEquals(expectedSize, suggestionContext.getSize());
             Integer expectedShardSize = suggestionBuilder.shardSize != null ? suggestionBuilder.shardSize : Math.max(expectedSize, 5);
             assertEquals(expectedShardSize, suggestionContext.getShardSize());
-            assertSame(mockShardContext, suggestionContext.getShardContext());
+            assertSame(mockContext, suggestionContext.getSearchExecutionContext());
             if (suggestionBuilder.analyzer() != null) {
                 assertEquals(suggestionBuilder.analyzer(), ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
             } else {
@@ -220,15 +220,15 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
             indexSettings);
 
-        QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, null,
+        SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,  null,
             null, mock(MapperService.class), MappingLookup.EMPTY, null, null, xContentRegistry(), namedWriteableRegistry, null, null,
             System::currentTimeMillis, null, null, () -> true, null, emptyMap());
         if (randomBoolean()) {
-            mockShardContext.setAllowUnmappedFields(randomBoolean());
+            mockContext.setAllowUnmappedFields(randomBoolean());
         }
 
         SB suggestionBuilder = randomTestBuilder();
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> suggestionBuilder.build(mockShardContext));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> suggestionBuilder.build(mockContext));
         assertEquals("no mapping found for field [" + suggestionBuilder.field + "]", iae.getMessage());
     }
 

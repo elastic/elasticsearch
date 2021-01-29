@@ -67,7 +67,7 @@ public class MetadataMappingService {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
-
+    
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
         public ClusterTasksResult<PutMappingClusterStateUpdateRequest>

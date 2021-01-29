@@ -132,7 +132,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     indicesToFlush.add("test-idx-" + i);
                 }
             }
-            if (!indicesToFlush.isEmpty()) {
+            if (indicesToFlush.isEmpty() == false) {
                 logger.info("--> starting asynchronous flush for indices {}", indicesToFlush);
                 flushResponseFuture = client().admin().indices().prepareFlush(indicesToFlush.toArray(Strings.EMPTY_ARRAY)).execute();
             }

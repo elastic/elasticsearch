@@ -439,7 +439,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 final Map<O, O> entries = new HashMap<>();
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
-                    if (!leader.text.equals(entry.text)) {
+                    if (leader.text.equals(entry.text) == false) {
                         throw new IllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
                                 "across multiple indices with different analysis chains. Suggest entries have different text actual [" +
                                 entry.text + "] expected [" + leader.text +"]");

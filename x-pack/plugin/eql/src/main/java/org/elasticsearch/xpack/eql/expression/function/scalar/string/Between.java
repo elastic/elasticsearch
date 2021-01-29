@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseInsensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
@@ -35,20 +35,19 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * between(source, left, right[, greedy=false])
  * Extracts a substring from source that’s between left and right substrings
  */
-public class Between extends ScalarFunction implements OptionalArgument {
+public class Between extends CaseInsensitiveScalarFunction implements OptionalArgument {
 
-    private final Expression input, left, right, greedy, caseSensitive;
+    private final Expression input, left, right, greedy;
 
-    public Between(Source source, Expression input, Expression left, Expression right, Expression greedy) {
-        super(source, Arrays.asList(input, left, right, toDefault(greedy)));
+    public Between(Source source, Expression input, Expression left, Expression right, Expression greedy, boolean caseInsensitive) {
+        super(source, Arrays.asList(input, left, right, defaultGreedy(greedy)), caseInsensitive);
         this.input = input;
         this.left = left;
         this.right = right;
         this.greedy = arguments().get(3);
-        this.caseSensitive = Literal.TRUE;
     }
 
-    private static Expression toDefault(Expression exp) {
+    private static Expression defaultGreedy(Expression exp) {
         return exp != null ? exp : Literal.FALSE;
     }
 
@@ -74,33 +73,44 @@ public class Between extends ScalarFunction implements OptionalArgument {
         }
 
         return isBoolean(greedy, sourceText(), Expressions.ParamOrdinal.FOURTH);
-//        if (resolution.unresolved()) {
-//            return resolution;
-//        }
-//
-//        return isBoolean(caseSensitive, sourceText(), Expressions.ParamOrdinal.FIFTH);
+    }
+
+    public Expression input() {
+        return input;
+    }
+
+    public Expression left() {
+        return left;
+    }
+
+    public Expression right() {
+        return right;
+    }
+
+    public Expression greedy() {
+        return greedy;
     }
 
     @Override
     protected Pipe makePipe() {
         return new BetweenFunctionPipe(source(), this, Expressions.pipe(input),
-                Expressions.pipe(left), Expressions.pipe(right),
-                Expressions.pipe(greedy), Expressions.pipe(caseSensitive));
+            Expressions.pipe(left), Expressions.pipe(right),
+            Expressions.pipe(greedy), isCaseInsensitive());
     }
 
     @Override
     public boolean foldable() {
-        return input.foldable() && left.foldable() && right.foldable() && greedy.foldable() && caseSensitive.foldable();
+        return input.foldable() && left.foldable() && right.foldable() && greedy.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(input.fold(), left.fold(), right.fold(), greedy.fold(), caseSensitive.fold());
+        return doProcess(input.fold(), left.fold(), right.fold(), greedy.fold(), isCaseInsensitive());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Between::new, input, left, right, greedy);
+        return NodeInfo.create(this, Between::new, input, left, right, greedy, isCaseInsensitive());
     }
 
     @Override
@@ -109,27 +119,26 @@ public class Between extends ScalarFunction implements OptionalArgument {
         ScriptTemplate leftScript = asScript(left);
         ScriptTemplate rightScript = asScript(right);
         ScriptTemplate greedyScript = asScript(greedy);
-        ScriptTemplate caseSensitiveScript = asScript(caseSensitive);
 
-        return asScriptFrom(inputScript, leftScript, rightScript, greedyScript, caseSensitiveScript);
+        return asScriptFrom(inputScript, leftScript, rightScript, greedyScript);
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate leftScript,
-                                          ScriptTemplate rightScript, ScriptTemplate greedyScript, ScriptTemplate caseSensitiveScript) {
+                                          ScriptTemplate rightScript, ScriptTemplate greedyScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s,%s)"),
-                "between",
-                inputScript.template(),
-                leftScript.template(),
-                rightScript.template(),
-                greedyScript.template(),
-                caseSensitiveScript.template()),
-                paramsBuilder()
-                        .script(inputScript.params())
-                        .script(leftScript.params())
-                        .script(rightScript.params())
-                        .script(greedyScript.params())
-                        .script(caseSensitiveScript.params())
-                        .build(), dataType());
+            "between",
+            inputScript.template(),
+            leftScript.template(),
+            rightScript.template(),
+            greedyScript.template(),
+            "{}"),
+            paramsBuilder()
+                .script(inputScript.params())
+                .script(leftScript.params())
+                .script(rightScript.params())
+                .script(greedyScript.params())
+                .variable(isCaseInsensitive())
+                .build(), dataType());
     }
 
     @Override
@@ -146,6 +155,6 @@ public class Between extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Between(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Between(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), isCaseInsensitive());
     }
 }

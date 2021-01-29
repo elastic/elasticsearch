@@ -340,7 +340,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
                     throw new IllegalArgumentException("Could not find field [" + parametersFieldName + "] on instance class [" +
                         clazz.getName() + "] but method [" + name + "] has [" + parameterTypes.length + "] parameters");
                 }
-                if (!parameterNamesField.getType().equals(String[].class)) {
+                if (parameterNamesField.getType().equals(String[].class) == false) {
                     throw new IllegalArgumentException("Expected a constant [String[] PARAMETERS] on instance class [" +
                         clazz.getName() + "] for method [" + name + "] with [" + parameterTypes.length + "] parameters, found [" +
                         parameterNamesField.getType().getTypeName() + "]");
@@ -370,10 +370,10 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             // See ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass)
             HashSet<ScriptMethodInfo> getters = new HashSet<>();
             for (java.lang.reflect.Method m : clazz.getMethods()) {
-                if (!m.isDefault() &&
+                if (m.isDefault() == false &&
                     m.getName().startsWith("get") &&
-                    !m.getName().equals("getClass") &&
-                    !Modifier.isStatic(m.getModifiers()) &&
+                    m.getName().equals("getClass") == false &&
+                    Modifier.isStatic(m.getModifiers()) == false &&
                     m.getParameters().length == 0) {
                     getters.add(new ScriptMethodInfo(m.getName(), m.getReturnType().getTypeName(), new ArrayList<>()));
                 }

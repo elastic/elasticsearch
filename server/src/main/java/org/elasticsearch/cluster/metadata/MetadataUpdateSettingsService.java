@@ -137,7 +137,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!skippedSettings.isEmpty() && !openIndices.isEmpty()) {
+                if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices));
                 }
@@ -168,7 +168,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!openIndices.isEmpty()) {
+                if (openIndices.isEmpty() == false) {
                     for (Index index : openIndices) {
                         IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();
@@ -197,7 +197,7 @@ public class MetadataUpdateSettingsService {
                     }
                 }
 
-                if (!closeIndices.isEmpty()) {
+                if (closeIndices.isEmpty() == false) {
                     for (Index index : closeIndices) {
                         IndexMetadata indexMetadata = metadataBuilder.getSafe(index);
                         Settings.Builder updates = Settings.builder();

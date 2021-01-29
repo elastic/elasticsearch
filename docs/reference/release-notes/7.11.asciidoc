@@ -28,6 +28,10 @@ Machine Learning::
 Mapping::
 * Distinguish between simple matches with and without the terms index {es-pull}63945[#63945]
 
+Templates::
+* Composable index templates with data streams can no longer contain alias definitions.
+  This also applies for any component templates that is referred by composable index templates
+  that contain data streams. The reason why this was allowed in ES 7.9 and 7.10 is a bug. {es-pull}67886[#67886]
 
 
 [[deprecation-7.11.0]]

@@ -39,7 +39,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -123,7 +122,6 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -148,7 +146,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -294,22 +291,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             restHighLevelClient.performRequestAsync(request, null, RequestOptions.DEFAULT, null, trackingActionListener, null);
             assertSame(validationException, trackingActionListener.exception.get());
         }
-    }
-
-    public void testAddParameters() throws IOException {
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addParameter("filter_path", "-hits.hits._index,-hits.hits._type,-hits.hits.matched_queries")
-            .build();
-
-        restHighLevelClient.search(new SearchRequest("/test"), requestOptions);
-
-        ArgumentCaptor<Request> requestArgumentCaptor = ArgumentCaptor.forClass(Request.class);
-
-        verify(restClient, times(1)).performRequest(requestArgumentCaptor.capture());
-        assertThat(
-            requestArgumentCaptor.getValue().getParameters(),
-            hasEntry("filter_path", "-hits.hits._index,-hits.hits._type,-hits.hits.matched_queries")
-        );
     }
 
     public void testParseEntity() throws IOException {

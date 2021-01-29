@@ -395,7 +395,7 @@ public class ExpressionTests extends ESTestCase {
         }
         ParsingException e = expectThrows(ParsingException.class, () -> expr(sb.toString()));
         assertEquals("line 1:" + (6 + firstComparator.length()) + ": mismatched input '" + secondComparator +
-                        "' expecting {<EOF>, 'and', 'in', 'not', 'or', ':', '+', '-', '*', '/', '%', '.', '['}",
-                e.getMessage());
+                "' expecting {<EOF>, 'and', 'in', 'in~', 'not', 'or', ':', '+', '-', '*', '/', '%', '.', '['}",
+            e.getMessage());
     }
 }

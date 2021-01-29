@@ -172,3 +172,19 @@ setup:
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.timestamp\.two_years_later: ['2020-01-18T17:41:34.000Z']}
   - match: {hits.hits.1.fields.timestamp\.two_years_later: ['2020-01-19T17:41:34.000Z']}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            timestamp.date:
+              type: date
+              script: |
+                doc['timestamp'].value.truncatedTo(ChronoUnit.DAYS).emit()
+          fields:
+            - timestamp.date
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.timestamp\.date: ['2018-01-18T00:00:00.000Z']}
+  - match: {hits.hits.1.fields.timestamp\.date: ['2018-01-19T00:00:00.000Z']}

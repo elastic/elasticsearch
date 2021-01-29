@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
@@ -35,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,7 +49,7 @@ public class ScriptValuesTests extends ESTestCase {
         int index;
 
         FakeAggregationScript(Object[][] values) {
-            super(Collections.emptyMap(), new SearchLookup(null, null) {
+            super(Collections.emptyMap(), new SearchLookup((Function<String, MappedFieldType>) null, null) {
 
                 @Override
                 public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {

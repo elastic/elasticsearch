@@ -459,7 +459,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 throw new IllegalArgumentException("[painless.regex.limit-factor] can only be set on node startup.");
             }
 
-            if (!copy.isEmpty()) {
+            if (copy.isEmpty() == false) {
                 throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
             }
         }

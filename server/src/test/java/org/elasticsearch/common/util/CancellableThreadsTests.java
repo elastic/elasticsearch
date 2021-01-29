@@ -86,7 +86,7 @@ public class CancellableThreadsTests extends ESTestCase {
             readyForCancel.countDown();
             try {
                 if (plan.busySpin) {
-                    while (!Thread.currentThread().isInterrupted()) {
+                    while (Thread.currentThread().isInterrupted() == false) {
                     }
                 } else {
                     Thread.sleep(50000);

@@ -108,6 +108,37 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         }
     }
 
+    private static boolean snapshotRepositoryPopulated;
+
+    @Before
+    public void populateSnapshotRepository() throws IOException {
+
+        if (snapshotRepositoryPopulated) {
+            return;
+        }
+
+        // The repository UUID is only created on the first write to the repo, so it may or may not exist when running the tests. However to
+        // include the output from the put-repository and get-repositories APIs in the docs we must be sure whether the UUID is returned or
+        // not, so we prepare by taking a snapshot first to ensure that the UUID really has been created.
+        super.initClient();
+
+        final Request putRepoRequest = new Request("PUT", "/_snapshot/test_setup_repo");
+        putRepoRequest.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"my_backup_location\"}}");
+        assertOK(adminClient().performRequest(putRepoRequest));
+
+        final Request putSnapshotRequest = new Request("PUT", "/_snapshot/test_setup_repo/test_setup_snap");
+        putSnapshotRequest.addParameter("wait_for_completion", "true");
+        assertOK(adminClient().performRequest(putSnapshotRequest));
+
+        final Request deleteSnapshotRequest = new Request("DELETE", "/_snapshot/test_setup_repo/test_setup_snap");
+        assertOK(adminClient().performRequest(deleteSnapshotRequest));
+
+        final Request deleteRepoRequest = new Request("DELETE", "/_snapshot/test_setup_repo");
+        assertOK(adminClient().performRequest(deleteRepoRequest));
+
+        snapshotRepositoryPopulated = true;
+    }
+
     @After
     public void cleanup() throws Exception {
         if (isMachineLearningTest() || isTransformTest()) {

@@ -7,9 +7,6 @@
 
 Creates a new <<data-streams,data stream>>.
 
-Data streams require a matching <<index-templates,index template>>.
-See <<set-up-a-data-stream>>.
-
 ////
 [source,console]
 ----
@@ -46,6 +43,9 @@ DELETE /_index_template/template
 
 * If the {es} {security-features} are enabled, you must have the `create_index`
 or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
+* A matching <<index-templates,index template>> with data stream enabled.
+See <<set-up-a-data-stream>>.
 
 [[indices-create-data-stream-api-path-params]]
 ==== {api-path-parms-title}

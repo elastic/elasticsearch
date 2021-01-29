@@ -60,7 +60,7 @@ public class Iterators {
 
         @Override
         public T next() {
-            if (!hasNext()) {
+            if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
             return iterators[index].next();

@@ -537,16 +537,32 @@ the detectors in the `analysis_config`, starting at zero.
 end::detector-index[]
 
 tag::dfas-alpha[]
-Regularization factor to penalize deeper trees when training decision trees.
+Advanced configuration option. {ml} uses loss guided tree growing.
+This means that trees will grow where the regularized loss reduces
+the most. This parameter multiplies a term based on tree depth in
+the regularized loss. Higher values result in shallower trees
+and faster training times. Values should be greater than or equal
+to zero. By default, this value is calculated during hyperparameter optimization.
 end::dfas-alpha[]
 
 tag::dfas-downsample-factor[]
-The value of the downsample factor.
+Advanced configuration option. This controls the fraction of data
+that is used to compute the derivatives of the loss function for tree training.
+The lower the value the smaller the fraction of data that is used.
+Typically accuracy improves if this is set to be less than 1. However, too small
+a value may result in poor convergence for the ensemble and so require more trees.
+For more information about shrinkage, refer to
+{wikipedia}/Gradient_boosting#Stochastic_gradient_boosting[this wiki article].
+Values must be greater than zero and less than or equal to 1.
+By default, this value is calculated during hyperparameter optimization.
 end::dfas-downsample-factor[]
 
 tag::dfas-eta-growth[]
-Specifies the rate at which the `eta` increases for each new tree that is added
-to the forest. For example, a rate of `1.05` increases `eta` by 5%.
+Advanced configuration option.
+Specifies the rate at which `eta` increases for each new tree that is added
+to the forest. For example, a rate of `1.05` increases `eta` by 5% for each
+extra tree. Values must be in the range of 0.5 to 2.
+By default, this value is calculated during hyperparameter optimization.
 end::dfas-eta-growth[]
 
 tag::dfas-feature-bag-fraction[]
@@ -653,10 +669,12 @@ training stops.
 end::dfas-max-attempts[]
 
 tag::dfas-max-optimization-rounds[]
+Advanced configuration option.
 A multiplier responsible for determining the maximum number of
 hyperparameter optimization steps in the Bayesian optimization procedure.
 The maximum number of steps is determined based on the number of undefined
 hyperparameters times the maximum optimization rounds per hyperparameter.
+By default, this value is calculated during hyperparameter optimization.
 end::dfas-max-optimization-rounds[]
 
 tag::dfas-num-folds[]
@@ -669,13 +687,20 @@ decision tree when the tree is trained.
 end::dfas-num-splits[]
 
 tag::dfas-soft-limit[]
-Tree depth limit is used for calculating the tree depth penalty. This is a soft
-limit, it can be exceeded.
+Advanced configuration option. {ml} uses loss guided tree growing.
+This means that trees will grow where the regularized loss reduces
+the most. The regularized loss increases quickly where the tree depth
+exceeds this parameter. This is a soft limit, it can be exceeded.
+Values must be greater than or equal to 0.
+By default, this value is calculated during hyperparameter optimization.
 end::dfas-soft-limit[]
 
 tag::dfas-soft-tolerance[]
-Tree depth tolerance is used for calculating the tree depth penalty. This is a
-soft limit, it can be exceeded.
+Advanced configuration option.
+This controls how quickly the regularized loss increases when the tree
+depth exceeds `soft_tree_depth_limit`.
+Values must be greater than or equal to 0.01.
+By default, this value is calculated during hyperparameter optimization.
 end::dfas-soft-tolerance[]
 
 tag::dfas-timestamp[]
@@ -722,7 +747,7 @@ tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
-information about shrinkage, see
+information about shrinkage, refer to
 {wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]

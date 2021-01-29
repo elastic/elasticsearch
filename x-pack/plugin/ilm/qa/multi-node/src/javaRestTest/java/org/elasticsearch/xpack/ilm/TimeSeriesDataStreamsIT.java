@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,9 +64,31 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
+    public void testRolloverIsSkippedOnManualDataStreamRollover() throws Exception {
+        String policyName = "logs-policy";
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 2L));
+
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).getName(),
+            equalTo(WaitForRolloverReadyStep.NAME)), 30, TimeUnit.SECONDS);
+
+        rolloverMaxOneDocCondition(client(), dataStream);
+        assertBusy(() -> assertThat(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2)), is(true)), 30, TimeUnit.SECONDS);
+
+        // even though the first index doesn't have 2 documents to fulfill the rollover condition, it should complete the rollover action
+        // because it's not the write index anymore
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex),
+            equalTo(PhaseCompleteStep.finalStep("hot").getKey())), 30, TimeUnit.SECONDS);
+    }
+
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
         String policyName = "logs-policy";
-        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
+        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
 
         createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 

@@ -50,9 +50,7 @@ public class SearchLookup {
      * {@code b}'s chain will contain {@code ["a", "b"]}.
      */
     private final Set<String> fieldChain;
-    private final DocLookup docMap;
     private final SourceLookup sourceLookup;
-    private final StoredFieldsLookup storedFieldsLookup;
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
 
@@ -64,10 +62,7 @@ public class SearchLookup {
                         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
-        docMap = new DocLookup(fieldTypeLookup,
-            fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
-        sourceLookup = new SourceLookup();
-        storedFieldsLookup = new StoredFieldsLookup(fieldTypeLookup);
+        this.sourceLookup = new SourceLookup();
         this.fieldDataLookup = fieldDataLookup;
     }
 
@@ -80,10 +75,7 @@ public class SearchLookup {
      */
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
-        this.docMap = new DocLookup(searchLookup.fieldTypeLookup,
-            fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name())));
         this.sourceLookup = searchLookup.sourceLookup;
-        this.storedFieldsLookup = searchLookup.storedFieldsLookup;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
     }
@@ -111,13 +103,17 @@ public class SearchLookup {
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
         return new LeafSearchLookup(context,
-                docMap.getLeafDocLookup(context),
+                new LeafDocLookup(fieldTypeLookup, this::getForField, context),
                 sourceLookup,
-                storedFieldsLookup.getLeafFieldsLookup(context));
+                new LeafStoredFieldsLookup(fieldTypeLookup, (doc, visitor) -> context.reader().document(doc, visitor)));
     }
 
-    public DocLookup doc() {
-        return docMap;
+    public MappedFieldType fieldType(String fieldName) {
+        return fieldTypeLookup.apply(fieldName);
+    }
+
+    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
+        return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()));
     }
 
     public SourceLookup source() {

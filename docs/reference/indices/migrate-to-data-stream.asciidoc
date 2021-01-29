@@ -7,9 +7,6 @@
 
 Converts an <<indices-aliases,index alias>> to a <<data-streams,data stream>>.
 
-Data streams require a matching <<index-templates,index template>>.
-See <<set-up-a-data-stream>>.
-
 ////
 [source,console]
 ----
@@ -77,6 +74,9 @@ DELETE /_index_template/template
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-indices,index privilege>> for the index alias.
+
+* A matching <<index-templates,index template>> with data stream enabled.
+See <<set-up-a-data-stream>>.
 
 [[indices-migrate-to-data-stream-api-path-params]]
 ==== {api-path-parms-title}

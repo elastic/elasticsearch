@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,7 +36,9 @@ import java.util.function.Supplier;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
@@ -161,12 +165,25 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testGetDate() {
         ZoneId zoneId = randomZone();
-        long millis = 1526467911780L;
+        long millis = randomNonNegativeLong();
         List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
         DocumentField field = new DocumentField("my_date_field", documentFieldValues);
         SearchHit hit = new SearchHit(1, null, singletonMap("my_date_field", field), null);
         FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DATETIME, zoneId, true);
-        assertEquals(DateUtils.asDateTime(millis, zoneId), extractor.extract(hit));
+        assertEquals(DateUtils.asDateTimeWithMillis(millis, zoneId), extractor.extract(hit));
+    }
+
+    public void testGetDateNanos() {
+        ZoneId zoneId = randomZone();
+        long totalNanos = randomLongBetween(72000000000000L, Long.MAX_VALUE);
+        long millis = toMilliSeconds(totalNanos);
+        long nanosOnly = (int) (totalNanos % 1_000_000_000);
+        ZonedDateTime zdt = DateUtils.asDateTimeWithMillis(millis, zoneId).plusNanos(nanosOnly);
+        List<Object> documentFieldValues = Collections.singletonList(StringUtils.toString(zdt));
+        DocumentField field = new DocumentField("my_date_nanos_field", documentFieldValues);
+        SearchHit hit = new SearchHit(1, null, singletonMap("my_date_nanos_field", field), null);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_nanos_field", DATETIME_NANOS, zoneId, true);
+        assertEquals(zdt, extractor.extract(hit));
     }
 
     public void testGetSource() throws IOException {

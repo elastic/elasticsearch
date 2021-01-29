@@ -117,7 +117,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         for (final Future<TransportAddress[]> future : futures.get()) {
             assert future.isDone();
             final String hostname = it.next();
-            if (!future.isCancelled()) {
+            if (future.isCancelled() == false) {
                 try {
                     final TransportAddress[] addresses = future.get();
                     logger.trace("resolved host [{}] to {}", hostname, addresses);

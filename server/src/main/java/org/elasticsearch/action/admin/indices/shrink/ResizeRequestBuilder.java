@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeRequest, ResizeResponse,
     ResizeRequestBuilder> {
@@ -77,6 +78,14 @@ public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeReque
 
     public ResizeRequestBuilder setResizeType(ResizeType type) {
         this.request.setResizeType(type);
+        return this;
+    }
+
+    /**
+     * Sets the max single primary shard size of the target index.
+     */
+    public ResizeRequestBuilder setMaxSinglePrimarySize(ByteSizeValue maxSinglePrimarySize) {
+        this.request.setMaxSinglePrimarySize(maxSinglePrimarySize);
         return this;
     }
 }

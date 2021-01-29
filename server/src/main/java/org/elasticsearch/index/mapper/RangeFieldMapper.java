@@ -198,7 +198,7 @@ public class RangeFieldMapper extends FieldMapper {
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
                     RangeType rangeType = rangeType();
-                    if (!(value instanceof Map)) {
+                    if ((value instanceof Map) == false) {
                         assert rangeType == RangeType.IP;
                         Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
                         return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());

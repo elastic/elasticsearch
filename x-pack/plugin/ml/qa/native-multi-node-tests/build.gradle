@@ -52,6 +52,10 @@ testClusters.all {
   setting 'xpack.ml.min_disk_space_off_heap', '200mb'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
+  // To spice things up a bit, one of the nodes is not an ML node
+  nodes.'javaRestTest-0'.setting 'node.roles', '["master","data","ingest"]'
+  nodes.'javaRestTest-1'.setting 'node.roles', '["master","data","ingest","ml"]'
+  nodes.'javaRestTest-2'.setting 'node.roles', '["master","data","ingest","ml"]'
 
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'

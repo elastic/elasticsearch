@@ -143,7 +143,7 @@ public class RestUtils {
             return "";
         }
         final int size = s.length();
-        if (!decodingNeeded(s, size, plusAsSpace)) {
+        if (decodingNeeded(s, size, plusAsSpace) == false) {
             return s;
         }
         final byte[] buf = new byte[size];

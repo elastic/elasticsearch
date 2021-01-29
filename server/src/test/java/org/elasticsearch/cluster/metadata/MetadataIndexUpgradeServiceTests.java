@@ -22,16 +22,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -136,32 +132,12 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         service.upgradeIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
-    public void testMaybeMarkAsSystemIndex() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
-        assertFalse(src.isSystem());
-        IndexMetadata indexMetadata = service.maybeMarkAsSystemIndex(src);
-        assertSame(indexMetadata, src);
-
-        src = newIndexMeta(".system", Settings.EMPTY);
-        assertFalse(src.isSystem());
-        indexMetadata = service.maybeMarkAsSystemIndex(src);
-        assertNotSame(indexMetadata, src);
-        assertTrue(indexMetadata.isSystem());
-
-        // test with the whole upgrade
-        assertFalse(src.isSystem());
-        indexMetadata = service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
-        assertTrue(indexMetadata.isSystem());
-    }
-
     private MetadataIndexUpgradeService getMetadataIndexUpgradeService() {
         return new MetadataIndexUpgradeService(
             Settings.EMPTY,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), null, Collections.emptyMap(),
                 MapperPlugin.NOOP_FIELD_FILTER), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            new SystemIndices(Map.of("system-plugin", List.of(new SystemIndexDescriptor(".system", "a system index")))),
             null
         );
     }

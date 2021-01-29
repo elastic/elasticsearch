@@ -941,10 +941,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 settings.put("readonly", "true");
             }
             assertAcked(
-                clusterAdmin().preparePutRepository(newRepositoryName)
-                    .setVerify(true) // TODO if we're missing repo UUIDs then load all the repository metadata
-                    .setType("fs")
-                    .setSettings(settings)
+                clusterAdmin().preparePutRepository(newRepositoryName).setType("fs").setSettings(settings).setVerify(randomBoolean())
             );
             restoreRepositoryName = backupRepositoryName.equals(repositoryName) ? newRepositoryName : backupRepositoryName;
         } else {

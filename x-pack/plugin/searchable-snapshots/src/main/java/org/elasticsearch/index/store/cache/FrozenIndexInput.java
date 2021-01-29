@@ -143,6 +143,17 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
         final AtomicBoolean stopAsyncReads = new AtomicBoolean();
+        // Runnable that, when called, ensures that async callbacks (such as those used by readCacheFile) are not
+        // accessing the byte buffer anymore that was passed to readInternal
+        // In particular, it's important to call this method before adapting the ByteBuffer's offset
+        final Runnable preventAsyncBufferChanges = () -> {
+            luceneByteBufLock.writeLock().lock();
+            try {
+                stopAsyncReads.set(true);
+            } finally {
+                luceneByteBufLock.writeLock().unlock();
+            }
+        };
 
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
@@ -172,6 +183,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                 final Integer read = waitingForRead.asFuture().get();
                 assert read == length;
                 assert luceneByteBufLock.getReadHoldCount() == 0;
+                preventAsyncBufferChanges.run();
                 b.position(read); // mark all bytes as accounted for
                 readComplete(position, length);
                 return;
@@ -215,12 +227,16 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     );
                     stats.addIndexCacheBytesRead(cachedBlob.length());
 
+                    preventAsyncBufferChanges.run();
+
                     final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(toIntBytes(position), length).iterator();
+                    int copiedBytes = 0;
                     BytesRef bytesRef;
                     while ((bytesRef = cachedBytesIterator.next()) != null) {
                         b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                        copiedBytes += bytesRef.length;
                     }
-                    assert b.position() == length : "copied " + b.position() + " but expected " + length;
+                    assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
 
                     try {
                         final Tuple<Long, Long> cachedRange = Tuple.tuple(cachedBlob.from(), cachedBlob.to());
@@ -229,10 +245,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                             cachedRange,
                             (channel, channelPos, relativePos, len) -> Math.toIntExact(len),
                             (channel, channelPos, relativePos, len, progressUpdater) -> {
-                                assert len == cachedBlob.to() - cachedBlob.from();
+                                assert len <= cachedBlob.to() - cachedBlob.from();
                                 final long startTimeNanos = stats.currentTimeNanos();
                                 final BytesRefIterator iterator = cachedBlob.bytes()
-                                    .slice(toIntBytes(relativePos - cachedBlob.from()), toIntBytes(len))
+                                    .slice(toIntBytes(relativePos), toIntBytes(len))
                                     .iterator();
                                 long writePosition = channelPos;
                                 long bytesCopied = 0L;
@@ -390,17 +406,11 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             final int bytesRead = populateCacheFuture.asFuture().get();
             assert bytesRead == length : bytesRead + " vs " + length;
             assert luceneByteBufLock.getReadHoldCount() == 0;
+
+            preventAsyncBufferChanges.run();
             b.position(bytesRead); // mark all bytes as accounted for
         } catch (final Exception e) {
-            // Ensure that readCacheFile is not reading anymore once
-            // readDirectlyIfAlreadyClosed is executing, as that is adapting the buffers offset
-            // In particular, we need to make sure readCacheFile is not messing with the buffer anymore once this method has returned
-            luceneByteBufLock.writeLock().lock();
-            try {
-                stopAsyncReads.set(true);
-            } finally {
-                luceneByteBufLock.writeLock().unlock();
-            }
+            preventAsyncBufferChanges.run();
 
             // may have partially filled the buffer before the exception was thrown, so try and get the remainder directly.
             final int alreadyRead = length - b.remaining();
@@ -580,11 +590,18 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     return Math.toIntExact(length);
                 }
                 // create slice that is positioned to read the given values
-                ByteBuffer dup = buffer.duplicate();
+                final ByteBuffer dup = buffer.duplicate();
                 // assert dup.position() == 0;
                 final int newPosition = dup.position() + Math.toIntExact(relativePos);
                 assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
-                assert newPosition + length <= buffer.limit();
+                assert newPosition + length <= buffer.limit() : "oldpos "
+                    + dup.position()
+                    + " newpos "
+                    + newPosition
+                    + " length "
+                    + length
+                    + " limit "
+                    + buffer.limit();
                 dup.position(newPosition);
                 dup.limit(newPosition + Math.toIntExact(length));
                 bytesRead = Channels.readFromFileChannel(fc, channelPos, dup);

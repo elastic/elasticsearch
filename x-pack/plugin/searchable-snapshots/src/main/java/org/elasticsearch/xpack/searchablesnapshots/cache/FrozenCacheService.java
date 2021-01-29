@@ -143,6 +143,7 @@ public class FrozenCacheService {
             freeRegions.add(i);
         }
         this.regionSize = regionSize;
+        assert regionSize > 0L;
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
@@ -172,7 +173,12 @@ public class FrozenCacheService {
         return region * regionSize;
     }
 
-    private int getRegionEnd(long position) {
+    private long getRegionEnd(int region) {
+        return (region + 1) * regionSize;
+    }
+
+    private int getEndingRegion(long position) {
+        assert position > 0L;
         if (position % regionSize == 0L) {
             return getRegion(position - 1);
         }
@@ -180,8 +186,8 @@ public class FrozenCacheService {
     }
 
     private Tuple<Long, Long> mapSubRangeToRegion(Tuple<Long, Long> range, int region) {
-        final long regionStart = region * regionSize;
-        final long regionEnd = (region + 1) * regionSize;
+        final long regionStart = getRegionStart(region);
+        final long regionEnd = getRegionEnd(region);
         if (range.v1() >= regionEnd || range.v2() <= regionStart) {
             return Tuple.tuple(0L, 0L);
         }
@@ -194,15 +200,18 @@ public class FrozenCacheService {
     }
 
     private long getRegionSize(long fileLength, int region) {
-        if (region * regionSize == fileLength) {
-            return 0;
-        }
-        int maxRegion = getRegion(fileLength - 1);
-        if (region == maxRegion) {
-            return fileLength % regionSize;
+        assert fileLength > 0;
+        final int maxRegion = getEndingRegion(fileLength);
+        assert region >= 0 && region <= maxRegion;
+        final long effectiveRegionSize;
+        if (region == maxRegion && (region + 1) * regionSize != fileLength) {
+            assert getRegionRelativePosition(fileLength) != 0L;
+            effectiveRegionSize = getRegionRelativePosition(fileLength);
         } else {
-            return regionSize;
+            effectiveRegionSize = regionSize;
         }
+        assert getRegionStart(region) + effectiveRegionSize <= fileLength;
+        return effectiveRegionSize;
     }
 
     public CacheFileRegion get(CacheKey cacheKey, long fileLength, int region) {
@@ -452,6 +461,7 @@ public class FrozenCacheService {
         CacheFileRegion(RegionKey regionKey, long regionSize) {
             super("CacheFileRegion");
             this.regionKey = regionKey;
+            assert regionSize > 0L;
             tracker = new SparseFileTracker("file", regionSize);
         }
 
@@ -510,11 +520,13 @@ public class FrozenCacheService {
                 Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
                 final FileChannel fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                    rangeToWrite,
-                    rangeToRead,
-                    rangeListener(rangeToRead, reader, listener, fileChannel)
-                );
+                final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
+                if (rangeToRead.v1() == rangeToRead.v2()) {
+                    // nothing to read, skip
+                    rangeListener.onResponse(null);
+                    return listener;
+                }
+                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(rangeToWrite, rangeToRead, rangeListener);
 
                 for (SparseFileTracker.Gap gap : gaps) {
                     executor.execute(new AbstractRunnable() {
@@ -639,13 +651,11 @@ public class FrozenCacheService {
             StepListener<Integer> stepListener = null;
             final long writeStart = rangeToWrite.v1();
             final long readStart = rangeToRead.v1();
-            for (int i = getRegion(rangeToWrite.v1()); i <= getRegionEnd(rangeToWrite.v2()); i++) {
+            for (int i = getRegion(rangeToWrite.v1()); i <= getEndingRegion(rangeToWrite.v2()); i++) {
                 final int region = i;
-                final Tuple<Long, Long> subRangeToWrite = mapSubRangeToRegion(rangeToWrite, i);
-                final Tuple<Long, Long> subRangeToRead = mapSubRangeToRegion(rangeToRead, i);
-                CacheFileRegion fileRegion = get(cacheKey, length, i);
-                fileRegion.ensureOpen();
-
+                final Tuple<Long, Long> subRangeToWrite = mapSubRangeToRegion(rangeToWrite, region);
+                final Tuple<Long, Long> subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
+                final CacheFileRegion fileRegion = get(cacheKey, length, region);
                 final StepListener<Integer> lis = fileRegion.populateAndRead(
                     subRangeToWrite,
                     subRangeToRead,
@@ -682,9 +692,9 @@ public class FrozenCacheService {
         public StepListener<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
             StepListener<Integer> stepListener = null;
             final long start = rangeToRead.v1();
-            for (int i = getRegion(rangeToRead.v1()); i <= getRegionEnd(rangeToRead.v2()); i++) {
+            for (int i = getRegion(rangeToRead.v1()); i <= getEndingRegion(rangeToRead.v2()); i++) {
                 final int region = i;
-                final Tuple<Long, Long> subRangeToRead = mapSubRangeToRegion(rangeToRead, i);
+                final Tuple<Long, Long> subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
                 final CacheFileRegion fileRegion = get(cacheKey, length, region);
                 final StepListener<Integer> lis = fileRegion.readIfAvailableOrPending(
                     subRangeToRead,

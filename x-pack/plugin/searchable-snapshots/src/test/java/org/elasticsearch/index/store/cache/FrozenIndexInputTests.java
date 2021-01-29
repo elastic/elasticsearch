@@ -9,7 +9,6 @@ package org.elasticsearch.index.store.cache;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
@@ -51,8 +50,12 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         );
 
         final ByteSizeValue rangeSize;
-        if (randomBoolean()) {
+        if (rarely()) {
             rangeSize = FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
+        } else if (randomBoolean()) {
+            rangeSize = new ByteSizeValue(
+                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofKb(8L).getBytes())
+            );
         } else {
             rangeSize = new ByteSizeValue(
                 randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofMb(64L).getBytes())
@@ -60,19 +63,19 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         final ByteSizeValue regionSize;
-        if (randomBoolean()) {
+        if (rarely()) {
             regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
+        } else if (randomBoolean()) {
+            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofKb(8L).getBytes()));
         } else {
-            regionSize = new ByteSizeValue(
-                randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofMb(64L).getBytes())
-            );
+            regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofMb(64L).getBytes()));
         }
 
         final ByteSizeValue cacheSize;
-        if (randomBoolean()) {
+        if (rarely()) {
             cacheSize = regionSize;
         } else {
-            cacheSize = new ByteSizeValue(randomLongBetween(1L, 10L) * regionSize.getBytes());
+            cacheSize = new ByteSizeValue(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
         }
 
         final FrozenCacheService cacheService = new FrozenCacheService(
@@ -105,7 +108,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             super(
                 () -> TestUtils.singleBlobContainer(fileInfo.partName(0), fileData),
                 () -> new BlobStoreIndexShardSnapshot("_snapshot_id", 0L, List.of(fileInfo), 0L, 0L, 0, 0L),
-                new TestUtils.NoopBlobStoreCacheService(),
+                new TestUtils.SimpleBlobStoreCacheService(),
                 "_repository",
                 new SnapshotId("_snapshot_name", "_snapshot_id"),
                 new IndexId(SHARD_ID.getIndex().getName(), SHARD_ID.getIndex().getUUID()),
@@ -121,11 +124,6 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 threadPool,
                 service
             );
-        }
-
-        @Override
-        public CachedBlob getCachedBlob(String name, long offset, int length) {
-            return CachedBlob.CACHE_MISS;
         }
     }
 }

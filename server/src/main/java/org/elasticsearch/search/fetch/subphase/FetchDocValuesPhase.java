@@ -71,7 +71,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             String format = USE_DEFAULT_FORMAT.equals(fieldAndFormat.format) ? null : fieldAndFormat.format;
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(format, null),
-                context.searchLookup().doc().getForField(ft)
+                context.searchLookup().getForField(ft)
             );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }

@@ -20,14 +20,13 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.search.lookup.DocLookup;
 
 import java.io.IOException;
 
 /**
  * A float encapsulation that dynamically accesses the score of a document.
  *
- * The provided {@link DocLookup} is used to retrieve the score
+ * The provided {@link Scorable} is used to retrieve the score
  * for the current document.
  */
 public final class ScoreAccessor extends Number {

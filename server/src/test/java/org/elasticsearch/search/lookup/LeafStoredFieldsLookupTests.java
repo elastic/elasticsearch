@@ -21,8 +21,6 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -30,10 +28,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.List;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -53,15 +48,8 @@ public class LeafStoredFieldsLookupTests extends ESTestCase {
         FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
             IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
 
-        LeafReader leafReader = mock(LeafReader.class);
-        doAnswer(invocation -> {
-            Object[] args = invocation.getArguments();
-            StoredFieldVisitor visitor = (StoredFieldVisitor) args[1];
-            visitor.doubleField(mockFieldInfo, 2.718);
-            return null;
-        }).when(leafReader).document(anyInt(), any(StoredFieldVisitor.class));
-
-        fieldsLookup = new LeafStoredFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null, leafReader);
+        fieldsLookup = new LeafStoredFieldsLookup(field -> field.equals("field") || field.equals("alias") ? fieldType : null,
+            (doc, visitor) -> visitor.doubleField(mockFieldInfo, 2.718));
     }
 
     public void testBasicLookup() {

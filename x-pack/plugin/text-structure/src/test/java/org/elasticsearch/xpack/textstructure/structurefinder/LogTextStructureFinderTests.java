@@ -16,9 +16,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
-public class TextLogTextStructureFinderTests extends TextStructureTestCase {
+public class LogTextStructureFinderTests extends TextStructureTestCase {
 
-    private final FileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new LogTextStructureFinderFactory();
 
     public void testCreateConfigsGivenLowLineMergeSizeLimit() {
 
@@ -42,7 +42,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
                 charset,
                 hasByteOrderMarker,
                 100,
-                FileStructureOverrides.EMPTY_OVERRIDES,
+                TextStructureOverrides.EMPTY_OVERRIDES,
                 NOOP_TIMEOUT_CHECKER
             )
         );
@@ -60,13 +60,13 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(
+        TextStructureFinder structureFinder = factory.createFromSample(
             explanation,
             TEXT_SAMPLE,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -103,18 +103,18 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
             + "2/1/2019 11:00PM INFO foo\n"
             + "2/2/2019 1:23AM DEBUG bar\n";
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("M/d/yyyy h:mma").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampFormat("M/d/yyyy h:mma").build();
 
         assertTrue(factory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(
+        TextStructureFinder structureFinder = factory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
             overrides,
             NOOP_TIMEOUT_CHECKER
         );
@@ -147,18 +147,18 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFieldOverride() throws Exception {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("my_time").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampField("my_time").build();
 
         assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(
+        TextStructureFinder structureFinder = factory.createFromSample(
             explanation,
             TEXT_SAMPLE,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
             overrides,
             NOOP_TIMEOUT_CHECKER
         );
@@ -191,7 +191,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenElasticsearchLogAndGrokPatternOverride() throws Exception {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder()
+        TextStructureOverrides overrides = TextStructureOverrides.builder()
             .setGrokPattern(
                 "\\[%{TIMESTAMP_ISO8601:timestamp}\\]"
                     + "\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}"
@@ -202,12 +202,12 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(
+        TextStructureFinder structureFinder = factory.createFromSample(
             explanation,
             TEXT_SAMPLE,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
             overrides,
             NOOP_TIMEOUT_CHECKER
         );
@@ -247,7 +247,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
     public void testCreateConfigsGivenElasticsearchLogAndImpossibleGrokPatternOverride() {
 
         // This Grok pattern cannot be matched against the messages in the sample because the fields are in the wrong order
-        FileStructureOverrides overrides = FileStructureOverrides.builder()
+        TextStructureOverrides overrides = TextStructureOverrides.builder()
             .setGrokPattern(
                 "\\[%{LOGLEVEL:loglevel} *\\]"
                     + "\\[%{HOSTNAME:node}\\]\\[%{TIMESTAMP_ISO8601:timestamp}\\] \\[%{JAVACLASS:class} *\\] %{JAVALOGMESSAGE:message}"
@@ -265,7 +265,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
                 TEXT_SAMPLE,
                 charset,
                 hasByteOrderMarker,
-                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
                 overrides,
                 NOOP_TIMEOUT_CHECKER
             )
@@ -281,7 +281,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
     public void testCreateConfigsGivenElasticsearchLogAndInvalidGrokPatternOverride() {
 
         // This Grok pattern has a low-level syntax error
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setGrokPattern("[").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setGrokPattern("[").build();
 
         assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE, 0.0));
 
@@ -294,7 +294,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
                 TEXT_SAMPLE,
                 charset,
                 hasByteOrderMarker,
-                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
                 overrides,
                 NOOP_TIMEOUT_CHECKER
             )
@@ -324,8 +324,8 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
                 sample,
                 charset,
                 hasByteOrderMarker,
-                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-                FileStructureOverrides.EMPTY_OVERRIDES,
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                TextStructureOverrides.EMPTY_OVERRIDES,
                 NOOP_TIMEOUT_CHECKER
             )
         );
@@ -343,7 +343,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals(
                 "^" + simpleDateRegex.replaceFirst("^\\\\b", ""),
-                TextLogFileStructureFinder.createMultiLineMessageStartRegex(Collections.emptySet(), simpleDateRegex)
+                LogTextStructureFinder.createMultiLineMessageStartRegex(Collections.emptySet(), simpleDateRegex)
             );
         }
     }
@@ -353,7 +353,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals(
                 "^" + simpleDateRegex.replaceFirst("^\\\\b", ""),
-                TextLogFileStructureFinder.createMultiLineMessageStartRegex(Collections.singleton(""), simpleDateRegex)
+                LogTextStructureFinder.createMultiLineMessageStartRegex(Collections.singleton(""), simpleDateRegex)
             );
         }
     }
@@ -363,7 +363,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals(
                 "^\\[.*?\\] \\[" + simpleDateRegex,
-                TextLogFileStructureFinder.createMultiLineMessageStartRegex(Collections.singleton("[ERROR] ["), simpleDateRegex)
+                LogTextStructureFinder.createMultiLineMessageStartRegex(Collections.singleton("[ERROR] ["), simpleDateRegex)
             );
         }
     }
@@ -374,7 +374,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
             assertEquals(
                 "^\\[.*?\\] \\[" + simpleDateRegex,
-                TextLogFileStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex)
+                LogTextStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex)
             );
         }
     }
@@ -383,10 +383,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             Set<String> prefaces = Sets.newHashSet("host-1.acme.com|", "my_host.elastic.co|");
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
-            assertEquals(
-                "^.*?\\|" + simpleDateRegex,
-                TextLogFileStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex)
-            );
+            assertEquals("^.*?\\|" + simpleDateRegex, LogTextStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
         }
     }
 
@@ -394,7 +391,7 @@ public class TextLogTextStructureFinderTests extends TextStructureTestCase {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             Set<String> prefaces = Sets.newHashSet("", "[non-standard] ");
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();
-            assertEquals("^.*?" + simpleDateRegex, TextLogFileStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
+            assertEquals("^.*?" + simpleDateRegex, LogTextStructureFinder.createMultiLineMessageStartRegex(prefaces, simpleDateRegex));
         }
     }
 }

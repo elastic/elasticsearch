@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -257,7 +258,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             this.cacheService.set(cacheService);
             final FrozenCacheService frozenCacheService;
             try {
-                frozenCacheService = new FrozenCacheService(settings, threadPool);
+                frozenCacheService = new FrozenCacheService(environment, settings, threadPool);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -533,6 +534,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build " + SNAPSHOT_BLOB_CACHE_INDEX + " index mappings", e);
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        Releasables.close(frozenCacheService.get());
     }
 
     public static final class CacheServiceSupplier implements Supplier<CacheService> {

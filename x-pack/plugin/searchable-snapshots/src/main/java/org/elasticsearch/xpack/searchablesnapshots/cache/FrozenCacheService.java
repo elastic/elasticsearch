@@ -13,7 +13,6 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -26,12 +25,12 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,7 +43,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
-public class FrozenCacheService {
+public class FrozenCacheService implements Releasable {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.frozen-cache.";
 
@@ -123,8 +122,7 @@ public class FrozenCacheService {
     private final AtomicReference<CacheFileRegion>[] regionOwners; // to assert exclusive access of regions
 
     @SuppressWarnings("unchecked")
-    @SuppressForbidden(reason = "Use temp dir for now")
-    public FrozenCacheService(Settings settings, ThreadPool threadPool) throws IOException {
+    public FrozenCacheService(Environment environment, Settings settings, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
@@ -146,7 +144,7 @@ public class FrozenCacheService {
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
-        sharedBytes = new SharedBytes(numRegions, regionSize, Files.createTempFile("cache", "snap"));
+        sharedBytes = new SharedBytes(numRegions, regionSize, environment.dataFiles()[0].resolve("snap_cache"));
         new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings)).rescheduleIfNecessary();
         this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
@@ -384,6 +382,11 @@ public class FrozenCacheService {
         }
     }
 
+    @Override
+    public void close() {
+        sharedBytes.decRef();
+    }
+
     class CacheDecayTask extends AbstractAsyncTask {
 
         CacheDecayTask(ThreadPool threadPool, TimeValue interval) {
@@ -519,6 +522,7 @@ public class FrozenCacheService {
                 Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
                 if (rangeToRead.v1() == rangeToRead.v2()) {
                     // nothing to read, skip
@@ -577,6 +581,7 @@ public class FrozenCacheService {
                 final Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
                     return listener;
                 } else {

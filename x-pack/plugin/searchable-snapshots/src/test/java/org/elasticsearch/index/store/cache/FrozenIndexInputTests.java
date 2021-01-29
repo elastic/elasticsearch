@@ -11,6 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -78,13 +81,14 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             cacheSize = new ByteSizeValue(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
         }
 
-        final FrozenCacheService cacheService = new FrozenCacheService(
-            Settings.builder()
+        final Settings settings = Settings.builder()
                 .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                 .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
                 .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                .build(),
-            threadPool
+                .build();
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final FrozenCacheService cacheService = new FrozenCacheService(
+                environment, settings, threadPool
         );
 
         try (TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(cacheService, tempDir, fileInfo, fileData)) {

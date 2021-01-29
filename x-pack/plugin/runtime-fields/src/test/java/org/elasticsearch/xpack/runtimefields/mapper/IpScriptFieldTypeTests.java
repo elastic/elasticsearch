@@ -311,10 +311,11 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                                     }
                                 };
                             case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                return (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        leafSearchLookup.doc().get("test");
+                                    }
                                 };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");

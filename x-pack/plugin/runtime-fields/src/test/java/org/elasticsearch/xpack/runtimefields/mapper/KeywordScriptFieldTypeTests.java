@@ -177,7 +177,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkExpensiveQuery(this::randomFuzzyQuery);
     }
 
-    public void testFuzzyQueryInLoop() {
+    public void testFuzzyQueryInLoop() throws IOException {
         checkLoop(this::randomFuzzyQuery);
     }
 
@@ -185,7 +185,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         return ft.fuzzyQuery(
             randomAlphaOfLengthBetween(1, 1000),
             randomFrom(Fuzziness.AUTO, Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO),
-            randomInt(),
+            randomIntBetween(1, 4),
             randomInt(),
             randomBoolean(),
             ctx
@@ -208,7 +208,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkExpensiveQuery(this::randomPrefixQuery);
     }
 
-    public void testPrefixQueryInLoop() {
+    public void testPrefixQueryInLoop() throws IOException {
         checkLoop(this::randomPrefixQuery);
     }
 
@@ -248,9 +248,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         boolean lowerNull = randomBoolean();
         boolean upperNull = randomBoolean();
+        String lower = randomAlphaOfLengthBetween(0, 1000);
+        String upper = lower + "a";
         return ft.rangeQuery(
-            lowerNull ? null : randomAlphaOfLengthBetween(0, 1000),
-            upperNull ? null : randomAlphaOfLengthBetween(0, 1000),
+            lowerNull ? null : lower,
+            upperNull ? null : upper,
             lowerNull || randomBoolean(),
             upperNull || randomBoolean(),
             null,
@@ -337,7 +339,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkExpensiveQuery(this::randomWildcardQuery);
     }
 
-    public void testWildcardQueryInLoop() {
+    public void testWildcardQueryInLoop() throws IOException {
         checkLoop(this::randomWildcardQuery);
     }
 
@@ -426,10 +428,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                                     }
                                 };
                             case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                return (fieldName, params, lookup) -> (ctx) -> new StringFieldScript(fieldName, params, lookup, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        leafSearchLookup.doc().get("test");
+                                    }
                                 };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");

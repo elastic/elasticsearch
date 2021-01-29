@@ -183,7 +183,9 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
+        long lower = randomLongBetween(0, 1000);
+        long upper = lower + randomLongBetween(5, 5000);
+        return ft.rangeQuery(lower, upper, randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
     @Override
@@ -294,10 +296,11 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                                     }
                                 };
                             case "loop":
-                                return (fieldName, params, lookup) -> {
-                                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                                    lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        leafSearchLookup.doc().get("test");
+                                    }
                                 };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");

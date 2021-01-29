@@ -7,6 +7,7 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -348,7 +348,7 @@ public class CacheFile {
         final RangeMissingHandler writer,
         final Executor executor
     ) {
-        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -401,7 +401,7 @@ public class CacheFile {
      */
     @Nullable
     Future<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
-        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -418,19 +418,19 @@ public class CacheFile {
         }
     }
 
-    private static void releaseAndFail(CompletableFuture<Integer> future, Releasable decrementRef, Exception e) {
+    private static void releaseAndFail(PlainActionFuture<Integer> future, Releasable decrementRef, Exception e) {
         try {
             Releasables.close(decrementRef);
         } catch (Exception ex) {
             e.addSuppressed(ex);
         }
-        future.completeExceptionally(e);
+        future.onFailure(e);
     }
 
     private static ActionListener<Void> rangeListener(
         Tuple<Long, Long> rangeToRead,
         RangeAvailableHandler reader,
-        CompletableFuture<Integer> future,
+        PlainActionFuture<Integer> future,
         FileChannelReference reference,
         Releasable releasable
     ) {
@@ -443,8 +443,8 @@ public class CacheFile {
                 + '-'
                 + rangeToRead.v1()
                 + ']';
-            future.complete(read);
-        }, future::completeExceptionally), releasable::close);
+            future.onResponse(read);
+        }, future::onFailure), releasable::close);
     }
 
     /**

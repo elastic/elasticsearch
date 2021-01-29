@@ -399,10 +399,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (includeGlobalState != entry.includeGlobalState) return false;
             if (partial != entry.partial) return false;
             if (startTime != entry.startTime) return false;
-            if (!indices.equals(entry.indices)) return false;
-            if (!dataStreams.equals(entry.dataStreams)) return false;
-            if (!shards.equals(entry.shards)) return false;
-            if (!snapshot.equals(entry.snapshot)) return false;
+            if (indices.equals(entry.indices) == false) return false;
+            if (dataStreams.equals(entry.dataStreams) == false) return false;
+            if (shards.equals(entry.shards) == false) return false;
+            if (snapshot.equals(entry.snapshot) == false) return false;
             if (state != entry.state) return false;
             if (repositoryStateId != entry.repositoryStateId) return false;
             if (Objects.equals(failure, ((Entry) o).failure) == false) return false;

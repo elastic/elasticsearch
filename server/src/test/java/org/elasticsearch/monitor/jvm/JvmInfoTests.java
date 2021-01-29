@@ -53,7 +53,9 @@ public class JvmInfoTests extends ESTestCase {
 
     private boolean flagIsEnabled(String argline, String flag) {
         final boolean containsPositiveFlag = argline != null && argline.contains("-XX:+" + flag);
-        if (!containsPositiveFlag) return false;
+        if (containsPositiveFlag == false) {
+            return false;
+        }
         final int index = argline.lastIndexOf(flag);
         return argline.charAt(index - 1) == '+';
     }

@@ -12,6 +12,13 @@ Provides general information about the installed {xpack} features.
 `GET /_xpack`
 
 [discrete]
+[[info-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[discrete]
 [[info-api-desc]]
 === {api-description-title}
 

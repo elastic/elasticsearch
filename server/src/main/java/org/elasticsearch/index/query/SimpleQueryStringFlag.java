@@ -53,7 +53,7 @@ public enum SimpleQueryStringFlag {
     }
 
     static int resolveFlags(String flags) {
-        if (!Strings.hasLength(flags)) {
+        if (Strings.hasLength(flags) == false) {
             return ALL.value();
         }
         int magic = NONE.value();

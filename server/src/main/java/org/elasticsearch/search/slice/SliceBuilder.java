@@ -177,7 +177,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof SliceBuilder)) {
+        if ((other instanceof SliceBuilder) == false) {
             return false;
         }
 

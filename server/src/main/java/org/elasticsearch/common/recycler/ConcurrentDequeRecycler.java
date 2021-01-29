@@ -53,7 +53,7 @@ public class ConcurrentDequeRecycler<T> extends DequeRecycler<T> {
 
     @Override
     protected void afterRelease(boolean recycled) {
-        if (!recycled) {
+        if (recycled == false) {
             size.decrementAndGet();
         }
     }

@@ -209,14 +209,14 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     Store store = indexShard.store();
                     store.incRef();
                     try {
-                        if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
+                        if (Lucene.indexExists(store.directory()) == false && indexShard.state() == IndexShardState.STARTED) {
                             return;
                         }
                         BytesStreamOutput os = new BytesStreamOutput();
                         PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                         CheckIndex.Status status = store.checkIndex(out);
                         out.flush();
-                        if (!status.clean) {
+                        if (status.clean == false) {
                             logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
                             throw new IOException("index check failure");
                         }

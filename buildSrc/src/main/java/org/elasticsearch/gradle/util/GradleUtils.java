@@ -26,6 +26,8 @@ import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.ModuleDependency;
+import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.Provider;
@@ -231,5 +233,15 @@ public abstract class GradleUtils {
         return projectPath.contains("modules:")
             || projectPath.startsWith(":x-pack:plugin")
             || projectPath.startsWith(":x-pack:quota-aware-fs");
+    }
+
+    public static void disableTransitiveDependencies(Configuration config) {
+        config.getDependencies().all(dep -> {
+            if (dep instanceof ModuleDependency
+                && dep instanceof ProjectDependency == false
+                && dep.getGroup().startsWith("org.elasticsearch") == false) {
+                ((ModuleDependency) dep).setTransitive(false);
+            }
+        });
     }
 }

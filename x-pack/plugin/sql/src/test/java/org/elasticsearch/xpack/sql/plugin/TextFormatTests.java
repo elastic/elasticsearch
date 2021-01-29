@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
@@ -14,18 +19,13 @@ import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -153,7 +153,14 @@ public class TextFormatTests extends ESTestCase {
 
 
     private static SqlQueryResponse emptyData() {
-        return new SqlQueryResponse(null, Mode.JDBC, false, singletonList(new ColumnInfo("index", "name", "keyword")), emptyList());
+        return new SqlQueryResponse(
+            null,
+            Mode.JDBC,
+            DATE_NANOS_SUPPORT_VERSION,
+            false,
+            singletonList(new ColumnInfo("index", "name", "keyword")),
+            emptyList()
+        );
     }
 
     private static SqlQueryResponse regularData() {
@@ -167,7 +174,7 @@ public class TextFormatTests extends ESTestCase {
         values.add(asList("Along The River Bank", 11 * 60 + 48));
         values.add(asList("Mind Train", 4 * 60 + 40));
 
-        return new SqlQueryResponse(null, Mode.JDBC, false, headers, values);
+        return new SqlQueryResponse(null, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, headers, values);
     }
 
     private static SqlQueryResponse escapedData() {
@@ -181,7 +188,7 @@ public class TextFormatTests extends ESTestCase {
         values.add(asList("normal", "\"quo\"ted\",\n"));
         values.add(asList("commas", "a,b,c,\n,d,e,\t\n"));
 
-        return new SqlQueryResponse(null, Mode.JDBC, false, headers, values);
+        return new SqlQueryResponse(null, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, headers, values);
     }
 
     private static RestRequest req() {

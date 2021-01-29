@@ -2260,17 +2260,19 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis) {
-        assertErrorMessageForDateTimeValues(ex, expectedType, epochMillis, 0);
+        assertErrorMessageForDateTimeValues(ex, expectedType, epochMillis, null);
     }
 
-    private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis, int nanos) {
+    private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis, Integer nanos) {
         Pattern expectedPattern = compile(quote("Unable to convert value [") + "(?<instant>.*?)" 
                 + quote("] of type [DATETIME] to [" + expectedType.getSimpleName() + "]"));
         Matcher matcher = expectedPattern.matcher(ex.getMessage());
         assertTrue(matcher.matches());
         OffsetDateTime odt = OffsetDateTime.parse(matcher.group("instant"));
         assertEquals(odt.toInstant().toEpochMilli(), epochMillis);
-        assertEquals(odt.getNano(), nanos);
+        if (nanos != null) {
+            assertEquals(odt.getNano(), nanos.intValue());
+        }
     }
 
     private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String, Object, SQLException> method, String type) {

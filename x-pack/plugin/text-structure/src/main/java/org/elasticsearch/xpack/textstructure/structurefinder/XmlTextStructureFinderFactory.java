@@ -18,11 +18,11 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.List;
 
-public class XmlFileStructureFinderFactory implements FileStructureFinderFactory {
+public class XmlTextStructureFinderFactory implements TextStructureFinderFactory {
 
     private final XMLInputFactory xmlFactory;
 
-    public XmlFileStructureFinderFactory() {
+    public XmlTextStructureFinderFactory() {
         xmlFactory = XMLInputFactory.newInstance();
         xmlFactory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, Boolean.FALSE);
         xmlFactory.setProperty(XMLInputFactory.IS_VALIDATING, Boolean.FALSE);
@@ -137,16 +137,16 @@ public class XmlFileStructureFinderFactory implements FileStructureFinderFactory
     }
 
     @Override
-    public FileStructureFinder createFromSample(
+    public TextStructureFinder createFromSample(
         List<String> explanation,
         String sample,
         String charsetName,
         Boolean hasByteOrderMarker,
         int lineMergeSizeLimit,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) throws IOException, ParserConfigurationException, SAXException {
-        return XmlFileStructureFinder.makeXmlFileStructureFinder(
+        return XmlTextStructureFinder.makeXmlTextStructureFinder(
             explanation,
             sample,
             charsetName,

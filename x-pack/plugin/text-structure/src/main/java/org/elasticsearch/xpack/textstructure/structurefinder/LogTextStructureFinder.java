@@ -20,26 +20,26 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
-public class TextLogFileStructureFinder implements FileStructureFinder {
+public class LogTextStructureFinder implements TextStructureFinder {
 
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
-    static TextLogFileStructureFinder makeTextLogFileStructureFinder(
+    static LogTextStructureFinder makeLogTextStructureFinder(
         List<String> explanation,
         String sample,
         String charsetName,
         Boolean hasByteOrderMarker,
         int lineMergeSizeLimit,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
         String[] sampleLines = sample.split("\n");
         TimestampFormatFinder timestampFormatFinder = populateTimestampFormatFinder(explanation, sampleLines, overrides, timeoutChecker);
         switch (timestampFormatFinder.getNumMatchedFormats()) {
             case 0:
-                // Is it appropriate to treat a file that is neither structured nor has
-                // a regular pattern of timestamps as a log file? Probably not...
+                // Is it appropriate to treat text that is neither structured nor has
+                // a regular pattern of timestamps as a log? Probably not...
                 throw new IllegalArgumentException(
                     "Could not find "
                         + ((overrides.getTimestampFormat() == null) ? "a timestamp" : "the specified timestamp format")
@@ -135,13 +135,13 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleMessages.size())
             .setMultilineStartPattern(multiLineRegex);
 
-        Map<String, String> messageMapping = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text");
+        Map<String, String> messageMapping = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text");
         SortedMap<String, Object> fieldMappings = new TreeMap<>();
         fieldMappings.put("message", messageMapping);
-        fieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timestampFormatFinder.getEsDateMappingTypeWithoutFormat());
+        fieldMappings.put(TextStructureUtils.DEFAULT_TIMESTAMP_FIELD, timestampFormatFinder.getEsDateMappingTypeWithoutFormat());
 
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
-        fieldStats.put("message", FileStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
+        fieldStats.put("message", TextStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
 
         Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
@@ -190,7 +190,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
             .setIngestPipeline(
-                FileStructureUtils.makeIngestPipelineDefinition(
+                TextStructureUtils.makeIngestPipelineDefinition(
                     grokPattern,
                     customGrokPatternDefinitions,
                     null,
@@ -201,15 +201,15 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                     timestampFormatFinder.needNanosecondPrecision()
                 )
             )
-            .setMappings(Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
+            .setMappings(Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
             .setFieldStats(fieldStats)
             .setExplanation(explanation)
             .build();
 
-        return new TextLogFileStructureFinder(sampleMessages, structure);
+        return new LogTextStructureFinder(sampleMessages, structure);
     }
 
-    private TextLogFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
+    private LogTextStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }
@@ -227,7 +227,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
     static TimestampFormatFinder populateTimestampFormatFinder(
         List<String> explanation,
         String[] sampleLines,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(

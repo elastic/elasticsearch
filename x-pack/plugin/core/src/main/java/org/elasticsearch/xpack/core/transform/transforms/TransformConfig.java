@@ -325,6 +325,11 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             validationException = latestConfig.validate(validationException);
         }
         validationException = settings.validate(validationException);
+
+        if (retentionPolicyConfig != null) {
+            validationException = retentionPolicyConfig.validate(validationException);
+        }
+
         return validationException;
     }
 

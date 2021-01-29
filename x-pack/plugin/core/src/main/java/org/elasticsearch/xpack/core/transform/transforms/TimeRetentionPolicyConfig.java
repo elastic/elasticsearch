@@ -21,11 +21,13 @@ import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
 
     private static final String NAME = "transform_retention_policy_time";
+    private static long MIN_AGE_SECONDS = 60;
 
     private final String field;
     private final TimeValue maxAge;
@@ -67,8 +69,14 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
         return maxAge;
     }
 
+    @Override
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
-
+        if (maxAge.getSeconds() < MIN_AGE_SECONDS) {
+            validationException = addValidationError(
+                "retention_policy.time.max_age must be more than " + MIN_AGE_SECONDS + "s, found [" + maxAge + "]",
+                validationException
+            );
+        }
         return validationException;
     }
 

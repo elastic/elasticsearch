@@ -203,11 +203,18 @@ The Elasticsearch service can be configured prior to installation by setting the
 NOTE: At its core, `elasticsearch-service.bat` relies on https://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
 to install the service. Environment variables set prior to the service installation are copied and will be used during the service lifecycle. This means any changes made to them after the installation will not be picked up unless the service is reinstalled.
 
-NOTE: On Windows, the <<heap-size,heap size>> can be configured as for
-any other Elasticsearch installation when running Elasticsearch from the
-command line, or when installing Elasticsearch as a service for the
-first time. To adjust the heap size for an already installed service,
+[NOTE]
+====
+By default, {es} automatically sizes JVM heap based on a node's
+<<node-roles,roles>> and total memory. We recommend this default sizing for most
+production environments. If needed, you can override default sizing by manually
+setting the heap size.
+
+When installing {es} on Windows as a service for the first time or running {es}
+from the command line, you can manually set the heap size as described in
+<<setting-jvm-heap-size>>. To resize the heap for an already installed service,
 use the service manager: `bin\elasticsearch-service.bat manager`.
+====
 
 NOTE: The service automatically configures a private temporary directory for use
 by Elasticsearch when it is running. This private temporary directory is

@@ -22,6 +22,7 @@ tasks.register("bwcTest") {
 
 tasks.withType(Test).configureEach {
   onlyIf { project.bwc_tests_enabled }
+  nonInputProperties.systemProperty 'tests.bwc', 'true'
 }
 
 tasks.named("check").configure {

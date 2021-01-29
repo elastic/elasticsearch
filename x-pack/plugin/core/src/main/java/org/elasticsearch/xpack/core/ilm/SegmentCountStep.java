@@ -45,6 +45,11 @@ public class SegmentCountStep extends AsyncWaitStep {
         this.maxNumSegments = maxNumSegments;
     }
 
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
     public int getMaxNumSegments() {
         return maxNumSegments;
     }

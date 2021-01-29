@@ -221,7 +221,7 @@ POST /sales/_search?size=0
 // TEST[setup:sales]
 
 In this example even though the range specified in the query is up to 500, the histogram will only have 2 buckets starting at 100 and 150.
-All other buckets will be omitted even even if documents that should go to this buckets are present in the results.
+All other buckets will be omitted even if documents that should go to this buckets are present in the results.
 
 ==== Order
 

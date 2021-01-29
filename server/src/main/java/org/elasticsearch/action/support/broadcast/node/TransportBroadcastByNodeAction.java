@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -316,26 +317,30 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void sendNodeRequest(final DiscoveryNode node, List<ShardRouting> shards, final int nodeIndex) {
             try {
-                NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
+                final NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
-                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
-                    @Override
-                    public NodeResponse read(StreamInput in) throws IOException {
-                        return new NodeResponse(in);
-                    }
 
-                    @Override
-                    public void handleResponse(NodeResponse response) {
-                        onNodeResponse(node, nodeIndex, response);
-                    }
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onNodeFailure(node, nodeIndex, exp);
-                    }
-                });
+                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, transportRequestOptions,
+                        new TransportResponseHandler<NodeResponse>() {
+                            @Override
+                            public NodeResponse read(StreamInput in) throws IOException {
+                                return new NodeResponse(in);
+                            }
+
+                            @Override
+                            public void handleResponse(NodeResponse response) {
+                                onNodeResponse(node, nodeIndex, response);
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                onNodeFailure(node, nodeIndex, exp);
+                            }
+                        });
             } catch (Exception e) {
                 onNodeFailure(node, nodeIndex, e);
             }

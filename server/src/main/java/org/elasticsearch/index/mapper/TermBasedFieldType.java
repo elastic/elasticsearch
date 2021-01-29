@@ -26,9 +26,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
@@ -48,24 +48,21 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+    public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
         return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
         return new TermQuery(new Term(name(), indexedValueForSearch(value)));
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
-        }
+        BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
         return new TermInSetQuery(name(), bytesRefs);
     }
 

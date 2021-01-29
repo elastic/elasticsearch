@@ -19,10 +19,15 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -166,5 +171,45 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             throw new AssertionError();
         }
 
+    }
+
+    public void testAccountsRegularIndices() {
+        String mapping = "{\"properties\":{\"bar\":{\"type\":\"text\",\"analyzer\":\"german\"}}}";
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
+                .settings(settings)
+                .putMapping(mapping);
+        Metadata metadata = new Metadata.Builder()
+                .put(indexMetadata)
+                .build();
+        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        IndexFeatureStats expectedStats = new IndexFeatureStats("german");
+        expectedStats.count = 1;
+        expectedStats.indexCount = 1;
+        assertEquals(
+                Collections.singleton(expectedStats),
+                analysisStats.getUsedBuiltInAnalyzers());
+    }
+
+    public void testIgnoreSystemIndices() {
+        String mapping = "{\"properties\":{\"bar\":{\"type\":\"text\",\"analyzer\":\"german\"}}}";
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
+                .settings(settings)
+                .putMapping(mapping)
+                .system(true);
+        Metadata metadata = new Metadata.Builder()
+                .put(indexMetadata)
+                .build();
+        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        assertEquals(Collections.emptySet(), analysisStats.getUsedBuiltInAnalyzers());
     }
 }

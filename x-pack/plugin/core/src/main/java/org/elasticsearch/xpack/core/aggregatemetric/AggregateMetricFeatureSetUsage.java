@@ -25,7 +25,7 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return Version.V_7_11_0;
     }
 
     @Override

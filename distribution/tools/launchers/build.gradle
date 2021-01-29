@@ -22,6 +22,7 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   compileOnly project(':distribution:tools:java-version-checker')
+  compileOnly "org.yaml:snakeyaml:${versions.snakeyaml}"
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"

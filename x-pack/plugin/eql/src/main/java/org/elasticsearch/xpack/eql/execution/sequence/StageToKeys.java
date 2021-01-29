@@ -6,11 +6,15 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
+
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
+
+import static java.util.Collections.emptySet;
 
 /** Dedicated collection for mapping a stage (represented by the index collection) to a set of keys */
 class StageToKeys {
@@ -43,6 +47,21 @@ class StageToKeys {
     boolean isEmpty(int stage) {
         Set<SequenceKey> set = stageToKey.get(stage);
         return set == null || set.isEmpty();
+    }
+
+    Set<SequenceKey> keys(int stage) {
+        Set<SequenceKey> set = stageToKey.get(stage);
+        return set == null ? emptySet() : set;
+    }
+
+    Set<SequenceKey> keys() {
+        Set<SequenceKey> keys = new LinkedHashSet<>();
+        for (Set<SequenceKey> sequenceKeys : stageToKey) {
+            if (CollectionUtils.isEmpty(sequenceKeys) == false) {
+                keys.addAll(sequenceKeys);
+            }
+        }
+        return keys;
     }
 
     void clear() {

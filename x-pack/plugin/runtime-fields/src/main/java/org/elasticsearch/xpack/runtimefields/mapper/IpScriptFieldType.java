@@ -11,14 +11,17 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -28,21 +31,45 @@ import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.IpScriptFieldTermsQuery;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
-    IpScriptFieldType(String name, Script script, IpFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+        @Override
+        protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new IpScriptFieldType(name, IpFieldScript.PARSE_FROM_SOURCE, this);
+            }
+            IpFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), IpFieldScript.CONTEXT);
+            return new IpScriptFieldType(name, factory, this);
+        }
+    });
+
+    private IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Builder builder) {
+        super(name, scriptFactory::newFactory, builder);
+    }
+
+    IpScriptFieldType(
+        String name,
+        IpFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+    ) {
+        super(name, scriptFactory::newFactory, script, meta, toXContent);
     }
 
     @Override
-    protected String runtimeType() {
+    public String typeName() {
         return IpFieldMapper.CONTENT_TYPE;
     }
 
@@ -57,12 +84,12 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
         if (format != null) {
-            String message = "Field [%s] of type [%s] with runtime type [%s] does not support custom formats";
-            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName(), runtimeType()));
+            String message = "Runtime field [%s] of type [%s] does not support custom formats";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName()));
         }
         if (timeZone != null) {
-            String message = "Field [%s] of type [%s] with runtime type [%s] does not support custom time zones";
-            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName(), runtimeType()));
+            String message = "Runtime field [%s] of type [%s] does not support custom time zones";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, message, name(), typeName()));
         }
         return DocValueFormat.IP;
     }
@@ -73,7 +100,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
     }
@@ -86,7 +113,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         checkAllowExpensiveQueries(context);
         return IpFieldMapper.IpFieldType.rangeQuery(
@@ -105,7 +132,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         if (value instanceof InetAddress) {
             return inetAddressQuery((InetAddress) value, context);
@@ -118,12 +145,12 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         return inetAddressQuery(address, context);
     }
 
-    private Query inetAddressQuery(InetAddress address, QueryShardContext context) {
+    private Query inetAddressQuery(InetAddress address, SearchExecutionContext context) {
         return new IpScriptFieldTermQuery(script, leafFactory(context), name(), new BytesRef(InetAddressPoint.encode(address)));
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         BytesRefHash terms = new BytesRefHash(values.size(), BigArrays.NON_RECYCLING_INSTANCE);
         List<Query> cidrQueries = null;
@@ -154,7 +181,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         return bool.build();
     }
 
-    private Query cidrQuery(String term, QueryShardContext context) {
+    private Query cidrQuery(String term, SearchExecutionContext context) {
         Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
         InetAddress addr = cidr.v1();
         int prefixLength = cidr.v2();

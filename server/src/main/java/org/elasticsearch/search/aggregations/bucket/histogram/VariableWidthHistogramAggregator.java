@@ -41,9 +41,9 @@ import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollecto
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -445,7 +445,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     VariableWidthHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, int shardSize,
                                      int initialBuffer, @Nullable ValuesSourceConfig valuesSourceConfig,
-                                     SearchContext context, Aggregator parent,
+                                     AggregationContext context, Aggregator parent,
                                      Map<String, Object> metadata) throws IOException{
         super(name, factories, context, parent, metadata);
 

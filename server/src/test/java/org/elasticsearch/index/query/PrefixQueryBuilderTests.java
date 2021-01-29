@@ -70,7 +70,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class),
             instanceOf(AutomatonQuery.class)));
         if (context.getFieldType(queryBuilder.fieldName()) != null
@@ -95,7 +95,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testBlendedRewriteMethod() throws IOException {
         String rewrite = "top_terms_blended_freqs_10";
-        Query parsedQuery = parseQuery(prefixQuery(TEXT_FIELD_NAME, "val").rewrite(rewrite)).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(prefixQuery(TEXT_FIELD_NAME, "val").rewrite(rewrite)).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(PrefixQuery.class));
         PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
         assertThat(prefixQuery.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "val")));
@@ -119,7 +119,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testNumeric() throws Exception {
         PrefixQueryBuilder query = prefixQuery(INT_FIELD_NAME, "12*");
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         QueryShardException e = expectThrows(QueryShardException.class,
                 () -> query.toQuery(context));
         assertEquals("Can only use prefix queries on keyword, text and wildcard fields - not on [mapped_int] which is of type [integer]",
@@ -154,21 +154,21 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testRewriteIndexQueryToMatchNone() throws Exception {
         PrefixQueryBuilder query = prefixQuery("_index", "does_not_exist");
-        QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws Exception {
         PrefixQueryBuilder query = prefixQuery("_index", getIndex().getName());
-        QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         PrefixQueryBuilder queryBuilder = new PrefixQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class,

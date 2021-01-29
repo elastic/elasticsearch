@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.runtimefields.test.mapped;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.xpack.runtimefields.test.CoreTestTranslater;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -35,28 +33,16 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     private static class MappingRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
-        protected Map<String, Object> dynamicTemplateFor(String type) {
-            return dynamicTemplateToAddRuntimeFields(type);
+        protected Map<String, Object> dynamicTemplateFor() {
+            return dynamicTemplateToAddRuntimeFields();
         }
 
         @Override
         protected Suite suite(ClientYamlTestCandidate candidate) {
             return new Suite(candidate) {
                 @Override
-                protected boolean modifyMappingProperties(String index, Map<String, Object> properties) {
-                    Map<String, Object> newProperties = new HashMap<>(properties.size());
-                    Map<String, Map<String, Object>> runtimeProperties = new HashMap<>(properties.size());
-                    if (false == runtimeifyMappingProperties(properties, newProperties, runtimeProperties)) {
-                        return false;
-                    }
-                    for (Map.Entry<String, Map<String, Object>> runtimeProperty : runtimeProperties.entrySet()) {
-                        runtimeProperty.getValue().put("runtime_type", runtimeProperty.getValue().get("type"));
-                        runtimeProperty.getValue().put("type", "runtime");
-                        newProperties.put(runtimeProperty.getKey(), runtimeProperty.getValue());
-                    }
-                    properties.clear();
-                    properties.putAll(newProperties);
-                    return true;
+                protected boolean modifyMappingProperties(String index, Map<String, Object> properties, Map<String, Object> runtimeFields) {
+                    return runtimeifyMappingProperties(properties, runtimeFields);
                 }
 
                 @Override

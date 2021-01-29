@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Map;
 
 public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregator.Range> {
-
     public DateRangeAggregatorFactory(
         String name,
         ValuesSourceConfig config,
@@ -38,7 +37,9 @@ public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<R
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        RangeAggregatorSupplier aggregatorSupplier
+
     ) throws IOException {
         super(
             name,
@@ -50,7 +51,8 @@ public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<R
             context,
             parent,
             subFactoriesBuilder,
-            metadata
+            metadata,
+            aggregatorSupplier
         );
     }
 

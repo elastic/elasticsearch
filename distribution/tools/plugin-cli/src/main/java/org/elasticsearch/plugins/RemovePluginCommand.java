@@ -136,7 +136,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         final Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
-            if (!Files.isDirectory(pluginBinDir)) {
+            if (Files.isDirectory(pluginBinDir) == false) {
                 throw new UserException(ExitCodes.IO_ERROR, "bin dir for " + pluginName + " is not a directory");
             }
             try (Stream<Path> paths = Files.list(pluginBinDir)) {

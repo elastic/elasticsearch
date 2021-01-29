@@ -37,7 +37,7 @@ do
     
     # Pull and rebase all branches to ensure we've incorporated any new upstream commits
     git checkout --quiet ${BRANCH}
-    git pull "${REMOTE}" --rebase --quiet
+    git pull "${REMOTE}" "${BRANCH}" --rebase --quiet
     
     PENDING_COMMITS=$(git log ${REMOTE}/${BRANCH}..HEAD --oneline | grep "^.*$" -c || true)
     

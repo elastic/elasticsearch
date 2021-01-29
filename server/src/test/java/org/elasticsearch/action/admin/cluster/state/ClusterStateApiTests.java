@@ -25,6 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -35,10 +37,9 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
     public void testWaitForMetadataVersion() throws Exception {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.waitForTimeout(TimeValue.timeValueHours(1));
-        ActionFuture<ClusterStateResponse> future1 = client().admin().cluster().state(clusterStateRequest);
-        assertThat(future1.isDone(), is(true));
-        assertThat(future1.actionGet().isWaitForTimedOut(), is(false));
-        long metadataVersion = future1.actionGet().getState().getMetadata().version();
+        ClusterStateResponse response = client().admin().cluster().state(clusterStateRequest).get(10L, TimeUnit.SECONDS);
+        assertThat(response.isWaitForTimedOut(), is(false));
+        long metadataVersion = response.getState().getMetadata().version();
 
         // Verify that cluster state api returns after the cluster settings have been updated:
         clusterStateRequest = new ClusterStateRequest();
@@ -52,10 +53,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.max_shards_per_node", 999));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        assertBusy(() -> {
-            assertThat(future2.isDone(), is(true));
-        });
-        ClusterStateResponse response = future2.actionGet();
+        response = future2.get(10L, TimeUnit.SECONDS);
         assertThat(response.isWaitForTimedOut(), is(false));
         assertThat(response.getState().metadata().version(), equalTo(metadataVersion + 1));
 
@@ -64,10 +62,7 @@ public class ClusterStateApiTests extends ESSingleNodeTestCase {
         clusterStateRequest.waitForMetadataVersion(metadataVersion + 1);
         clusterStateRequest.waitForTimeout(TimeValue.timeValueMillis(500)); // Fail fast
         ActionFuture<ClusterStateResponse> future3 = client().admin().cluster().state(clusterStateRequest);
-        assertBusy(() -> {
-            assertThat(future3.isDone(), is(true));
-        });
-        response = future3.actionGet();
+        response = future3.get(10L, TimeUnit.SECONDS);
         assertThat(response.isWaitForTimedOut(), is(true));
         assertThat(response.getState(), nullValue());
 

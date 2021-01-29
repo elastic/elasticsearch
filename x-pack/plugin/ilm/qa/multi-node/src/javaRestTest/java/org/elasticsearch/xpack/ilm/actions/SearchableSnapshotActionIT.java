@@ -58,15 +58,21 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     private String policy;
     private String dataStream;
+    private String snapshotRepo;
 
     @Before
     public void refreshIndex() {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
+        snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+    }
+
+    @Override
+    protected boolean waitForAllSnapshotsWiped() {
+        return true;
     }
 
     public void testSearchableSnapshotAction() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
@@ -93,7 +99,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     }
 
     public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
@@ -140,7 +145,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/54433")
     public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 
         // create policy with cold and delete phases
@@ -207,12 +211,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
-        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink]" +
+        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup]" +
             " actions which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
     public void testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
@@ -266,9 +269,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testRestoredIndexManagedByLocalPolicySkipsIllegalActions() throws Exception{
+    public void testRestoredIndexManagedByLocalPolicySkipsIllegalActions() throws Exception {
         // let's create a data stream, rollover it and convert the first generation backing index into a searchable snapshot
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),

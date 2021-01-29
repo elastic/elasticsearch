@@ -26,9 +26,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,7 +43,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
@@ -70,6 +68,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -278,21 +277,21 @@ public class HighlightBuilderTests extends ESTestCase {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
-                null, null, System::currentTimeMillis, null, null, () -> true, null) {
+        SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,
+                null, null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
+                null, null, System::currentTimeMillis, null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER);
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
                 return builder.build(new ContentPath(1)).fieldType();
             }
         };
-        mockShardContext.setMapUnmappedFieldAsString(true);
+        mockContext.setMapUnmappedFieldAsString(true);
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
-            highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockShardContext);
-            SearchHighlightContext highlight = highlightBuilder.build(mockShardContext);
+            highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockContext);
+            SearchHighlightContext highlight = highlightBuilder.build(mockContext);
             for (SearchHighlightContext.Field field : highlight.fields()) {
                 String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;
                 assertEquals(encoder, field.fieldOptions().encoder());
@@ -329,9 +328,9 @@ public class HighlightBuilderTests extends ESTestCase {
                 }
                 Query expectedValue = null;
                 if (fieldBuilder.highlightQuery != null) {
-                    expectedValue = Rewriteable.rewrite(fieldBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
+                    expectedValue = Rewriteable.rewrite(fieldBuilder.highlightQuery, mockContext).toQuery(mockContext);
                 } else if (highlightBuilder.highlightQuery != null) {
-                    expectedValue = Rewriteable.rewrite(highlightBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
+                    expectedValue = Rewriteable.rewrite(highlightBuilder.highlightQuery, mockContext).toQuery(mockContext);
                 }
                 assertEquals(expectedValue, fieldOptions.highlightQuery());
             }

@@ -171,6 +171,9 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                     finalAliases.add(aliasMeta.alias());
                 }
             }
+            if (finalAliases.isEmpty() && action.mustExist() != null && action.mustExist()) {
+                return action.aliases();
+            }
             return finalAliases.toArray(new String[finalAliases.size()]);
         } else {
             //for ADD and REMOVE_INDEX we just return the current aliases

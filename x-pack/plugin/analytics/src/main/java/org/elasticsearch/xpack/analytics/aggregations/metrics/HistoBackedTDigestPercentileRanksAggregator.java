@@ -11,8 +11,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,7 +21,7 @@ public class HistoBackedTDigestPercentileRanksAggregator extends AbstractHistoBa
 
     public HistoBackedTDigestPercentileRanksAggregator(String name,
                                      ValuesSource valuesSource,
-                                     SearchContext context,
+                                     AggregationContext context,
                                      Aggregator parent,
                                      double[] percents,
                                      double compression,

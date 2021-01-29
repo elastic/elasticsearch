@@ -268,7 +268,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/anomaly_detectors?h=id,s,dpr,mb&v
+GET _cat/ml/anomaly_detectors?h=id,s,dpr,mb&v=true
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

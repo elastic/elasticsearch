@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest action to get one or more API keys information.
  */
-public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
+public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
 
     public RestGetApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

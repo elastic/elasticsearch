@@ -41,34 +41,51 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-latest"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-latest" },
+            "latest": {
+              "unique_key": [ "airline" ],
+              "sort": "time"
+            }
+          }
 
 ---
 teardown:
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-stats"
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-latest"
 
 ---
 "Test cat transform stats hiding headers":
   - do:
       cat.transforms:
-        transform_id: "airline-transform-stats"
+        transform_id: "airline-transform-*"
   - match:
       $body: |
         /^  #id                           \s+ create_time \s+ version \s+ source_index \s+ dest_index              \s+ pipeline \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state    \n
+            (airline\-transform\-latest   \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data \s+ airline-data-latest     \s+          \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+
             (airline\-transform\-stats    \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+          \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
 
 ---
 "Test cat transform stats with column selection":
   - do:
       cat.transforms:
-        transform_id: "airline-transform-stats"
+        transform_id: "airline-transform-*"
         v: true
         h: id,version,source_index,dest_index,search_total,index_total,docp,cdtea,indexed_documents_exp_avg
   - match:
       $body: |
-        /^   id                       \s+ version \s+ source_index \s+ dest_index              \s+ search_total \s+ index_total \s+ docp \s+ cdtea  \s+ indexed_documents_exp_avg \n
-            (airline\-transform-stats \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+ 0            \s+ 0           \s+ 0  \s+ 0.0    \s+ 0.0 \n)+  $/
+        /^   id                         \s+ version \s+ source_index \s+ dest_index              \s+ search_total \s+ index_total \s+ docp \s+ cdtea  \s+ indexed_documents_exp_avg \n
+            (airline\-transform-latest  \s+ [^\s]+  \s+ airline-data \s+ airline-data-latest     \s+ 0            \s+ 0           \s+ 0  \s+ 0.0    \s+ 0.0 \n)+
+            (airline\-transform-stats   \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+ 0            \s+ 0           \s+ 0  \s+ 0.0    \s+ 0.0 \n)+  $/
 
 
 ---

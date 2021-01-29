@@ -8,25 +8,22 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
+            runtime:
+              location_from_doc_value:
+                type: geo_point
+                script:
+                  source: |
+                    emit(doc["location"].lat, doc["location"].lon);
+              location_from_source:
+                type: geo_point
+                script:
+                  source: |
+                    emit(params._source.location.lat, params._source.location.lon);
             properties:
               timestamp:
                 type: date
               location:
                 type: geo_point
-              location_from_doc_value:
-                type: runtime
-                runtime_type: geo_point
-                script:
-                  source: |
-                    emit(doc["location"].lat, doc["location"].lon);
-              location_from_source:
-                type: runtime
-                runtime_type: geo_point
-                script:
-                  source: |
-                    emit(params._source.location.lat, params._source.location.lon);
-
-
   - do:
       bulk:
         index: locations
@@ -51,13 +48,11 @@ setup:
   - do:
       indices.get_mapping:
         index: locations
-  - match: {locations.mappings.properties.location_from_source.type: runtime }
-  - match: {locations.mappings.properties.location_from_source.runtime_type: geo_point }
+  - match: {locations.mappings.runtime.location_from_source.type: geo_point }
   - match:
-      locations.mappings.properties.location_from_source.script.source: |
+      locations.mappings.runtime.location_from_source.script.source: |
         emit(params._source.location.lat, params._source.location.lon);
-  - match: {locations.mappings.properties.location_from_source.script.lang: painless }
-
+  - match: {locations.mappings.runtime.location_from_source.script.lang: painless }
 
 ---
 "fetch fields from source":
@@ -173,6 +168,30 @@ setup:
               location_from_source:
                 lat: 0.0
                 lon: 0.0
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0._source.location.lat: 0.0 }
+  - match: {hits.hits.0._source.location.lon: 0.0 }
+  - match: {hits.hits.1._source.location.lat: 13.5 }
+  - match: {hits.hits.1._source.location.lon: 34.89 }
+  - match: {hits.hits.2._source.location.lat: 32.45 }
+  - match: {hits.hits.2._source.location.lon: 45.6 }
+  - match: {hits.hits.3._source.location.lat: -63.24 }
+  - match: {hits.hits.3._source.location.lon: 31.0 }
+
+---
+"distance_feature query":
+  - do:
+      search:
+        index: locations
+        body:
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: "location"
+                  pivot: "1000km"
+                  origin: [0.0, 0.0]
+
   - match: {hits.total.value: 6}
   - match: {hits.hits.0._source.location.lat: 0.0 }
   - match: {hits.hits.0._source.location.lon: 0.0 }

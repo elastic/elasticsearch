@@ -83,7 +83,7 @@ public abstract class TransportBroadcastAction<
         new AsyncBroadcastAction(task, request, listener).start();
     }
 
-    protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
+    protected abstract Response newResponse(Request request, AtomicReferenceArray<?> shardsResponses, ClusterState clusterState);
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
@@ -103,15 +103,15 @@ public abstract class TransportBroadcastAction<
 
     protected class AsyncBroadcastAction {
 
-        private final Task task;
-        private final Request request;
-        private final ActionListener<Response> listener;
-        private final ClusterState clusterState;
-        private final DiscoveryNodes nodes;
-        private final GroupShardsIterator<ShardIterator> shardsIts;
-        private final int expectedOps;
-        private final AtomicInteger counterOps = new AtomicInteger();
-        private final AtomicReferenceArray shardsResponses;
+        final Task task;
+        final Request request;
+        final ActionListener<Response> listener;
+        final ClusterState clusterState;
+        final DiscoveryNodes nodes;
+        final GroupShardsIterator<ShardIterator> shardsIts;
+        final int expectedOps;
+        final AtomicInteger counterOps = new AtomicInteger();
+        protected final AtomicReferenceArray shardsResponses;
 
         protected AsyncBroadcastAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -237,6 +237,10 @@ public abstract class TransportBroadcastAction<
                     finishHim();
                 }
             }
+        }
+
+        protected AtomicReferenceArray shardsResponses() {
+            return shardsResponses;
         }
 
         protected void finishHim() {

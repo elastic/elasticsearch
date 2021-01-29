@@ -105,7 +105,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Boolean> failIfUnavailable;
     private final Configuration extracted;
     private Action<ElasticsearchDistribution> distributionFinalizer;
-    private boolean froozen = false;
+    private boolean frozen = false;
 
     ElasticsearchDistribution(
         String name,
@@ -207,10 +207,10 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
      * runs distribution finalizer logic.
      */
     public ElasticsearchDistribution maybeFreeze() {
-        if (!froozen) {
+        if (frozen == false) {
             finalizeValues();
             distributionFinalizer.execute(this);
-            froozen = true;
+            frozen = true;
         }
         return this;
     }
@@ -319,8 +319,12 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         bundledJdk.finalizeValue();
     }
 
-    public Configuration getArchive() {
-        maybeFreeze();
-        return configuration;
+    public TaskDependency getArchiveDependencies() {
+        if (skippingDockerDistributionBuild()) {
+            return task -> Collections.emptySet();
+        } else {
+            maybeFreeze();
+            return configuration.getBuildDependencies();
+        }
     }
 }

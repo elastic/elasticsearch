@@ -1,5 +1,8 @@
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+
+import org.elasticsearch.gradle.info.BuildParams
+
 esplugin {
   name 'x-pack-sql'
   description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
@@ -129,4 +132,9 @@ allprojects {
   tasks.register("checkNoBwc") {
     dependsOn tasks.withType(Test).matching { it.name.contains('bwc') == false }
   }
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("internalClusterTest").configure{enabled = false }
 }

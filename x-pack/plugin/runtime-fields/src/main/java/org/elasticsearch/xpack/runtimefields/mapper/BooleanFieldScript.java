@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class BooleanFieldScript extends AbstractFieldScript {
+
     public static final ScriptContext<Factory> CONTEXT = newContext("boolean_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -33,6 +35,28 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
     public interface LeafFactory {
         BooleanFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new BooleanFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v instanceof Boolean) {
+                    emit((Boolean) v);
+                } else if (v instanceof String) {
+                    try {
+                        emit(Booleans.parseBoolean((String) v));
+                    } catch (IllegalArgumentException e) {
+                        // ignore
+                    }
+                }
+            }
+        }
+    };
 
     private int trues;
     private int falses;

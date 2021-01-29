@@ -19,26 +19,10 @@
 
 package org.elasticsearch.rollup;
 
-import org.elasticsearch.Build;
-
 public class RollupV2 {
-    public static final Boolean ROLLUPV2_FEATURE_FLAG_REGISTERED;
+    public static final boolean ROLLUP_V2_FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.rollup_v2_feature_flag_enabled"));
 
-    static {
-        final String property = System.getProperty("es.rollupv2_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.rollupv2_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        if ("true".equals(property)) {
-            ROLLUPV2_FEATURE_FLAG_REGISTERED = true;
-        } else if ("false".equals(property)) {
-            ROLLUPV2_FEATURE_FLAG_REGISTERED = false;
-        } else if (property == null) {
-            ROLLUPV2_FEATURE_FLAG_REGISTERED = null;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.rollupv2_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
-            );
-        }
+    public static boolean isEnabled() {
+        return ROLLUP_V2_FEATURE_FLAG_ENABLED;
     }
 }

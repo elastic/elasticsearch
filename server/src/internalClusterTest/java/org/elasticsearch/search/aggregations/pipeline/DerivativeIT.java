@@ -605,10 +605,10 @@ public class DerivativeIT extends ESIntegTestCase {
             } else if (cause instanceof SearchPhaseExecutionException) {
                 SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
                 Throwable rootCause = spee.getRootCause();
-                if (!(rootCause instanceof IllegalArgumentException)) {
+                if ((rootCause instanceof IllegalArgumentException) == false) {
                     throw e;
                 }
-            } else if (!(cause instanceof IllegalArgumentException)) {
+            } else if ((cause instanceof IllegalArgumentException) == false) {
                 throw e;
             }
         }

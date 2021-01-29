@@ -56,7 +56,7 @@ public class BytesRestResponse extends RestResponse {
      * Creates a new response based on {@link XContentBuilder}.
      */
     public BytesRestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.contentType().mediaType(), BytesReference.bytes(builder));
+        this(status, builder.getResponseContentTypeString(), BytesReference.bytes(builder));
     }
 
     /**

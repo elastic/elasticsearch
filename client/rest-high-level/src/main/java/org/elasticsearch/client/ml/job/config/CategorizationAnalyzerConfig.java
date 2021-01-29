@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -59,9 +60,9 @@ import java.util.Objects;
 public class CategorizationAnalyzerConfig implements ToXContentFragment {
 
     public static final ParseField CATEGORIZATION_ANALYZER = new ParseField("categorization_analyzer");
-    private static final ParseField TOKENIZER = RestAnalyzeAction.Fields.TOKENIZER;
-    private static final ParseField TOKEN_FILTERS = RestAnalyzeAction.Fields.TOKEN_FILTERS;
-    private static final ParseField CHAR_FILTERS = RestAnalyzeAction.Fields.CHAR_FILTERS;
+    private static final ParseField TOKENIZER = AnalyzeAction.Fields.TOKENIZER;
+    private static final ParseField TOKEN_FILTERS = AnalyzeAction.Fields.TOKEN_FILTERS;
+    private static final ParseField CHAR_FILTERS = AnalyzeAction.Fields.CHAR_FILTERS;
 
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.

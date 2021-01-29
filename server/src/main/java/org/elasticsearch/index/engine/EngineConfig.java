@@ -41,6 +41,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -60,6 +61,7 @@ public final class EngineConfig {
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
@@ -120,18 +122,30 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
-                        MergePolicy mergePolicy, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter,
-                        List<ReferenceManager.RefreshListener> externalRefreshListener,
-                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                        Supplier<RetentionLeases> retentionLeasesSupplier,
-                        LongSupplier primaryTermSupplier,
-                        TombstoneDocSupplier tombstoneDocSupplier) {
+    public EngineConfig(
+            ShardId shardId,
+            ThreadPool threadPool,
+            IndexSettings indexSettings,
+            Engine.Warmer warmer,
+            Store store,
+            MergePolicy mergePolicy,
+            Analyzer analyzer,
+            Similarity similarity,
+            CodecService codecService,
+            Engine.EventListener eventListener,
+            QueryCache queryCache,
+            QueryCachingPolicy queryCachingPolicy,
+            TranslogConfig translogConfig,
+            TimeValue flushMergesAfter,
+            List<ReferenceManager.RefreshListener> externalRefreshListener,
+            List<ReferenceManager.RefreshListener> internalRefreshListener,
+            Sort indexSort,
+            CircuitBreakerService circuitBreakerService,
+            LongSupplier globalCheckpointSupplier,
+            Supplier<RetentionLeases> retentionLeasesSupplier,
+            LongSupplier primaryTermSupplier,
+            TombstoneDocSupplier tombstoneDocSupplier,
+            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -169,6 +183,7 @@ public final class EngineConfig {
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
         this.tombstoneDocSupplier = tombstoneDocSupplier;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
     }
 
     /**
@@ -369,5 +384,9 @@ public final class EngineConfig {
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {
         return tombstoneDocSupplier;
+    }
+
+    public IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier() {
+        return snapshotCommitSupplier;
     }
 }

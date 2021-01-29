@@ -61,12 +61,13 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
+        final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadataBuilder).build()
+            Metadata.builder().put(sourceIndexMetadata, false).build()
         ).build();
 
         expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performAction(sourceIndexMetadataBuilder.build().getIndex(), clusterState));
+            () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {

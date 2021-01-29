@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -45,7 +44,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(new SystemIndexDescriptor(XPackPlugin.ASYNC_RESULTS_INDEX, this.getClass().getSimpleName()));
+        return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
     }
 
     @Override

@@ -273,6 +273,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     protected static int intersections(double dateline, Edge[] edges) {
         int numIntersections = 0;
         assert !Double.isNaN(dateline);
+        int maxComponent = 0;
         for (int i = 0; i < edges.length; i++) {
             Coordinate p1 = edges[i].coordinate;
             Coordinate p2 = edges[i].next.coordinate;
@@ -283,10 +284,46 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
             if (!Double.isNaN(position)) {
                 edges[i].intersection(position);
                 numIntersections++;
+                maxComponent = Math.max(maxComponent, edges[i].component);
             }
         }
+        if (maxComponent > 0) {
+            // we might detect polygons touching the dateline as intersections
+            // Here we clean them up
+            for (int i = 0; i < maxComponent; i++) {
+                if (clearComponentTouchingDateline(edges, i + 1)) {
+                    numIntersections--;
+                }
+            }
+        }
+
         Arrays.sort(edges, INTERSECTION_ORDER);
         return numIntersections;
+    }
+
+    /**
+     * Checks the number of dateline intersections detected for a component. If there is only
+     * one, it clears it as it means that the component just touches the dateline.
+     *
+     * @param edges    set of edges that may intersect with the dateline
+     * @param component    The component to check
+     * @return true if the component touches the dateline.
+     */
+    private static boolean clearComponentTouchingDateline(Edge[] edges, int component) {
+        Edge intersection = null;
+        for (Edge edge : edges) {
+            if (edge.intersect != Edge.MAX_COORDINATE && edge.component == component) {
+                if (intersection == null) {
+                    intersection = edge;
+                } else {
+                    return false;
+                }
+            }
+        }
+        if (intersection != null) {
+            intersection.intersect = Edge.MAX_COORDINATE;
+        }
+        return intersection != null;
     }
 
     /**

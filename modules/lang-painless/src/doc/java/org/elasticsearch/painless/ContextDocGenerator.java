@@ -21,8 +21,6 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
@@ -34,16 +32,12 @@ import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -70,7 +64,7 @@ public final class ContextDocGenerator {
     private static final String SHARED_NAME = "Shared";
 
     public static void main(String[] args) throws IOException {
-        List<PainlessContextInfo> contextInfos = getContextInfos();
+        List<PainlessContextInfo> contextInfos = ContextGeneratorCommon.getContextInfos();
         Set<Object> sharedStaticInfos = createSharedStatics(contextInfos);
         Set<PainlessContextClassInfo> sharedClassInfos = createSharedClasses(contextInfos);
 
@@ -100,33 +94,6 @@ public final class ContextDocGenerator {
         }
 
         printRootIndexPage(rootDir, contextInfos, isSpecialized);
-    }
-
-    @SuppressForbidden(reason = "retrieving data from an internal API not exposed as part of the REST client")
-    private static List<PainlessContextInfo> getContextInfos() throws IOException  {
-        URLConnection getContextNames = new URL(
-                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context").openConnection();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextNames.getInputStream());
-        parser.nextToken();
-        parser.nextToken();
-        @SuppressWarnings("unchecked")
-        List<String> contextNames = (List<String>)(Object)parser.list();
-        parser.close();
-        ((HttpURLConnection)getContextNames).disconnect();
-
-        List<PainlessContextInfo> contextInfos = new ArrayList<>();
-
-        for (String contextName : contextNames) {
-            URLConnection getContextInfo = new URL(
-                    "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName).openConnection();
-            parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
-            contextInfos.add(PainlessContextInfo.fromXContent(parser));
-            ((HttpURLConnection)getContextInfo).disconnect();
-        }
-
-        contextInfos.sort(Comparator.comparing(PainlessContextInfo::getName));
-
-        return contextInfos;
     }
 
     private static Set<Object> createSharedStatics(List<PainlessContextInfo> contextInfos) {
@@ -291,7 +258,7 @@ public final class ContextDocGenerator {
                     indexStream.println();
                 }
 
-                String className = getType(javaNamesToDisplayNames, classInfo.getName());
+                String className = ContextGeneratorCommon.getType(javaNamesToDisplayNames, classInfo.getName());
                 indexStream.println("* <<" + getClassHeader(contextHeader, className) + ", " + className + ">>");
             }
         }
@@ -354,7 +321,7 @@ public final class ContextDocGenerator {
                         "for a high-level overview of all packages and classes.");
             }
 
-            String className = getType(javaNamesToDisplayNames, classInfo.getName());
+            String className = ContextGeneratorCommon.getType(javaNamesToDisplayNames, classInfo.getName());
             packagesStream.println();
             packagesStream.println("[[" + getClassHeader(contextHeader, className) + "]]");
             packagesStream.println("==== " + className + "");
@@ -443,7 +410,7 @@ public final class ContextDocGenerator {
              parameterIndex < constructorInfo.getParameters().size();
              ++parameterIndex) {
 
-            stream.print(getType(javaNamesToDisplayNames, constructorInfo.getParameters().get(parameterIndex)));
+            stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, constructorInfo.getParameters().get(parameterIndex)));
 
             if (parameterIndex + 1 < constructorInfo.getParameters().size()) {
                 stream.print(", ");
@@ -458,7 +425,7 @@ public final class ContextDocGenerator {
             boolean isStatic, PainlessContextMethodInfo methodInfo) {
 
         stream.print("* " + (isStatic ? "static " : ""));
-        stream.print(getType(javaNamesToDisplayNames, methodInfo.getRtn()) + " ");
+        stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, methodInfo.getRtn()) + " ");
 
         if (methodInfo.getDeclaring().startsWith("java.")) {
             stream.print(getMethodJavaDocLink(methodInfo) + "[" + methodInfo.getName() + "]");
@@ -472,7 +439,7 @@ public final class ContextDocGenerator {
              parameterIndex < methodInfo.getParameters().size();
              ++parameterIndex) {
 
-            stream.print(getType(javaNamesToDisplayNames, methodInfo.getParameters().get(parameterIndex)));
+            stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, methodInfo.getParameters().get(parameterIndex)));
 
             if (parameterIndex + 1 < methodInfo.getParameters().size()) {
                 stream.print(", ");
@@ -485,17 +452,21 @@ public final class ContextDocGenerator {
     private static void printClassBinding(
             PrintStream stream, Map<String, String> javaNamesToDisplayNames, PainlessContextClassBindingInfo classBindingInfo) {
 
-        stream.print("* " + getType(javaNamesToDisplayNames, classBindingInfo.getRtn()) + " " + classBindingInfo.getName() + "(");
+        stream.print("* " +
+            ContextGeneratorCommon.getType(javaNamesToDisplayNames, classBindingInfo.getRtn()) +
+            " " +
+            classBindingInfo.getName() +
+            "(");
 
         for (int parameterIndex = 0; parameterIndex < classBindingInfo.getParameters().size(); ++parameterIndex) {
             // temporary fix to not print org.elasticsearch.script.ScoreScript parameter until
             // class instance bindings are created and the information is appropriately added to the context info classes
             if ("org.elasticsearch.script.ScoreScript".equals(
-                    getType(javaNamesToDisplayNames, classBindingInfo.getParameters().get(parameterIndex)))) {
+                    ContextGeneratorCommon.getType(javaNamesToDisplayNames, classBindingInfo.getParameters().get(parameterIndex)))) {
                 continue;
             }
 
-            stream.print(getType(javaNamesToDisplayNames, classBindingInfo.getParameters().get(parameterIndex)));
+            stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, classBindingInfo.getParameters().get(parameterIndex)));
 
             if (parameterIndex < classBindingInfo.getReadOnly()) {
                 stream.print(" *");
@@ -512,10 +483,14 @@ public final class ContextDocGenerator {
     private static void printInstanceBinding(
             PrintStream stream, Map<String, String> javaNamesToDisplayNames, PainlessContextInstanceBindingInfo instanceBindingInfo) {
 
-        stream.print("* " + getType(javaNamesToDisplayNames, instanceBindingInfo.getRtn()) + " " + instanceBindingInfo.getName() + "(");
+        stream.print("* " +
+            ContextGeneratorCommon.getType(javaNamesToDisplayNames, instanceBindingInfo.getRtn()) +
+            " " +
+            instanceBindingInfo.getName() +
+            "(");
 
         for (int parameterIndex = 0; parameterIndex < instanceBindingInfo.getParameters().size(); ++parameterIndex) {
-            stream.print(getType(javaNamesToDisplayNames, instanceBindingInfo.getParameters().get(parameterIndex)));
+            stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, instanceBindingInfo.getParameters().get(parameterIndex)));
 
             if (parameterIndex + 1 < instanceBindingInfo.getParameters().size()) {
                 stream.print(", ");
@@ -530,59 +505,13 @@ public final class ContextDocGenerator {
             boolean isStatic, PainlessContextFieldInfo fieldInfo) {
 
         stream.print("* " + (isStatic ? "static " : ""));
-        stream.print(getType(javaNamesToDisplayNames, fieldInfo.getType()) + " ");
+        stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, fieldInfo.getType()) + " ");
 
         if (fieldInfo.getDeclaring().startsWith("java.")) {
             stream.println(getFieldJavaDocLink(fieldInfo) + "[" + fieldInfo.getName() + "]");
         } else {
             stream.println(fieldInfo.getName());
         }
-    }
-
-    private static String getType(Map<String, String> javaNamesToDisplayNames, String javaType) {
-        int arrayDimensions = 0;
-
-        while (javaType.charAt(arrayDimensions) == '[') {
-            ++arrayDimensions;
-        }
-
-        if (arrayDimensions > 0) {
-            if (javaType.charAt(javaType.length() - 1) == ';') {
-                javaType = javaType.substring(arrayDimensions + 1, javaType.length() - 1);
-            } else {
-                javaType = javaType.substring(arrayDimensions);
-            }
-        }
-
-        if ("Z".equals(javaType) || "boolean".equals(javaType)) {
-            javaType = "boolean";
-        } else if ("V".equals(javaType) || "void".equals(javaType)) {
-            javaType = "void";
-        } else if ("B".equals(javaType) || "byte".equals(javaType)) {
-            javaType = "byte";
-        } else if ("S".equals(javaType) || "short".equals(javaType)) {
-            javaType = "short";
-        } else if ("C".equals(javaType) || "char".equals(javaType)) {
-            javaType = "char";
-        } else if ("I".equals(javaType) || "int".equals(javaType)) {
-            javaType = "int";
-        } else if ("J".equals(javaType) || "long".equals(javaType)) {
-            javaType = "long";
-        } else if ("F".equals(javaType) || "float".equals(javaType)) {
-            javaType = "float";
-        } else if ("D".equals(javaType) || "double".equals(javaType)) {
-            javaType = "double";
-        } else if ("org.elasticsearch.painless.lookup.def".equals(javaType)) {
-            javaType = "def";
-        } else {
-            javaType = javaNamesToDisplayNames.get(javaType);
-        }
-
-        while (arrayDimensions-- > 0) {
-            javaType += "[]";
-        }
-
-        return javaType;
     }
 
     private static String getFieldJavaDocLink(PainlessContextFieldInfo fieldInfo) {

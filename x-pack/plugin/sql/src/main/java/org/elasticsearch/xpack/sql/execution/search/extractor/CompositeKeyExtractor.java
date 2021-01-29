@@ -95,7 +95,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
             if (object == null) {
                 return object;
             } else if (object instanceof Long) {
-                object = DateUtils.asDateTime(((Long) object).longValue(), zoneId);
+                object = DateUtils.asDateTimeWithMillis(((Long) object).longValue(), zoneId);
             } else {
                 throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
             }

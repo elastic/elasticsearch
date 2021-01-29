@@ -374,6 +374,22 @@ public class GeometryIndexerTests extends ESTestCase {
         // other side a line
         fields = indexer.indexShape(null, indexed);
         assertEquals(fields.size(), 2);
+
+        indexed = new Rectangle(0.0, 1.0819389717881644E-299, 1.401298464324817E-45, 0.0);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle is a point
+        fields = indexer.indexShape(null, processed);
+        assertEquals(fields.size(), 1);
+
+        indexed = new Rectangle(-1.4017117476654298E-170, 0.0, 0.0, -2.415012082648633E-174);
+        processed = indexer.prepareForIndexing(indexed);
+        assertEquals(indexed, processed);
+
+        // Rectangle is a triangle but needs to be computed quantize
+        fields = indexer.indexShape(null, processed);
+        assertEquals(fields.size(), 2);
     }
 
     public void testPolygon() {

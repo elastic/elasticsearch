@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -22,18 +25,46 @@ import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
-    LongScriptFieldType(String name, Script script, LongFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, script, scriptFactory::newFactory, meta);
+public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
+
+    public static final RuntimeFieldType.Parser PARSER = new RuntimeFieldTypeParser((name, parserContext) -> new Builder(name) {
+        @Override
+        protected AbstractScriptFieldType<?> buildFieldType() {
+            if (script.get() == null) {
+                return new LongScriptFieldType(name, LongFieldScript.PARSE_FROM_SOURCE, this);
+            }
+            LongFieldScript.Factory factory = parserContext.scriptService().compile(script.getValue(), LongFieldScript.CONTEXT);
+            return new LongScriptFieldType(name, factory, this);
+        }
+    });
+
+    LongScriptFieldType(String name) {
+        this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
+    }
+
+    private LongScriptFieldType(String name, LongFieldScript.Factory scriptFactory, Builder builder) {
+        super(name, scriptFactory::newFactory, builder);
+    }
+
+    LongScriptFieldType(
+        String name,
+        LongFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent
+    ) {
+        super(name, scriptFactory::newFactory, script, meta, toXContent);
     }
 
     @Override
-    protected String runtimeType() {
+    public String typeName() {
         return NumberType.LONG.typeName();
     }
 
@@ -59,7 +90,7 @@ public class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
@@ -72,7 +103,7 @@ public class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         checkAllowExpensiveQueries(context);
         return NumberType.longRangeQuery(
@@ -85,7 +116,7 @@ public class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         if (NumberType.hasDecimalPart(value)) {
             return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
         }
@@ -94,7 +125,7 @@ public class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }

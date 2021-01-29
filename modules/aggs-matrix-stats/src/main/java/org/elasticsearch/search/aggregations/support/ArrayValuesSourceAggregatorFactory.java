@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -43,10 +42,8 @@ public abstract class ArrayValuesSourceAggregatorFactory
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
         for (Map.Entry<String, ValuesSourceConfig> config : configs.entrySet()) {
@@ -56,18 +53,16 @@ public abstract class ArrayValuesSourceAggregatorFactory
             }
         }
         if (valuesSources.isEmpty()) {
-            return createUnmapped(searchContext, parent, metadata);
+            return createUnmapped(parent, metadata);
         }
-        return doCreateInternal(valuesSources, searchContext, parent, cardinality, metadata);
+        return doCreateInternal(valuesSources, parent, cardinality, metadata);
     }
 
     /**
      * Create the {@linkplain Aggregator} when none of the configured
      * fields can be resolved to a {@link ValuesSource}.
      */
-    protected abstract Aggregator createUnmapped(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException;
 
     /**
      * Create the {@linkplain Aggregator} when any of the configured
@@ -77,10 +72,11 @@ public abstract class ArrayValuesSourceAggregatorFactory
      *                    that the {@link Aggregator} created by this method
      *                    will be asked to collect.
      */
-    protected abstract Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
-                                                    SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    CardinalityUpperBound cardinality,
-                                                    Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator doCreateInternal(
+        Map<String, ValuesSource> valuesSources,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 
 }

@@ -9,14 +9,13 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.monitoring.cleaner.AbstractIndicesCleanerTestCase;
-import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -24,13 +23,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
 
-    private final boolean cleanUpWatcherHistory = randomBoolean();
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(InternalSettingsPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalSettingsPlugin.class);
     }
 
     @Override
@@ -38,7 +33,6 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
-                .put("xpack.watcher.history.cleaner_service.enabled", cleanUpWatcherHistory)
                 .build();
     }
 
@@ -61,31 +55,4 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
             assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(count));
         });
     }
-
-    public void testHandlesWatcherHistory() throws Exception {
-        internalCluster().startNode();
-
-        // Will be deleted (if we delete them)
-        createWatcherHistoryIndex(now().minusDays(7));
-        createWatcherHistoryIndex(now().minusDays(10), "6");
-        createWatcherHistoryIndex(now().minusDays(14), "3");
-        createWatcherHistoryIndex(now().minusDays(30), "2");
-        createWatcherHistoryIndex(now().minusYears(1), "1");
-        createWatcherHistoryIndex(now().minusDays(10), String.valueOf(Integer.MAX_VALUE));
-
-        // Won't be deleted
-        createWatcherHistoryIndex(now());
-
-        assertIndicesCount(7);
-
-        CleanerService.Listener listener = getListener();
-        listener.onCleanUpIndices(days(3));
-
-        if (cleanUpWatcherHistory) {
-            assertIndicesCount(1);
-        } else {
-            assertIndicesCount(7);
-        }
-    }
-
 }

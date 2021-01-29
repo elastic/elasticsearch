@@ -40,7 +40,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 
@@ -84,9 +83,8 @@ final class QueryAnalyzer {
      * this query in such a way that the PercolatorQuery always verifies if this query with the MemoryIndex.
      *
      * @param query         The query to analyze.
-     * @param indexVersion  The create version of the index containing the percolator queries.
      */
-    static Result analyze(Query query, Version indexVersion) {
+    static Result analyze(Query query) {
         ResultBuilder builder = new ResultBuilder(false);
         query.visit(builder);
         return builder.getResult();

@@ -362,43 +362,42 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(constraints.get(0).getUpperBound(), equalTo(30L));
     }
 
-    public void testGetExplicitlyMappedFields_FieldCapabilitiesResponseIsNull() {
-        Map<String, Object> explicitlyMappedFields = new Classification("foo").getExplicitlyMappedFields("results", null);
-        assertThat(explicitlyMappedFields, equalTo(singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
-    }
-
-    public void testGetExplicitlyMappedFields_DependentVariableMappingIsAbsent() {
+    public void testGetResultMappings_DependentVariableMappingIsAbsent() {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], Collections.emptyMap());
-        Map<String, Object> explicitlyMappedFields =
-            new Classification("foo").getExplicitlyMappedFields("results", fieldCapabilitiesResponse);
-        assertThat(explicitlyMappedFields, equalTo(singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
+        expectThrows(ElasticsearchStatusException.class,
+            () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse));
     }
 
-    public void testGetExplicitlyMappedFields_DependentVariableMappingHasNoTypes() {
+    public void testGetResultMappings_DependentVariableMappingHasNoTypes() {
         FieldCapabilitiesResponse fieldCapabilitiesResponse =
             new FieldCapabilitiesResponse(new String[0], Collections.singletonMap("foo", Collections.emptyMap()));
-        Map<String, Object> explicitlyMappedFields =
-            new Classification("foo").getExplicitlyMappedFields("results", fieldCapabilitiesResponse);
-        assertThat(explicitlyMappedFields, equalTo(singletonMap("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING)));
+        expectThrows(ElasticsearchStatusException.class,
+            () -> new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse));
     }
 
-    public void testGetExplicitlyMappedFields_DependentVariableMappingIsPresent() {
+    public void testGetResultMappings_DependentVariableMappingIsPresent() {
         Map<String, Object> expectedTopClassesMapping = new HashMap<>() {{
             put("type", "nested");
             put("properties", new HashMap<>() {{
                 put("class_name", singletonMap("type", "dummy"));
                 put("class_probability", singletonMap("type", "double"));
+                put("class_score", singletonMap("type", "double"));
             }});
         }};
         FieldCapabilitiesResponse fieldCapabilitiesResponse =
             new FieldCapabilitiesResponse(
                 new String[0],
                 Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy"))));
-        Map<String, Object> explicitlyMappedFields =
-            new Classification("foo").getExplicitlyMappedFields("results", fieldCapabilitiesResponse);
-        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", singletonMap("type", "dummy")));
-        assertThat(explicitlyMappedFields, hasEntry("results.top_classes", expectedTopClassesMapping));
-        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
+
+        Map<String, Object> resultMappings =
+            new Classification("foo").getResultMappings("results", fieldCapabilitiesResponse);
+
+        assertThat(resultMappings, hasEntry("results.foo_prediction", singletonMap("type", "dummy")));
+        assertThat(resultMappings, hasEntry("results.prediction_probability", singletonMap("type", "double")));
+        assertThat(resultMappings, hasEntry("results.prediction_score", singletonMap("type", "double")));
+        assertThat(resultMappings, hasEntry("results.is_training", singletonMap("type", "boolean")));
+        assertThat(resultMappings, hasEntry("results.top_classes", expectedTopClassesMapping));
+        assertThat(resultMappings, hasEntry("results.feature_importance", Classification.FEATURE_IMPORTANCE_MAPPING));
     }
 
     public void testToXContent_GivenVersionBeforeRandomizeSeedWasIntroduced() throws IOException {

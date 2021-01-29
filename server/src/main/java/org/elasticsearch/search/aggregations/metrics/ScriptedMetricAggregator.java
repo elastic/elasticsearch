@@ -30,12 +30,11 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptedMetricAggContexts.MapScript;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -57,7 +56,6 @@ class ScriptedMetricAggregator extends MetricsAggregator {
     private static final long BUCKET_COST_ESTIMATE = 1024 * 5;
 
     private final SearchLookup lookup;
-    private final SearchShardTarget shardTarget;
     private final Map<String, Object> aggParams;
     @Nullable
     private final ScriptedMetricAggContexts.InitScript.Factory initScriptFactory;
@@ -80,13 +78,12 @@ class ScriptedMetricAggregator extends MetricsAggregator {
         ScriptedMetricAggContexts.CombineScript.Factory combineScriptFactory,
         Map<String, Object> combineScriptParams,
         Script reduceScript,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
         this.lookup = lookup;
-        this.shardTarget = context.shardTarget();
         this.aggParams = aggParams;
         this.initScriptFactory = initScriptFactory;
         this.initScriptParams = initScriptParams;
@@ -179,12 +176,12 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
         State() {
             // Its possible for building the initial state to mutate the parameters as a side effect
-            Map<String, Object> aggParamsForState = ScriptedMetricAggregatorFactory.deepCopyParams(aggParams, shardTarget);
+            Map<String, Object> aggParamsForState = ScriptedMetricAggregatorFactory.deepCopyParams(aggParams);
             mapScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, mapScriptParams);
             combineScriptParamsForState = ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, combineScriptParams);
             aggState = newInitialState(ScriptedMetricAggregatorFactory.mergeParams(aggParamsForState, initScriptParams));
             mapScript = mapScriptFactory.newFactory(
-                ScriptedMetricAggregatorFactory.deepCopyParams(mapScriptParamsForState, shardTarget),
+                ScriptedMetricAggregatorFactory.deepCopyParams(mapScriptParamsForState),
                 aggState,
                 lookup
             );

@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
 import java.io.IOException;
@@ -68,5 +72,19 @@ public class RestSqlIT extends RestSqlTestCase {
             containsString("Cannot cast value [false] of type [BOOLEAN] to parameter type [SHAPE]")
         );
 
+    }
+
+    public void testIncorrectAcceptHeader() throws IOException {
+        index("{\"foo\":1}");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Accept", "application/fff");
+        request.setOptions(options);
+        StringEntity stringEntity = new StringEntity(query("select * from test").toString(), ContentType.APPLICATION_JSON);
+        request.setEntity(stringEntity);
+        expectBadRequest(
+            () -> toMap(client().performRequest(request), "plain"),
+            containsString("Invalid response content type: Accept=[application/fff]")
+        );
     }
 }

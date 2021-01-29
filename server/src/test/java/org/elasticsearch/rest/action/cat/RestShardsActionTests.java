@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -34,12 +33,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -53,13 +49,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestShardsActionTests extends ESTestCase {
-
-    private RestShardsAction action;
-
-    @Before
-    public void setUpAction() {
-        action = new RestShardsAction();
-    }
 
     public void testBuildTable() {
         final int numShards = randomIntBetween(1, 5);
@@ -128,17 +117,5 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(69).value, equalTo(shardStats.getDataPath()));
             assertThat(row.get(70).value, equalTo(shardStats.getStatePath()));
         }
-    }
-
-    public void testCatNodesWithLocalDeprecationWarning() {
-        TestThreadPool threadPool = new TestThreadPool(RestNodesActionTests.class.getName());
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        FakeRestRequest request = new FakeRestRequest();
-        request.params().put("local", randomFrom("", "true", "false"));
-
-        action.doCatRequest(request, client);
-        assertWarnings(RestShardsAction.LOCAL_DEPRECATED_MESSAGE);
-
-        terminate(threadPool);
     }
 }

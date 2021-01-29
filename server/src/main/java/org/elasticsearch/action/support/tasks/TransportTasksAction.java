@@ -246,10 +246,7 @@ public abstract class TransportTasksAction<
                     listener.onFailure(e);
                 }
             } else {
-                TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                if (request.getTimeout() != null) {
-                    builder.withTimeout(request.getTimeout());
-                }
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.getTimeout());
                 for (int i = 0; i < nodesIds.length; i++) {
                     final String nodeId = nodesIds[i];
                     final int idx = i;
@@ -260,7 +257,7 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+                            transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions,
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {

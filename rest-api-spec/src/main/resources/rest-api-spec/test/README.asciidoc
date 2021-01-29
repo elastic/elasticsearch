@@ -128,6 +128,9 @@ temporarily skip it, and avoid having lots of test failures in the meantime.
 Once all runners have implemented the feature, it can be declared supported
 by default, thus the related skip sections can be removed from the tests.
 
+The skip section can also be used to selectively mute tests in certain
+cases where they would otherwise fail, see `default_shards` and `fips_140`.
+
 ....
     "Parent":
      - skip:
@@ -242,6 +245,10 @@ Allows you to stash an arbitrary key from a returned map e.g:
 ....
 
 This means: Stash any of the keys returned under `nodes` as `$node_id`
+
+=== `fips_140`
+
+This test should not be run when the test cluster is set in FIPS 140 mode.
 
 Required operators:
 -------------------

@@ -70,6 +70,7 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
@@ -110,6 +111,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexManager;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -313,6 +315,7 @@ public class Node implements Closeable {
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
                 deprecationLogger.deprecate(
+                    DeprecationCategory.OTHER,
                     "no-jdk",
                     "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
             }
@@ -488,6 +491,20 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+            final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners =
+                pluginsService.filterPlugins(IndexStorePlugin.class)
+                    .stream()
+                    .map(IndexStorePlugin::getIndexFoldersDeletionListeners)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList());
+
+            final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers =
+                    pluginsService.filterPlugins(IndexStorePlugin.class)
+                            .stream()
+                            .map(IndexStorePlugin::getSnapshotCommitSuppliers)
+                            .flatMap(m -> m.entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
             final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
@@ -495,6 +512,9 @@ public class Node implements Closeable {
                     plugin -> plugin.getClass().getSimpleName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings)));
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
+
+            final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
+            clusterService.addListener(systemIndexManager);
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -506,7 +526,8 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
-                    searchModule.getValuesSourceRegistry(), recoveryStateFactories);
+                    searchModule.getValuesSourceRegistry(), recoveryStateFactories, indexFoldersDeletionListeners,
+                    snapshotCommitSuppliers);
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -554,7 +575,7 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(settings, xContentRegistry,
-                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), systemIndices, scriptService);
+                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), scriptService);
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
@@ -695,11 +716,12 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}), transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(),
-                namedWriteableRegistry
-
-                );
+            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}),
+                transportService.getTaskManager(),
+                () -> clusterService.localNode().getId(),
+                transportService.getLocalNodeConnection(),
+                transportService.getRemoteClusterService(),
+                namedWriteableRegistry);
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");
@@ -710,7 +732,7 @@ public class Node implements Closeable {
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);
         } finally {
-            if (!success) {
+            if (success == false) {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
@@ -760,7 +782,7 @@ public class Node implements Closeable {
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() throws NodeValidationException {
-        if (!lifecycle.moveToStarted()) {
+        if (lifecycle.moveToStarted() == false) {
             return this;
         }
 
@@ -889,7 +911,7 @@ public class Node implements Closeable {
     }
 
     private Node stop() {
-        if (!lifecycle.moveToStopped()) {
+        if (lifecycle.moveToStopped() == false) {
             return this;
         }
         logger.info("stopping ...");
@@ -933,7 +955,7 @@ public class Node implements Closeable {
             if (lifecycle.started()) {
                 stop();
             }
-            if (!lifecycle.moveToClosed()) {
+            if (lifecycle.moveToClosed() == false) {
                 return;
             }
         }

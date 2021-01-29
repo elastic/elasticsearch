@@ -1020,7 +1020,7 @@ public class IngestServiceTests extends ESTestCase {
         for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
             assertThat(indexRequest, notNullValue());
-            assertThat(indexRequest.getContentType(), equalTo(xContentType));
+            assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
         }
     }
 

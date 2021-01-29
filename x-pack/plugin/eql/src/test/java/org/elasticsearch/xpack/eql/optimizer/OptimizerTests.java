@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -93,7 +93,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNull() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where command_line == null",
             "foo where null == command_line"
         );
@@ -112,7 +112,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNotNull() {
-        List<String> tests = Arrays.asList(
+        List<String> tests = asList(
             "foo where command_line != null",
             "foo where null != command_line"
         );
@@ -128,6 +128,106 @@ public class OptimizerTests extends ESTestCase {
             IsNotNull check = (IsNotNull) condition.right();
             assertEquals(((FieldAttribute) check.field()).name(), "command_line");
         }
+    }
+
+    public void testEqualsWildcardOnRight() {
+        String q = "foo where command_line : \"* bar *\"";
+
+        LogicalPlan plan = defaultPipes(accept(q));
+        assertTrue(plan instanceof Filter);
+
+        Filter filter = (Filter) plan;
+        And condition = (And) filter.condition();
+        assertTrue(condition.right() instanceof Like);
+
+        Like like = (Like) condition.right();
+        assertEquals(((FieldAttribute) like.field()).name(), "command_line");
+        assertEquals(like.pattern().asJavaRegex(), "^.* bar .*$");
+        assertEquals(like.pattern().asLuceneWildcard(), "* bar *");
+        assertEquals(like.pattern().asIndexNameWildcard(), "* bar *");
+    }
+
+    public void testEqualsWildcardQuestionmarkOnRight() {
+        String q = "foo where command_line : \"? bar ?\"";
+
+        LogicalPlan plan = defaultPipes(accept(q));
+        assertTrue(plan instanceof Filter);
+
+        Filter filter = (Filter) plan;
+        And condition = (And) filter.condition();
+        assertTrue(condition.right() instanceof Like);
+
+        Like like = (Like) condition.right();
+        assertEquals("command_line", ((FieldAttribute) like.field()).name());
+        assertEquals( "^. bar .$", like.pattern().asJavaRegex());
+        assertEquals("? bar ?", like.pattern().asLuceneWildcard());
+        assertEquals( "* bar *", like.pattern().asIndexNameWildcard());
+    }
+
+    public void testEqualsWildcardWithLiteralsOnLeft() {
+        List<String> tests = asList(
+            "foo where \"abc\": \"*b*\"",
+            "foo where \"abc\": \"ab*\"",
+            "foo where \"abc\": \"*bc\""
+        );
+
+        for (String q : tests) {
+            LogicalPlan plan = accept(q);
+            plan = defaultPipes(plan);
+            assertTrue(plan instanceof Filter);
+            // check the optimizer kicked in and folding was applied
+            Filter filter = (Filter) plan;
+            Equals condition = (Equals) filter.condition();
+            assertEquals("foo", condition.right().fold());
+        }
+    }
+
+    public void testEqualsWildcardIgnoredOnLeftLiteral() {
+        List<String> tests = asList(
+            "foo where \"*b*\" : \"abc\"",
+            "foo where \"*b\" : \"abc\"",
+            "foo where \"b*\" : \"abc\"",
+            "foo where \"b*?\" : \"abc\"",
+            "foo where \"b?\" : \"abc\"",
+            "foo where \"?b\" : \"abc\"",
+            "foo where \"?b*\" : \"abc\""
+        );
+
+        // string comparison that evaluates to false
+        for (String q : tests) {
+            LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof LocalRelation);
+        }
+    }
+
+    public void testEqualsWildcardWithLiteralsOnLeftAndPatternOnRightNotMatching() {
+        List<String> tests = asList(
+            "foo where \"abc\": \"*b\"",
+            "foo where \"abc\": \"b*\"",
+            "foo where \"abc\": \"b?\"",
+            "foo where \"abc\": \"?b\""
+        );
+
+        // string comparison that evaluates to false
+        for (String q : tests) {
+            LogicalPlan plan = accept(q);
+            assertTrue(plan instanceof LocalRelation);
+        }
+    }
+
+    public void testWildcardEscapes() {
+        LogicalPlan plan = defaultPipes(accept("foo where command_line : \"* %bar_ * \\\\ \\n \\r \\t\""));
+        assertTrue(plan instanceof Filter);
+
+        Filter filter = (Filter) plan;
+        And condition = (And) filter.condition();
+        assertTrue(condition.right() instanceof Like);
+
+        Like like = (Like) condition.right();
+        assertEquals(((FieldAttribute) like.field()).name(), "command_line");
+        assertEquals(like.pattern().asJavaRegex(), "^.* %bar_ .* \\\\ \n \r \t$");
+        assertEquals(like.pattern().asLuceneWildcard(), "* %bar_ * \\\\ \n \r \t");
+        assertEquals(like.pattern().asIndexNameWildcard(), "* %bar_ * \\ \n \r \t");
     }
 
     public void testCombineHeadBigHeadSmall() {
@@ -190,8 +290,8 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testSortByLimit() {
-        Project p = new Project(EMPTY, rel(), emptyList());
-        OrderBy o = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.ASC, NullsPosition.FIRST)));
+        Filter f = new Filter(EMPTY, rel(), TRUE);
+        OrderBy o = new OrderBy(EMPTY, f, singletonList(new Order(EMPTY, tiebreaker(), OrderDirection.ASC, NullsPosition.FIRST)));
         Tail t = new Tail(EMPTY, new Literal(EMPTY, 1, INTEGER), o);
 
         LogicalPlan optimized = new Optimizer.SortByLimit().rule(t);

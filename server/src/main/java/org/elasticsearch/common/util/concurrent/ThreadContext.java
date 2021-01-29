@@ -320,7 +320,13 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Returns all of the request contexts headers
+     * Returns all of the request headers from the thread's context.<br>
+     * <b>Be advised, headers might contain credentials.</b>
+     * In order to avoid storing, and erroneously exposing, such headers,
+     * it is recommended to instead store security headers that prove
+     * the credentials have been verified successfully, and which are
+     * internal to the system, in the sense that they cannot be sent
+     * by the clients.
      */
     public Map<String, String> getHeaders() {
         HashMap<String, String> map = new HashMap<>(defaultHeader);

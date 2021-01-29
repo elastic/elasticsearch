@@ -25,6 +25,7 @@ dependencies {
   api project(":client:rest")
   api project(":client:sniffer")
   api project(':libs:elasticsearch-nio')
+  api project(':libs:elasticsearch-ssl-config')
   api project(":server")
   api project(":libs:elasticsearch-cli")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
@@ -49,6 +50,7 @@ tasks.named('forbiddenApisMain').configure {
 // TODO: should we have licenses for our test deps?
 tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure { enabled = false }
+tasks.named("dependenciesGraph").configure { enabled = false }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(

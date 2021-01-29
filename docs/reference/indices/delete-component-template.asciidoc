@@ -30,14 +30,20 @@ DELETE _component_template/template_1
 [[delete-component-template-api-request]]
 ==== {api-request-title}
 
-`DELETE /_template/<component-template>`
+`DELETE /_component_template/<component-template>`
 
+[[delete-component-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[delete-component-template-api-desc]]
 ==== {api-description-title}
 
 Use the delete component template API to delete one or more component templates
-Component templates are building blocks for constructing <<indices-templates,index templates>>  
+Component templates are building blocks for constructing <<index-templates,index templates>>  
 that specify index mappings, settings, and aliases. 
 
 [[delete-component-template-api-path-params]]

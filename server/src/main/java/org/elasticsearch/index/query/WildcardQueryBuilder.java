@@ -211,7 +211,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
             MappedFieldType fieldType = context.getFieldType(this.fieldName);
             if (fieldType == null) {
@@ -235,7 +235,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
 
         if (fieldType == null) {

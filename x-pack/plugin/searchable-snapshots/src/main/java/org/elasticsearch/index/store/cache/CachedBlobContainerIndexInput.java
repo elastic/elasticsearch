@@ -45,7 +45,7 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
@@ -62,6 +62,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
     private final int defaultRangeSize;
+    private final int recoveryRangeSize;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
@@ -73,7 +74,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
-        int rangeSize
+        int rangeSize,
+        int recoveryRangeSize
     ) {
         this(
             "CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
@@ -84,7 +86,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             0L,
             fileInfo.length(),
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
-            rangeSize
+            rangeSize,
+            recoveryRangeSize
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -99,7 +102,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long offset,
         long length,
         CacheFileReference cacheFileReference,
-        int rangeSize
+        int rangeSize,
+        int recoveryRangeSize
     ) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
@@ -107,6 +111,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
+        this.recoveryRangeSize = recoveryRangeSize;
     }
 
     @Override
@@ -124,7 +129,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     private long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT) ? defaultRangeSize : fileInfo.partSize().getBytes();
+        return (context != CACHE_WARMING_CONTEXT)
+            ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
+            : fileInfo.partSize().getBytes();
     }
 
     private Tuple<Long, Long> computeRange(long position) {
@@ -281,21 +288,17 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + (position + length)
                 + "] vs "
                 + rangeToWrite;
-            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
-                final int read;
-                if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
-                    final ByteBuffer duplicate = b.duplicate();
-                    duplicate.limit(duplicate.position() + toIntBytes(rangeToRead.v2() - rangeToRead.v1()));
-                    read = readCacheFile(channel, position, duplicate);
-                    assert duplicate.position() <= b.limit();
-                    b.position(duplicate.position());
-                } else {
-                    read = readCacheFile(channel, position, b);
-                }
-                return read;
-            }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
+            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
+            assert rangeToRead.v2() - rangeToRead.v1() == b.remaining() : b.remaining() + " vs " + rangeToRead;
+
+            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
+                rangeToWrite,
+                rangeToRead,
+                channel -> readCacheFile(channel, position, b),
+                this::writeCacheFile,
+                directory.cacheFetchAsyncExecutor()
+            );
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
@@ -428,8 +431,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
+     * @return a tuple with {@code Tuple<Persistent Cache Length, Prefetched Length>} values
      */
-    public void prefetchPart(final int part) throws IOException {
+    public Tuple<Long, Long> prefetchPart(final int part) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
@@ -449,7 +453,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     partRange.v2(),
                     cacheFileReference
                 );
-                return;
+                return Tuple.tuple(cacheFile.getInitialLength(), 0L);
             }
 
             final long rangeStart = range.v1();
@@ -504,6 +508,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
             }
             assert totalBytesRead == rangeLength;
+            return Tuple.tuple(cacheFile.getInitialLength(), rangeLength);
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
@@ -729,7 +734,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             this.offset + offset,
             length,
             cacheFileReference,
-            defaultRangeSize
+            defaultRangeSize,
+            recoveryRangeSize
         );
         slice.isClone = true;
         return slice;

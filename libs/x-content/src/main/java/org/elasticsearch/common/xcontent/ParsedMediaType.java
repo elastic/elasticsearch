@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A raw result of parsing media types from Accept or Content-Type headers.
@@ -33,16 +33,18 @@ import java.util.regex.Pattern;
  * @see MediaTypeRegistry
  */
 public class ParsedMediaType {
+    private final String originalHeaderValue;
     private final String type;
     private final String subType;
     private final Map<String, String> parameters;
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
-    private ParsedMediaType(String type, String subType, Map<String, String> parameters) {
+    private ParsedMediaType(String originalHeaderValue, String type, String subType, Map<String, String> parameters) {
+        this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
-        this.parameters = Collections.unmodifiableMap(parameters);
+        this.parameters = Map.copyOf(parameters);
     }
 
     /**
@@ -79,7 +81,7 @@ public class ParsedMediaType {
                 throw new IllegalArgumentException("invalid media-type [" + headerValue + "]");
             }
             if (elements.length == 1) {
-                return new ParsedMediaType(splitMediaType[0].trim(), splitMediaType[1].trim(), Collections.emptyMap());
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim(), splitMediaType[1].trim(), new HashMap<>());
             } else {
                 Map<String, String> parameters = new HashMap<>();
                 for (int i = 1; i < elements.length; i++) {
@@ -96,11 +98,18 @@ public class ParsedMediaType {
                     String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
                     parameters.put(parameterName, parameterValue);
                 }
-                return new ParsedMediaType(splitMediaType[0].trim().toLowerCase(Locale.ROOT),
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim().toLowerCase(Locale.ROOT),
                     splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);
             }
         }
         return null;
+    }
+
+    public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
+        ParsedMediaType parsedMediaType = requestContentType.toParsedMediaType();
+
+        return new ParsedMediaType(parsedMediaType.originalHeaderValue,
+            parsedMediaType.type, parsedMediaType.subType, parameters);
     }
 
     // simplistic check for media ranges. do not validate if this is a correct header
@@ -144,4 +153,26 @@ public class ParsedMediaType {
         //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
         return true;
     }
+
+    @Override
+    public String toString() {
+        return originalHeaderValue;
+    }
+
+    public String responseContentTypeHeader() {
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    //used in testing
+    public String responseContentTypeHeader(Map<String,String> parameters) {
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    private String formatParameters(Map<String, String> parameters) {
+        String joined = parameters.entrySet().stream()
+            .map(e -> e.getKey() + "=" + e.getValue())
+            .collect(Collectors.joining(";"));
+        return joined.isEmpty() ? "" : ";" + joined;
+    }
+
 }

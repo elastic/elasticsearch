@@ -49,6 +49,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testKeystoreUpgrade() throws Exception {
+        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         final Path keystore = KeyStoreWrapper.keystorePath(env.configFile());
         try (
             InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");

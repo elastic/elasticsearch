@@ -214,6 +214,10 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
+import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
@@ -290,6 +294,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
@@ -473,8 +478,15 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
+        final OperatorPrivilegesService operatorPrivilegesService;
+        if (OPERATOR_PRIVILEGES_ENABLED.get(settings)) {
+            operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
+                new FileOperatorUsersStore(environment, resourceWatcherService), new OperatorOnlyRegistry());
+        } else {
+            operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
+        }
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
-                anonymousUser, tokenService, apiKeyService));
+                anonymousUser, tokenService, apiKeyService, operatorPrivilegesService));
         components.add(authcService.get());
         securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
 
@@ -492,7 +504,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
-            getLicenseState(), expressionResolver);
+            getLicenseState(), expressionResolver, operatorPrivilegesService);
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
@@ -509,7 +521,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
-        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
+        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
             threadPool, securityContext.get(), destructiveOperations));
 
         components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get()));
@@ -673,6 +685,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(ApiKeyService.DOC_CACHE_TTL_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
         settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
+        settingsList.add(OPERATOR_PRIVILEGES_ENABLED);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
@@ -716,7 +729,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 assert dlsBitsetCache.get() != null;
                 module.setReaderWrapper(indexService ->
                         new SecurityIndexReaderWrapper(
-                                shardId -> indexService.newQueryShardContext(shardId.id(),
+                                shardId -> indexService.newSearchExecutionContext(shardId.id(),
+                                0,
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...
                                 null,

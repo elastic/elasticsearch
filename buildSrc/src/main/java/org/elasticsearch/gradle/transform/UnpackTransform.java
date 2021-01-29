@@ -24,6 +24,7 @@ import org.gradle.api.artifacts.transform.TransformAction;
 import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.artifacts.transform.TransformParameters;
 import org.gradle.api.file.FileSystemLocation;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
@@ -56,6 +57,8 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         File archiveFile = getArchiveFile().get().getAsFile();
         File extractedDir = outputs.dir(archiveFile.getName());
         try {
+            Logging.getLogger(UnpackTransform.class)
+                .info("Unpacking " + archiveFile.getName() + " using " + getClass().getSimpleName() + ".");
             unpack(archiveFile, extractedDir);
         } catch (IOException e) {
             throw UncheckedException.throwAsUncheckedException(e);

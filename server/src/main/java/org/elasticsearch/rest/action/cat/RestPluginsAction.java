@@ -30,12 +30,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -58,6 +60,7 @@ public class RestPluginsAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        final boolean includeBootstrapPlugins = request.paramAsBoolean("include_bootstrap", false);
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -72,7 +75,10 @@ public class RestPluginsAction extends AbstractCatAction {
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final NodesInfoResponse nodesInfoResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse), channel);
+                        return RestTable.buildResponse(
+                            buildTable(request, clusterStateResponse, nodesInfoResponse, includeBootstrapPlugins),
+                            channel
+                        );
                     }
                 });
             }
@@ -88,11 +94,12 @@ public class RestPluginsAction extends AbstractCatAction {
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
         table.addCell("description", "alias:d;default:false;desc:plugin details");
+        table.addCell("type", "alias:t;default:false;desc:plugin type");
         table.endHeaders();
         return table;
     }
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo) {
+    Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, boolean includeBootstrapPlugins) {
         DiscoveryNodes nodes = state.getState().nodes();
         Table table = getTableWithHeader(req);
 
@@ -106,12 +113,16 @@ public class RestPluginsAction extends AbstractCatAction {
                 continue;
             }
             for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
+                if (pluginInfo.getType() == PluginType.BOOTSTRAP && includeBootstrapPlugins == false) {
+                    continue;
+                }
                 table.startRow();
                 table.addCell(node.getId());
                 table.addCell(node.getName());
                 table.addCell(pluginInfo.getName());
                 table.addCell(pluginInfo.getVersion());
                 table.addCell(pluginInfo.getDescription());
+                table.addCell(pluginInfo.getType().toString().toLowerCase(Locale.ROOT));
                 table.endRow();
             }
         }

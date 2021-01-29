@@ -133,7 +133,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        out.writeEnum(xContentType);
+        XContentHelper.writeTo(out, xContentType);
     }
 
     @Override
@@ -143,7 +143,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
         PipelineConfiguration that = (PipelineConfiguration) o;
 
-        if (!id.equals(that.id)) return false;
+        if (id.equals(that.id) == false) return false;
         return getConfigAsMap().equals(that.getConfigAsMap());
 
     }

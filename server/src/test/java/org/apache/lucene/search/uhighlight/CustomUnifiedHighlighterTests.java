@@ -91,7 +91,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             noMatchSize,
             expectedPassages.length,
             name -> "text".equals(name),
-            Integer.MAX_VALUE,
             Integer.MAX_VALUE
         );
         final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);

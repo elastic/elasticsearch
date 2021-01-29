@@ -16,6 +16,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
@@ -34,6 +35,25 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
     public interface LeafFactory {
         DateFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup, formatter) -> (LeafFactory) ctx -> new DateFieldScript(
+        field,
+        params,
+        lookup,
+        formatter,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                try {
+                    emit(formatter.parseMillis(Objects.toString(v)));
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }
+    };
 
     private final DateFormatter formatter;
 

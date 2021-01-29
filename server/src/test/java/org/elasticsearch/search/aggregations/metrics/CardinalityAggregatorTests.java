@@ -138,7 +138,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        });
     }
 
     public void testUnmappedMissingNumber() throws IOException {
@@ -152,7 +152,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        });
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -166,7 +166,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, null);
+        });
     }
 
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -176,9 +176,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalCardinality> verify,
-        MappedFieldType fieldType) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalCardinality> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 }

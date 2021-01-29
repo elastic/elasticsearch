@@ -52,22 +52,28 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
      * Ideally this should be in sync to what the current version of Lucene is using, but it's harmless to leave extensions out,
      * they'll just miss a proper description in the stats
      */
-    private static final ImmutableOpenMap<String, String> FILE_DESCRIPTIONS = ImmutableOpenMap.<String, String>builder()
+    static final ImmutableOpenMap<String, String> FILE_DESCRIPTIONS = ImmutableOpenMap.<String, String>builder()
             .fPut("si", "Segment Info")
             .fPut("fnm", "Fields")
+            .fPut("fdm", "Field Metadata")
             .fPut("fdx", "Field Index")
             .fPut("fdt", "Field Data")
+            .fPut("tmd", "Term Dictionary Metadata")
             .fPut("tim", "Term Dictionary")
             .fPut("tip", "Term Index")
             .fPut("doc", "Frequencies")
             .fPut("pos", "Positions")
             .fPut("pay", "Payloads")
             .fPut("nvd", "Norms")
-            .fPut("nvm", "Norms")
-            .fPut("dii", "Points")
-            .fPut("dim", "Points")
+            .fPut("nvm", "Norms metadata")
+            .fPut("kdm", "Points Metadata")
+            .fPut("kdi", "Points Index")
+            .fPut("kdm", "Points Metadata")
+            .fPut("kdi", "Points Index")   // old extension
+            .fPut("kdd", "Points")         // old extension
             .fPut("dvd", "DocValues")
-            .fPut("dvm", "DocValues")
+            .fPut("dvm", "DocValues Metadata")
+            .fPut("tvm", "Term Vector Metadata")
             .fPut("tvx", "Term Vector Index")
             .fPut("tvd", "Term Vector Documents")
             .fPut("tvf", "Term Vector Fields")

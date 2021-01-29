@@ -30,7 +30,8 @@ privileges. See <<security-privileges>>, <<built-in-roles>> and
 This endpoint is designed to be used by a user interface that needs to fully
 understand machine learning configurations where some options are not specified,
 meaning that the defaults should be used.  This endpoint may be used to find out
-what those defaults are.
+what those defaults are.  It also provides information about the maximum size
+of {ml} jobs that could run in the current cluster configuration.
 
 [[get-ml-info-example]]
 == {api-examples-title}
@@ -115,7 +116,8 @@ This is a possible response:
     "build_hash": "99a07c016d5a73"
   },
   "limits" : {
-    "effective_max_model_memory_limit": "28961mb"
+    "effective_max_model_memory_limit": "28961mb",
+    "total_ml_memory": "86883mb"
   }
 }
 ----
@@ -123,3 +125,4 @@ This is a possible response:
 // TESTRESPONSE[s/"version": "7.0.0",/"version": "$body.native_code.version",/]
 // TESTRESPONSE[s/"build_hash": "99a07c016d5a73"/"build_hash": "$body.native_code.build_hash"/]
 // TESTRESPONSE[s/"effective_max_model_memory_limit": "28961mb"/"effective_max_model_memory_limit": "$body.limits.effective_max_model_memory_limit"/]
+// TESTRESPONSE[s/"total_ml_memory": "86883mb"/"total_ml_memory": "$body.limits.total_ml_memory"/]

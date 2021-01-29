@@ -121,10 +121,6 @@ public class Substring extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
-
         return new Substring(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

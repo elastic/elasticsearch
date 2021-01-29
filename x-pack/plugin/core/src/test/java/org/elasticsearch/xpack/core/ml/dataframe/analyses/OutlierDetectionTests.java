@@ -107,8 +107,8 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
         assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
     }
 
-    public void testGetExplicitlyMappedFields() {
-        Map<String, Object> mappedFields = createTestInstance().getExplicitlyMappedFields("test", null);
+    public void testGetResultMappings() {
+        Map<String, Object> mappedFields = createTestInstance().getResultMappings("test", null);
         assertThat(mappedFields.size(), equalTo(2));
         assertThat(mappedFields, hasKey("test.outlier_score"));
         assertThat(mappedFields.get("test.outlier_score"),

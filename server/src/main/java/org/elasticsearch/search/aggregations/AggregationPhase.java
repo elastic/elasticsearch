@@ -47,15 +47,14 @@ public class AggregationPhase {
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {
-                AggregatorFactories factories = context.aggregations().factories();
-                aggregators = factories.createTopLevelAggregators(context);
+                aggregators = context.aggregations().factories().createTopLevelAggregators();
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
                     }
                 }
                 context.aggregations().aggregators(aggregators);
-                if (!collectors.isEmpty()) {
+                if (collectors.isEmpty() == false) {
                     Collector collector = MultiBucketCollector.wrap(collectors);
                     ((BucketCollector)collector).preCollection();
                     if (context.getProfilers() != null) {
@@ -91,7 +90,7 @@ public class AggregationPhase {
         }
 
         // optimize the global collector based execution
-        if (!globals.isEmpty()) {
+        if (globals.isEmpty() == false) {
             BucketCollector globalsCollector = MultiBucketCollector.wrap(globals);
             Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
 
@@ -116,7 +115,10 @@ public class AggregationPhase {
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        context.aggregations().resetBucketMultiConsumer();
+        if (context.aggregations().factories().context() != null) {
+            // Rollup can end up here with a null context but not null factories.....
+            context.aggregations().factories().context().multiBucketConsumer().reset();
+        }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregations.add(aggregator.buildTopLevel());

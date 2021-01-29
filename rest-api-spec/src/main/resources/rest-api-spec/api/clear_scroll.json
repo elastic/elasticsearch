@@ -5,6 +5,11 @@
       "description":"Explicitly clears the search context for a scroll."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json","text/plain"]
+    },
     "url":{
       "paths":[
         {

@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -56,7 +57,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestDeduplicator;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,8 +91,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = new HashMap<>();
 
     // A map of snapshots to the shardIds that we already reported to the master as failed
-    private final TransportRequestDeduplicator<UpdateIndexShardSnapshotStatusRequest> remoteFailedRequestDeduplicator =
-        new TransportRequestDeduplicator<>();
+    private final ResultDeduplicator<UpdateIndexShardSnapshotStatusRequest, Void> remoteFailedRequestDeduplicator =
+        new ResultDeduplicator<>();
 
     public SnapshotShardsService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService,
                                  TransportService transportService, IndicesService indicesService) {
@@ -338,8 +339,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             Engine.IndexCommitRef snapshotRef = null;
             try {
-                // we flush first to make sure we get the latest writes snapshotted
-                snapshotRef = indexShard.acquireLastIndexCommit(true);
+                snapshotRef = indexShard.acquireIndexCommitForSnapshot();
                 final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
                     snapshotRef.getIndexCommit(), getShardStateId(indexShard, snapshotIndexCommit), snapshotStatus, version, userMetadata,
@@ -452,14 +452,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             },
             (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(),
                     SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
-                new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
+                new TransportResponseHandler<ActionResponse.Empty>() {
                     @Override
-                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) {
-                        return UpdateIndexShardSnapshotStatusResponse.INSTANCE;
+                    public ActionResponse.Empty read(StreamInput in) {
+                        return ActionResponse.Empty.INSTANCE;
                     }
 
                     @Override
-                    public void handleResponse(UpdateIndexShardSnapshotStatusResponse response) {
+                    public void handleResponse(ActionResponse.Empty response) {
                         reqListener.onResponse(null);
                     }
 

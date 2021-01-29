@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,8 +22,6 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.io.IOException;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
@@ -41,11 +40,10 @@ public class HistoryStore {
      * If the specified watchRecord already was stored this call will fail with a version conflict.
      */
     public void put(WatchRecord watchRecord) throws Exception {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-            IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
+            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
             request.opType(IndexRequest.OpType.CREATE);
             bulkProcessor.add(request);
         } catch (IOException ioe) {
@@ -58,11 +56,11 @@ public class HistoryStore {
      * Any existing watchRecord will be overwritten.
      */
     public void forcePut(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-                IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
+                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
+                request.opType(DocWriteRequest.OpType.CREATE);
                 bulkProcessor.add(request);
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
@@ -78,9 +76,12 @@ public class HistoryStore {
      * @return true, if history store is ready to be started
      */
     public static boolean validate(ClusterState state) {
-        String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC));
-        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(currentIndex, state.metadata());
+        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(HistoryStoreField.DATA_STREAM, state.metadata());
         return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
             state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+    }
+
+    public void flush() {
+        bulkProcessor.flush();
     }
 }

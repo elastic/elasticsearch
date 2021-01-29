@@ -19,12 +19,12 @@ dependencies {
 }
 //no unit tests
 tasks.named("test").configure { enabled = false }
-javaRestTest {
+tasks.named("javaRestTest").configure {
   dependsOn "buildZip"
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

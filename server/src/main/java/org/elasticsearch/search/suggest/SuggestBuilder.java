@@ -29,7 +29,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
@@ -169,7 +169,7 @@ public class SuggestBuilder implements Writeable, ToXContentObject {
         return suggestBuilder;
     }
 
-    public SuggestionSearchContext build(QueryShardContext context) throws IOException {
+    public SuggestionSearchContext build(SearchExecutionContext context) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
         for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
             SuggestionContext suggestionContext = suggestion.getValue().build(context);

@@ -47,6 +47,9 @@ public class PluginPropertiesExtension {
 
     private String javaOpts = "";
 
+    /** Whether a license agreement must be accepted before this plugin can be installed. */
+    private boolean isLicensed = false;
+
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
 
@@ -123,6 +126,14 @@ public class PluginPropertiesExtension {
 
     public void setJavaOpts(String javaOpts) {
         this.javaOpts = javaOpts;
+    }
+
+    public boolean isLicensed() {
+        return isLicensed;
+    }
+
+    public void setLicensed(boolean licensed) {
+        isLicensed = licensed;
     }
 
     public boolean isRequiresKeystore() {

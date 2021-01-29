@@ -38,7 +38,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -82,13 +81,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             switch (feature) {
             case MAPPINGS:
                     if (!doneMappings) {
-                        try {
-                            mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
-                            doneMappings = true;
-                        } catch (IOException e) {
-                            listener.onFailure(e);
-                            return;
-                        }
+                        mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
+                        doneMappings = true;
                     }
                     break;
             case ALIASES:
@@ -123,8 +117,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(
-            new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams)
-        );
+        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
     }
 }

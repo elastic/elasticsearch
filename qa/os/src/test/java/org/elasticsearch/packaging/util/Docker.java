@@ -200,7 +200,7 @@ public class Docker {
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
+            fail("Elasticsearch container didn't exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
     }
 

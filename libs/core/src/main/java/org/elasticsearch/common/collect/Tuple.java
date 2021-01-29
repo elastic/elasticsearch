@@ -48,8 +48,8 @@ public class Tuple<V1, V2> {
 
         Tuple<?, ?> tuple = (Tuple<?, ?>) o;
 
-        if (v1 != null ? !v1.equals(tuple.v1) : tuple.v1 != null) return false;
-        if (v2 != null ? !v2.equals(tuple.v2) : tuple.v2 != null) return false;
+        if (v1 != null ? v1.equals(tuple.v1) == false : tuple.v1 != null) return false;
+        if (v2 != null ? v2.equals(tuple.v2) == false : tuple.v2 != null) return false;
 
         return true;
     }

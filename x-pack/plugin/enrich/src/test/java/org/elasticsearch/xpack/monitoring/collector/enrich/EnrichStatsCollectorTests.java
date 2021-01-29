@@ -37,26 +37,7 @@ import static org.mockito.Mockito.when;
 
 public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        final boolean enrichAllowed = randomBoolean();
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        // this controls the blockage
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING)).thenReturn(false);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.ENRICH)).thenReturn(enrichAllowed);
-
-        final EnrichStatsCollector collector = createCollector(clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(XPackLicenseState.Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING)).thenReturn(randomBoolean());
-        when(licenseState.checkFeature(XPackLicenseState.Feature.ENRICH)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
 
@@ -65,33 +46,12 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
     }
 
-    public void testShouldCollectReturnsFalseIfEnrichIsNotAllowed() {
-        boolean isMonitoringAllowed = randomBoolean();
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING)).thenReturn(isMonitoringAllowed);
-        // this is controls the blockage
-        when(licenseState.checkFeature(XPackLicenseState.Feature.ENRICH)).thenReturn(false);
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        final EnrichStatsCollector collector = createCollector(clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(XPackLicenseState.Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MONITORING)).thenReturn(true);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.ENRICH)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final EnrichStatsCollector collector = createCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
-
-        verify(licenseState).checkFeature(XPackLicenseState.Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {

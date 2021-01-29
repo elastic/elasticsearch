@@ -19,14 +19,12 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -84,11 +82,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_9_1 = new Version(7090199, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_2 = new Version(7090299, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_9_3 = new Version(7090399, org.apache.lucene.util.Version.LUCENE_8_6_2);
-    public static final Version V_7_9_4 = new Version(7090499, org.apache.lucene.util.Version.LUCENE_8_6_2);
     public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_10_1 = new Version(7100199, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_10_2 = new Version(7100299, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_10_3 = new Version(7100399, org.apache.lucene.util.Version.LUCENE_8_7_0);
     public static final Version V_7_11_0 = new Version(7110099, org.apache.lucene.util.Version.LUCENE_8_7_0);
-    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_7_0);
+    public static final Version V_7_12_0 = new Version(7120099, org.apache.lucene.util.Version.LUCENE_8_8_0);
+    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_8_0);
     public static final Version CURRENT = V_8_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
@@ -172,25 +172,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return new Version(id, luceneVersion);
     }
 
-    /**
-     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
-     *
-     * @throws IllegalStateException if the given index settings doesn't contain a value for the key
-     *         {@value IndexMetadata#SETTING_VERSION_CREATED}
-     */
-    public static Version indexCreated(Settings indexSettings) {
-        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        if (indexVersion == V_EMPTY) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "[%s] is not present in the index settings for index with UUID [%s]",
-                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                    indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
-            throw new IllegalStateException(message);
-        }
-        return indexVersion;
-    }
-
     public static void writeVersion(Version version, StreamOutput out) throws IOException {
         out.writeVInt(version.id);
     }
@@ -211,7 +192,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
-        if (!Strings.hasLength(version)) {
+        if (Strings.hasLength(version) == false) {
             return Version.CURRENT;
         }
         final Version cached = stringToVersion.get(version);
@@ -260,6 +241,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte build;
     public final org.apache.lucene.util.Version luceneVersion;
     private final String toString;
+    private final int previousMajorId;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         this.id = id;
@@ -269,6 +251,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.build = (byte) (id % 100);
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
         this.toString = major + "." + minor + "." + revision;
+        this.previousMajorId = major > 0 ? (major - 1) * 1000000 + 99 : major;
     }
 
     public boolean after(Version version) {
@@ -391,6 +374,22 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
         return compatible;
     }
+
+    /**
+     * Returns the minimum version that can be used for compatible REST API
+     */
+    public Version minimumRestCompatibilityVersion() {
+        return this.previousMajor();
+    }
+
+    /**
+     * Returns a first major version previous to the version stored in this object.
+     * I.e 8.1.0 will return 7.0.0
+     */
+    public Version previousMajor() {
+        return Version.fromId(previousMajorId);
+    }
+
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {

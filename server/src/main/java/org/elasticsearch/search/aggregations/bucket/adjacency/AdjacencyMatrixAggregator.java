@@ -40,7 +40,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,7 +130,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     private final String separator;
 
     public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys,
-            Weight[] filters, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+            Weight[] filters, AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.separator = separator;
         this.keys = keys;

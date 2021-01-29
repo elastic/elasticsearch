@@ -1,7 +1,4 @@
 grant {
-  // needed for multiple server implementations used in tests
-  permission java.net.SocketPermission "*", "accept,connect";
-
   // needed for Windows named pipes in machine learning
   permission java.io.FilePermission "\\\\.\\pipe\\*", "read,write";
 };

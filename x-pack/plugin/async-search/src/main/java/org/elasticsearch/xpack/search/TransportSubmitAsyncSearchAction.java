@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
@@ -136,7 +137,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, Task submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
-        Map<String, String> originHeaders = nodeClient.threadPool().getThreadContext().getHeaders();
+        Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(nodeClient.threadPool().getThreadContext().getHeaders());
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {

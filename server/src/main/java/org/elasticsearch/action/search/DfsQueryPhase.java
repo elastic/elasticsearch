@@ -100,7 +100,7 @@ final class DfsQueryPhase extends SearchPhase {
                             progressListener.notifyQueryFailure(shardIndex, searchShardTarget, exception);
                             counter.onFailure(shardIndex, searchShardTarget, exception);
                         } finally {
-                            if (context.getRequest().pointInTimeBuilder() == null) {
+                            if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
                                 // the query might not have been executed at all (for example because thread pool rejected
                                 // execution) and the search context that was created in dfs phase might not be released.
                                 // release it again to be in the safe side

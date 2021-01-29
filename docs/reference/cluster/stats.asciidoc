@@ -14,6 +14,11 @@ Returns cluster statistics.
 
 `GET /_cluster/stats/nodes/<node_filter>`
 
+[[cluster-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-stats-api-desc]]
 ==== {api-description-title}
@@ -34,9 +39,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 [[cluster-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its stats. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
 
 [role="child_attributes"]
 [[cluster-stats-api-response-body]]
@@ -246,7 +254,7 @@ activities.
 
 `fielddata`::
 (object)
-Contains statistics about the field data cache of selected nodes.
+Contains statistics about the <<modules-fielddata, field data cache>> of selected nodes.
 +
 .Properties of `fielddata`
 [%collapsible%open]
@@ -1206,7 +1214,16 @@ The API returns the following response:
         "built_in_tokenizers": [],
         "built_in_filters": [],
         "built_in_analyzers": []
-      }
+      },
+      "versions": [
+        {
+          "version": "8.0.0",
+          "index_count": 1,
+          "primary_shard_count": 1,
+          "total_primary_size": "7.4kb",
+          "total_primary_bytes": 7632
+        }
+      ]
    },
    "nodes": {
       "count": {

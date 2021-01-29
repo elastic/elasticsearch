@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -80,9 +81,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         ExecutableCondition condition = InternalAlwaysCondition.INSTANCE;
-        String index = HistoryStoreField.getHistoryIndexNameForTime(now);
-        client().prepareIndex().setIndex(index).setId(wid.value())
+        client().prepareIndex().setIndex(HistoryStoreField.DATA_STREAM).setId(wid.value())
+                .setOpType(DocWriteRequest.OpType.CREATE)
                 .setSource(jsonBuilder().startObject()
+                        .field("@timestamp", ZonedDateTime.now())
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .field(event.type(), event)
                         .endObject()
@@ -99,8 +101,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         // unknown condition:
         wid = new Wid("_id", now);
-        client().prepareIndex().setIndex(index).setId(wid.value())
+        client().prepareIndex().setIndex(HistoryStoreField.DATA_STREAM).setId(wid.value())
+                .setOpType(DocWriteRequest.OpType.CREATE)
                 .setSource(jsonBuilder().startObject()
+                        .field("@timestamp", ZonedDateTime.now())
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .field(event.type(), event)
                         .endObject()
@@ -117,8 +121,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         // unknown trigger:
         wid = new Wid("_id", now);
-        client().prepareIndex().setIndex(index).setId(wid.value())
+        client().prepareIndex().setIndex(HistoryStoreField.DATA_STREAM).setId(wid.value())
+                .setOpType(DocWriteRequest.OpType.CREATE)
                 .setSource(jsonBuilder().startObject()
+                        .field("@timestamp", ZonedDateTime.now())
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
                         .startObject("unknown").endObject()
                         .endObject()
@@ -310,7 +316,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         }
         LocalDateTime localDateTime = LocalDateTime.of(2015, 11, 5, 0, 0, 0, 0);
         ZonedDateTime triggeredTime =  ZonedDateTime.of(localDateTime,ZoneOffset.UTC);
-        final String watchRecordIndex = HistoryStoreField.getHistoryIndexNameForTime(triggeredTime);
 
         logger.info("Stopping watcher");
         stopWatcher();
@@ -329,8 +334,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
             String id = internalCluster().getInstance(ClusterService.class).localNode().getId();
             WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, "executed", id);
-            bulkRequestBuilder.add(client().prepareIndex().setIndex(watchRecordIndex).setId(watchRecord.id().value())
-                    .setSource(jsonBuilder().value(watchRecord))
+            bulkRequestBuilder.add(client().prepareIndex().setIndex(HistoryStoreField.DATA_STREAM).setId(watchRecord.id().value())
+                .setOpType(DocWriteRequest.OpType.CREATE).setSource(jsonBuilder().value(watchRecord))
             );
         }
         assertNoFailures(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get());
@@ -348,7 +353,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // but even then since the execution of the watch record is async it may take a little bit before
             // the actual documents are in the output index
             refresh();
-            SearchResponse searchResponse = client().prepareSearch(watchRecordIndex).setSize(numRecords).get();
+            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM).setSize(numRecords).get();
             assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo((long) numRecords));
             for (int i = 0; i < numRecords; i++) {
                 assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"),

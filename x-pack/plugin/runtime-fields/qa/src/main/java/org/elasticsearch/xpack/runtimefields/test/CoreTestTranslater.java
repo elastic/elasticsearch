@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -72,60 +74,28 @@ public abstract class CoreTestTranslater {
 
     protected abstract Suite suite(ClientYamlTestCandidate candidate);
 
-    private static String painlessToLoadFromSource(String name, String type) {
-        String emit = PAINLESS_TO_EMIT.get(type);
-        if (emit == null) {
-            return null;
-        }
-        StringBuilder b = new StringBuilder();
-        b.append("def v = params._source['").append(name).append("'];\n");
-        b.append("if (v instanceof Iterable) {\n");
-        b.append("  for (def vv : ((Iterable) v)) {\n");
-        b.append("    if (vv != null) {\n");
-        b.append("      def value = vv;\n");
-        b.append("      ").append(emit).append("\n");
-        b.append("    }\n");
-        b.append("  }\n");
-        b.append("} else {\n");
-        b.append("  if (v != null) {\n");
-        b.append("    def value = v;\n");
-        b.append("    ").append(emit).append("\n");
-        b.append("  }\n");
-        b.append("}\n");
-        return b.toString();
-    }
-
-    private static final Map<String, String> PAINLESS_TO_EMIT = Map.ofEntries(
-        Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emit(Boolean.parseBoolean(value.toString()));"),
-        Map.entry(DateFieldMapper.CONTENT_TYPE, "emit(parse(value.toString()));"),
-        Map.entry(
-            NumberType.DOUBLE.typeName(),
-            "emit(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
-        ),
-        Map.entry(KeywordFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
-        Map.entry(IpFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
-        Map.entry(
-            NumberType.LONG.typeName(),
-            "emit(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
-        )
+    private static final Set<String> RUNTIME_TYPES = Set.of(
+        BooleanFieldMapper.CONTENT_TYPE,
+        DateFieldMapper.CONTENT_TYPE,
+        NumberType.DOUBLE.typeName(),
+        KeywordFieldMapper.CONTENT_TYPE,
+        IpFieldMapper.CONTENT_TYPE,
+        GeoPointFieldMapper.CONTENT_TYPE,
+        NumberType.LONG.typeName()
     );
 
-    protected abstract Map<String, Object> dynamicTemplateFor(String type);
+    protected abstract Map<String, Object> dynamicTemplateFor();
 
-    protected static Map<String, Object> dynamicTemplateToDisableRuntimeCompatibleFields(String type) {
-        return Map.of("type", type, "index", false, "doc_values", false);
+    protected static Map<String, Object> dynamicTemplateToDisableRuntimeCompatibleFields() {
+        return Map.of("mapping", Map.of("index", false, "doc_values", false));
     }
 
-    protected static Map<String, Object> dynamicTemplateToAddRuntimeFields(String type) {
-        return Map.ofEntries(
-            Map.entry("type", "runtime"),
-            Map.entry("runtime_type", type),
-            Map.entry("script", painlessToLoadFromSource("{name}", type))
-        );
+    protected static Map<String, Object> dynamicTemplateToAddRuntimeFields() {
+        return Map.of("runtime", Map.of());
     }
 
-    protected static Map<String, Object> runtimeFieldLoadingFromSource(String name, String type) {
-        return Map.of("type", type, "script", painlessToLoadFromSource(name, type));
+    protected static Map<String, Object> runtimeFieldLoadingFromSource(String type) {
+        return Map.of("type", type);
     }
 
     private ExecutableSection addIndexTemplate() {
@@ -139,25 +109,24 @@ public abstract class CoreTestTranslater {
             public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
                 Map<String, String> params = Map.of("name", "hack_dynamic_mappings", "create", "true");
                 List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
-                for (String type : PAINLESS_TO_EMIT.keySet()) {
-                    if (type.equals("ip")) {
-                        // There isn't a dynamic template to pick up ips. They'll just look like strings.
+                for (String type : RUNTIME_TYPES) {
+                    /*
+                     * It would be great to use dynamic:runtime rather than dynamic templates.
+                     * Unfortunately, string gets dynamically mapped as a multi-field (text + keyword) which we can't mimic as
+                     * runtime fields don't support text, and from a dynamic template a field can either be runtime or concrete.
+                     * We would like to define a keyword sub-field under runtime and leave the main field under properties but that
+                     * is not possible. What we do for now is skip strings: we register a dynamic template for each type besides string.
+                     * Ip and geo_point fields never get dynamically mapped so they'll just look like strings.
+                     */
+                    if (type.equals(IpFieldMapper.CONTENT_TYPE)
+                        || type.equals(GeoPointFieldMapper.CONTENT_TYPE)
+                        || type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
                         continue;
                     }
-                    Map<String, Object> mapping = dynamicTemplateFor(type);
-                    if (type.equals("keyword")) {
-                        /*
-                         * For "string"-type dynamic mappings emulate our default
-                         * behavior with a top level text field and a `.keyword`
-                         * multi-field. In our case we disable the keyword field
-                         * and substitute it with an enabled one on the search
-                         * request.
-                         */
-                        mapping = Map.of("type", "text", "fields", Map.of("keyword", mapping));
-                        dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", "string", "mapping", mapping)));
-                    } else {
-                        dynamicTemplates.add(Map.of(type, Map.of("match_mapping_type", type, "mapping", mapping)));
-                    }
+                    HashMap<String, Object> map = new HashMap<>();
+                    map.put("match_mapping_type", type);
+                    map.putAll(dynamicTemplateFor());
+                    dynamicTemplates.add(Map.of(type, map));
                 }
                 Map<String, Object> indexTemplate = Map.of("settings", Map.of(), "mappings", Map.of("dynamic_templates", dynamicTemplates));
                 List<Map<String, Object>> bodies = List.of(
@@ -255,25 +224,25 @@ public abstract class CoreTestTranslater {
                 Object settings = body.get("settings");
                 if (settings instanceof Map && ((Map<?, ?>) settings).containsKey("sort.field")) {
                     /*
-                     * You can't sort the index on a runtime_keyword and it is
-                     * hard to figure out if the sort was a runtime_keyword so
-                     * let's just skip this test.
+                     * You can't sort the index on a runtime field
                      */
                     continue;
                 }
-                Object mapping = body.get("mappings");
-                if (false == (mapping instanceof Map)) {
-                    continue;
-                }
-                Object properties = ((Map<?, ?>) mapping).get("properties");
-                if (false == (properties instanceof Map)) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mapping = (Map<String, Object>) body.get("mappings");
+                if (mapping == null) {
                     continue;
                 }
                 @SuppressWarnings("unchecked")
-                Map<String, Object> propertiesMap = (Map<String, Object>) properties;
-                if (false == modifyMappingProperties(index, propertiesMap)) {
+                Map<String, Object> propertiesMap = (Map<String, Object>) ((Map<?, ?>) mapping).get("properties");
+                if (propertiesMap == null) {
+                    continue;
+                }
+                Map<String, Object> runtimeFields = new HashMap<>();
+                if (false == modifyMappingProperties(index, propertiesMap, runtimeFields)) {
                     return false;
                 }
+                mapping.put("runtime", runtimeFields);
             }
             return true;
         }
@@ -281,26 +250,21 @@ public abstract class CoreTestTranslater {
         /**
          * Modify the mapping defined in the test.
          */
-        protected abstract boolean modifyMappingProperties(String index, Map<String, Object> properties);
+        protected abstract boolean modifyMappingProperties(String index, Map<String, Object> mappings, Map<String, Object> runtimeFields);
 
         /**
          * Modify the provided map in place, translating all fields into
          * runtime fields that load from source.
          * @return true if this mapping supports runtime fields, false otherwise
          */
-        protected final boolean runtimeifyMappingProperties(
-            Map<String, Object> properties,
-            Map<String, Object> untouchedProperties,
-            Map<String, Map<String, Object>> runtimeProperties
-        ) {
+        protected final boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
             for (Map.Entry<String, Object> property : properties.entrySet()) {
                 if (false == property.getValue() instanceof Map) {
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> propertyMap = (Map<String, Object>) property.getValue();
-                String name = property.getKey().toString();
+                String name = property.getKey();
                 String type = Objects.toString(propertyMap.get("type"));
                 if ("nested".equals(type)) {
                     // Our loading scripts can't be made to manage nested fields so we have to skip those tests.
@@ -308,40 +272,37 @@ public abstract class CoreTestTranslater {
                 }
                 if ("false".equals(Objects.toString(propertyMap.get("doc_values")))) {
                     // If doc_values is false we can't emulate with scripts. So we keep the old definition. `null` and `true` are fine.
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if ("false".equals(Objects.toString(propertyMap.get("index")))) {
                     // If index is false we can't emulate with scripts
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if ("true".equals(Objects.toString(propertyMap.get("store")))) {
                     // If store is true we can't emulate with scripts
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if (propertyMap.containsKey("ignore_above")) {
                     // Scripts don't support ignore_above so we skip those fields
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
                 if (propertyMap.containsKey("ignore_malformed")) {
                     // Our source reading script doesn't emulate ignore_malformed
-                    untouchedProperties.put(property.getKey(), property.getValue());
                     continue;
                 }
-                String toLoad = painlessToLoadFromSource(name, type);
-                if (toLoad == null) {
-                    untouchedProperties.put(property.getKey(), property.getValue());
+                if (RUNTIME_TYPES.contains(type) == false) {
                     continue;
                 }
                 Map<String, Object> runtimeConfig = new HashMap<>(propertyMap);
-                runtimeConfig.put("script", toLoad);
+                runtimeConfig.put("type", type);
                 runtimeConfig.remove("store");
                 runtimeConfig.remove("index");
                 runtimeConfig.remove("doc_values");
-                runtimeProperties.put(property.getKey(), runtimeConfig);
+                runtimeFields.put(name, runtimeConfig);
+
+                // we disable the mapped fields and shadow them with their corresponding runtime field
+                propertyMap.put("doc_values", false);
+                propertyMap.put("index", false);
             }
             /*
              * Its tempting to return false here if we didn't make any runtime

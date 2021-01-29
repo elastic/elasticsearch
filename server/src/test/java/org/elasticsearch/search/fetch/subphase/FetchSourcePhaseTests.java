@@ -25,16 +25,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -153,19 +152,16 @@ public class FetchSourcePhaseTests extends ESTestCase {
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
         when(fetchContext.getIndexName()).thenReturn("index");
+        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+        when(sec.isSourceEnabled()).thenReturn(source != null);
+        when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-        HitContext hitContext = new HitContext(
-            searchHit,
-            leafReaderContext,
-            1,
-            new SourceLookup(),
-            new HashMap<>()
-        );
+        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1);
         hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
 
         FetchSourcePhase phase = new FetchSourcePhase();

@@ -91,9 +91,10 @@ subprojects {
           "jdbcDriver${baseName}"(driverDependency)
         }
 
+        final String bwcVersionString = bwcVersion.toString()
         tasks.register(bwcTaskName(bwcVersion), RestIntegTestTask) {
             classpath += driverConfiguration
-            systemProperty 'jdbc.driver.version', bwcVersion.toString()
+            systemProperty 'jdbc.driver.version', bwcVersionString
         }
       }
     }

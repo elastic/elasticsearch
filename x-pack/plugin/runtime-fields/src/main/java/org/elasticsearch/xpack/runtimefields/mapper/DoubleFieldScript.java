@@ -35,6 +35,28 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         DoubleFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new DoubleFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v instanceof Number) {
+                    emit(((Number) v).doubleValue());
+                } else if (v instanceof String) {
+                    try {
+                        emit(Double.parseDouble((String) v));
+                    } catch (NumberFormatException e) {
+                        // ignore
+                    }
+                }
+            }
+        }
+    };
+
     private double[] values = new double[1];
     private int count;
 

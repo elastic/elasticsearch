@@ -100,4 +100,61 @@ public class SystemIndicesTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
     }
+
+    public void testPatternWithSimpleRange() {
+
+        final SystemIndices systemIndices = new SystemIndices(Map.of("test", List.of(new SystemIndexDescriptor(".test-[abc]", ""))));
+
+        assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-c"), equalTo(true));
+
+        assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-d"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-="), equalTo(false));
+    }
+
+    public void testPatternWithSimpleRangeAndRepeatOperator() {
+        final SystemIndices systemIndices = new SystemIndices(Map.of("test", List.of(new SystemIndexDescriptor(".test-[a]+", ""))));
+
+        assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-aaa"), equalTo(true));
+
+        assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(false));
+    }
+
+    public void testPatternWithComplexRange() {
+        final SystemIndices systemIndices = new SystemIndices(Map.of("test", List.of(new SystemIndexDescriptor(".test-[a-c]", ""))));
+
+        assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-c"), equalTo(true));
+
+        assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-d"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-="), equalTo(false));
+    }
+
+    public void testOverlappingDescriptorsWithRanges() {
+        String source1 = "source1";
+        String source2 = "source2";
+
+        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".test-[ab]*", "");
+        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".test-a*", "");
+
+        Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
+        descriptors.put(source1, List.of(pattern1));
+        descriptors.put(source2, List.of(pattern2));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> SystemIndices.checkForOverlappingPatterns(descriptors));
+
+        assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
+            "] from [" + source1 + "] overlaps with other system index descriptors:"));
+
+        assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
+    }
 }

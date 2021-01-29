@@ -153,7 +153,7 @@ public class TaskInfo {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TaskInfo)) return false;
+        if ((o instanceof TaskInfo) == false) return false;
         TaskInfo taskInfo = (TaskInfo) o;
         return getStartTime() == taskInfo.getStartTime() &&
             getRunningTimeNanos() == taskInfo.getRunningTimeNanos() &&

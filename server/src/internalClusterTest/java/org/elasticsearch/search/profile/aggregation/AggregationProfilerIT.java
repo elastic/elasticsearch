@@ -50,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -626,7 +627,11 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             );
             assertThat(((Number) delegate.get("ranges")).longValue(), equalTo(1L));
             assertThat(delegate.get("delegate"), equalTo("FiltersAggregator.FilterByFilter"));
-            assertThat(delegate.get("delegate_debug"), equalTo(Map.of("segments_with_deleted_docs", 0)));
+            Map<?, ?> delegateDebug = (Map<?, ?>) delegate.get("delegate_debug"); 
+            assertThat(delegateDebug, hasEntry("segments_with_deleted_docs", 0));
+            assertThat(delegateDebug, hasEntry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
+            assertThat(delegateDebug, hasEntry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
+            assertThat((long) delegateDebug.get("estimate_cost_time"), greaterThanOrEqualTo(0L));  // ~1,276,734 nanos is normal
         }
     }
 }

@@ -248,7 +248,8 @@ public class ArchiveTests extends PackagingTestCase {
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         withCustomConfig(tempConf -> {
-            final List<String> jvmOptions = List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
+            setHeap("512m", tempConf);
+            final List<String> jvmOptions = List.of("-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
@@ -266,6 +267,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test71CustomJvmOptionsDirectoryFile() throws Exception {
         final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
         try {
+            setHeap(null); // delete default options
             append(heapOptions, "-Xms512m\n-Xmx512m\n");
 
             startElasticsearch();
@@ -283,6 +285,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
         final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
         try {
+            setHeap(null); // delete default options
             /*
              * We override the heap in the first file, and disable compressed oops, and override the heap in the second file. By doing this,
              * we can test that both files are processed by the JVM options parser, and also that they are processed in lexicographic order.
@@ -306,13 +309,10 @@ public class ArchiveTests extends PackagingTestCase {
     public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
         final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
         try {
-            append(jvmOptionsIgnored, "-Xms512\n-Xmx512m\n");
+            append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
 
             startElasticsearch();
-
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
-
+            ServerUtils.runElasticsearchTests();
             stopElasticsearch();
         } finally {
             rm(jvmOptionsIgnored);

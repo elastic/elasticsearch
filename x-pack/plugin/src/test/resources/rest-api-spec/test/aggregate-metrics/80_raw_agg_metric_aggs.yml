@@ -59,8 +59,8 @@ setup:
 ---
 "Test mixed aggregations":
   - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
       search:
@@ -94,8 +94,8 @@ setup:
 ---
 "Test mixed aggregations with query":
   - skip:
-      version: " - 7.99.99"
-      reason: "Aggregate metric fields are currently only implemented in 8.0."
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
       search:

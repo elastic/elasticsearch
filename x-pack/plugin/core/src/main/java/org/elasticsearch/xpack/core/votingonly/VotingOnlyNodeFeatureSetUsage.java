@@ -17,8 +17,8 @@ public class VotingOnlyNodeFeatureSetUsage extends XPackFeatureSet.Usage {
         super(input);
     }
 
-    public VotingOnlyNodeFeatureSetUsage(boolean available) {
-        super(XPackField.VOTING_ONLY, available, true);
+    public VotingOnlyNodeFeatureSetUsage() {
+        super(XPackField.VOTING_ONLY, true, true);
     }
 
     @Override

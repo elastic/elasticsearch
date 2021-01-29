@@ -51,12 +51,14 @@ This request returns the following response:
 {
   "my_backup": {
     "type": "fs",
+    "uuid": "0JLknrXbSUiVPuLakHjBrQ",
     "settings": {
       "location": "my_backup_location"
     }
   }
 }
 -----------------------------------
+// TESTRESPONSE[s/"uuid": "0JLknrXbSUiVPuLakHjBrQ"/"uuid": $body.my_backup.uuid/]
 
 To retrieve information about multiple repositories, specify a comma-delimited
 list of repositories. You can also use a wildcard (`*`) when
@@ -108,6 +110,11 @@ same location on all master and data nodes. Then add the file system's
 path or parent directory to the `path.repo` setting in `elasticsearch.yml` for
 each master and data node. For running clusters, this requires a
 <<restart-cluster-rolling,rolling restart>> of each node.
+
+IMPORTANT: By default, a network file system (NFS) uses user IDs (UIDs) and
+group IDs (GIDs) to match accounts across nodes. If your shared file system is
+an NFS and your nodes don't use the same UIDs and GIDs, update your NFS
+configuration to account for this.
 
 Supported `path.repo` values vary by platform:
 

@@ -24,13 +24,14 @@ import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public abstract class MetricsAggregator extends AggregatorBase {
-    protected MetricsAggregator(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    protected MetricsAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
         /*
          * MetricsAggregators may not have sub aggregators so it is safe for

@@ -868,19 +868,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a field to load and return as part of the search request.
      */
     public SearchSourceBuilder fetchField(String name) {
-        return fetchField(name, null);
+        return fetchField(new FieldAndFormat(name, null, null));
     }
 
     /**
      * Adds a field to load and return as part of the search request.
-     * @param name the field name.
-     * @param format an optional format string used when formatting values, for example a date format.
+     * @param fetchField defining the field name, optional format and optional inclusion of unmapped fields
      */
-    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
+    public SearchSourceBuilder fetchField(FieldAndFormat fetchField) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format));
+        fetchFields.add(fetchField);
         return this;
     }
 
@@ -994,7 +993,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Mappings specified on this search request that override built in mappings.
      */
     public Map<String, Object> runtimeMappings() {
-        return runtimeMappings;
+        return Collections.unmodifiableMap(runtimeMappings);
     }
 
     /**
@@ -1363,7 +1362,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SLICE.getPreferredName(), sliceBuilder);
         }
 
-        if (!indexBoosts.isEmpty()) {
+        if (indexBoosts.isEmpty() == false) {
             builder.startArray(INDICES_BOOST_FIELD.getPreferredName());
             for (IndexBoost ib : indexBoosts) {
                 builder.startObject();

@@ -98,6 +98,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 action.refreshPolicy, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         IndexResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.index(indexRequest).actionGet(indexDefaultTimeout));
         try (XContentBuilder builder = jsonBuilder()) {
@@ -141,6 +142,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             bulkRequest.add(indexRequest);
         }
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         BulkResponse bulkResponse = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout));
         try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {

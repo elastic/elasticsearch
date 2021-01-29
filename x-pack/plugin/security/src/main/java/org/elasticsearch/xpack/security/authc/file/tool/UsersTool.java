@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.file.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
@@ -446,7 +447,10 @@ public class UsersTool extends LoggingAwareMultiCommand {
         final char[] passwordHash;
         try (SecureString password = parsePassword(terminal, cliPasswordValue)) {
             passwordHash = hasher.hash(password);
+        } catch (ElasticsearchException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, "Error storing the password for the new user", e);
         }
+
         return passwordHash;
     }
 

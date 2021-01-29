@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -59,12 +58,8 @@ public abstract class AggregatorFactory {
     public void doValidate() {
     }
 
-    protected abstract Aggregator createInternal(
-        SearchContext context,   // TODO remove this in favor of using AggregationContext in the ctor
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException;
+    protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException;
 
     /**
      * Creates the aggregator.
@@ -75,8 +70,8 @@ public abstract class AggregatorFactory {
      *                    that the {@link Aggregator} created by this method
      *                    will be asked to collect.
      */
-    public final Aggregator create(SearchContext context, Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
-        return createInternal(context, parent, cardinality, this.metadata);
+    public final Aggregator create(Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
+        return createInternal(parent, cardinality, this.metadata);
     }
 
     public AggregatorFactory getParent() {

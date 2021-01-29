@@ -117,7 +117,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "]");
             }
         }
-        if (!queryFound) {
+        if (queryFound == false) {
             throw new ParsingException(parser.getTokenLocation(), "[constant_score] requires a 'filter' element");
         }
 
@@ -128,7 +128,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Query innerFilter = filterBuilder.toQuery(context);
         return new ConstantScoreQuery(innerFilter);
     }

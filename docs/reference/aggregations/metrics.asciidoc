@@ -1,5 +1,5 @@
 [[search-aggregations-metrics]]
-== Metrics Aggregations
+== Metrics aggregations
 
 The aggregations in this family compute metrics based on values extracted in one way or another from the documents that
 are being aggregated. The values are typically extracted from the fields of the document (using the field data), but
@@ -22,6 +22,8 @@ include::metrics/extendedstats-aggregation.asciidoc[]
 include::metrics/geobounds-aggregation.asciidoc[]
 
 include::metrics/geocentroid-aggregation.asciidoc[]
+
+include::metrics/geoline-aggregation.asciidoc[]
 
 include::metrics/matrix-stats-aggregation.asciidoc[]
 

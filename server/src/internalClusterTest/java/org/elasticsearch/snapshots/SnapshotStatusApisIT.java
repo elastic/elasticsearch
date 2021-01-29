@@ -51,11 +51,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
@@ -361,9 +363,45 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testGetSnapshotsWithSnapshotInProgress() throws Exception {
+        createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
+
+        createIndexWithContent("test-idx-1");
+        ensureGreen();
+
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
+
+        logger.info("--> wait for data nodes to get blocked");
+        waitForBlockOnAnyDataNode("test-repo");
+        awaitNumberOfSnapshotsInProgress(1);
+
+        GetSnapshotsResponse response1 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
+            .setIgnoreUnavailable(true)
+            .get();
+        List<SnapshotInfo> snapshotInfoList = response1.getSnapshots("test-repo");
+        assertEquals(1, snapshotInfoList.size());
+        assertEquals(SnapshotState.IN_PROGRESS, snapshotInfoList.get(0).state());
+
+        String notExistedSnapshotName = "snapshot_not_exist";
+        GetSnapshotsResponse response2 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName)
+            .setIgnoreUnavailable(true)
+            .get();
+        assertEquals(0, response2.getSnapshots("test-repo").size());
+
+        GetSnapshotsResponse response3 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName)
+            .setIgnoreUnavailable(false)
+            .get();
+        expectThrows(SnapshotMissingException.class, () -> response3.getSnapshots("test-repo"));
+
+        logger.info("--> unblock all data nodes");
+        unblockAllDataNodes("test-repo");
+
+        assertSuccessful(createSnapshotResponseActionFuture);
+    }
+
     public void testSnapshotStatusOnFailedSnapshot() throws Exception {
         String repoName = "test-repo";
-        createRepository(repoName, "fs");
+        createRepositoryNoVerify(repoName, "fs"); // mustn't load the repository data before we inject the broken snapshot
         final String snapshot = "test-snap-1";
         addBwCFailedSnapshot(repoName, snapshot, Collections.emptyMap());
 
@@ -512,6 +550,38 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         unblockNode(repositoryName, blockedNode); // unblock node
         awaitNoMoreRunningOperations();
+    }
+
+    public void testConcurrentCreateAndStatusAPICalls() throws Exception {
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            createIndexWithContent("test-idx-" + i);
+        }
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final int snapshots = randomIntBetween(10, 20);
+        final List<ActionFuture<SnapshotsStatusResponse>> statuses = new ArrayList<>(snapshots);
+        final List<ActionFuture<GetSnapshotsResponse>> gets = new ArrayList<>(snapshots);
+        final Client dataNodeClient = dataNodeClient();
+        final String[] snapshotNames = createNSnapshots(repoName, snapshots).toArray(Strings.EMPTY_ARRAY);
+
+        for (int i = 0; i < snapshots; i++) {
+            statuses.add(dataNodeClient.admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotNames).execute());
+            gets.add(dataNodeClient.admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotNames).execute());
+        }
+
+        for (ActionFuture<SnapshotsStatusResponse> status : statuses) {
+            assertThat(status.get().getSnapshots(), hasSize(snapshots));
+            for (SnapshotStatus snapshot : status.get().getSnapshots()) {
+                assertThat(snapshot.getState(), allOf(not(SnapshotsInProgress.State.FAILED), not(SnapshotsInProgress.State.ABORTED)));
+            }
+        }
+        for (ActionFuture<GetSnapshotsResponse> get : gets) {
+            final List<SnapshotInfo> snapshotInfos = get.get().getSnapshots(repoName);
+            assertThat(snapshotInfos, hasSize(snapshots));
+            for (SnapshotInfo snapshotInfo : snapshotInfos) {
+                assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+            }
+        }
     }
 
     private static SnapshotIndexShardStatus stateFirstShard(SnapshotStatus snapshotStatus, String indexName) {

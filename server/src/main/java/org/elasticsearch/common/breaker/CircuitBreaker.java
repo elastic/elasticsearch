@@ -98,17 +98,17 @@ public interface CircuitBreaker {
     void circuitBreak(String fieldName, long bytesNeeded);
 
     /**
-     * add bytes to the breaker and maybe trip
+     * Add bytes to the breaker and trip if the that puts breaker over the limit.
      * @param bytes number of bytes to add
-     * @param label string label describing the bytes being added
-     * @return the number of "used" bytes for the circuit breaker
+     * @param label thing requesting the bytes being added that is included in
+     *              the exception if the breaker is tripped
      */
-    double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
+    void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
 
     /**
-     * Adjust the circuit breaker without tripping
+     * Add bytes to the circuit breaker without tripping.
      */
-    long addWithoutBreaking(long bytes);
+    void addWithoutBreaking(long bytes);
 
     /**
      * @return the currently used bytes the breaker is tracking

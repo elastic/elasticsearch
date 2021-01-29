@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -50,16 +49,16 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
      */
     private static class SearchRequestRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
-        protected Map<String, Object> dynamicTemplateFor(String type) {
-            return dynamicTemplateToDisableRuntimeCompatibleFields(type);
+        protected Map<String, Object> dynamicTemplateFor() {
+            return dynamicTemplateToDisableRuntimeCompatibleFields();
         }
 
         @Override
         protected Suite suite(ClientYamlTestCandidate candidate) {
             return new Suite(candidate) {
-                private Map<String, Map<String, Map<String, Object>>> runtimeMappingsAfterSetup;
+                private Map<String, Map<String, Object>> runtimeMappingsAfterSetup;
                 private Map<String, Set<String>> mappedFieldsAfterSetup;
-                private Map<String, Map<String, Map<String, Object>>> runtimeMappings;
+                private Map<String, Map<String, Object>> runtimeMappings;
                 private Map<String, Set<String>> mappedFields;
 
                 @Override
@@ -83,16 +82,12 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                 }
 
                 @Override
-                protected boolean modifyMappingProperties(String index, Map<String, Object> properties) {
-                    Map<String, Object> untouchedMapping = new HashMap<>();
-                    Map<String, Map<String, Object>> runtimeMapping = new HashMap<>();
-                    if (false == runtimeifyMappingProperties(properties, untouchedMapping, runtimeMapping)) {
+                protected boolean modifyMappingProperties(String index, Map<String, Object> properties, Map<String, Object> runtimeFields) {
+                    if (false == runtimeifyMappingProperties(properties, runtimeFields)) {
                         return false;
                     }
-                    properties.clear();
-                    properties.putAll(untouchedMapping);
-                    mappedFields.put(index, untouchedMapping.keySet());
-                    runtimeMappings.put(index, runtimeMapping);
+                    mappedFields.put(index, properties.keySet());
+                    runtimeMappings.put(index, runtimeFields);
                     return true;
                 }
 
@@ -116,20 +111,21 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return mergeMappings(new String[] { "*" });
                     }
                     String[] patterns = Arrays.stream(index.split(",")).map(m -> m.equals("_all") ? "*" : m).toArray(String[]::new);
-                    if (patterns.length == 0 && Regex.isSimpleMatchPattern(patterns[0])) {
+                    if (patterns.length == 1 && Regex.isSimpleMatchPattern(patterns[0])) {
                         return runtimeMappings.get(patterns[0]);
                     }
                     return mergeMappings(patterns);
                 }
 
                 private Map<?, ?> mergeMappings(String[] patterns) {
-                    Map<String, Map<String, Object>> merged = new HashMap<>();
-                    for (Map.Entry<String, Map<String, Map<String, Object>>> indexEntry : runtimeMappings.entrySet()) {
+                    Map<String, Object> merged = new HashMap<>();
+                    for (Map.Entry<String, Map<String, Object>> indexEntry : runtimeMappings.entrySet()) {
                         if (false == Regex.simpleMatch(patterns, indexEntry.getKey())) {
                             continue;
                         }
-                        for (Map.Entry<String, Map<String, Object>> field : indexEntry.getValue().entrySet()) {
-                            Map<String, Object> mergedConfig = merged.get(field.getKey());
+                        for (Map.Entry<String, Object> field : indexEntry.getValue().entrySet()) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> mergedConfig = (Map<String, Object>) merged.get(field.getKey());
                             if (mergedConfig == null) {
                                 merged.put(field.getKey(), field.getValue());
                             } else if (false == mergedConfig.equals(field.getValue())) {
@@ -164,10 +160,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return false;
                     }
                     Map<String, Object> map = XContentHelper.convertToMap(index.source(), false, index.getContentType()).v2();
-                    Map<String, Map<String, Object>> indexRuntimeMappings = runtimeMappings.computeIfAbsent(
-                        index.index(),
-                        i -> new HashMap<>()
-                    );
+                    Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(index.index(), i -> new HashMap<>());
                     Set<String> indexMappedfields = mappedFields.computeIfAbsent(index.index(), i -> Set.of());
                     for (Map.Entry<String, Object> e : map.entrySet()) {
                         String name = e.getKey();
@@ -179,15 +172,15 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                             continue;
                         }
                         if (value instanceof Boolean) {
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "boolean"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("boolean"));
                             continue;
                         }
                         if (value instanceof Long || value instanceof Integer) {
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "long"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("long"));
                             continue;
                         }
                         if (value instanceof Double) {
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "double"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("double"));
                             continue;
                         }
                         if (false == value instanceof String) {
@@ -195,27 +188,27 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         }
                         try {
                             Long.parseLong(value.toString());
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "long"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("long"));
                             continue;
                         } catch (IllegalArgumentException iae) {
                             // Try the next one
                         }
                         try {
                             Double.parseDouble(value.toString());
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "double"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("double"));
                             continue;
                         } catch (IllegalArgumentException iae) {
                             // Try the next one
                         }
                         try {
                             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(value.toString());
-                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource(name, "date"));
+                            indexRuntimeMappings.put(name, runtimeFieldLoadingFromSource("date"));
                             continue;
                         } catch (IllegalArgumentException iae) {
                             // Try the next one
                         }
                         // Strings are funny, the regular dynamic mapping puts them in "name.keyword" so we follow along.
-                        indexRuntimeMappings.put(name + ".keyword", runtimeFieldLoadingFromSource(name, "keyword"));
+                        indexRuntimeMappings.put(name + ".keyword", runtimeFieldLoadingFromSource("keyword"));
                     }
                     return true;
                 }

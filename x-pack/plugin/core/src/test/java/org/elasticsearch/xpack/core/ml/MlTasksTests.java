@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
 import java.net.InetAddress;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -203,46 +202,6 @@ public class MlTasksTests extends ESTestCase {
         assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
     }
 
-    public void testGetDataFrameAnalyticsState_GivenTaskWithReindexingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.REINDEXING, false);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.REINDEXING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenStaleTaskWithReindexingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.REINDEXING, true);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenTaskWithAnalyzingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.ANALYZING, false);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.ANALYZING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenStaleTaskWithAnalyzingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.ANALYZING, true);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
-    }
-
     public void testGetDataFrameAnalyticsState_GivenTaskWithStoppingState() {
         String jobId = "foo";
         PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
@@ -288,7 +247,7 @@ public class MlTasksTests extends ESTestCase {
                                                                                                 boolean isStale) {
         PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder();
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(jobId), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, Collections.emptyList(), false),
+            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment"));
         if (state != null) {
             builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(jobId),

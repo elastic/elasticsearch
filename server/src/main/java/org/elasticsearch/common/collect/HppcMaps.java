@@ -43,17 +43,10 @@ public final class HppcMaps {
     }
 
     /**
-     * Returns a new map with a default initial capacity.
-     */
-    public static <K, V> ObjectObjectHashMap<K, V> newMap() {
-        return newMap(16);
-    }
-
-    /**
-     * Returns a map like {@link #newMap()} that does not accept <code>null</code> keys
+     * Returns a map like {@link #newMap} that does not accept <code>null</code> keys
      */
     public static <K, V> ObjectObjectHashMap<K, V> newNoNullKeysMap() {
-        return ensureNoNullKeys(16);
+        return newNoNullKeysMap(16);
     }
 
     /**
@@ -64,17 +57,6 @@ public final class HppcMaps {
      *          expansion (inclusive).
      */
     public static <K, V> ObjectObjectHashMap<K, V> newNoNullKeysMap(int expectedElements) {
-        return ensureNoNullKeys(expectedElements);
-    }
-
-    /**
-     * Wraps the given map and prevent adding of <code>null</code> keys.
-     * 
-     * @param expectedElements
-     *          The expected number of elements guaranteed not to cause buffer
-     *          expansion (inclusive).
-     */
-    public static <K, V> ObjectObjectHashMap<K, V> ensureNoNullKeys(int expectedElements) {
         return new ObjectObjectHashMap<K, V>(expectedElements) {
             @Override
             public V put(K key, V value) {

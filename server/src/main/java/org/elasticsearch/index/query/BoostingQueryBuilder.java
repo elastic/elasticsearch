@@ -174,10 +174,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             }
         }
 
-        if (!positiveQueryFound) {
+        if (positiveQueryFound == false) {
             throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'positive' query to be set'");
         }
-        if (!negativeQueryFound) {
+        if (negativeQueryFound == false) {
             throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'negative' query to be set'");
         }
         if (negativeBoost < 0) {
@@ -198,7 +198,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Query positive = positiveQuery.toQuery(context);
         Query negative = negativeQuery.toQuery(context);
         return FunctionScoreQuery.boostByQuery(positive, negative, negativeBoost);

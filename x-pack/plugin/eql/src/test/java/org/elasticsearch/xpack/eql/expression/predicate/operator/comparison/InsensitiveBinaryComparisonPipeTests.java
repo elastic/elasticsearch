@@ -55,7 +55,7 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
             pipe.right(),
             pipe.asProcessor().function());
         assertEquals(newPipe,
-            pipe.transformPropertiesOnly(v -> Objects.equals(v, pipe.expression()) ? newExpression : v, Expression.class));
+            pipe.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, pipe.expression()) ? newExpression : v));
 
         InsensitiveBinaryComparisonPipe anotherPipe = randomInstance();
         Source newLoc = randomValueOtherThan(anotherPipe.source(), SourceTests::randomSource);
@@ -66,7 +66,7 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
             anotherPipe.right(),
             anotherPipe.asProcessor().function());
         assertEquals(newPipe,
-            anotherPipe.transformPropertiesOnly(v -> Objects.equals(v, anotherPipe.source()) ? newLoc : v, Source.class));
+            anotherPipe.transformPropertiesOnly(Source.class, v -> Objects.equals(v, anotherPipe.source()) ? newLoc : v));
     }
 
     @Override

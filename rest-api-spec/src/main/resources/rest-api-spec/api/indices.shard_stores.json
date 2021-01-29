@@ -5,6 +5,10 @@
       "description":"Provides store information for shard copies of indices."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

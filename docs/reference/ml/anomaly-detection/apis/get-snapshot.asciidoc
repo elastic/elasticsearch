@@ -15,12 +15,14 @@ Retrieves information about model snapshots.
 
 `GET _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
+
 [[ml-get-snapshot-prereqs]]
 == {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
 <<security-privileges>> and {ml-docs-setup-privileges}.
+
 
 [[ml-get-snapshot-path-parms]]
 == {api-path-parms-title}
@@ -39,6 +41,7 @@ by using a comma-separated list of `<snapshot_id>` or a wildcard expression.
 You can get all snapshots for all calendars by using `_all`,
 by specifying `*` as the `<snapshot_id>`, or by omitting the `<snapshot_id>`.
 --
+
 
 [[ml-get-snapshot-request-body]]
 == {api-request-body-title}

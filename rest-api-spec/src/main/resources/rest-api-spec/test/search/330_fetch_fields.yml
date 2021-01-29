@@ -513,6 +513,16 @@ Test nested field inside object structure:
                     - { "manufacturer" : "Supersoft", "base_price" : 1.55, "product_id" : 12345}
                     - { "manufacturer" : "HyperSmart", "base_price" : 20.20, "product_id" : 54321}
                  other_obj_field: other_value
+  -  do:
+        index:
+           index: test
+           id: 2
+           refresh: true
+           body:
+              obj.products:
+                    - { "manufacturer" : "RealTec", "base_price" : 12.55, "product_id" : 23451}
+              obj.other_obj_field: other_value2
+
 
   -  do:
         search:
@@ -527,6 +537,10 @@ Test nested field inside object structure:
         hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20], "product_id" : [54321]}
   - match:
         hits.hits.0.fields.obj\.other_obj_field.0: other_value
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["RealTec"], "base_price" : [12.55], "product_id" : [23451]}
+  - match:
+        hits.hits.1.fields.obj\.other_obj_field.0: other_value2
 
   -  do:
         search:

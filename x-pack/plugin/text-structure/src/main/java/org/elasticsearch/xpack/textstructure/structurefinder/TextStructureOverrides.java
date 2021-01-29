@@ -12,16 +12,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * An immutable holder for the aspects of file structure detection that can be overridden
+ * An immutable holder for the aspects of text structure detection that can be overridden
  * by the end user.  Every field can be <code>null</code>, and this means that that
- * aspect of the file structure detection is not overridden.
+ * aspect of the text structure detection is not overridden.
  *
  * There is no consistency checking in this class.  Consistency checking of the different
  * fields is done in {@link FindStructureAction.Request}.
  */
-public class FileStructureOverrides {
+public class TextStructureOverrides {
 
-    public static final FileStructureOverrides EMPTY_OVERRIDES = new Builder().build();
+    public static final TextStructureOverrides EMPTY_OVERRIDES = new Builder().build();
 
     private final String charset;
     private final TextStructure.Format format;
@@ -34,7 +34,7 @@ public class FileStructureOverrides {
     private final String timestampFormat;
     private final String timestampField;
 
-    public FileStructureOverrides(FindStructureAction.Request request) {
+    public TextStructureOverrides(FindStructureAction.Request request) {
 
         this(
             request.getCharset(),
@@ -50,7 +50,7 @@ public class FileStructureOverrides {
         );
     }
 
-    private FileStructureOverrides(
+    private TextStructureOverrides(
         String charset,
         TextStructure.Format format,
         List<String> columnNames,
@@ -146,7 +146,7 @@ public class FileStructureOverrides {
             return false;
         }
 
-        FileStructureOverrides that = (FileStructureOverrides) other;
+        TextStructureOverrides that = (TextStructureOverrides) other;
         return Objects.equals(this.charset, that.charset)
             && Objects.equals(this.format, that.format)
             && Objects.equals(this.columnNames, that.columnNames)
@@ -222,9 +222,9 @@ public class FileStructureOverrides {
             return this;
         }
 
-        public FileStructureOverrides build() {
+        public TextStructureOverrides build() {
 
-            return new FileStructureOverrides(
+            return new TextStructureOverrides(
                 charset,
                 format,
                 columnNames,

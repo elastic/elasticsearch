@@ -279,7 +279,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
 
-        if (!documentFields.isEmpty()) {
+        if (documentFields.isEmpty() == false) {
             builder.startObject(FIELDS);
             for (DocumentField field : documentFields.values()) {
                 field.toXContent(builder, params);

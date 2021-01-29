@@ -20,9 +20,12 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
+import org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
+
+    def intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME;
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
@@ -47,9 +50,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestCompatTest executes and copies api and tests from :bwc:minor"() {
+    def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:minor"() {
         given:
         internalBuild()
 
@@ -98,14 +102,22 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SUCCESS
+        result.task(':transformCompatTests').outcome == TaskOutcome.SUCCESS
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).exists()
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).text.contains("headers") //transformation adds this
+        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + test).exists()
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).exists()
+
+        //additionalTest is not copied from the prior version, and thus not in the intermediate directory, nor transformed
+        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
 
         file("/build/classes/java/yamlRestTest/MockIT.class").exists() //The "standard" runner is used to execute the compat test
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + wrongApi).exists() == false
+        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + wrongTest).exists() == false
 
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
@@ -118,8 +130,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':transformCompatTests').outcome == TaskOutcome.UP_TO_DATE
     }
-    
+
     def "yamlRestCompatTest is wired into check and checkRestCompat"() {
         given:
 
@@ -146,6 +159,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
 
         when:
         buildFile << """
@@ -159,5 +173,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SKIPPED
+        result.task(':transformCompatTests').outcome == TaskOutcome.SKIPPED
+
     }
 }

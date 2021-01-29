@@ -40,6 +40,7 @@ import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
@@ -54,7 +55,9 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.util.Util.toStringable;
 
@@ -130,9 +133,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             });
         };
 
+        // disable transitive dependency management
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        GradleUtils.disableTransitiveDependenciesForSourceSet(project, sourceSets.getByName("main"));
-        GradleUtils.disableTransitiveDependenciesForSourceSet(project, sourceSets.getByName("test"));
+        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
     }
 
     /**
@@ -291,5 +294,17 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
+    }
+
+    private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
+        Stream.of(
+            sourceSet.getApiConfigurationName(),
+            sourceSet.getImplementationConfigurationName(),
+            sourceSet.getCompileOnlyConfigurationName(),
+            sourceSet.getRuntimeOnlyConfigurationName()
+        )
+            .map(name -> project.getConfigurations().findByName(name))
+            .filter(Objects::nonNull)
+            .forEach(GradleUtils::disableTransitiveDependencies);
     }
 }

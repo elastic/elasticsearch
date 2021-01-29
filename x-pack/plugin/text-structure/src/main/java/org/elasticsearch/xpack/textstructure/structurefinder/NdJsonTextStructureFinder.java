@@ -26,17 +26,17 @@ import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 /**
  * Newline-delimited JSON.
  */
-public class NdJsonFileStructureFinder implements FileStructureFinder {
+public class NdJsonTextStructureFinder implements TextStructureFinder {
 
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
-    static NdJsonFileStructureFinder makeNdJsonFileStructureFinder(
+    static NdJsonTextStructureFinder makeNdJsonTextStructureFinder(
         List<String> explanation,
         String sample,
         String charsetName,
         Boolean hasByteOrderMarker,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) throws IOException {
 
@@ -59,7 +59,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
             .setNumLinesAnalyzed(sampleMessages.size())
             .setNumMessagesAnalyzed(sampleRecords.size());
 
-        Tuple<String, TimestampFormatFinder> timeField = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> timeField = TextStructureUtils.guessTimestampField(
             explanation,
             sampleRecords,
             overrides,
@@ -73,7 +73,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(
-                    FileStructureUtils.makeIngestPipelineDefinition(
+                    TextStructureUtils.makeIngestPipelineDefinition(
                         null,
                         Collections.emptyMap(),
                         null,
@@ -88,12 +88,12 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
                 );
         }
 
-        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = FileStructureUtils
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
             .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {
-            fieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
+            fieldMappings.put(TextStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         }
 
         if (mappingsAndFieldStats.v2() != null) {
@@ -101,13 +101,13 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
         }
 
         TextStructure structure = structureBuilder.setMappings(
-            Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings)
+            Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings)
         ).setExplanation(explanation).build();
 
-        return new NdJsonFileStructureFinder(sampleMessages, structure);
+        return new NdJsonTextStructureFinder(sampleMessages, structure);
     }
 
-    private NdJsonFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
+    private NdJsonTextStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }

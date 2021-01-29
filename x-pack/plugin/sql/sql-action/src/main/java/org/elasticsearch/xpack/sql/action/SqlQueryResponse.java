@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import java.io.IOException;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -14,17 +21,15 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
-
-import java.io.IOException;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
+import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.fromId;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 
 /**
  * Response to perform an sql query
@@ -34,6 +39,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     // TODO: Simplify cursor handling
     private String cursor;
     private Mode mode;
+    private SqlVersion sqlVersion;
     private boolean columnar;
     private List<ColumnInfo> columns;
     // TODO investigate reusing Page here - it probably is much more efficient
@@ -70,9 +76,17 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         this.rows = unmodifiableList(rows);
     }
 
-    public SqlQueryResponse(String cursor, Mode mode, boolean columnar, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
+    public SqlQueryResponse(
+        String cursor,
+        Mode mode,
+        SqlVersion sqlVersion,
+        boolean columnar,
+        @Nullable List<ColumnInfo> columns,
+        List<List<Object>> rows
+    ) {
         this.cursor = cursor;
         this.mode = mode;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(Version.CURRENT.id);
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;
@@ -170,7 +184,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 for (int index = 0; index < columnsCount; index++) {
                     builder.startArray();
                     for (List<Object> row : rows()) {
-                        value(builder, mode, row.get(index));
+                        value(builder, mode, sqlVersion, row.get(index));
                     }
                     builder.endArray();
                 }
@@ -180,7 +194,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 for (List<Object> row : rows()) {
                     builder.startArray();
                     for (Object value : row) {
-                        value(builder, mode, value);
+                        value(builder, mode, sqlVersion, value);
                     }
                     builder.endArray();
                 }
@@ -197,11 +211,15 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     /**
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
-    public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
+    public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
         if (value instanceof ZonedDateTime) {
             ZonedDateTime zdt = (ZonedDateTime) value;
             // use the ISO format
-            builder.value(StringUtils.toString(zdt));
+            if (mode == JDBC && isClientCompatible(sqlVersion)) {
+                builder.value(StringUtils.toString(zdt, sqlVersion));
+            } else {
+                builder.value(StringUtils.toString(zdt));
+            }
         } else if (mode == CLI && value != null && value.getClass().getSuperclass().getSimpleName().equals(INTERVAL_CLASS_NAME)) {
             // use the SQL format for intervals when sending back the response for CLI
             // all other clients will receive ISO 8601 formatted intervals

@@ -374,7 +374,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             @Override
             public void onResponse(GetResponse response) {
                 try {
-                    if (!response.isExists()) {
+                    if (response.isExists() == false) {
                         throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] not found");
                     }
                     if (response.isSourceEmpty()) {

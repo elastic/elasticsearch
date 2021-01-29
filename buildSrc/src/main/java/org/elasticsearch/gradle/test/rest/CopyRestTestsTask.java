@@ -68,6 +68,7 @@ public class CopyRestTestsTask extends DefaultTask {
     private Function<FileCollection, FileTree> coreConfigToFileTree = FileCollection::getAsFileTree;
     private Function<FileCollection, FileTree> xpackConfigToFileTree = FileCollection::getAsFileTree;
     private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
+    private String outputResourceRoot = "";
 
     private final PatternFilterable corePatternSet;
     private final PatternFilterable xpackPatternSet;
@@ -140,9 +141,12 @@ public class CopyRestTestsTask extends DefaultTask {
     @OutputDirectory
     public File getOutputDir() {
         return new File(
-            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
-                .getOutput()
-                .getResourcesDir(),
+            new File(
+                getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+                    .getOutput()
+                    .getResourcesDir(),
+                outputResourceRoot
+            ),
             REST_TEST_PREFIX
         );
     }
@@ -168,7 +172,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 getFileSystemOperations().copy(c -> {
                     c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
                     // this ends up as the same dir as outputDir
-                    c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
+                    c.into(
+                        new File(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()), outputResourceRoot)
+                    );
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
@@ -226,6 +232,10 @@ public class CopyRestTestsTask extends DefaultTask {
 
     public void setAdditionalConfigToFileTree(Function<FileCollection, FileTree> additionalConfigToFileTree) {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
+    }
+
+    public void setOutputResourceRoot(String outputResourceRoot) {
+        this.outputResourceRoot = outputResourceRoot;
     }
 
     @Internal

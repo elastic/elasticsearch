@@ -236,9 +236,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
             snapshotsInProgress, repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
         for (SnapshotsInProgress.Entry entry : entries) {
-            if (snapshotIdsToIterate.contains(entry.snapshot().getSnapshotId())) {
+            if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                 snapshotSet.add(new SnapshotInfo(entry));
-                snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId());
             }
         }
         // then, look in the repository

@@ -104,6 +104,6 @@ final class JdbcTestUtils {
     }
 
     static boolean versionSupportsDateNanos() {
-        return JDBC_DRIVER_VERSION.onOrAfter(Version.V_8_0_0);
+        return JDBC_DRIVER_VERSION.onOrAfter(Version.V_7_12_0);
     }
 }

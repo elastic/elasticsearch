@@ -115,9 +115,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
             return filter.transformExpressionsUp(InsensitiveBinaryComparison.class, cmp -> {
+                Expression result = cmp;
                 if (cmp instanceof InsensitiveWildcardEquals || cmp instanceof InsensitiveWildcardNotEquals) {
                     // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
-                    Expression result = cmp;
                     Expression target = null;
                     String wildString = null;
 
@@ -135,10 +135,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                         result = like;
                     }
-
-                    return result;
                 }
-                return cmp;
+                return result;
             });
         }
 

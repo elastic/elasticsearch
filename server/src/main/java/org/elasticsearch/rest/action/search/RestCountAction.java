@@ -79,6 +79,10 @@ public class RestCountAction extends BaseRestHandler {
         if (minScore != -1f) {
             searchSourceBuilder.minScore(minScore);
         }
+        String sStats = request.param("stats");
+        if (sStats != null) {
+            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
+        }
 
         countRequest.preference(request.param("preference"));
 
@@ -104,5 +108,4 @@ public class RestCountAction extends BaseRestHandler {
             }
         });
     }
-
 }

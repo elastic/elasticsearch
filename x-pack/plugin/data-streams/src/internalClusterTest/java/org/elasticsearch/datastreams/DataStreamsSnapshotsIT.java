@@ -11,6 +11,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -489,6 +491,20 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setIndices(indexWithoutDataStream)
                 .get()
         );
+    }
 
+    public void testSnapshotSingleIndexAndGlobalStateWithDataStreamInCluster() throws Exception {
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        client().admin().indices().rolloverIndex(new RolloverRequest("ds", null));
+        assertSuccessful(
+                client().admin()
+                        .cluster()
+                        .prepareCreateSnapshot(REPO, "snap-1")
+                        .setWaitForCompletion(true)
+                        .setIncludeGlobalState(false)
+                        .setPartial(false)
+                        .execute()
+        );
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.datastreams;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
@@ -493,18 +494,25 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testSnapshotSingleIndexAndGlobalStateWithDataStreamInCluster() throws Exception {
-        final String indexWithoutDataStream = "test-idx-no-ds";
-        createIndexWithContent(indexWithoutDataStream);
-        client().admin().indices().rolloverIndex(new RolloverRequest("ds", null));
+    public void testSnapshotDSAfterRollover() throws Exception {
+        final ActionFuture<RolloverResponse> rolloverResponse =
+                client().admin().indices().rolloverIndex(new RolloverRequest("ds", null));
+        final boolean partial = randomBoolean();
         assertSuccessful(
                 client().admin()
                         .cluster()
                         .prepareCreateSnapshot(REPO, "snap-1")
                         .setWaitForCompletion(true)
-                        .setIncludeGlobalState(false)
-                        .setPartial(false)
+                        .setPartial(partial)
+                        .setIncludeGlobalState(randomBoolean())
                         .execute()
         );
+        try {
+            assertTrue(rolloverResponse.get().isRolledOver());
+        } catch (ExecutionException e) {
+            final Throwable sne = ExceptionsHelper.unwrap(e, SnapshotInProgressException.class);
+            assertThat(sne.getMessage(), containsString("Cannot roll over data stream that is being snapshotted:"));
+            assertFalse(partial);
+        }
     }
 }

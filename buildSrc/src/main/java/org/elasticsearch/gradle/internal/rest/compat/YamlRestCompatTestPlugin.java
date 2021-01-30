@@ -140,7 +140,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
-                task.setOutputResourceDir(yamlCompatTestSourceSet.getOutput().getResourcesDir());
+                File resourceDir = yamlCompatTestSourceSet.getOutput().getResourcesDir();
+                File intermediateDir = new File(resourceDir, TEST_INTERMEDIATE_DIR_NAME);
+                task.setOutputResourceDir(intermediateDir);
                 task.setCoreConfigToFileTree(
                     config -> project.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)

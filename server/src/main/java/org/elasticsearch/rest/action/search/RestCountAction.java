@@ -35,6 +35,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;

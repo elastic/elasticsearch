@@ -27,9 +27,9 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public final class FileStructureUtils {
+public final class TextStructureUtils {
 
-    private static final Logger logger = LogManager.getLogger(FileStructureUtils.class);
+    private static final Logger logger = LogManager.getLogger(TextStructureUtils.class);
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final String MAPPING_TYPE_SETTING = "type";
     public static final String MAPPING_FORMAT_SETTING = "format";
@@ -83,7 +83,7 @@ public final class FileStructureUtils {
 
     private static final String BEAT_TIMEZONE_FIELD = "event.timezone";
 
-    private FileStructureUtils() {}
+    private TextStructureUtils() {}
 
     /**
      * Given one or more sample records, find a timestamp field that is consistently present in them all.
@@ -92,12 +92,12 @@ public final class FileStructureUtils {
      * - Must have the same timestamp format in every record
      * If multiple fields meet these criteria then the one that occurred first in the first sample record
      * is chosen.
-     * @param explanation List of reasons for choosing the overall file structure.  This list
+     * @param explanation List of reasons for choosing the overall text structure.  This list
      *                    may be non-empty when the method is called, and this method may
      *                    append to it.
      * @param sampleRecords List of records derived from the provided sample.
-     * @param overrides Aspects of the file structure that are known in advance.  These take precedence over
-     *                  values determined by structure analysis.  An exception will be thrown if the file structure
+     * @param overrides Aspects of the text structure that are known in advance.  These take precedence over
+     *                  values determined by structure analysis.  An exception will be thrown if the text structure
      *                  is incompatible with an overridden value.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return A tuple of (field name, timestamp format finder) if one can be found, or <code>null</code> if
@@ -106,7 +106,7 @@ public final class FileStructureUtils {
     static Tuple<String, TimestampFormatFinder> guessTimestampField(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
         if (sampleRecords.isEmpty()) {
@@ -190,7 +190,7 @@ public final class FileStructureUtils {
     private static List<Tuple<String, TimestampFormatFinder>> findCandidates(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
 
@@ -319,7 +319,7 @@ public final class FileStructureUtils {
             return guessMappingAndCalculateFieldStats(
                 explanation,
                 fieldName,
-                fieldValues.stream().flatMap(FileStructureUtils::flatten).collect(Collectors.toList()),
+                fieldValues.stream().flatMap(TextStructureUtils::flatten).collect(Collectors.toList()),
                 timeoutChecker
             );
         }
@@ -345,7 +345,7 @@ public final class FileStructureUtils {
     /**
      * Finds the appropriate date mapping for a collection of field values.  Throws
      * {@link IllegalArgumentException} if no consistent date mapping can be found.
-     * @param explanation List of reasons for choosing the overall file structure.  This list
+     * @param explanation List of reasons for choosing the overall text structure.  This list
      *                    may be non-empty when the method is called, and this method may
      *                    append to it.
      * @param fieldValues Values of the field for which mappings are to be guessed.  The guessed
@@ -369,7 +369,7 @@ public final class FileStructureUtils {
     /**
      * Given some sample values for a field, guess the most appropriate index mapping for the
      * field.
-     * @param explanation List of reasons for choosing the overall file structure.  This list
+     * @param explanation List of reasons for choosing the overall text structure.  This list
      *                    may be non-empty when the method is called, and this method may
      *                    append to it.
      * @param fieldName Name of the field for which mappings are to be guessed.
@@ -421,7 +421,7 @@ public final class FileStructureUtils {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "geo_shape");
         }
 
-        if (fieldValues.stream().anyMatch(FileStructureUtils::isMoreLikelyTextThanKeyword)) {
+        if (fieldValues.stream().anyMatch(TextStructureUtils::isMoreLikelyTextThanKeyword)) {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "text");
         }
 
@@ -453,7 +453,7 @@ public final class FileStructureUtils {
     }
 
     /**
-     * Create an ingest pipeline definition appropriate for the file structure.
+     * Create an ingest pipeline definition appropriate for the text structure.
      * @param grokPattern The Grok pattern used for parsing semi-structured text formats.  <code>null</code> for
      *                    fully structured formats.
      * @param customGrokPatternDefinitions The definitions for any custom patterns that {@code grokPattern} uses.

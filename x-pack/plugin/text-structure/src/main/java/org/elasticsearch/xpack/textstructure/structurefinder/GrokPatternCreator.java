@@ -504,7 +504,7 @@ public final class GrokPatternCreator {
         ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName) {
             this(
                 grokPatternName,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType),
+                Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType),
                 fieldName,
                 "\\b",
                 "\\b",
@@ -526,7 +526,7 @@ public final class GrokPatternCreator {
         ) {
             this(
                 grokPatternName,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType),
+                Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType),
                 fieldName,
                 "\\b",
                 "\\b",
@@ -544,7 +544,7 @@ public final class GrokPatternCreator {
         ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak, String postBreak) {
             this(
                 grokPatternName,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType),
+                Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType),
                 fieldName,
                 preBreak,
                 postBreak,
@@ -627,9 +627,9 @@ public final class GrokPatternCreator {
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             Map<String, String> adjustedMapping = mapping;
             // If the mapping is type "date" with no format, try to adjust it to include the format
-            if (FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT.equals(adjustedMapping)) {
+            if (TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT.equals(adjustedMapping)) {
                 try {
-                    adjustedMapping = FileStructureUtils.findTimestampMapping(explanation, values, timeoutChecker);
+                    adjustedMapping = TextStructureUtils.findTimestampMapping(explanation, values, timeoutChecker);
                 } catch (IllegalArgumentException e) {
                     // This feels like it shouldn't happen, but there may be some obscure edge case
                     // where it does, and in production it will cause less frustration to just return
@@ -642,7 +642,7 @@ public final class GrokPatternCreator {
                 mappings.put(adjustedFieldName, adjustedMapping);
             }
             if (fieldStats != null) {
-                fieldStats.put(adjustedFieldName, FileStructureUtils.calculateFieldStats(adjustedMapping, values, timeoutChecker));
+                fieldStats.put(adjustedFieldName, TextStructureUtils.calculateFieldStats(adjustedMapping, values, timeoutChecker));
             }
             return "%{" + grokPatternName + ":" + adjustedFieldName + "}";
         }
@@ -716,13 +716,13 @@ public final class GrokPatternCreator {
                 timeoutChecker.check("full message Grok pattern field extraction");
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
-            Map<String, String> mapping = FileStructureUtils.guessScalarMapping(explanation, adjustedFieldName, values, timeoutChecker);
+            Map<String, String> mapping = TextStructureUtils.guessScalarMapping(explanation, adjustedFieldName, values, timeoutChecker);
             timeoutChecker.check("mapping determination");
             if (mappings != null) {
                 mappings.put(adjustedFieldName, mapping);
             }
             if (fieldStats != null) {
-                fieldStats.put(adjustedFieldName, FileStructureUtils.calculateFieldStats(mapping, values, timeoutChecker));
+                fieldStats.put(adjustedFieldName, TextStructureUtils.calculateFieldStats(mapping, values, timeoutChecker));
             }
             return "\\b" + fieldName + "=%{USER:" + adjustedFieldName + "}";
         }
@@ -857,7 +857,7 @@ public final class GrokPatternCreator {
 
                 for (Map.Entry<String, Collection<String>> valuesForField : valuesPerField.entrySet()) {
                     String fieldName = valuesForField.getKey();
-                    Map<String, String> mapping = FileStructureUtils.guessScalarMapping(
+                    Map<String, String> mapping = TextStructureUtils.guessScalarMapping(
                         explanation,
                         fieldName,
                         valuesForField.getValue(),
@@ -871,7 +871,7 @@ public final class GrokPatternCreator {
                     if (fieldStats != null) {
                         fieldStats.put(
                             fieldName,
-                            FileStructureUtils.calculateFieldStats(mapping, valuesForField.getValue(), timeoutChecker)
+                            TextStructureUtils.calculateFieldStats(mapping, valuesForField.getValue(), timeoutChecker)
                         );
                     }
                 }

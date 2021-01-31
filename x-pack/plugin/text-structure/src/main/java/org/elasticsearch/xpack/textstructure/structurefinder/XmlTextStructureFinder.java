@@ -32,17 +32,17 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
-public class XmlFileStructureFinder implements FileStructureFinder {
+public class XmlTextStructureFinder implements TextStructureFinder {
 
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
-    static XmlFileStructureFinder makeXmlFileStructureFinder(
+    static XmlTextStructureFinder makeXmlTextStructureFinder(
         List<String> explanation,
         String sample,
         String charsetName,
         Boolean hasByteOrderMarker,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) throws IOException, ParserConfigurationException, SAXException {
 
@@ -96,7 +96,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampFormatFinder> timeField = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> timeField = TextStructureUtils.guessTimestampField(
             explanation,
             sampleRecords,
             overrides,
@@ -110,7 +110,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(
-                    FileStructureUtils.makeIngestPipelineDefinition(
+                    TextStructureUtils.makeIngestPipelineDefinition(
                         null,
                         Collections.emptyMap(),
                         null,
@@ -123,7 +123,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 );
         }
 
-        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = FileStructureUtils
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
             .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         if (mappingsAndFieldStats.v2() != null) {
@@ -132,19 +132,19 @@ public class XmlFileStructureFinder implements FileStructureFinder {
 
         Map<String, Object> innerFieldMappings = mappingsAndFieldStats.v1();
         Map<String, Object> secondLevelProperties = new LinkedHashMap<>();
-        secondLevelProperties.put(FileStructureUtils.MAPPING_TYPE_SETTING, "object");
-        secondLevelProperties.put(FileStructureUtils.MAPPING_PROPERTIES_SETTING, innerFieldMappings);
+        secondLevelProperties.put(TextStructureUtils.MAPPING_TYPE_SETTING, "object");
+        secondLevelProperties.put(TextStructureUtils.MAPPING_PROPERTIES_SETTING, innerFieldMappings);
         SortedMap<String, Object> outerFieldMappings = new TreeMap<>();
         outerFieldMappings.put(topLevelTag, secondLevelProperties);
         if (timeField != null) {
-            outerFieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
+            outerFieldMappings.put(TextStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         }
 
         TextStructure structure = structureBuilder.setMappings(
-            Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, outerFieldMappings)
+            Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, outerFieldMappings)
         ).setExplanation(explanation).build();
 
-        return new XmlFileStructureFinder(sampleMessages, structure);
+        return new XmlTextStructureFinder(sampleMessages, structure);
     }
 
     private static DocumentBuilderFactory makeDocBuilderFactory() throws ParserConfigurationException {
@@ -166,7 +166,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         return docBuilderFactory;
     }
 
-    private XmlFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
+    private XmlTextStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }

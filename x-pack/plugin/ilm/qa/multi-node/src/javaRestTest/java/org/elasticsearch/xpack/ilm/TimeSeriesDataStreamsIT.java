@@ -88,7 +88,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
         String policyName = "logs-policy";
-        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
+        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
 
         createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 

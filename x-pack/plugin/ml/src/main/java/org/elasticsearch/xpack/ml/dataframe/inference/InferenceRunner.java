@@ -13,11 +13,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -30,6 +37,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
@@ -83,11 +91,13 @@ public class InferenceRunner {
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(modelId, localModelPlainActionFuture);
+            InferenceState inferenceState = restoreInferenceState();
+            dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config,
-                extractedFields);
+                extractedFields, inferenceState.lastIncrementalId);
             try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
                 LOGGER.debug("Loaded inference model [{}]", localModel);
-                inferTestDocs(localModel, testDocsIterator);
+                inferTestDocs(localModel, testDocsIterator, inferenceState.processedTestDocsCount);
             }
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Error running inference on model [{}]", config.getId(), modelId), e);
@@ -102,10 +112,36 @@ public class InferenceRunner {
         }
     }
 
+    private InferenceState restoreInferenceState() {
+        SearchRequest searchRequest = new SearchRequest(config.getDest().getIndex());
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
+            .size(0)
+            .query(QueryBuilders.boolQuery().filter(
+                QueryBuilders.termQuery(config.getDest().getResultsField() + "." + DestinationIndex.IS_TRAINING, false)))
+            .fetchSource(false)
+            .aggregation(AggregationBuilders.max(DestinationIndex.INCREMENTAL_ID).field(DestinationIndex.INCREMENTAL_ID))
+            .trackTotalHits(true)
+        );
+        searchRequest.source(sourceBuilder);
+
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
+            () -> client.search(searchRequest).actionGet());
+
+        Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
+        long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
+        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.getValue();
+        if (lastIncrementalId != null) {
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] Resuming inference; last incremental id [{}]; processed test doc count [{}]",
+                config.getId(), lastIncrementalId, processedTestDocCount));
+        }
+        return new InferenceState(lastIncrementalId, processedTestDocCount);
+    }
+
     // Visible for testing
-    void inferTestDocs(LocalModel model, TestDocsIterator testDocsIterator) {
+    void inferTestDocs(LocalModel model, TestDocsIterator testDocsIterator, long processedTestDocsCount) {
         long totalDocCount = 0;
-        long processedDocCount = 0;
+        long processedDocCount = processedTestDocsCount;
 
         try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
             while (testDocsIterator.hasNext()) {
@@ -168,5 +204,16 @@ public class InferenceRunner {
             config.getId(),
             () -> isCancelled == false,
             retryMessage -> {});
+    }
+
+    private static class InferenceState {
+
+        private final Long lastIncrementalId;
+        private final long processedTestDocsCount;
+
+        InferenceState(@Nullable Long lastIncrementalId, long processedTestDocsCount) {
+            this.lastIncrementalId = lastIncrementalId;
+            this.processedTestDocsCount = processedTestDocsCount;
+        }
     }
 }

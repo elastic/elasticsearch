@@ -23,10 +23,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.test.rest.transform.InjectHeaders;
+import org.elasticsearch.gradle.test.rest.transform.ReplaceKeyValue;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.gradle.api.DefaultTask;
@@ -43,10 +46,10 @@ import org.gradle.internal.Factory;
 import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class RestCompatTestTransformTask extends DefaultTask {
 
@@ -54,6 +57,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
     private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class);
+    private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
@@ -61,6 +65,13 @@ public class RestCompatTestTransformTask extends DefaultTask {
         "Accept",
         "application/vnd.elasticsearch+json;compatible-with=7"
     );
+
+    private static String MATCH_KEY_NAME = "match";
+    private static Pattern MATCH_TYPE_REGEX = Pattern.compile("\\{.*_type.*\\}");
+    private static ObjectNode MATCH_TYPE_REPLACEMENT = new ObjectNode(jsonNodeFactory);
+    static {
+        MATCH_TYPE_REPLACEMENT.set("_type", TextNode.valueOf("_doc"));
+    }
 
     private FileCollection input;
     private File output;
@@ -73,7 +84,12 @@ public class RestCompatTestTransformTask extends DefaultTask {
     public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
-        transformations = Collections.singletonList(new InjectHeaders(headers));
+        transformations = List.of(
+            //inject compat headers
+            new InjectHeaders(headers),
+            //replace all "match" : { "_type" : <any> } with "match" : { "_type" : "_doc" }
+            new ReplaceKeyValue(MATCH_KEY_NAME, MATCH_TYPE_REGEX, MATCH_TYPE_REPLACEMENT)
+        );
     }
 
     @OutputDirectory

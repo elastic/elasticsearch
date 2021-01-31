@@ -62,7 +62,7 @@ public class ReplaceKeyValue implements RestTestTransformByObjectKey {
     public void transformTest(ObjectNode nodeWithKey) {
         JsonNode value = nodeWithKey.get(getKeyToFind());
         if (value == null) {
-            throw new IllegalStateException("Did not actually find " + getReplacementNode() + " node, this is likely a bug");
+            throw new IllegalStateException("Did not actually find " + getKeyToFind() + " node, this is likely a bug");
         }
         nodeWithKey.set(getKeyToFind(), getReplacementNode());
     }

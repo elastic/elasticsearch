@@ -26,7 +26,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 /**
@@ -122,7 +121,7 @@ public class RestTestTransformer {
                 if (transform == null) {
                     traverseTest(entry.getValue(), objectKeyFinders);
                 } else {
-                    if(transform.valueToMatch().matcher(entry.getValue().toString()).matches()) {
+                    if (transform.valueToMatch().matcher(entry.getValue().toString()).matches()) {
                         transform.transformTest((ObjectNode) currentNode);
                     }
                 }

@@ -85,9 +85,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         transformations = List.of(
-            //inject compat headers
+            // inject compat headers
             new InjectHeaders(headers),
-            //replace all "match" : { "_type" : <any> } with "match" : { "_type" : "_doc" }
+            // replace all "match" : { "_type" : <any> } with "match" : { "_type" : "_doc" }
             new ReplaceKeyValue(MATCH_KEY_NAME, MATCH_TYPE_REGEX, MATCH_TYPE_REPLACEMENT)
         );
     }

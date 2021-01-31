@@ -44,8 +44,6 @@ public class ReplaceKeyValueTests extends GradleUnitTestCase {
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-
-
     private static final boolean humanDebug = true; // useful for humans trying to debug these tests
 
     /**
@@ -63,52 +61,46 @@ public class ReplaceKeyValueTests extends GradleUnitTestCase {
         ObjectNode replacement = new ObjectNode(jsonNodeFactory);
         replacement.set("_type", TextNode.valueOf("_doc"));
 
-
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
             Collections.singletonList(new ReplaceKeyValue("match", matchValue, replacement))
         );
         printTest(testName, transformedTests);
-//        // ensure setup is correct
-//        assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
-//        transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
-//        transformedTests.stream().filter(node -> node.get("teardown") != null).forEach(this::assertTeardown);
-//        // ensure do body is correct
-//        transformedTests.forEach(test -> {
-//            Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
-//            while (testsIterator.hasNext()) {
-//                Map.Entry<String, JsonNode> testObject = testsIterator.next();
-//                assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
-//                ArrayNode testBody = (ArrayNode) testObject.getValue();
-//                assertTestBodyForHeaders(testBody, headers);
-//            }
-//        });
+        // // ensure setup is correct
+        // assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+        // transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
+        // transformedTests.stream().filter(node -> node.get("teardown") != null).forEach(this::assertTeardown);
+        // // ensure do body is correct
+        // transformedTests.forEach(test -> {
+        // Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+        // while (testsIterator.hasNext()) {
+        // Map.Entry<String, JsonNode> testObject = testsIterator.next();
+        // assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+        // ArrayNode testBody = (ArrayNode) testObject.getValue();
+        // assertTestBodyForHeaders(testBody, headers);
+        // }
+        // });
     }
 
-
-
-//    private void assertTestBodyForHeaders(ArrayNode testBody, Map<String, String> headers) {
-//        testBody.forEach(arrayObject -> {
-//            assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
-//            ObjectNode testSection = (ObjectNode) arrayObject;
-//            if (testSection.get("do") != null) {
-//                ObjectNode doSection = (ObjectNode) testSection.get("do");
-//                assertThat(doSection.get("headers"), CoreMatchers.notNullValue());
-//                ObjectNode headersNode = (ObjectNode) doSection.get("headers");
-//                LongAdder assertions = new LongAdder();
-//                headers.forEach((k, v) -> {
-//                    assertThat(headersNode.get(k), CoreMatchers.notNullValue());
-//                    TextNode textNode = (TextNode) headersNode.get(k);
-//                    assertThat(textNode.asText(), CoreMatchers.equalTo(v));
-//                    assertions.increment();
-//                });
-//                assertThat(assertions.intValue(), CoreMatchers.equalTo(headers.size()));
-//            }
-//        });
-//    }
-
-
-
+    // private void assertTestBodyForHeaders(ArrayNode testBody, Map<String, String> headers) {
+    // testBody.forEach(arrayObject -> {
+    // assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
+    // ObjectNode testSection = (ObjectNode) arrayObject;
+    // if (testSection.get("do") != null) {
+    // ObjectNode doSection = (ObjectNode) testSection.get("do");
+    // assertThat(doSection.get("headers"), CoreMatchers.notNullValue());
+    // ObjectNode headersNode = (ObjectNode) doSection.get("headers");
+    // LongAdder assertions = new LongAdder();
+    // headers.forEach((k, v) -> {
+    // assertThat(headersNode.get(k), CoreMatchers.notNullValue());
+    // TextNode textNode = (TextNode) headersNode.get(k);
+    // assertThat(textNode.asText(), CoreMatchers.equalTo(v));
+    // assertions.increment();
+    // });
+    // assertThat(assertions.intValue(), CoreMatchers.equalTo(headers.size()));
+    // }
+    // });
+    // }
 
     // only to help manually debug
     private void printTest(String testName, List<ObjectNode> tests) {

@@ -17,11 +17,13 @@ public class ConstantProcessorTests extends AbstractWireSerializingTestCase<Cons
 
     public static ConstantProcessor randomConstantProcessor() {
         if (randomBoolean()) {
-            Clock clock = Clock.tickMillis(randomZone());
+            Clock clock;
             if (randomBoolean()) {
-                clock = Clock.tick(clock, Duration.ofNanos(1));
+                clock = Clock.tick(Clock.system(randomZone()), Duration.ofNanos(1));
+            } else {
+                clock = Clock.tick(Clock.system(randomZone()), Duration.ofMillis(1));
             }
-            return new ConstantProcessor( ZonedDateTime.now(clock));
+            return new ConstantProcessor(ZonedDateTime.now(clock));
         } else {
             return new ConstantProcessor(randomAlphaOfLength(5));
         }

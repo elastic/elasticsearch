@@ -55,7 +55,7 @@ public class FieldStatsCalculator {
 
     public FieldStatsCalculator(Map<String, String> mapping) {
 
-        switch (mapping.get(FileStructureUtils.MAPPING_TYPE_SETTING)) {
+        switch (mapping.get(TextStructureUtils.MAPPING_TYPE_SETTING)) {
             case "byte":
             case "short":
             case "integer":
@@ -67,7 +67,7 @@ public class FieldStatsCalculator {
                 break;
             case "date":
             case "date_nanos":
-                String format = mapping.get(FileStructureUtils.MAPPING_FORMAT_SETTING);
+                String format = mapping.get(TextStructureUtils.MAPPING_FORMAT_SETTING);
                 dateFormatter = (format == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format);
                 // Dates are treated like strings for top hits
                 countsByStringValue = new TreeMap<>();
@@ -94,8 +94,8 @@ public class FieldStatsCalculator {
                 try {
                     countsByNumericValue.compute(Double.valueOf(fieldValue), (k, v) -> (v == null) ? 1 : (1 + v));
                 } catch (NumberFormatException e) {
-                    // This should not happen in the usual context this class is used in within the file structure finder,
-                    // as "double" should be big enough to hold any value that the file structure finder considers numeric
+                    // This should not happen in the usual context this class is used in within the structure finder,
+                    // as "double" should be big enough to hold any value that the structure finder considers numeric
                     throw new IllegalArgumentException(
                         "Field with numeric mapping [" + fieldValue + "] could not be parsed as type double",
                         e

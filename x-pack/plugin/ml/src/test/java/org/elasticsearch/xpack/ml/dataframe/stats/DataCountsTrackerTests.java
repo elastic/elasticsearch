@@ -22,10 +22,10 @@ public class DataCountsTrackerTests extends ESTestCase {
         assertThat(resetDataCounts, equalTo(new DataCounts(JOB_ID)));
     }
 
-    public void testResetTestDocsCount() {
+    public void testSetTestDocsCount() {
         DataCountsTracker dataCountsTracker = new DataCountsTracker(new DataCounts(JOB_ID, 10, 20, 30));
-        dataCountsTracker.resetTestDocsCount();
+        dataCountsTracker.setTestDocsCount(15);
         DataCounts resetDataCounts = dataCountsTracker.report();
-        assertThat(resetDataCounts, equalTo(new DataCounts(JOB_ID, 10, 0, 30)));
+        assertThat(resetDataCounts, equalTo(new DataCounts(JOB_ID, 10, 15, 30)));
     }
 }

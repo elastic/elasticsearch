@@ -349,7 +349,7 @@ public class JvmInfo implements ReportingService.Info {
             int i = 0;
             StringBuilder sVersion = new StringBuilder();
             for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
@@ -370,7 +370,7 @@ public class JvmInfo implements ReportingService.Info {
             int i = 0;
             StringBuilder sVersion = new StringBuilder();
             for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
@@ -393,7 +393,7 @@ public class JvmInfo implements ReportingService.Info {
                 return -1;
             }
             for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
+                if (Character.isDigit(version.charAt(i)) == false && version.charAt(i) != '.') {
                     break;
                 }
             }

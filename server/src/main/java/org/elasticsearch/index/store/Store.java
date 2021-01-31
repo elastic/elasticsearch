@@ -529,7 +529,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // throw exception if the file is corrupt
             String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
             // throw exception if metadata is inconsistent
-            if (!checksum.equals(md.checksum())) {
+            if (checksum.equals(md.checksum()) == false) {
                 throw new CorruptIndexException("inconsistent metadata: lucene checksum=" + checksum +
                         ", metadata checksum=" + md.checksum(), input);
             }
@@ -1190,7 +1190,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private void readAndCompareChecksum() throws IOException {
             actualChecksum = digestToString(getChecksum());
-            if (!metadata.checksum().equals(actualChecksum)) {
+            if (metadata.checksum().equals(actualChecksum) == false) {
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + metadata.checksum() +
                         " actual=" + actualChecksum +
                         " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
@@ -1360,7 +1360,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
-        if (!isMarkedCorrupted()) {
+        if (isMarkedCorrupted() == false) {
             final String corruptionMarkerName = CORRUPTED_MARKER_NAME_PREFIX + UUIDs.randomBase64UUID();
             try (IndexOutput output = this.directory().createOutput(corruptionMarkerName, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, CORRUPTED_MARKER_CODEC_VERSION);

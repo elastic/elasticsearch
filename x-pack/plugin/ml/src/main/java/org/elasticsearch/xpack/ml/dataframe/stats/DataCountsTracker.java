@@ -51,7 +51,7 @@ public class DataCountsTracker {
         skippedDocsCount = 0;
     }
 
-    public void resetTestDocsCount() {
-        testDocsCount = 0;
+    public void setTestDocsCount(long testDocsCount) {
+        this.testDocsCount = testDocsCount;
     }
 }

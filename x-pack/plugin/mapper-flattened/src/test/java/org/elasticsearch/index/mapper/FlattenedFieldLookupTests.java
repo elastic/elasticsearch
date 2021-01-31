@@ -163,7 +163,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
             }
             return null;
         }, fieldDataSupplier);
-        LeafDocLookup docLookup = searchLookup.doc().getLeafDocLookup(null);
+        LeafDocLookup docLookup = searchLookup.getLeafSearchLookup(null).doc();
 
         assertEquals(docValues1, docLookup.get("json.key1"));
         assertEquals(docValues2, docLookup.get("json.key2"));

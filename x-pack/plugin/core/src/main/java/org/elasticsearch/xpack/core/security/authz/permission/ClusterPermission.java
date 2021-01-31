@@ -47,6 +47,16 @@ public class ClusterPermission {
     }
 
     /**
+     * Checks permission to a cluster action.
+     *
+     * @param action  cluster action
+     * @return {@code true} if the specified action execution can be granted by given permission else returns {@code false}
+     */
+    public boolean check(final String action) {
+        return checks.stream().anyMatch(permission -> permission.check(action));
+    }
+
+    /**
      * Checks if the specified {@link ClusterPermission}'s actions are implied by this {@link ClusterPermission}
      *
      * @param otherClusterPermission {@link ClusterPermission}
@@ -146,6 +156,14 @@ public class ClusterPermission {
         boolean check(String action, TransportRequest request, Authentication authentication);
 
         /**
+         * Checks permission to a cluster action regardless of the request and authentication context.
+         *
+         * @param action  action name
+         * @return {@code true} if the specified action execution can be granted by given permission else returns {@code false}
+         */
+        boolean check(String action);
+
+        /**
          * Checks whether specified {@link PermissionCheck} is implied by this {@link PermissionCheck}.<br>
          * This is important method to be considered during implementation as it compares {@link PermissionCheck}s.
          * If {@code permissionCheck.implies(otherPermissionCheck)}, that means all the actions allowed by {@code otherPermissionCheck}
@@ -175,6 +193,11 @@ public class ClusterPermission {
         @Override
         public final boolean check(final String action, final TransportRequest request, final Authentication authentication) {
             return actionPredicate.test(action) && extendedCheck(action, request, authentication);
+        }
+
+        @Override
+        public final boolean check(final String action) {
+            return actionPredicate.test(action);
         }
 
         protected abstract boolean extendedCheck(String action, TransportRequest request, Authentication authentication);

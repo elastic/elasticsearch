@@ -76,9 +76,9 @@ public class ContextGeneratorCommon {
         }
         int bracePosition = javaType.indexOf('[');
         String braces = javaType.substring(bracePosition);
-        String typ = javaType.substring(0, bracePosition);
-        if (javaNamesToDisplayNames.containsKey(typ)) {
-            return javaNamesToDisplayNames.get(typ) + braces;
+        String type = javaType.substring(0, bracePosition);
+        if (javaNamesToDisplayNames.containsKey(type)) {
+            return javaNamesToDisplayNames.get(type) + braces;
         }
         return javaType;
     }

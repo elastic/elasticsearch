@@ -269,7 +269,7 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
-    static Nodes buildNodeAndVersions(RestClient client) throws IOException {
+    public static Nodes buildNodeAndVersions(RestClient client) throws IOException {
         Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
@@ -286,7 +286,7 @@ public class SqlSearchIT extends ESRestTestCase {
         return nodes;
     }
 
-    private static final class Nodes extends HashMap<String, Node> {
+    public static final class Nodes extends HashMap<String, Node> {
 
         public void add(Node node) {
             put(node.getId(), node);
@@ -317,7 +317,7 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
-    private static final class Node {
+    public static final class Node {
         private final String id;
         private final Version version;
         private final HttpHost publishAddress;

@@ -51,13 +51,13 @@ import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
-
+    private static final Logger log = LogManager.getLogger(TransportSqlQueryAction.class);
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
-    private static final Logger log = LogManager.getLogger(TransportSqlQueryAction.class);
+    
     @Inject
     public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                    ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,

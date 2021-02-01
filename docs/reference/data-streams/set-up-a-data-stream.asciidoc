@@ -90,11 +90,11 @@ For example, if you don't use {agent} and want to create a template for the
 your template is applied instead of the built-in template for `logs-*-*`.
 ====
 
-If the index template doesn't specify a mapping for the `@timestamp` field, {es}
-maps `@timestamp` as a `date` field  with default options.
+include::{es-repo-dir}/data-streams/data-streams.asciidoc[tag=timestamp-reqs]
 
 If using {ilm-init}, specify your lifecycle policy in the `index.lifecycle.name`
 setting.
+
 TIP: Carefully consider your template's mappings and settings. Later changes may
 require reindexing. See <<data-streams-change-mappings-and-settings>>.
 

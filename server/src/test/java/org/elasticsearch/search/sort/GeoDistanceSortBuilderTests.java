@@ -279,8 +279,8 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
             itemParser.nextToken();
             GeoDistanceSortBuilder.fromXContent(itemParser, json);
-            assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-                "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+            assertWarnings(true,
+                "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
         }
     }
 

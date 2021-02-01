@@ -1169,7 +1169,8 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
                 null,
                 null,
                 null,
-                featureprocessors))
+                featureprocessors,
+                null))
             .build();
     }
 

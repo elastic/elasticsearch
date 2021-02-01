@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractScriptFieldQueryTestCase<T extends AbstractScriptFieldQuery> extends ESTestCase {
+public abstract class AbstractScriptFieldQueryTestCase<T extends AbstractScriptFieldQuery<?>> extends ESTestCase {
     protected abstract T createTestInstance();
 
     protected abstract T copy(T orig);

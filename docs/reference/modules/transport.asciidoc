@@ -19,30 +19,30 @@ Defaults to `9300-9400`.
 (<<static-cluster-setting,Static>>)
 Sets the address of this node for transport traffic. The node will bind to this
 address and will also use it as its transport publish address. Accepts an IP
-address, a hostname, or a <<network-interface-values,special value>>. You
-should only use this setting if you require different configurations for the
+address, a hostname, or a <<network-interface-values,special value>>.
+Use this setting only if you require different configurations for the
 transport and HTTP interfaces.
 +
 Defaults to the address given by `network.host`.
 
 `transport.bind_host`::
 (<<static-cluster-setting,Static>>)
-Bind addresses the node should use to listen for incoming
-transport connections. Accepts a list of IP addresses, hostnames, and
+The network address(es) to which the node should bind in order to listen for
+incoming transport connections. Accepts a list of IP addresses, hostnames, and
 <<network-interface-values,special values>>. Defaults to the address given by
-`transport.host` or `network.bind_host`. You should only use this setting if
-you wish to bind to multiple addresses or to use different addresses for
-publishing and binding, and you require different binding configurations for
-the transport and HTTP interfaces.
+`transport.host` or `network.bind_host`. Use this setting only if you require
+to bind to multiple addresses or to use different addresses for publishing and
+binding, and you also require different binding configurations for the
+transport and HTTP interfaces.
 
 `transport.publish_host`::
 (<<static-cluster-setting,Static>>)
 The network address at which the node can be contacted by other nodes. Accepts
 an IP address, a hostname, or a <<network-interface-values,special value>>.
 Defaults to the address given by `transport.host` or `network.publish_host`.
-You should only use this setting if you wish to bind to multiple addresses or
-to use different addresses for publishing and binding, and you require
-different publishing configurations for the transport and HTTP interfaces.
+Use this setting only if you require to bind to multiple addresses or to use
+different addresses for publishing and binding, and you also require different
+binding configurations for the transport and HTTP interfaces.
 
 `transport.publish_port`::
 (<<static-cluster-setting,Static>>)

@@ -2,24 +2,23 @@
 === Networking
 
 Each {es} node has two different network interfaces. Clients send requests to
-{es}'s REST APIs using its <<http-settings,HTTP interface>>, but the node that
-receives a client request cannot always handle it alone and must normally pass
-it on to other nodes for further processing. It does this using the
-<<transport-settings,transport interface>>. The transport interface is used for
-all communication between nodes in a cluster, and for communication with a
-<<modules-remote-clusters,remote cluster>>.
+{es}'s REST APIs using its <<http-settings,HTTP interface>>. However, the
+receiving node cannot always handle the client request alone and will normally
+use the <<transport-settings,transport interface>> to forward the request to
+other nodes for further processing. Nodes use the transport interface for all
+communication with other nodes in their cluster and for communication with
+<<modules-remote-clusters,remote clusters>>.
 
 You can configure both of these interfaces at the same time using the
-`network.*` settings. If you have a more complicated network, you might
-need to configure the interfaces independently using the `http.*`
-and `transport.*` settings. Where possible,
-use the `network.*` settings that apply to both interfaces to
-simplify your configuration and reduce duplication.
+`network.*` settings. If you have a more complicated network, you might need to
+configure the interfaces independently using the `http.*` and `transport.*`
+settings. Where possible, use the `network.*` settings that apply to both
+interfaces to simplify your configuration and reduce duplication.
 
-By default {es} binds only to localhost which means it cannot be accessed
-remotely. This is sufficient for a local development cluster made of one or
-more nodes all running on the same host. To form a cluster across multiple
-hosts, or which is accessible to remote clients, you will need to adjust some
+By default {es} binds only to `localhost` which means it cannot be accessed
+remotely. This configuration is sufficient for a local development cluster made
+of one or more nodes all running on the same host. To form a cluster across
+multiple hosts, or which is accessible to remote clients, you must adjust some
 <<common-network-settings,network settings>> such as `network.host`.
 
 [WARNING]
@@ -38,8 +37,7 @@ proceeding.
 [[common-network-settings]]
 ==== Commonly used network settings
 
-The settings in this section are the only ones that most users will need to
-set.
+Most users will need to configure only the following network settings.
 
 `network.host`::
 (<<static-cluster-setting,Static>>)
@@ -122,19 +120,19 @@ publishing. Most nodes will use the same address for everything, but more
 complicated setups may need to configure different addresses for different
 purposes.
 
-When an application such as {es} wishes to receive communication over the
-network it must indicate to the operating system the address or addresses whose
-traffic it should receive. This is known as _binding_ to those addresses. {es}
-can bind to more than one address if needed, but most nodes only bind to a
-single address. {es} can only bind to an address if it is running on a host
-that has a network interface with that address. If necessary, you can configure
-the transport and HTTP interfaces to bind to different addresses.
+When an application such as {es} wishes to receive network communications, it
+must indicate to the operating system the address or addresses whose traffic it
+should receive. This is known as _binding_ to those addresses. {es} can bind to
+more than one address if needed, but most nodes only bind to a single address.
+{es} can only bind to an address if it is running on a host that has a network
+interface with that address. If necessary, you can configure the transport and
+HTTP interfaces to bind to different addresses.
 
 Each {es} node has an address at which clients and other nodes can contact it,
 known as its _publish address_. Each node has one publish address for its HTTP
 interface and one for its transport interface. These two addresses can be
-anything and need not be addresses of the network interfaces on the host. The
-only requirements are that each node must be:
+anything, and don't need to be addresses of the network interfaces on the host.
+The only requirements are that each node must be:
 
 * Accessible at its transport publish address by all other
   nodes in its cluster, and by any remote clusters that will discover it using
@@ -143,19 +141,22 @@ only requirements are that each node must be:
 * Accessible at its HTTP publish address by all clients
   that will discover it using sniffing.
 
-If you have the common setup in which {es} binds to a single address at which
-it is exposed to clients and other nodes then you should just set
-`network.host` to that address. You should not separately set any bind or
+===== Using a single address
+
+The most common configuration is for {es} to bind to a single address at which
+it is exposed to clients and other nodes. In this configuration you should just
+set `network.host` to that address. You should not separately set any bind or
 publish addresses, nor should you separately configure the addresses for the
 HTTP or transport interfaces.
 
-If you wish to bind to multiple addresses, or to publish a different address
-from the addresses to which you are binding, then you must instead use the
-<<advanced-network-settings, advanced network settings>>: set
-`network.bind_host` to the bind addresses, and `network.publish_host` to the
-address at which this node is exposed. If necessary, in very complicated
-setups, you can also configure these addresses differently for the HTTP and
-transport interfaces.
+===== Using multiple addresses
+
+Use the <<advanced-network-settings, advanced network settings>> if you wish to
+bind {es} to multiple addresses, or to publish a different address from the
+addresses to which you are binding. Set `network.bind_host` to the bind
+addresses, and `network.publish_host` to the address at which this node is
+exposed. In complex configurations, you can configure these addresses
+differently for the HTTP and transport interfaces.
 
 [[advanced-network-settings]]
 ==== Advanced network settings
@@ -170,24 +171,23 @@ used settings>> instead.
 The network address(es) to which the node should bind in order to listen for
 incoming connections. Accepts a list of IP addresses, hostnames, and
 <<network-interface-values,special values>>. Defaults to the address given by
-`network.host`. You should only use this setting if you wish to bind to
-multiple addresses or to use different addresses for publishing and binding.
+`network.host`. Use this setting only if binding to multiple addresses or using
+different addresses for publishing and binding.
 
 `network.publish_host`::
 (<<static-cluster-setting,Static>>)
-The network address at which the node can be contacted by clients and other
-nodes. Accepts an IP address, a hostname, or a
-<<network-interface-values,special value>>. Defaults to the address given by
-`network.host`. You should only use this setting if you wish to bind to
-multiple addresses or to use different addresses for publishing and binding.
+The network address that clients and other nodes can use to contact this node.
+Accepts an IP address, a hostname, or a <<network-interface-values,special
+value>>. Defaults to the address given by `network.host`. Use this setting only
+if bindiing to multiple addresses or using different addresses for publishing
+and binding.
 
-NOTE: It is permitted to specify a list of addresses for `network.host` and
+NOTE: You can specify a list of addresses for `network.host` and
 `network.publish_host`. You can also specify a single hostname which resolves
 to multiple addresses. If you do this then {es} chooses one of the addresses
 for its publish address. This choice uses heuristics based on IPv4/IPv6 stack
-preference and reachability and may change when the node restarts. To avoid
-inconsistent results you must make sure that each node is accessible at every
-possible publish address.
+preference and reachability and may change when the node restarts. You must
+make sure that each node is accessible at all its publish addresses.
 
 [[tcp-settings]]
 ===== Advanced TCP settings

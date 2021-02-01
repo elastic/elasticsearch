@@ -95,7 +95,7 @@ your template is applied instead of the built-in template for `logs-*-*`.
 ****
 The {agent} uses the Elastic data stream naming scheme to name its data streams.
 To help you organize your data consistently and avoid naming collisions, we
-recommend you use the Elastic naming scheme for your other data streams.
+recommend you also use the Elastic naming scheme for your other data streams.
 
 The naming scheme splits data into different data streams based on the following
 components. Each component corresponds to a

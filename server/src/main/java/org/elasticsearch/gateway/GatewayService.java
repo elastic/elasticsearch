@@ -160,8 +160,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
                 }
-                performStateRecovery(enforceRecoverAfterTime, reason);
             }
+            performStateRecovery(enforceRecoverAfterTime, reason);
         }
     }
 

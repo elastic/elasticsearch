@@ -110,7 +110,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             version.onOrAfter(Version.V_7_8_0) ? instance.getLossFunction() : null,
             version.onOrAfter(Version.V_7_8_0) ? instance.getLossFunctionParameter() : null,
             version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
-            version.onOrAfter(Version.V_8_0_0) ? instance.getEarlyStoppingEnabled() : null);
+            version.onOrAfter(Version.V_7_12_0) ? instance.getEarlyStoppingEnabled() : null);
     }
 
     @Override

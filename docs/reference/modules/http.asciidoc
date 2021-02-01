@@ -25,29 +25,23 @@ Defaults to the address given by `network.host`.
 
 `http.bind_host`::
 (<<static-cluster-setting,Static>>)
-The network address(es) that the node should bind to for listening to
+The network address(es) to which the node should bind in order to listen for
 incoming HTTP connections. Accepts a list of IP addresses, hostnames, and
 <<network-interface-values,special values>>. Defaults to the address given by
-`http.host` or `network.bind_host`.
-+
-Use this setting only if your needs meet these requirements:
-
-* Binding to multiple addresses, or using different addresses for publishing and
-binding.
-* Using different binding configurations for the transport and HTTP interfaces.
+`http.host` or `network.bind_host`. Use this setting only if you require to
+bind to multiple addresses or to use different addresses for publishing and
+binding, and you also require different binding configurations for the
+transport and HTTP interfaces.
 
 `http.publish_host`::
 (<<static-cluster-setting,Static>>)
 The network address for HTTP clients to contact the node using sniffing.
 Accepts an IP address, a hostname, or a <<network-interface-values,special
 value>>. Defaults to the address given by `http.host` or
-`network.publish_host`.
-+
-Use this setting only if your needs meet these requirements:
-
-* Binding to multiple addresses, or using different addresses for publishing and
-binding.
-* Using different binding configurations for the transport and HTTP interfaces.
+`network.publish_host`. Use this setting only if you require to bind to
+multiple addresses or to use different addresses for publishing and binding,
+and you also require different binding configurations for the transport and
+HTTP interfaces.
 
 `http.publish_port`::
 (<<static-cluster-setting,Static>>)

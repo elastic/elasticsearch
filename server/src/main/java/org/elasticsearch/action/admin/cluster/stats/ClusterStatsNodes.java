@@ -349,7 +349,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             builder.endArray();
             builder.startArray(Fields.ARCHITECTURES);
             {
-                architectures (final ObjectIntCursor<String> arch : architectures) {
+                for (final ObjectIntCursor<String> arch : architectures) {
                     builder.startObject();
                     {
                         builder.field(Fields.ARCH, arch.key);

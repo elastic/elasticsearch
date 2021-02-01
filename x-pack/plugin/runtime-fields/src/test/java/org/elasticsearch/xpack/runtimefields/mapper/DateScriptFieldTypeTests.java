@@ -615,7 +615,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         };
         ScriptModule scriptModule = new ScriptModule(
             Settings.EMPTY,
-            org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields())
+            org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY))
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DateFieldScript.Factory factory = scriptService.compile(script, DateFieldScript.CONTEXT);

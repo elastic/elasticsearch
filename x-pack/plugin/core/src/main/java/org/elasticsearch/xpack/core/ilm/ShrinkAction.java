@@ -80,7 +80,7 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     public ShrinkAction(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             if (in.readBoolean()) {
                 this.numberOfShards = in.readVInt();
                 this.maxSinglePrimarySize = null;
@@ -104,7 +104,7 @@ public class ShrinkAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             boolean hasNumberOfShards = numberOfShards != null;
             out.writeBoolean(hasNumberOfShards);
             if (hasNumberOfShards) {

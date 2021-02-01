@@ -36,7 +36,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestDeduplicator;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -52,7 +52,7 @@ public class TaskCancellationService {
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
-    private final TransportRequestDeduplicator<CancelRequest> deduplicator = new TransportRequestDeduplicator<>();
+    private final ResultDeduplicator<CancelRequest, Void> deduplicator = new ResultDeduplicator<>();
 
     public TaskCancellationService(TransportService transportService) {
         this.transportService = transportService;
@@ -242,7 +242,7 @@ public class TaskCancellationService {
             if (request.ban) {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     localNodeId(), request.reason);
-                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
+                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason,  channel);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request).map(r -> TransportResponse.Empty.INSTANCE),
                     childTasks.size() + 1);

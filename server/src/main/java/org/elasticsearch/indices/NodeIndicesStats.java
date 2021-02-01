@@ -199,7 +199,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         final String level = params.param("level", "node");
         final boolean isLevelValid =
             "indices".equalsIgnoreCase(level) || "node".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
-        if (!isLevelValid) {
+        if (isLevelValid == false) {
             throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
         }
 
@@ -239,7 +239,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     private Map<Index, CommonStats> createStatsByIndex() {
         Map<Index, CommonStats> statsMap = new HashMap<>();
         for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-            if (!statsMap.containsKey(entry.getKey())) {
+            if (statsMap.containsKey(entry.getKey()) == false) {
                 statsMap.put(entry.getKey(), new CommonStats());
             }
 

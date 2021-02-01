@@ -96,7 +96,7 @@ class TopHitsAggregator extends MetricsAggregator {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
-        // replaced with the next leaf readers and then post collection pushes docids of the previous segement, which
+        // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
         // then causes assertions to trip or incorrect top docs to be computed.
         final LongObjectHashMap<LeafCollector> leafCollectors = new LongObjectHashMap<>(1);
         return new LeafBucketCollectorBase(sub, null) {

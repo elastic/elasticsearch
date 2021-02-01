@@ -112,7 +112,7 @@ public class Loggers {
     }
 
     public static void setLevel(Logger logger, Level level) {
-        if (!LogManager.ROOT_LOGGER_NAME.equals(logger.getName())) {
+        if (LogManager.ROOT_LOGGER_NAME.equals(logger.getName()) == false) {
             Configurator.setLevel(logger.getName(), level);
         } else {
             final LoggerContext ctx = LoggerContext.getContext(false);
@@ -136,7 +136,7 @@ public class Loggers {
         final Configuration config = ctx.getConfiguration();
         config.addAppender(appender);
         LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
-        if (!logger.getName().equals(loggerConfig.getName())) {
+        if (logger.getName().equals(loggerConfig.getName()) == false) {
             loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
             config.addLogger(logger.getName(), loggerConfig);
         }
@@ -148,7 +148,7 @@ public class Loggers {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();
         LoggerConfig loggerConfig = config.getLoggerConfig(logger.getName());
-        if (!logger.getName().equals(loggerConfig.getName())) {
+        if (logger.getName().equals(loggerConfig.getName()) == false) {
             loggerConfig = new LoggerConfig(logger.getName(), logger.getLevel(), true);
             config.addLogger(logger.getName(), loggerConfig);
         }

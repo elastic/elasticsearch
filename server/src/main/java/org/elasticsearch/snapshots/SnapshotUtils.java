@@ -49,7 +49,7 @@ public class SnapshotUtils {
         for (int i = 0; i < selectedIndices.length; i++) {
             String indexOrPattern = selectedIndices[i];
             boolean add = true;
-            if (!indexOrPattern.isEmpty()) {
+            if (indexOrPattern.isEmpty() == false) {
                 if (availableIndices.contains(indexOrPattern)) {
                     if (result == null) {
                         result = new HashSet<>();
@@ -74,8 +74,8 @@ public class SnapshotUtils {
                 }
             }
             if (indexOrPattern.isEmpty() || !Regex.isSimpleMatchPattern(indexOrPattern)) {
-                if (!availableIndices.contains(indexOrPattern)) {
-                    if (!indicesOptions.ignoreUnavailable()) {
+                if (availableIndices.contains(indexOrPattern) == false) {
+                    if (indicesOptions.ignoreUnavailable() == false) {
                         throw new IndexNotFoundException(indexOrPattern);
                     } else {
                         if (result == null) {
@@ -109,7 +109,7 @@ public class SnapshotUtils {
                     }
                 }
             }
-            if (!found && !indicesOptions.allowNoIndices()) {
+            if (found == false && indicesOptions.allowNoIndices() == false) {
                 throw new IndexNotFoundException(indexOrPattern);
             }
         }

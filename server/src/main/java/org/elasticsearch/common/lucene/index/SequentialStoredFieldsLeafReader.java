@@ -24,8 +24,6 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 
-import java.io.IOException;
-
 /**
  * A {@link FilterLeafReader} that exposes a {@link StoredFieldsReader}
  * optimized for sequential access. This class should be used by custom
@@ -53,7 +51,7 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
     /**
      * Returns a {@link StoredFieldsReader} optimized for sequential access (adjacent doc ids).
      */
-    public StoredFieldsReader getSequentialStoredFieldsReader() throws IOException {
+    public StoredFieldsReader getSequentialStoredFieldsReader() {
         if (in instanceof CodecReader) {
             CodecReader reader = (CodecReader) in;
             return doGetSequentialStoredFieldsReader(reader.getFieldsReader().getMergeInstance());
@@ -61,7 +59,7 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
             SequentialStoredFieldsLeafReader reader = (SequentialStoredFieldsLeafReader) in;
             return doGetSequentialStoredFieldsReader(reader.getSequentialStoredFieldsReader());
         } else {
-            throw new IOException("requires a CodecReader or a SequentialStoredFieldsLeafReader, got " + in.getClass());
+            throw new IllegalStateException("requires a CodecReader or a SequentialStoredFieldsLeafReader, got " + in.getClass());
         }
     }
 

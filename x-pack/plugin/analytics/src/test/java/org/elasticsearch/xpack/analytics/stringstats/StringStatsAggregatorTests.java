@@ -408,7 +408,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.BYTES);
+        return singletonList(CoreValuesSourceType.KEYWORD);
     }
 
     @Override

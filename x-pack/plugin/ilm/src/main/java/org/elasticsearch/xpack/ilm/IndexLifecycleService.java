@@ -23,6 +23,7 @@ import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.RollupStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -39,7 +41,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.io.Closeable;
 import java.time.Clock;
-import java.util.Collections;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -52,7 +53,7 @@ import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDatePars
 public class IndexLifecycleService
     implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, RollupStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 
@@ -222,6 +223,11 @@ public class IndexLifecycleService
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // wait for the cluster state to be recovered so the ILM policies are present
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         // Instead of using a LocalNodeMasterListener to track master changes, this service will
         // track them here to avoid conditions where master listener events run after other
         // listeners that depend on what happened in the master listener

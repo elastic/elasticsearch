@@ -56,6 +56,7 @@ public class LocalModel implements Closeable {
     private final License.OperationMode licenseLevel;
     private final CircuitBreaker trainedModelCircuitBreaker;
     private final AtomicLong referenceCount;
+    private final long cachedRamBytesUsed;
 
     LocalModel(String modelId,
                String nodeId,
@@ -67,6 +68,7 @@ public class LocalModel implements Closeable {
                TrainedModelStatsService trainedModelStatsService,
                CircuitBreaker trainedModelCircuitBreaker) {
         this.trainedModelDefinition = trainedModelDefinition;
+        this.cachedRamBytesUsed = trainedModelDefinition.ramBytesUsed();
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
         // the ctor being called means a new instance was created.
@@ -82,7 +84,10 @@ public class LocalModel implements Closeable {
     }
 
     long ramBytesUsed() {
-        return trainedModelDefinition.ramBytesUsed();
+        // This should always be cached and not calculated on call. 
+        // This is because the caching system calls this method on every promotion call that changes the LRU head
+        // Consequently, recalculating can cause serious throughput issues due to LRU changes in the cache
+        return cachedRamBytesUsed;
     }
 
     public String getModelId() {

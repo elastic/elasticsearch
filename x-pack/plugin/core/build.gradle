@@ -53,6 +53,8 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(":client:rest-high-level")
+  // Needed for Fips140ProviderVerificationTests
+  testCompileOnly('org.bouncycastle:bc-fips:1.0.2')
 
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false

@@ -35,7 +35,7 @@ import java.util.function.LongSupplier;
  * Instances of this object rely on information stored in the {@code IndexMetadata} for certain indices.
  * Right now this context object is able to rewrite range queries that include a known timestamp field
  * (i.e. the timestamp field for DataStreams) into a MatchNoneQueryBuilder and skip the shards that
- * don't hold queried data. See IndexMetadata#getTimestampMillisRange() for more details
+ * don't hold queried data. See IndexMetadata#getTimestampRange() for more details
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final Index index;

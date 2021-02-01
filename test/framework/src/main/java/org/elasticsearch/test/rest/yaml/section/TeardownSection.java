@@ -50,7 +50,7 @@ public class TeardownSection {
         List<ExecutableSection> executableSections = new ArrayList<>();
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);
-            if (!"do".equals(parser.currentName())) {
+            if ("do".equals(parser.currentName()) == false) {
                 throw new ParsingException(parser.getTokenLocation(),
                         "section [" + parser.currentName() + "] not supported within teardown section");
             }

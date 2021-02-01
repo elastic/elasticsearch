@@ -1,5 +1,8 @@
 [[search-count]]
 === Count API
+++++
+<titleabbrev>Count</titleabbrev>
+++++
 
 Gets the number of matches for a search query.
 

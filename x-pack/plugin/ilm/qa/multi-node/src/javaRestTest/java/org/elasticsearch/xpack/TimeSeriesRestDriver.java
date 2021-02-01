@@ -171,8 +171,9 @@ public final class TimeSeriesRestDriver {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "javaRestTest-1,javaRestTest-2"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2," +
+            "javaRestTest-3"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "javaRestTest-3"), null, null));

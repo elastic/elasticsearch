@@ -18,13 +18,9 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -178,14 +174,35 @@ public interface IndexAbstraction {
 
         private final String aliasName;
         private final List<IndexMetadata> referenceIndexMetadatas;
-        private final SetOnce<IndexMetadata> writeIndex = new SetOnce<>();
+        private final IndexMetadata writeIndex;
         private final boolean isHidden;
 
-        public Alias(AliasMetadata aliasMetadata, IndexMetadata indexMetadata) {
+        public Alias(AliasMetadata aliasMetadata, List<IndexMetadata> indices) {
             this.aliasName = aliasMetadata.getAlias();
-            this.referenceIndexMetadatas = new ArrayList<>();
-            this.referenceIndexMetadatas.add(indexMetadata);
+            this.referenceIndexMetadatas = indices;
+
+            List<IndexMetadata> writeIndices = indices.stream()
+                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                .collect(Collectors.toList());
+
+            if (writeIndices.isEmpty() && referenceIndexMetadatas.size() == 1
+                && referenceIndexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
+                writeIndices.add(referenceIndexMetadatas.get(0));
+            }
+
+            if (writeIndices.size() == 0) {
+                this.writeIndex = null;
+            } else if (writeIndices.size() == 1) {
+                this.writeIndex = writeIndices.get(0);
+            } else {
+                List<String> writeIndicesStrings = writeIndices.stream()
+                    .map(i -> i.getIndex().getName()).collect(Collectors.toList());
+                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
+                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
+            }
+
             this.isHidden = aliasMetadata.isHidden() == null ? false : aliasMetadata.isHidden();
+            validateAliasProperties();
         }
 
         @Override
@@ -202,10 +219,9 @@ public interface IndexAbstraction {
             return referenceIndexMetadatas;
         }
 
-
         @Nullable
         public IndexMetadata getWriteIndex() {
-            return writeIndex.get();
+            return writeIndex;
         }
 
         @Override
@@ -224,58 +240,7 @@ public interface IndexAbstraction {
             return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
         }
 
-        /**
-         * Returns the unique alias metadata per concrete index.
-         * <p>
-         * (note that although alias can point to the same concrete indices, each alias reference may have its own routing
-         * and filters)
-         */
-        public Iterable<Tuple<String, AliasMetadata>> getConcreteIndexAndAliasMetadatas() {
-            return () -> new Iterator<>() {
-
-                int index = 0;
-
-                @Override
-                public boolean hasNext() {
-                    return index < referenceIndexMetadatas.size();
-                }
-
-                @Override
-                public Tuple<String, AliasMetadata> next() {
-                    IndexMetadata indexMetadata = referenceIndexMetadatas.get(index++);
-                    return new Tuple<>(indexMetadata.getIndex().getName(), indexMetadata.getAliases().get(aliasName));
-                }
-            };
-        }
-
-        public AliasMetadata getFirstAliasMetadata() {
-            return referenceIndexMetadatas.get(0).getAliases().get(aliasName);
-        }
-
-        void addIndex(IndexMetadata indexMetadata) {
-            this.referenceIndexMetadatas.add(indexMetadata);
-        }
-
-        public void computeAndValidateAliasProperties() {
-            // Validate write indices
-            List<IndexMetadata> writeIndices = referenceIndexMetadatas.stream()
-                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
-                .collect(Collectors.toList());
-
-            if (writeIndices.isEmpty() && referenceIndexMetadatas.size() == 1
-                    && referenceIndexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
-                writeIndices.add(referenceIndexMetadatas.get(0));
-            }
-
-            if (writeIndices.size() == 1) {
-                writeIndex.set(writeIndices.get(0));
-            } else if (writeIndices.size() > 1) {
-                List<String> writeIndicesStrings = writeIndices.stream()
-                    .map(i -> i.getIndex().getName()).collect(Collectors.toList());
-                throw new IllegalStateException("alias [" + aliasName + "] has more than one write index [" +
-                    Strings.collectionToCommaDelimitedString(writeIndicesStrings) + "]");
-            }
-
+        private void validateAliasProperties() {
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()
                 .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));

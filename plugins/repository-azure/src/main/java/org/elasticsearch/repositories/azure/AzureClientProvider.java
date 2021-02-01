@@ -68,7 +68,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
-    private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 8) * 2;
+    private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = 1;
     private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
 
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
@@ -144,13 +144,12 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     private static ByteBufAllocator createByteBufAllocator() {
-        int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
+        int nHeapArena = 1;
         int pageSize = PooledByteBufAllocator.defaultPageSize();
         int maxOrder = PooledByteBufAllocator.defaultMaxOrder();
         int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
         int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
         int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
-        boolean useCacheForAllThreads = PooledByteBufAllocator.defaultUseCacheForAllThreads();
 
         return new PooledByteBufAllocator(false,
             nHeapArena,
@@ -160,7 +159,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             tinyCacheSize,
             smallCacheSize,
             normalCacheSize,
-            useCacheForAllThreads);
+            false);
     }
 
     AzureBlobServiceClient createClient(AzureStorageSettings settings,

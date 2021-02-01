@@ -33,6 +33,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -130,6 +132,8 @@ public class MockRepository extends FsRepository {
     private volatile boolean blockOnWriteShardLevelMeta;
 
     private volatile boolean blockOnReadIndexMeta;
+
+    private final AtomicBoolean blockOnceOnReadSnapshotInfo = new AtomicBoolean(false);
 
     /**
      * Writes to the blob {@code index.latest} at the repository root will fail with an {@link IOException} if {@code true}.
@@ -205,6 +209,7 @@ public class MockRepository extends FsRepository {
         blockOnDeleteIndexN = false;
         blockOnWriteShardLevelMeta = false;
         blockOnReadIndexMeta = false;
+        blockOnceOnReadSnapshotInfo.set(false);
         this.notifyAll();
     }
 
@@ -244,6 +249,16 @@ public class MockRepository extends FsRepository {
 
     public void setFailReadsAfterUnblock(boolean failReadsAfterUnblock) {
         this.failReadsAfterUnblock = failReadsAfterUnblock;
+    }
+
+    /**
+     * Enable blocking a single read of {@link org.elasticsearch.snapshots.SnapshotInfo} in case the repo is already blocked on another
+     * file. This allows testing very specific timing issues where a read of {@code SnapshotInfo} is much slower than another concurrent
+     * repository operation. See {@link #blockExecution()} for the exact mechanics of why we need a secondary block defined here.
+     * TODO: clean this up to not require a second block set
+     */
+    public void setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked() {
+        blockOnceOnReadSnapshotInfo.set(true);
     }
 
     public boolean blocked() {
@@ -395,7 +410,10 @@ public class MockRepository extends FsRepository {
 
             @Override
             public InputStream readBlob(String name) throws IOException {
-                if (blockOnReadIndexMeta && name.startsWith(BlobStoreRepository.METADATA_PREFIX) &&  path().equals(basePath()) == false) {
+                if (blockOnReadIndexMeta && name.startsWith(BlobStoreRepository.METADATA_PREFIX) && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(name);
+                } else if (path().equals(basePath()) && name.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                        && blockOnceOnReadSnapshotInfo.compareAndSet(true, false)) {
                     blockExecutionAndMaybeWait(name);
                 } else {
                     maybeReadErrorAfterBlock(name);
@@ -477,7 +495,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
                 if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
@@ -493,7 +511,7 @@ public class MockRepository extends FsRepository {
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlob(tempBlobName, bytes, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
                     fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
@@ -501,7 +519,7 @@ public class MockRepository extends FsRepository {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
                 }
             }
         }

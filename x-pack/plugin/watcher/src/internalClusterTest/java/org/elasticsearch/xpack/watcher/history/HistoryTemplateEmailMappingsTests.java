@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -97,7 +98,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
                 .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 
@@ -105,38 +106,38 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey("from@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("from@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("from@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("to");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("to1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("to1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("to1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("to2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("to2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("to2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("cc");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("cc1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("cc1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("cc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("cc2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("cc2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("cc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("bcc");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("bcc1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("bcc1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("bcc1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("bcc2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("bcc2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("bcc2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
 
         terms = aggs.get("reply_to");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(2));
         assertThat(terms.getBucketByKey("rt1@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("rt1@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("rt1@example.com").getDocCount(), greaterThanOrEqualTo(1L));
         assertThat(terms.getBucketByKey("rt2@example.com"), notNullValue());
-        assertThat(terms.getBucketByKey("rt2@example.com").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("rt2@example.com").getDocCount(), greaterThanOrEqualTo(1L));
     }
 }

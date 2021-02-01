@@ -482,7 +482,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             currentRouting = this.shardRouting;
             assert currentRouting != null;
 
-            if (!newRouting.shardId().equals(shardId())) {
+            if (newRouting.shardId().equals(shardId()) == false) {
                 throw new IllegalArgumentException("Trying to set a routing entry with shardId " +
                     newRouting.shardId() + " on a shard with shardId " + shardId());
             }
@@ -1154,7 +1154,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         Engine engine = getEngine();
         engine.forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
-            forceMerge.onlyExpungeDeletes(), false, false, forceMerge.forceMergeUUID());
+            forceMerge.onlyExpungeDeletes(), forceMerge.forceMergeUUID());
     }
 
     /**
@@ -1729,7 +1729,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     @Override
-    public ShardLongFieldRange getTimestampMillisRange() {
+    public ShardLongFieldRange getTimestampRange() {
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
@@ -2028,8 +2028,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
                                                     long toSeqNo, boolean requiredFullRange) throws IOException {
-        return getEngine().newChangesSnapshot(source, mapperService == null ? null : mapperService::fieldType,
-            fromSeqNo, toSeqNo, requiredFullRange);
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -2571,7 +2570,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void doCheckIndex() throws IOException {
         long timeNS = System.nanoTime();
-        if (!Lucene.indexExists(store.directory())) {
+        if (Lucene.indexExists(store.directory()) == false) {
             return;
         }
         BytesStreamOutput os = new BytesStreamOutput();
@@ -2600,7 +2599,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // full checkindex
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
-            if (!status.clean) {
+            if (status.clean == false) {
                 if (state == IndexShardState.CLOSED) {
                     // ignore if closed....
                     return;
@@ -2722,7 +2721,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
                 if (r) {
-                    recoveryListener.onRecoveryDone(recoveryState, getTimestampMillisRange());
+                    recoveryListener.onRecoveryDone(recoveryState, getTimestampRange());
                 }
             },
             e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));

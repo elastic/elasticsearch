@@ -86,7 +86,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
             elasticsearch_distributions {
               test_distro {
-                  version = "8.1.0"
+                  version = "7.11.0"
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();
@@ -116,7 +116,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
             elasticsearch_distributions {
               test_distro {
-                  version = "8.1.0"
+                  version = "7.11.0"
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Map;
 
 import static java.util.Map.entry;
@@ -46,7 +47,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         userData = Map.copyOf(segmentInfos.getUserData());
         // lucene calls the current generation, last generation.
         generation = segmentInfos.getLastGeneration();
-        id = Lucene.getCommitId(segmentInfos);
+        id = Base64.getEncoder().encodeToString(segmentInfos.getId());
         numDocs = Lucene.getNumDocs(segmentInfos);
     }
 

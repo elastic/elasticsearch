@@ -20,8 +20,8 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final SpatialStatsAction.Response statsResponse;
 
-    public SpatialFeatureSetUsage(boolean available, boolean enabled, SpatialStatsAction.Response statsResponse) {
-        super(XPackField.SPATIAL, available, enabled);
+    public SpatialFeatureSetUsage(SpatialStatsAction.Response statsResponse) {
+        super(XPackField.SPATIAL, true, true);
         this.statsResponse = statsResponse;
     }
 
@@ -65,8 +65,6 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         SpatialFeatureSetUsage other = (SpatialFeatureSetUsage) obj;
-        return Objects.equals(available, other.available)
-            && Objects.equals(enabled, other.enabled)
-            && Objects.equals(statsResponse, other.statsResponse);
+        return Objects.equals(statsResponse, other.statsResponse);
     }
 }

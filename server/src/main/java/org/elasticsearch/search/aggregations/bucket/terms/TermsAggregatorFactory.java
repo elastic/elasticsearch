@@ -53,7 +53,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(TermsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             TermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(TermsAggregationBuilder.REGISTRY_KEY,

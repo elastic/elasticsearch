@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +48,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.empty;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
@@ -59,51 +58,14 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DiscoveryNode localNode = randomFrom(nodes);
         final Settings localNodeSettings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
 
-        final ClusterName clusterName = org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
-
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(localNodeSettings, random());
 
-        final Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder(shardId.getIndexName())
-                    .settings(
-                        settings(Version.CURRENT).put(
-                            ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(),
-                            SearchableSnapshotAllocator.ALLOCATOR_NAME
-                        ).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
-                    )
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .putInSyncAllocationIds(shardId.id(), Collections.emptySet())
-            )
-            .build();
+        final Metadata metadata = buildSingleShardIndexMetadata(shardId);
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
-        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        for (DiscoveryNode node : nodes) {
-            nodesBuilder.add(node);
-        }
-        final DiscoveryNodes discoveryNodes = nodesBuilder.build();
-        final ClusterState state = ClusterState.builder(clusterName)
-            .metadata(metadata)
-            .routingTable(routingTableBuilder.build())
-            .nodes(discoveryNodes)
-            .build();
+        final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
         final long shardSize = randomNonNegativeLong();
-        final RoutingAllocation allocation = new RoutingAllocation(
-            yesAllocationDeciders(),
-            new RoutingNodes(state, false),
-            state,
-            null,
-            new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
-                @Override
-                public Long getShardSize(ShardRouting shardRouting) {
-                    return shardSize;
-                }
-            },
-            TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis())
-        );
 
         final AtomicInteger reroutesTriggered = new AtomicInteger(0);
 
@@ -119,13 +81,10 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                if (action == ClusterRerouteAction.INSTANCE) {
-                    reroutesTriggered.incrementAndGet();
-                    listener.onResponse((Response) new ClusterRerouteResponse(true, state, new RoutingExplanations()));
-                } else if (action == TransportSearchableSnapshotCacheStoresAction.TYPE) {
+                if (action == TransportSearchableSnapshotCacheStoresAction.TYPE) {
                     listener.onResponse(
                         (Response) new TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata(
-                            clusterName,
+                            state.getClusterName(),
                             existingCacheSizes.entrySet()
                                 .stream()
                                 .map(
@@ -144,7 +103,12 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client);
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            reroutesTriggered.incrementAndGet();
+            listener.onResponse(null);
+        });
+
+        final RoutingAllocation allocation = buildAllocation(deterministicTaskQueue, state, shardSize, yesAllocationDeciders());
         allocateAllUnassigned(allocation, allocator);
 
         assertEquals(1, reroutesTriggered.get());
@@ -156,9 +120,100 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
             final ShardRouting primaryRouting = allocation.routingNodes().assignedShards(shardId).get(0);
             final String primaryNodeId = primaryRouting.currentNodeId();
-            final DiscoveryNode primaryNode = discoveryNodes.get(primaryNodeId);
+            final DiscoveryNode primaryNode = state.nodes().get(primaryNodeId);
             assertEquals(bestCacheSize, (long) existingCacheSizes.get(primaryNode));
         }
+    }
+
+    public void testNoFetchesOnDeciderNo() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final List<DiscoveryNode> nodes = randomList(1, 10, () -> newNode("node-" + UUIDs.randomBase64UUID(random())));
+        final DiscoveryNode localNode = randomFrom(nodes);
+        final Settings localNodeSettings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
+
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(localNodeSettings, random());
+
+        final Metadata metadata = buildSingleShardIndexMetadata(shardId);
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
+
+        final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
+        final RoutingAllocation allocation = buildAllocation(
+            deterministicTaskQueue,
+            state,
+            randomNonNegativeLong(),
+            noAllocationDeciders()
+        );
+
+        final Client client = new NoOpNodeClient(deterministicTaskQueue.getThreadPool()) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                throw new AssertionError("Expecting no requests but received [" + action + "]");
+            }
+        };
+
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
+            client,
+            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); }
+        );
+        allocateAllUnassigned(allocation, allocator);
+        assertTrue(allocation.routingNodesChanged());
+        assertThat(allocation.routingNodes().assignedShards(shardId), empty());
+        assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
+    }
+
+    private static Metadata buildSingleShardIndexMetadata(ShardId shardId) {
+        return Metadata.builder()
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(
+                        settings(Version.CURRENT).put(
+                            ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(),
+                            SearchableSnapshotAllocator.ALLOCATOR_NAME
+                        ).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putInSyncAllocationIds(shardId.id(), Collections.emptySet())
+            )
+            .build();
+    }
+
+    private ClusterState buildClusterState(List<DiscoveryNode> nodes, Metadata metadata, RoutingTable.Builder routingTableBuilder) {
+        final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        for (DiscoveryNode node : nodes) {
+            nodesBuilder.add(node);
+        }
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .nodes(nodesBuilder)
+            .build();
+    }
+
+    private static RoutingAllocation buildAllocation(
+        DeterministicTaskQueue deterministicTaskQueue,
+        ClusterState state,
+        long shardSize,
+        AllocationDeciders allocationDeciders
+    ) {
+        return new RoutingAllocation(
+            allocationDeciders,
+            new RoutingNodes(state, false),
+            state,
+            null,
+            new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
+                @Override
+                public Long getShardSize(ShardRouting shardRouting) {
+                    return shardSize;
+                }
+            },
+            TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis())
+        );
     }
 
     private static void allocateAllUnassigned(RoutingAllocation allocation, ExistingShardsAllocator allocator) {

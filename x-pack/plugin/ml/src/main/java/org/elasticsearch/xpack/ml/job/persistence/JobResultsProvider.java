@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -1062,6 +1063,11 @@ public class JobResultsProvider {
 
         FieldSortBuilder sb = new FieldSortBuilder(sortField)
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+        // `min_version` might not be present in very early snapshots.
+        // Consequently, we should treat it as being at least from 6.3.0 or before
+        if (sortField.equals(ModelSnapshot.MIN_VERSION.getPreferredName())) {
+            sb.missing(Version.fromString("6.3.0"));
+        }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         LOGGER.trace("ES API CALL: search all model snapshots from index {} sort ascending {} with filter after sort from {} size {}",

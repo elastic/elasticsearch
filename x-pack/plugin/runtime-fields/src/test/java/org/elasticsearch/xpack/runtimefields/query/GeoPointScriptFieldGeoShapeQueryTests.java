@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.apache.lucene.geo.Polygon;
+import org.elasticsearch.common.geo.ShapeRelation;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -17,25 +18,42 @@ public class GeoPointScriptFieldGeoShapeQueryTests extends AbstractGeoPointScrip
 
     @Override
     protected GeoPointScriptFieldGeoShapeQuery createTestInstance() {
-        return new GeoPointScriptFieldGeoShapeQuery(randomScript(), leafFactory, randomAlphaOfLength(5), polygon1);
+        return new GeoPointScriptFieldGeoShapeQuery(
+            randomScript(),
+            leafFactory,
+            randomAlphaOfLength(5),
+            ShapeRelation.INTERSECTS,
+            polygon1
+        );
     }
 
     @Override
     protected GeoPointScriptFieldGeoShapeQuery copy(GeoPointScriptFieldGeoShapeQuery orig) {
-        return new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), polygon1);
+        return new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), ShapeRelation.INTERSECTS, polygon1);
     }
 
     @Override
     protected GeoPointScriptFieldGeoShapeQuery mutate(GeoPointScriptFieldGeoShapeQuery orig) {
-        if (randomBoolean()) {
-            new GeoPointScriptFieldGeoShapeQuery(
-                randomValueOtherThan(orig.script(), this::randomScript),
-                leafFactory,
-                orig.fieldName(),
-                polygon2
-            );
+        switch (randomInt(2)) {
+            case 0:
+                return new GeoPointScriptFieldGeoShapeQuery(
+                    randomValueOtherThan(orig.script(), this::randomScript),
+                    leafFactory,
+                    orig.fieldName(),
+                    ShapeRelation.INTERSECTS,
+                    polygon2
+                );
+            case 1:
+                return new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), ShapeRelation.DISJOINT, polygon1);
+            default:
+                return new GeoPointScriptFieldGeoShapeQuery(
+                    orig.script(),
+                    leafFactory,
+                    orig.fieldName() + "modified",
+                    ShapeRelation.INTERSECTS,
+                    polygon1
+                );
         }
-        return new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName() + "modified", polygon1);
     }
 
     @Override

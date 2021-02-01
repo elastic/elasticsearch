@@ -59,7 +59,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

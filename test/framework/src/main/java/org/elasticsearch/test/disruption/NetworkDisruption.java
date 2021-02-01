@@ -145,7 +145,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     @Override
     public synchronized void stopDisrupting() {
-        if (!activeDisruption) {
+        if (activeDisruption == false) {
             return;
         }
         logger.info("stop disrupting (disruption scheme: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);

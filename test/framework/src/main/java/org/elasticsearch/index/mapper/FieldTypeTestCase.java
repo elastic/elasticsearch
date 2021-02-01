@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,22 +34,22 @@ import static org.mockito.Mockito.when;
 /** Base test case for subclasses of MappedFieldType */
 public abstract class FieldTypeTestCase extends ESTestCase {
 
-    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
-    public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
+    public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true);
+    public static final SearchExecutionContext MOCK_CONTEXT_DISALLOW_EXPENSIVE = createMockSearchExecutionContext(false);
 
-    protected QueryShardContext randomMockShardContext() {
-        return randomFrom(MOCK_QSC, MOCK_QSC_DISALLOW_EXPENSIVE);
+    protected SearchExecutionContext randomMockContext() {
+        return randomFrom(MOCK_CONTEXT, MOCK_CONTEXT_DISALLOW_EXPENSIVE);
     }
 
-    static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        when(queryShardContext.isSourceEnabled()).thenReturn(true);
+    private static SearchExecutionContext createMockSearchExecutionContext(boolean allowExpensiveQueries) {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         SourceLookup sourceLookup = mock(SourceLookup.class);
         SearchLookup searchLookup = mock(SearchLookup.class);
         when(searchLookup.source()).thenReturn(sourceLookup);
-        when(queryShardContext.lookup()).thenReturn(searchLookup);
-        return queryShardContext;
+        when(searchExecutionContext.lookup()).thenReturn(searchLookup);
+        return searchExecutionContext;
     }
 
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue) throws IOException {
@@ -58,10 +58,10 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.sourcePath(field)).thenReturn(Set.of(field));
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = fieldType.valueFetcher(queryShardContext, format);
+        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);

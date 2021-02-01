@@ -127,7 +127,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super.writeTo(out);
         out.writeOptionalString(id);
         out.writeBytesReference(content);
-        out.writeEnum(xContentType);
+        XContentHelper.writeTo(out, xContentType);
         out.writeOptionalString(context);
         source.writeTo(out);
     }

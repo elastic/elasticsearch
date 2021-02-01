@@ -265,6 +265,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 throw installProblem;
             }
         }
+        terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
     }
 
     Build.Flavor buildFlavor() {
@@ -722,7 +723,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)
-                if (!Files.isSymbolicLink(targetFile.getParent())) {
+                if (Files.isSymbolicLink(targetFile.getParent()) == false) {
                     Files.createDirectories(targetFile.getParent());
                 }
                 if (entry.isDirectory() == false) {
@@ -746,19 +747,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private Path stagingDirectory(Path pluginsDir) throws IOException {
         try {
             return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(PLUGIN_DIR_PERMS));
-        } catch (IllegalArgumentException e) {
-            // Jimfs throws an IAE where it should throw an UOE
-            // remove when google/jimfs#30 is integrated into Jimfs
-            // and the Jimfs test dependency is upgraded to include
-            // this pull request
-            final StackTraceElement[] elements = e.getStackTrace();
-            if (elements.length >= 1
-                && elements[0].getClassName().equals("com.google.common.jimfs.AttributeService")
-                && elements[0].getMethodName().equals("setAttributeInternal")) {
-                return stagingDirectoryWithoutPosixPermissions(pluginsDir);
-            } else {
-                throw e;
-            }
         } catch (UnsupportedOperationException e) {
             return stagingDirectoryWithoutPosixPermissions(pluginsDir);
         }

@@ -24,7 +24,7 @@ public class TransformFeatureSetUsageTests extends AbstractWireSerializingTestCa
             transformCountByState.put(randomFrom(IndexerState.values()).toString(), randomLong());
         }
 
-        return new TransformFeatureSetUsage(randomBoolean(), transformCountByState, TransformIndexerStatsTests.randomStats());
+        return new TransformFeatureSetUsage(transformCountByState, TransformIndexerStatsTests.randomStats());
     }
 
     @Override

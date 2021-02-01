@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Collection;

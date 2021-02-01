@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for network utils. Please avoid using any methods that cause DNS lookups!
  */
 public class NetworkUtilsTests extends ESTestCase {
-    
+
     /**
      * test sort key order respects PREFER_IPV4
      */
@@ -45,7 +45,7 @@ public class NetworkUtilsTests extends ESTestCase {
         assertTrue(NetworkUtils.sortKey(localhostv4, false) < NetworkUtils.sortKey(localhostv6, false));
         assertTrue(NetworkUtils.sortKey(localhostv6, true) < NetworkUtils.sortKey(localhostv4, true));
     }
-    
+
     /**
      * test ordinary addresses sort before private addresses
      */
@@ -55,14 +55,14 @@ public class NetworkUtilsTests extends ESTestCase {
         InetAddress ordinary = InetAddress.getByName("192.192.192.192");
         assertTrue(NetworkUtils.sortKey(ordinary, true) < NetworkUtils.sortKey(siteLocal, true));
         assertTrue(NetworkUtils.sortKey(ordinary, false) < NetworkUtils.sortKey(siteLocal, false));
-        
+
         InetAddress siteLocal6 = InetAddress.getByName("fec0::1");
         assert siteLocal6.isSiteLocalAddress();
         InetAddress ordinary6 = InetAddress.getByName("fddd::1");
         assertTrue(NetworkUtils.sortKey(ordinary6, true) < NetworkUtils.sortKey(siteLocal6, true));
         assertTrue(NetworkUtils.sortKey(ordinary6, false) < NetworkUtils.sortKey(siteLocal6, false));
     }
-    
+
     /**
      * test private addresses sort before link local addresses
      */
@@ -73,7 +73,7 @@ public class NetworkUtilsTests extends ESTestCase {
         assertTrue(NetworkUtils.sortKey(ordinary, true) < NetworkUtils.sortKey(linkLocal, true));
         assertTrue(NetworkUtils.sortKey(ordinary, false) < NetworkUtils.sortKey(linkLocal, false));
     }
-    
+
     /**
      * Test filtering out ipv4/ipv6 addresses
      */
@@ -99,7 +99,10 @@ public class NetworkUtilsTests extends ESTestCase {
                 () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix" , "non-existing"));
         assertThat(exception.getMessage(), containsString("setting [settingValue] matched no network interfaces; valid values include"));
         for (NetworkInterface anInterface : getInterfaces()) {
-            assertThat(exception.getMessage(), containsString(anInterface.getName() + ":suffix"));
+            // virtual interfaces might pop up or disappear while the test is running, so ignore them
+            if (anInterface.isVirtual() == false) {
+                assertThat(exception.getMessage(), containsString(anInterface.getName() + ":suffix"));
+            }
         }
     }
 }

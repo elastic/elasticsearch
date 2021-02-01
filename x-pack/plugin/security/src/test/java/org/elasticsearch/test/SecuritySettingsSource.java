@@ -44,7 +44,7 @@ import java.util.function.Consumer;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.test.ESTestCase.inFipsJvm;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -56,9 +56,9 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final String TEST_USER_NAME = "test_user";
+    public static final Hasher HASHER = getFastStoredHashAlgoForTests();
     public static final String TEST_PASSWORD_HASHED =
-        new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
-            hash(new SecureString(TEST_PASSWORD.toCharArray())));
+        new String(HASHER.hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
     public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()

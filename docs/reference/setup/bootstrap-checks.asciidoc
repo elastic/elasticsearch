@@ -64,15 +64,14 @@ force execution of the bootstrap checks independent of the node configuration.
 
 === Heap size check
 
-If a JVM is started with unequal initial and max heap size, it can be
-prone to pauses as the JVM heap is resized during system usage. To avoid
-these resize pauses, it's best to start the JVM with the initial heap
-size equal to the maximum heap size. Additionally, if
-<<bootstrap-memory_lock,`bootstrap.memory_lock`>> is enabled, the JVM
-will lock the initial size of the heap on startup. If the initial heap
-size is not equal to the maximum heap size, after a resize it will not
-be the case that all of the JVM heap is locked in memory. To pass the
-heap size check, you must configure the <<heap-size,heap size>>.
+By default, {es} automatically sizes JVM heap based on a node's
+<<node-roles,roles>> and total memory. If you manually override the default
+sizing and start the JVM with different initial and max heap sizes, the JVM may
+pause as it resizes the heap during system usage. If you enable
+<<bootstrap-memory_lock,`bootstrap.memory_lock`>>, the JVM locks the initial heap
+size on startup. If the initial heap size is not equal to the maximum heap size,
+some JVM heap may not be locked after a resize. To avoid these issues, start the
+JVM with an initial heap size equal to the maximum heap size.
 
 === File descriptor check
 

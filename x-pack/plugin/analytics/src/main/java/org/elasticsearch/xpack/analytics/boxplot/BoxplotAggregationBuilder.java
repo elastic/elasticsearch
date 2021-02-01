@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
 
@@ -142,6 +144,12 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Le
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+
+    @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(InternalBoxplot.METRIC_NAMES);
     }
 }
 

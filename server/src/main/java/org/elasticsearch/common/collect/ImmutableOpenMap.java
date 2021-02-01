@@ -187,7 +187,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         ImmutableOpenMap that = (ImmutableOpenMap) o;
 
-        if (!map.equals(that.map)) return false;
+        if (map.equals(that.map) == false) return false;
 
         return true;
     }

@@ -210,17 +210,15 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             private long total = 0;
 
             @Override
-            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 logger.debug("Used {} grabbing {} for {}", total, bytes, label);
                 total += bytes;
-                return total;
             }
 
             @Override
-            public long addWithoutBreaking(long bytes) {
+            public void addWithoutBreaking(long bytes) {
                 logger.debug("Used {} grabbing {}", total, bytes);
                 total += bytes;
-                return total;
             }
 
             @Override

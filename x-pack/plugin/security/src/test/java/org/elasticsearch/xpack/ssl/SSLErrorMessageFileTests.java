@@ -132,7 +132,11 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String prefix = "xpack.security.transport.ssl";
         final Settings.Builder settings = Settings.builder();
         settings.put(prefix + ".enabled", true);
-        configureWorkingTruststore(prefix, settings);
+        if (inFipsJvm()) {
+            configureWorkingTrustedAuthorities(prefix, settings);
+        } else {
+            configureWorkingTruststore(prefix, settings);
+        }
 
         Throwable exception = expectFailure(settings);
         assertThat(exception, throwableWithMessage("invalid SSL configuration for " + prefix +
@@ -145,29 +149,37 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String prefix = "xpack.security.transport.ssl";
         final Settings.Builder settings = Settings.builder();
         settings.put(prefix + ".enabled", false);
-        configureWorkingTruststore(prefix, settings);
+        if (inFipsJvm()) {
+            configureWorkingTrustedAuthorities(prefix, settings);
+        } else {
+            configureWorkingTruststore(prefix, settings);
+        }
         expectSuccess(settings);
     }
 
     public void testMessageForTransportNotEnabledButKeystoreConfigured() throws Exception {
+        assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.transport.ssl";
         checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
             this::configureWorkingKeystore);
     }
 
     public void testMessageForTransportNotEnabledButTruststoreConfigured() throws Exception {
+        assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.transport.ssl";
         checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
             this::configureWorkingTruststore);
     }
 
     public void testMessageForHttpsNotEnabledButKeystoreConfigured() throws Exception {
+        assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.http.ssl";
         checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
             this::configureWorkingKeystore);
     }
 
     public void testMessageForHttpsNotEnabledButTruststoreConfigured() throws Exception {
+        assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.http.ssl";
         checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
             this::configureWorkingTruststore);
@@ -179,7 +191,11 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private void buildKeyConfigSettings(@Nullable Settings.Builder additionalSettings, String prefix, Settings.Builder builder) {
-        configureWorkingTruststore(prefix, builder);
+        if (inFipsJvm()) {
+            configureWorkingTrustedAuthorities(prefix, builder);
+        } else {
+            configureWorkingTruststore(prefix, builder);
+        }
         if (additionalSettings != null) {
             builder.put(additionalSettings.normalizePrefix(prefix + ".").build());
         }
@@ -336,6 +352,11 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     private Settings.Builder configureWorkingTruststore(String prefix, Settings.Builder settings) {
         settings.put(prefix + ".truststore.path", resource("cert1a.p12"));
         addSecureSettings(settings, secure -> secure.setString(prefix + ".truststore.secure_password", "cert1a-p12-password"));
+        return settings;
+    }
+
+    private Settings.Builder configureWorkingTrustedAuthorities(String prefix, Settings.Builder settings) {
+        settings.putList(prefix + ".certificate_authorities", resource("ca1.crt"));
         return settings;
     }
 

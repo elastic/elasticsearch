@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.BeforeClass;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -53,6 +54,13 @@ import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
+
+    @BeforeClass
+    public static void disableInFips() {
+        // Reload secure settings with a password protected keystore is tested in ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT
+        assumeFalse("Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload" +
+            "settings api call, require TLS to be configured for the transport layer", inFipsJvm());
+    }
 
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);

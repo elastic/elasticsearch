@@ -42,6 +42,10 @@ public class Criterion<Q extends QueryRequest> {
         this.keySize = keys.size();
     }
 
+    public int keySize() {
+        return keySize;
+    }
+
     public int stage() {
         return stage;
     }

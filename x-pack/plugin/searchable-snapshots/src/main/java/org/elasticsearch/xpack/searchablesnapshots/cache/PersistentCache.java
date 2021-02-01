@@ -64,6 +64,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -74,11 +75,13 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 
 import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableSortedSet;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.getShardCachePath;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 
 public class PersistentCache implements Closeable {
 
@@ -124,7 +127,7 @@ public class PersistentCache implements Closeable {
             return writers.stream()
                 .filter(writer -> path.startsWith(writer.nodePath().path))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Failed to find a Lucene index for cache file path [" + path + ']'));
+                .orElseThrow(() -> new PersistentCacheIndexNotFoundException(nodeEnvironment, cacheFile));
         }
     }
 
@@ -139,8 +142,17 @@ public class PersistentCache implements Closeable {
     }
 
     public long getCacheSize(ShardId shardId, SnapshotId snapshotId) {
+        return getCacheSize(shardId, snapshotId, Files::exists);
+    }
+
+    // pkg private for tests
+    long getCacheSize(ShardId shardId, SnapshotId snapshotId, Predicate<Path> predicate) {
         long aggregateSize = 0L;
         for (CacheIndexWriter writer : writers) {
+            final Path snapshotCacheDir = resolveSnapshotCache(writer.nodePath().resolve(shardId)).resolve(snapshotId.getUUID());
+            if (Files.exists(snapshotCacheDir) == false) {
+                continue; // searchable snapshot shard is not present on this node path, not need to run a query
+            }
             try (IndexReader indexReader = DirectoryReader.open(writer.indexWriter)) {
                 final IndexSearcher searcher = new IndexSearcher(indexReader);
                 searcher.setQueryCache(null);
@@ -164,9 +176,11 @@ public class PersistentCache implements Closeable {
                         while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             if (isLiveDoc.test(docIdSetIterator.docID())) {
                                 final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                var ranges = buildCacheFileRanges(document);
-                                for (Tuple<Long, Long> range : ranges) {
-                                    aggregateSize += range.v2() - range.v1();
+                                final String cacheFileId = getValue(document, CACHE_ID_FIELD);
+                                if (predicate.test(snapshotCacheDir.resolve(cacheFileId))) {
+                                    long size = buildCacheFileRanges(document).stream().mapToLong(range -> range.v2() - range.v1()).sum();
+                                    logger.trace("cache file [{}] has size [{}]", getValue(document, CACHE_ID_FIELD), size);
+                                    aggregateSize += size;
                                 }
                             }
                         }
@@ -291,16 +305,6 @@ public class PersistentCache implements Closeable {
                 logger.warn("failed to close persistent cache index", e);
             }
         }
-    }
-
-    public boolean hasDeletions() {
-        ensureOpen();
-        for (CacheIndexWriter writer : writers) {
-            if (writer.indexWriter.hasDeletions()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public long getNumDocs() {
@@ -651,5 +655,20 @@ public class PersistentCache implements Closeable {
             Files.createDirectories(snapshotCacheRootDir);
         }
         return snapshotCacheRootDir;
+    }
+
+    /**
+     * Exception thrown when the {@link CacheIndexWriter} corresponding to a given {@link CacheFile} cannot be found.
+     */
+    static class PersistentCacheIndexNotFoundException extends IllegalArgumentException {
+
+        PersistentCacheIndexNotFoundException(NodeEnvironment nodeEnvironment, CacheFile cacheFile) {
+            super(
+                "Persistent cache index not found for cache file path ["
+                    + cacheFile.getFile()
+                    + "] using node paths "
+                    + Arrays.toString(nodeEnvironment.nodeDataPaths())
+            );
+        }
     }
 }

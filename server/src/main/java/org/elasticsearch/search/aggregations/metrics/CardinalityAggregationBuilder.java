@@ -77,7 +77,7 @@ public final class CardinalityAggregationBuilder
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     /**

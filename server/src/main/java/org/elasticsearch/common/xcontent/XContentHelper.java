@@ -20,12 +20,14 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.BufferedInputStream;
@@ -207,7 +209,7 @@ public class XContentHelper {
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        if (xContentType == XContentType.JSON && !reformatJson) {
+        if (xContentType.canonical() == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
         }
 
@@ -250,7 +252,7 @@ public class XContentHelper {
     public static boolean update(Map<String, Object> source, Map<String, Object> changes, boolean checkUpdatesAreUnequal) {
         boolean modified = false;
         for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
-            if (!source.containsKey(changesEntry.getKey())) {
+            if (source.containsKey(changesEntry.getKey()) == false) {
                 // safe to copy, change does not exist in source
                 source.put(changesEntry.getKey(), changesEntry.getValue());
                 modified = true;
@@ -268,7 +270,7 @@ public class XContentHelper {
             if (modified) {
                 continue;
             }
-            if (!checkUpdatesAreUnequal) {
+            if (checkUpdatesAreUnequal == false) {
                 modified = true;
                 continue;
             }
@@ -283,7 +285,7 @@ public class XContentHelper {
      */
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
         for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
-            if (!content.containsKey(defaultEntry.getKey())) {
+            if (content.containsKey(defaultEntry.getKey()) == false) {
                 // copy it over, it does not exists in the content
                 content.put(defaultEntry.getKey(), defaultEntry.getValue());
             } else {
@@ -320,7 +322,7 @@ public class XContentHelper {
                         List<Object> mergedList = new ArrayList<>(defaultList);
 
                         for (Object o : contentList) {
-                            if (!mergedList.contains(o)) {
+                            if (mergedList.contains(o) == false) {
                                 mergedList.add(o);
                             }
                         }
@@ -333,7 +335,7 @@ public class XContentHelper {
 
     private static boolean allListValuesAreMapsOfOne(List<Object> list) {
         for (Object o : list) {
-            if (!(o instanceof Map)) {
+            if ((o instanceof Map) == false) {
                 return false;
             }
             if (((Map) o).size() != 1) {
@@ -452,5 +454,20 @@ public class XContentHelper {
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
         return BytesReference.bytes(builder);
+    }
+
+    /**
+     * Serialises new XContentType VND_ values in a bwc manner
+     * TODO remove in ES v9
+     * @param out stream output of the destination node
+     * @param xContentType an instance to serialize
+     */
+    public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
+            out.writeVInt(xContentType.canonical().ordinal());
+        } else {
+            out.writeVInt(xContentType.ordinal());
+        }
     }
 }

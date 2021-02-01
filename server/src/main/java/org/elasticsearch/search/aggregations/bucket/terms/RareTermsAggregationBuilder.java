@@ -84,7 +84,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

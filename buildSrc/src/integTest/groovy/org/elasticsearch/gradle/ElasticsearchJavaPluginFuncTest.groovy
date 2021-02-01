@@ -58,11 +58,4 @@ class ElasticsearchJavaPluginFuncTest extends AbstractGradleFuncTest {
         then:
         gradleRunner("help").build()
     }
-
-    private File someJavaSource() {
-        file("src/main/java/org/acme/SomeClass.java") << """
-        package org.acme;
-        public class SomeClass {}
-        """
-    }
 }

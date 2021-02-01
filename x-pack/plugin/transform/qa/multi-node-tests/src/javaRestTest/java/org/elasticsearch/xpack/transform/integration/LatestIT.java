@@ -13,10 +13,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.transform.PreviewTransformRequest;
 import org.elasticsearch.client.transform.PreviewTransformResponse;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
@@ -26,11 +26,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -118,7 +121,7 @@ public class LatestIT extends TransformIntegTestCase {
 
         String destIndexName = "reviews-latest";
         TransformConfig transformConfig =
-            createTransformConfigBuilder(TRANSFORM_NAME, destIndexName, SOURCE_INDEX_NAME)
+            createTransformConfigBuilder(TRANSFORM_NAME, destIndexName, QueryBuilders.matchAllQuery(), SOURCE_INDEX_NAME)
                 .setLatestConfig(
                     LatestConfig.builder()
                         .setUniqueKey(USER_ID)
@@ -133,13 +136,9 @@ public class LatestIT extends TransformIntegTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             restClient.indices().refresh(new RefreshRequest(destIndexName), RequestOptions.DEFAULT);
             // Verify destination index mappings
-            GetMappingsResponse sourceIndexMapping =
-                restClient.indices().getMapping(new GetMappingsRequest().indices(SOURCE_INDEX_NAME), RequestOptions.DEFAULT);
             GetMappingsResponse destIndexMapping =
                 restClient.indices().getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
-            assertThat(
-                destIndexMapping.mappings().get(destIndexName).sourceAsMap().get("properties"),
-                is(equalTo(sourceIndexMapping.mappings().get(SOURCE_INDEX_NAME).sourceAsMap().get("properties"))));
+            assertThat(destIndexMapping.mappings().get(destIndexName).sourceAsMap(), allOf(hasKey("_meta"), hasKey("properties")));
             // Verify destination index contents
             SearchResponse searchResponse =
                 restClient.search(new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)), RequestOptions.DEFAULT);
@@ -154,7 +153,7 @@ public class LatestIT extends TransformIntegTestCase {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
         TransformConfig transformConfig =
-            createTransformConfigBuilder(TRANSFORM_NAME, "dummy", SOURCE_INDEX_NAME)
+            createTransformConfigBuilder(TRANSFORM_NAME, "dummy", QueryBuilders.matchAllQuery(), SOURCE_INDEX_NAME)
                 .setLatestConfig(
                     LatestConfig.builder()
                         .setUniqueKey(USER_ID)
@@ -162,31 +161,11 @@ public class LatestIT extends TransformIntegTestCase {
                         .build())
                 .build();
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            PreviewTransformResponse previewResponse =
-                restClient.transform().previewTransform(new PreviewTransformRequest(transformConfig), RequestOptions.DEFAULT);
-            // Verify preview mappings
-            GetMappingsResponse sourceIndexMapping =
-                restClient.indices().getMapping(new GetMappingsRequest().indices(SOURCE_INDEX_NAME), RequestOptions.DEFAULT);
-            assertThat(
-                // Mappings we get from preview sometimes contain redundant { "type": "object" } entries.
-                // We clear them here to be able to compare with the GetMappingsAction output.
-                clearDefaultObjectType(previewResponse.getMappings().get("properties")),
-                is(equalTo(sourceIndexMapping.mappings().get(SOURCE_INDEX_NAME).sourceAsMap().get("properties"))));
-            // Verify preview contents
-            assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
-            assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
-        }
-    }
-
-    private static Object clearDefaultObjectType(Object obj) {
-        if (obj instanceof Map == false) {
-            return obj;
-        }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) obj;
-        return map.entrySet().stream()
-            .filter(entry -> (entry.getKey().equals("type") && entry.getValue().equals("object")) == false)
-            .collect(toMap(entry -> entry.getKey(), entry -> clearDefaultObjectType(entry.getValue())));
+        PreviewTransformResponse previewResponse = previewTransform(transformConfig, RequestOptions.DEFAULT);
+        // Verify preview mappings
+        assertThat(previewResponse.getMappings(), allOf(hasKey("_meta"), hasEntry("properties", emptyMap())));
+        // Verify preview contents
+        assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
+        assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
     }
 }

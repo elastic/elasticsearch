@@ -172,11 +172,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (mandatoryPlugins.isEmpty() == false) {
             Set<String> missingPlugins = new HashSet<>();
             for (String mandatoryPlugin : mandatoryPlugins) {
-                if (!pluginsNames.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
+                if (pluginsNames.contains(mandatoryPlugin) == false && missingPlugins.contains(mandatoryPlugin) == false) {
                     missingPlugins.add(mandatoryPlugin);
                 }
             }
-            if (!missingPlugins.isEmpty()) {
+            if (missingPlugins.isEmpty() == false) {
                 final String message = String.format(
                         Locale.ROOT,
                         "missing mandatory plugins [%s], found plugins [%s]",
@@ -351,15 +351,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final Bundle bundle = readPluginBundle(plugin, type);
-            if (bundle.plugin.getType() == PluginType.BOOTSTRAP) {
-                logger.trace("--- skipping bootstrap plugin [{}] [{}]", type, plugin.toAbsolutePath());
-            } else {
-                if (bundles.add(bundle) == false) {
-                    throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
-                }
-                if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
-                    throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
-                }
+            if (bundles.add(bundle) == false) {
+                throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
+            }
+            if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
+                throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
             }
         }
 
@@ -443,10 +439,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
-            checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
+            if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
+                checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
-            final Plugin plugin = loadBundle(bundle, loaded);
-            plugins.add(new Tuple<>(bundle.plugin, plugin));
+                final Plugin plugin = loadBundle(bundle, loaded);
+                plugins.add(new Tuple<>(bundle.plugin, plugin));
+            }
         }
 
         loadExtensions(plugins);

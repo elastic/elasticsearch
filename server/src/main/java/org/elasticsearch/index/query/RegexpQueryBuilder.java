@@ -268,7 +268,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws QueryShardException, IOException {
         final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
         if (value.length() > maxAllowedRegexLength) {
             throw new IllegalArgumentException(

@@ -209,7 +209,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Override
     public synchronized void applyClusterState(final ClusterChangedEvent event) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
 
@@ -521,7 +521,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void updateIndices(ClusterChangedEvent event) {
-        if (!event.metadataChanged()) {
+        if (event.metadataChanged() == false) {
             return;
         }
         final ClusterState state = event.state();
@@ -655,7 +655,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         primaryTerm,
                         "master " + nodes.getMasterNode() + " marked shard as initializing, but shard state is [" + state +
                                 "], mark shard as started",
-                        shard.getTimestampMillisRange(),
+                        shard.getTimestampRange(),
                         SHARD_STATE_ACTION_LISTENER,
                         clusterState);
             }
@@ -669,7 +669,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private static DiscoveryNode findSourceNodeForPeerRecovery(Logger logger, RoutingTable routingTable, DiscoveryNodes nodes,
                                                                ShardRouting shardRouting) {
         DiscoveryNode sourceNode = null;
-        if (!shardRouting.primary()) {
+        if (shardRouting.primary() == false) {
             ShardRouting primary = routingTable.shardRoutingTable(shardRouting.shardId()).primaryShard();
             // only recover from started primary, if we can't find one, we will do it next round
             if (primary.active()) {
@@ -810,11 +810,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         RecoveryState recoveryState();
 
         /**
-         * @return the range of the {@code @timestamp} field for this shard, in milliseconds since the epoch, or {@link
-         * ShardLongFieldRange#EMPTY} if this field is not found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
+         * @return the range of the {@code @timestamp} field for this shard, or {@link ShardLongFieldRange#EMPTY} if this field is not
+         * found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
          */
         @Nullable
-        ShardLongFieldRange getTimestampMillisRange();
+        ShardLongFieldRange getTimestampRange();
 
         /**
          * Updates the shard state based on an incoming cluster state:

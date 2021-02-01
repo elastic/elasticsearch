@@ -29,6 +29,7 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,7 +58,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
         logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
-        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && !blobExists(blobName)) {
+        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && blobExists(blobName) == false) {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
             // with a 404 StorageException, Azure keeps trying and trying for a long timeout
@@ -101,8 +102,13 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        writeBlob(blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
     }
 
     @Override

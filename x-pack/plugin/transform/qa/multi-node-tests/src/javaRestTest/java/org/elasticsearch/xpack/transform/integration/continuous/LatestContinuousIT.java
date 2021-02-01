@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,12 +38,15 @@ public class LatestContinuousIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-latest-test";
 
-    private static final String EVENT_FIELD = "event";
-    private static final String TIMESTAMP_FIELD = "timestamp";
-
     private static final String MISSING_BUCKET_KEY = "~~NULL~~"; // ensure that this key is last after sorting
 
-    public LatestContinuousIT() {}
+    private final String eventField;
+    private final String timestampField;
+
+    public LatestContinuousIT() {
+        eventField = randomFrom(TERMS_FIELDS);
+        timestampField = randomFrom(TIMESTAMP_FIELDS);
+    }
 
     @Override
     public TransformConfig createConfig() {
@@ -55,8 +57,8 @@ public class LatestContinuousIT extends ContinuousTestCase {
                 .setDest(new DestConfig(NAME, INGEST_PIPELINE))
                 .setLatestConfig(
                     LatestConfig.builder()
-                        .setUniqueKey(EVENT_FIELD)
-                        .setSort(TIMESTAMP_FIELD)
+                        .setUniqueKey(eventField)
+                        .setSort(timestampField)
                         .build());
         addCommonBuilderParameters(transformConfigBuilder);
         return transformConfigBuilder.build();
@@ -79,17 +81,20 @@ public class LatestContinuousIT extends ContinuousTestCase {
                         .aggregation(
                             new TermsAggregationBuilder("by_event")
                                 .size(1000)
-                                .field(EVENT_FIELD)
+                                .field(eventField)
                                 .missing(MISSING_BUCKET_KEY)
                                 .order(BucketOrder.key(true))
-                                .subAggregation(AggregationBuilders.max("max_timestamp").field(TIMESTAMP_FIELD))));
+                                .subAggregation(AggregationBuilders.max("max_timestamp").field(timestampField))));
         SearchResponse searchResponseSource = search(searchRequestSource);
 
         SearchRequest searchRequestDest =
             new SearchRequest(NAME)
                 .allowPartialSearchResults(false)
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
-                .source(new SearchSourceBuilder().size(1000).sort(EVENT_FIELD));
+                // In destination index we don't have access to runtime fields from source index, let's use what we have i.e.: event.keyword
+                // and assume the sorting order will be the same (it is true as the runtime field applies "toUpperCase()" which preserves
+                // sorting order)
+                .source(new SearchSourceBuilder().size(1000).sort("event.keyword"));
         SearchResponse searchResponseDest = search(searchRequestDest);
 
         List<? extends Bucket> buckets = ((Terms) searchResponseSource.getAggregations().get("by_event")).getBuckets();
@@ -110,12 +115,13 @@ public class LatestContinuousIT extends ContinuousTestCase {
             Bucket bucket = sourceIterator.next();
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
-            String eventFieldValue = (String) XContentMapValues.extractValue(EVENT_FIELD, source);
-            String timestampFieldValue = (String) XContentMapValues.extractValue(TIMESTAMP_FIELD, source);
-
-            String transformBucketKey =
-                Optional.ofNullable((String) XContentMapValues.extractValue(EVENT_FIELD, source))
-                    .orElse(MISSING_BUCKET_KEY);
+            String eventFieldValue = (String) XContentMapValues.extractValue("event", source);
+            String timestampFieldValue = (String) XContentMapValues.extractValue("timestamp", source);
+            String transformBucketKey = eventFieldValue != null
+                // The bucket key in source can be either an ordinary field or a runtime field. When it is runtime field, simulate its
+                // script ("toUpperCase()") here.
+                ? "event".equals(eventField) ? eventFieldValue : eventFieldValue.toUpperCase()
+                : MISSING_BUCKET_KEY;
 
             // Verify that the results from the aggregation and the results from the transform are the same.
             assertThat(

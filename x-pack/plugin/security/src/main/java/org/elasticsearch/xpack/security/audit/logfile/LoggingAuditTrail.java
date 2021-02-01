@@ -39,6 +39,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
@@ -813,6 +814,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withXForwardedFor(threadContext)
                     .build();
         }
+    }
+
+    @Override
+    public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                           TransportRequest transportRequest,
+                                           TransportResponse transportResponse) {
+        // not implemented yet
     }
 
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {

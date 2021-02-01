@@ -58,7 +58,6 @@ dependencies {
 
   // ml deps
   api project(':libs:elasticsearch-grok')
-  api "com.ibm.icu:icu4j:${versions.icu4j}"
   api "net.sf.supercsv:super-csv:${versions.supercsv}"
   nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
     changing = true

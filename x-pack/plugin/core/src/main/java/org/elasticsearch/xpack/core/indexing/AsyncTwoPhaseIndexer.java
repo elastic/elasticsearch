@@ -56,7 +56,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private final AtomicReference<IndexerState> state;
     private final AtomicReference<JobPosition> position;
     private final ThreadPool threadPool;
-    private final String executorName;
 
     // throttling implementation
     private volatile float currentMaxDocsPerSecond;
@@ -69,27 +68,25 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     class ScheduledRunnable {
         private final ThreadPool threadPool;
-        private final String executorName;
         private final Runnable command;
         private Scheduler.ScheduledCancellable scheduled;
 
-        ScheduledRunnable(ThreadPool threadPool, String executorName, TimeValue delay, Runnable command) {
+        ScheduledRunnable(ThreadPool threadPool, TimeValue delay, Runnable command) {
             this.threadPool = threadPool;
-            this.executorName = executorName;
 
             // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
             // future is already running and cancel returns true
             this.command = new RunOnce(command);
-            this.scheduled = threadPool.schedule(() -> { command.run(); }, delay, executorName);
+            this.scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
         }
 
         public void reschedule(TimeValue delay) {
             // note: cancel return true if the runnable is currently executing
             if (scheduled.cancel()) {
                 if (delay.duration() > 0) {
-                    scheduled = threadPool.schedule(() -> command.run(), delay, executorName);
+                    scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
                 } else {
-                    threadPool.executor(executorName).execute(() -> command.run());
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(command::run);
                 }
             }
         }
@@ -98,13 +95,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     protected AsyncTwoPhaseIndexer(
         ThreadPool threadPool,
-        String executorName,
         AtomicReference<IndexerState> initialState,
         JobPosition initialPosition,
         JobStats jobStats
     ) {
         this.threadPool = threadPool;
-        this.executorName = executorName;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
         this.stats = jobStats;
@@ -215,7 +210,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
-                threadPool.executor(executorName).execute(() -> {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                     onStart(now, ActionListener.wrap(r -> {
                         assert r != null;
                         if (r) {
@@ -505,12 +500,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         logger.warn("Error while attempting to bulk index documents: {}", bulkResponse.buildFailureMessage());
                     }
                     stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-
-                    // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                    if (checkState(getState()) == false) {
-                        return;
-                    }
-
+                    // There is no reason to do a `checkState` here and prevent the indexer from continuing
+                    // As we have already indexed the documents, updated the stats, etc.
+                    // We do an another `checkState` in `onBulkResponse` which will stop the indexer if necessary
+                    // And, we will still be at our new position due to setting it here.
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
@@ -576,7 +569,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 );
                 scheduledNextSearch = new ScheduledRunnable(
                     threadPool,
-                    executorName,
                     executionDelay,
                     () -> triggerNextSearch(executionDelay.getNanos())
                 );

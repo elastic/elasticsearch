@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
       "description":"Returns information about the tasks currently executing on one or more nodes in the cluster."
     },
-    "stability":"stable",
+    "stability":"experimental",
     "visibility":"public",
     "headers":{
       "accept": [ "text/plain", "application/json"]

@@ -24,14 +24,14 @@ import java.util.Map;
 public class FieldExtractorRegistry {
 
     private final Map<String, FieldExtraction> cache = new HashMap<>();
-    
+
     public FieldExtraction fieldExtraction(Expression expression) {
         return cache.computeIfAbsent(Expressions.id(expression), k -> createFieldExtractionFor(expression));
     }
 
     private FieldExtraction createFieldExtractionFor(Expression expression) {
         if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
+            FieldAttribute fa = ((FieldAttribute) expression).exactAttribute();
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }
@@ -43,12 +43,12 @@ public class FieldExtractorRegistry {
 
         throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
     }
-    
+
     private FieldExtraction topHitFieldExtractor(FieldAttribute fieldAttr) {
         FieldAttribute actualField = fieldAttr;
         FieldAttribute rootField = fieldAttr;
         StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
+
         // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
         // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
         // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only

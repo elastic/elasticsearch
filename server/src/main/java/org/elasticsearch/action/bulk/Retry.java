@@ -102,7 +102,7 @@ public class Retry {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            if (!bulkItemResponses.hasFailures()) {
+            if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));
                 finishHim();
@@ -152,7 +152,7 @@ public class Retry {
         }
 
         private boolean canRetry(BulkResponse bulkItemResponses) {
-            if (!backoff.hasNext()) {
+            if (backoff.hasNext() == false) {
                 return false;
             }
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {

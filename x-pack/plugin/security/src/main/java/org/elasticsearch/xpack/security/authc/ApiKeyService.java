@@ -43,6 +43,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -730,14 +731,12 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isSecurityEnabled() &&
-            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE);
+        return enabled && licenseState.isSecurityEnabled();
     }
 
     public void ensureEnabled() {
-        if (licenseState.isSecurityEnabled() == false ||
-            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE) == false) {
-            throw LicenseUtils.newComplianceException("api keys");
+        if (licenseState.isSecurityEnabled() == false) {
+            throw LicenseUtils.newComplianceException("security is not enabled");
         }
         if (enabled == false) {
             throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");
@@ -781,21 +780,21 @@ public class ApiKeyService {
         @Override
         public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate("api_key_field",
+            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], expected [{}] instead", prefix, usedName, apiKeyId, modernName);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate("api_key_field",
+            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], replaced by [{}]", prefix, usedName, apiKeyId, replacedWith);
         }
 
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.deprecate("api_key_field",
+            deprecationLogger.deprecate(DeprecationCategory.API, "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely", prefix, usedName, apiKeyId);
         }
     }

@@ -236,7 +236,7 @@ def encodedCredentials = {
 tasks.register("createServiceAccountFile") {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
@@ -333,4 +333,21 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
 
 tasks.named("check").configure {
   dependsOn(largeBlobYamlRestTest, gcsThirdPartyTest)
+}
+
+// test jar is exported by the integTestArtifacts configuration to be used in the encrypted GCS repository test
+configurations {
+  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
+  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
+}
+
+def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
+  appendix 'internalClusterTest'
+  from sourceSets.internalClusterTest.output
+  // for the repositories.gcs.TestUtils class
+  from sourceSets.test.output
+}
+
+artifacts {
+  internalClusterTestArtifacts internalClusterTestJar
 }

@@ -31,11 +31,12 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
             apply plugin: org.elasticsearch.gradle.internal.InternalBwcGitPlugin  
             
             bwcGitConfig {
-                 bwcVersion = project.provider { Version.fromString("8.1.0") }
-                 bwcBranch = project.provider { "8.0" }
+                 bwcVersion = project.provider { Version.fromString("7.9.1") }
+                 bwcBranch = project.provider { "7.x" }
                  checkoutDir = project.provider{file("build/checkout")}
             }
         """
+        execute("git branch origin/7.x", file("cloned"))
     }
 
     def "current repository can be cloned"() {

@@ -435,7 +435,7 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(entry.shardId, equalTo(shardRouting.shardId()));
         assertThat(entry.allocationId, equalTo(shardRouting.allocationId().getId()));
         assertThat(entry.primaryTerm, equalTo(primaryTerm));
-        assertThat(entry.timestampMillisRange, sameInstance(ShardLongFieldRange.UNKNOWN));
+        assertThat(entry.timestampRange, sameInstance(ShardLongFieldRange.UNKNOWN));
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
         listener.await();
@@ -518,13 +518,13 @@ public class ShardStateActionTests extends ESTestCase {
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
 
         final Version version = randomFrom(randomCompatibleVersion(random(), Version.CURRENT));
-        final ShardLongFieldRange timestampMillisRange = ShardLongFieldRangeWireTests.randomRange();
+        final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
         final StartedShardEntry startedShardEntry = new StartedShardEntry(
                 shardId,
                 allocationId,
                 primaryTerm,
                 message,
-                timestampMillisRange);
+                timestampRange);
         try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
             in.setVersion(version);
             final StartedShardEntry deserialized = new StartedShardEntry(in);
@@ -532,7 +532,7 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.allocationId, equalTo(allocationId));
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
-            assertThat(deserialized.timestampMillisRange, equalTo(timestampMillisRange));
+            assertThat(deserialized.timestampRange, equalTo(timestampRange));
         }
     }
 

@@ -585,7 +585,7 @@ public class NestedIT extends ESIntegTestCase {
                             .startArray("parameters")
                                 .startObject()
                                     .field("name", "context")
-                                    .field("type", "QueryShardContext")
+                                    .field("type", "SearchExecutionContext")
                                 .endObject()
                             .endArray()
                         .endObject()

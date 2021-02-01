@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -223,9 +224,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
-                masterAppliedClusterState.set(event.state());
-                clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
-            });
+            masterAppliedClusterState.set(event.state());
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
+        });
 
         // shards are 1 byte large
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 1L);
@@ -263,7 +264,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 ? 101L - masterAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
                 : 1000L));
 
-        clusterInfoService.refresh();
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
 
         logger.info("--> waiting for shards to relocate off node [{}]", nodeIds.get(2));
 
@@ -291,7 +292,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             assertThat(event.state().getRoutingNodes().node(nodeIds.get(2)).size(), lessThanOrEqualTo(1));
             masterAppliedClusterState.set(event.state());
-            clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
         });
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ql.tree;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
+import java.util.List;
+
 /**
  * Superclass for tests of subclasses of {@link Node}.
  */
@@ -32,7 +34,7 @@ public abstract class AbstractNodeTestCase<T extends B, B extends Node<B>> exten
      */
     public abstract void testTransform();
     /**
-     * Test this subclass's implementation of {@link Node#replaceChildren}.
+     * Test this subclass's implementation of {@link Node#replaceChildren(List)}.
      */
     public abstract void testReplaceChildren();
 

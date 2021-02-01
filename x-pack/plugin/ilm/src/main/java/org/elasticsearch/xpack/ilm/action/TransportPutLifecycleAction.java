@@ -87,9 +87,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
         List<Phase> phasesDefiningSearchableSnapshot = request.getPolicy().getPhases().values().stream()
             .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))

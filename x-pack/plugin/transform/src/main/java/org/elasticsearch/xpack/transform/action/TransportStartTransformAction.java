@@ -28,9 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -38,7 +36,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
@@ -67,7 +64,6 @@ import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_ST
 public class TransportStartTransformAction extends TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartTransformAction.class);
-    private final XPackLicenseState licenseState;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -80,7 +76,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
@@ -94,7 +89,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             transportService,
             actionFilters,
             clusterService,
-            licenseState,
             threadPool,
             indexNameExpressionResolver,
             transformServices,
@@ -110,7 +104,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
@@ -130,7 +123,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             StartTransformAction.Response::new,
             ThreadPool.Names.SAME
         );
-        this.licenseState = licenseState;
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -139,8 +131,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
-                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
-                : null,
+                /* transforms are BASIC so always allowed, no need to check license */
+                ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
@@ -155,10 +147,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) throws Exception {
-        if (!licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
-            return;
-        }
         final AtomicReference<TransformTaskParams> transformTaskHolder = new AtomicReference<>();
         final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 

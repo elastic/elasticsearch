@@ -109,6 +109,7 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testRemoveFromUnprotectedKeystore() throws Exception {
+        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         String password = "";
         createKeystore(password, "foo", "bar");
         // will not be prompted for a password

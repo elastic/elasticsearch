@@ -75,11 +75,11 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private void shutdownExecutorService() throws InterruptedException {
-        if (!handlerService.isShutdown()) {
+        if (handlerService.isShutdown() == false) {
             handlerService.shutdown();
             handlerService.awaitTermination(10, TimeUnit.SECONDS);
         }
-        if (!eventLoopService.isShutdown()) {
+        if (eventLoopService.isShutdown() == false) {
             eventLoopService.shutdown();
             eventLoopService.awaitTermination(10, TimeUnit.SECONDS);
         }

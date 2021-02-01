@@ -27,7 +27,7 @@ to `data_cold,data_warm,data_hot`. This moves the index to nodes in the
 
 The migrate action is not allowed in the hot phase.
 The initial index allocation is performed <<data-tier-allocation, automatically>>,
-and can be configured manually or via <<indices-templates, index templates>>.
+and can be configured manually or via <<index-templates, index templates>>.
 
 [[ilm-migrate-options]]
 ==== Options

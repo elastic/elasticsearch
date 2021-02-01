@@ -37,7 +37,7 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.spotless" version "5.6.1" apply false
+  id "com.diffplug.spotless" version "5.9.0" apply false
 }
 
 apply from: 'gradle/build-scan.gradle'
@@ -175,8 +175,18 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
-final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/issues/66370" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = true
+String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+/*
+ * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
+ * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
+ * all bwc testing in fips mode.
+ */
+
+if ( BuildParams.inFipsJvm ) {
+  bwc_tests_enabled = false
+  bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/issues/66772"
+}
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")

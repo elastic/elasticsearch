@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -105,6 +104,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
@@ -134,7 +135,7 @@ public class QueryTranslatorTests extends ESTestCase {
             Map<String, EsField> mapping = SqlTypesTests.loadMapping(mappingFile);
             EsIndex test = new EsIndex("test", mapping);
             IndexResolution getIndexResult = IndexResolution.valid(test);
-            analyzer = new Analyzer(SqlTestUtils.TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
+            analyzer = new Analyzer(TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
             optimizer = new Optimizer();
             planner = new Planner();
         }
@@ -364,49 +365,94 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testDateRangeWithCurrentTimestamp() {
-        testDateRangeWithCurrentFunctions("CURRENT_TIMESTAMP()", DATE_FORMAT, SqlTestUtils.TEST_CFG.now());
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIMESTAMP()", DATE_FORMAT,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+        Integer nanoPrecision = randomPrecision();
+        testDateRangeWithCurrentFunctions(
+                functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
+                DATE_FORMAT,
+                nanoPrecision,
+                TEST_CFG.now()
+        );
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+                functionWithPrecision("CURRENT_TIMESTAMP", nanoPrecision),
+                DATE_FORMAT,
+                nanoPrecision,
+                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+        );
     }
 
     public void testDateRangeWithCurrentDate() {
-        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_DATE()", DATE_FORMAT,
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
+        testDateRangeWithCurrentFunctions("CURRENT_DATE()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+                "CURRENT_DATE()",
+                DATE_FORMAT,
+                null,
+                DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+        );
     }
 
     public void testDateRangeWithToday() {
-        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now()));
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("TODAY()", DATE_FORMAT,
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().minusDays(1L)).minusSeconds(1),
-                DateUtils.asDateOnly(SqlTestUtils.TEST_CFG.now().plusDays(1L)).plusSeconds(1));
+        testDateRangeWithCurrentFunctions("TODAY()", DATE_FORMAT, null, DateUtils.asDateOnly(TEST_CFG.now()));
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+                "TODAY()",
+                DATE_FORMAT,
+                null,
+                DateUtils.asDateOnly(TEST_CFG.now().minusDays(1L)).minusSeconds(1),
+                DateUtils.asDateOnly(TEST_CFG.now().plusDays(1L)).plusSeconds(1)
+        );
     }
 
     public void testDateRangeWithNow() {
-        testDateRangeWithCurrentFunctions("NOW()", DATE_FORMAT, SqlTestUtils.TEST_CFG.now());
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("NOW()", DATE_FORMAT,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+        Integer nanoPrecision = randomPrecision();
+        testDateRangeWithCurrentFunctions(
+                functionWithPrecision("NOW", nanoPrecision),
+                DATE_FORMAT,
+                nanoPrecision,
+                TEST_CFG.now()
+        );
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+                functionWithPrecision("NOW", nanoPrecision),
+                DATE_FORMAT,
+                nanoPrecision,
+                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+        );
     }
 
     public void testDateRangeWithCurrentTime() {
-        testDateRangeWithCurrentFunctions("CURRENT_TIME()", TIME_FORMAT, SqlTestUtils.TEST_CFG.now());
-        testDateRangeWithCurrentFunctions_AndRangeOptimization("CURRENT_TIME()", TIME_FORMAT,
-                SqlTestUtils.TEST_CFG.now().minusDays(1L).minusSeconds(1L),
-                SqlTestUtils.TEST_CFG.now().plusDays(1L).plusSeconds(1L));
+        Integer nanoPrecision = randomPrecision();
+        testDateRangeWithCurrentFunctions(
+                functionWithPrecision("CURRENT_TIME", nanoPrecision),
+                TIME_FORMAT,
+                nanoPrecision,
+                TEST_CFG.now()
+        );
+        testDateRangeWithCurrentFunctions_AndRangeOptimization(
+                functionWithPrecision("CURRENT_TIME", nanoPrecision),
+                TIME_FORMAT,
+                nanoPrecision,
+                TEST_CFG.now().minusDays(1L).minusSeconds(1L),
+                TEST_CFG.now().plusDays(1L).plusSeconds(1L)
+        );
     }
 
-    private void testDateRangeWithCurrentFunctions(String function, String pattern, ZonedDateTime now) {
-        ZoneId zoneId = randomZone();
-        String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
-        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function, zoneId);
+    private Integer randomPrecision() {
+        return randomFrom(new Integer[] {null, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+    }
+
+    private String functionWithPrecision(String function, Integer precision) {
+        return function + "(" + (precision == null ? "" : precision.toString()) + ")";
+    }
+
+    private void testDateRangeWithCurrentFunctions(String function, String pattern, Integer nanoPrecision, ZonedDateTime now) {
+        String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
-        QueryTranslation translation = translate(condition);
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
         Query query = translation.query;
         RangeQuery rq;
 
@@ -422,24 +468,28 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", rq.field());
 
         if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) {
-            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
-                    rq.upper());
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(
+                    nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))), rq.upper());
         }
         if (operator.contains(">") || operator.equals("=") || operator.equals("!=")) {
-            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
-                    rq.lower());
+            assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(
+                    nanoPrecision == null ? null : literal(nanoPrecision), now.getNano()))), rq.lower());
         }
 
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals("<="), rq.includeUpper());
         assertEquals(operator.equals("=") || operator.equals("!=") || operator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
-        assertEquals(zoneId, rq.zoneId());
     }
 
-    private void testDateRangeWithCurrentFunctions_AndRangeOptimization(String function, String pattern, ZonedDateTime lowerValue,
-            ZonedDateTime upperValue) {
-        String lowerOperator = randomFrom("<", "<=");
-        String upperOperator = randomFrom(">", ">=");
+    private void testDateRangeWithCurrentFunctions_AndRangeOptimization(
+            String function,
+            String pattern,
+            Integer nanoPrecision,
+            ZonedDateTime lowerValue,
+            ZonedDateTime upperValue
+    ) {
+        String lowerOperator = randomFrom(new String[] {"<", "<="});
+        String upperOperator = randomFrom(new String[] {">", ">="});
         // use both date-only interval (1 DAY) and time-only interval (1 second) to cover CURRENT_TIMESTAMP and TODAY scenarios
         String interval = "(INTERVAL 1 DAY + INTERVAL 1 SECOND)";
 
@@ -459,14 +509,15 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("date", rq.field());
 
         assertEquals(DateFormatter.forPattern(pattern)
-                .format(upperValue.withNano(DateUtils.getNanoPrecision(null, upperValue.getNano()))), rq.upper());
+                .format(upperValue.withNano(DateUtils.getNanoPrecision(
+                        nanoPrecision == null ? null : literal(nanoPrecision), upperValue.getNano()))), rq.upper());
         assertEquals(DateFormatter.forPattern(pattern)
-                .format(lowerValue.withNano(DateUtils.getNanoPrecision(null, lowerValue.getNano()))), rq.lower());
+                .format(lowerValue.withNano(DateUtils.getNanoPrecision(
+                        nanoPrecision == null ? null : literal(nanoPrecision), lowerValue.getNano()))), rq.lower());
 
         assertEquals(lowerOperator.equals("<="), rq.includeUpper());
         assertEquals(upperOperator.equals(">="), rq.includeLower());
         assertEquals(pattern, rq.format());
-        assertEquals(DateUtils.UTC, rq.zoneId());
     }
 
     public void testDateRangeWithESDateMath() {
@@ -813,7 +864,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + "InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0)), "
                 + "params.v1, params.v2))",
             sq.script().toString());
-        assertEquals("[{v=keyword}, {v=xyz}, {v=true}]", sq.script().params().toString());
+        assertEquals("[{v=keyword}, {v=xyz}, {v=false}]", sq.script().params().toString());
     }
 
     @SuppressWarnings("unchecked")
@@ -2388,11 +2439,11 @@ public class QueryTranslatorTests extends ESTestCase {
                 "   PERCENTILE(int, 50), " +
                 // 4: this has a different method parameter
                 // just to make sure we don't fold everything to default
-                "   PERCENTILE(int, 50, 'tdigest', 22) " 
+                "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
-            
+
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-            
+
             // 0-3
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(aggs.get(0), aggs.get(2));
@@ -2404,7 +2455,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(4)), 0);
         };
-        
+
         test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
         test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
     }
@@ -2417,17 +2468,17 @@ public class QueryTranslatorTests extends ESTestCase {
                 // 0-1: fold into the same aggregation
                 "   PERCENTILE(int, 50, 'tdigest'), " +
                 "   PERCENTILE(int, 60, 'tdigest'), " +
-                
+
                 // 2-3: fold into one aggregation
                 "   PERCENTILE(int, 50, 'hdr'), " +
                 "   PERCENTILE(int, 60, 'hdr', 3), " +
-                
+
                 // 4: folds into a separate aggregation
                 "   PERCENTILE(int, 60, 'hdr', 4)" +
                 "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-            
+
             // 0-1
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
@@ -2437,7 +2488,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(aggs.get(2), aggs.get(3));
             assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
             assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(2)), 0);
-            
+
             // 4
             assertEquals(new PercentilesConfig.Hdr(4), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[]{60}, pctOrValFn.apply(aggs.get(4)), 0);
@@ -2448,7 +2499,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
-    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
     // and SUM(all nulls)
     public void testReplaceSumWithStats() {
         List<String> testCases = asList(
@@ -2503,9 +2554,97 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(1, expectedInts.size());
 
         condition = condition
-            .transformDown(x -> x.name().equals("bool") ? (FieldAttribute) expectedBools.toArray()[0] : x, FieldAttribute.class)
-            .transformDown(x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x , FieldAttribute.class);
+            .transformDown(FieldAttribute.class, x -> x.name().equals("bool") ? (FieldAttribute) expectedBools.toArray()[0] : x)
+            .transformDown(FieldAttribute.class, x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x);
 
         assertEquals(expectedCondition, condition);
+    }
+
+    public void testSubqueryBasicSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test )");
+    }
+
+    public void testSubquerySelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test )");
+    }
+
+    public void testSubqueryGroupByNoAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test ) " +
+            "GROUP BY int");
+    }
+
+    public void testSubqueryGroupByOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "GROUP BY i");
+    }
+
+    public void testSubqueryFilterOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "ORDER BY i");
+    }
+
+    @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
+    public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "GROUP BY i " +
+            "ORDER BY i");
+    }
+
+    public void testSubqueryFilterByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i > 10");
+    }
+
+    public void testSubqueryOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "ORDER BY i");
+    }
+
+    public void testSubqueryWithAliasBasicSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasBasicQualifiedSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT s.int FROM " +
+            "( SELECT int FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasSelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasQualifiedSelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT s.i FROM " +
+            "( SELECT int AS i FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasGroupBy() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "GROUP BY s.i");
+    }
+
+    public void testSubqueryWithAliasFilterByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "WHERE s.i > 10");
+    }
+
+    public void testSubqueryWithAliasOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "ORDER BY s.i > 10");
     }
 }

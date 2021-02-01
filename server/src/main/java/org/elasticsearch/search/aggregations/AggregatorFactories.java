@@ -84,7 +84,7 @@ public class AggregatorFactories {
                         "Unexpected token " + token + " in [aggs]: aggregations definitions must start with the name of the aggregation.");
             }
             final String aggregationName = parser.currentName();
-            if (!validAggMatcher.reset(aggregationName).matches()) {
+            if (validAggMatcher.reset(aggregationName).matches() == false) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid aggregation name [" + aggregationName
                         + "]. Aggregation names can contain any character except '[', ']', and '>'");
             }
@@ -295,7 +295,7 @@ public class AggregatorFactories {
         }
 
         public Builder addAggregator(AggregationBuilder factory) {
-            if (!names.add(factory.name)) {
+            if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
             }
             aggregationBuilders.add(factory);
@@ -372,7 +372,7 @@ public class AggregatorFactories {
             List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
             List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
             Collection<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
-            while (!unmarkedBuilders.isEmpty()) {
+            while (unmarkedBuilders.isEmpty() == false) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
@@ -414,7 +414,7 @@ public class AggregatorFactories {
                                     }
                                 }
                                 // Check the pipeline sub-aggregator factories
-                                if (!foundSubBuilder && (i == bucketsPathElements.size() - 1)) {
+                                if (foundSubBuilder == false && (i == bucketsPathElements.size() - 1)) {
                                     Collection<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder
                                             .pipelineAggregatorBuilders;
                                     for (PipelineAggregationBuilder subFactory : subPipelineBuilders) {
@@ -424,7 +424,7 @@ public class AggregatorFactories {
                                         }
                                     }
                                 }
-                                if (!foundSubBuilder) {
+                                if (foundSubBuilder == false) {
                                     throw new IllegalArgumentException("No aggregation [" + aggName + "] found for path [" + bucketsPath
                                             + "]");
                                 }
@@ -476,6 +476,18 @@ public class AggregatorFactories {
             return builder;
         }
 
+        /**
+         * Bytes to preallocate on the "request" breaker for these aggregations. The
+         * goal is to request a few more bytes than we expect to use at first to
+         * cut down on contention on the "request" breaker when we are constructing
+         * the aggs. Underestimating what we allocate up front will fail to
+         * accomplish the goal. Overestimating will cause requests to fail for no
+         * reason.
+         */
+        public long bytesToPreallocate() {
+            return aggregationBuilders.stream().mapToLong(b -> b.bytesToPreallocate() + b.factoriesBuilder.bytesToPreallocate()).sum();
+        }
+
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
@@ -494,9 +506,9 @@ public class AggregatorFactories {
                 return false;
             Builder other = (Builder) obj;
 
-            if (!Objects.equals(aggregationBuilders, other.aggregationBuilders))
+            if (Objects.equals(aggregationBuilders, other.aggregationBuilders) == false)
                 return false;
-            if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders))
+            if (Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders) == false)
                 return false;
             return true;
         }

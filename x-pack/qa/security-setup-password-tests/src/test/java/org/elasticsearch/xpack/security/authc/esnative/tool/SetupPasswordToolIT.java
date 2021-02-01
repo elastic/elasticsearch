@@ -80,8 +80,10 @@ public class SetupPasswordToolIT extends ESRestTestCase {
         final int status;
         if (randomBoolean()) {
             mockTerminal.addTextInput("y"); // answer yes to continue prompt
+            possiblyDecryptKeystore(mockTerminal);
             status = tool.main(new String[] { "auto" }, mockTerminal);
         } else {
+            possiblyDecryptKeystore(mockTerminal);
             status = tool.main(new String[] { "auto", "--batch" }, mockTerminal);
         }
         assertEquals(0, status);
@@ -118,6 +120,13 @@ public class SetupPasswordToolIT extends ESRestTestCase {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    private void possiblyDecryptKeystore(MockTerminal mockTerminal) {
+        if (inFipsJvm()) {
+            // In our FIPS 140-2 tests, we set the keystore password to `keystore-password`
+            mockTerminal.addSecretInput("keystore-password");
+        }
     }
 
     @SuppressForbidden(reason = "need to set sys props for CLI tool")

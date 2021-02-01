@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -255,7 +255,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
         if (wrappedQuery instanceof MatchNoDocsQuery) {
             assertThat(query, CoreMatchers.instanceOf(MatchNoDocsQuery.class));
@@ -511,7 +512,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat(fieldValueFactorFunctionBuilder.getWeight(), equalTo(1f));
         assertThat(fieldValueFactorFunctionBuilder.missing(), nullValue());
 
-        Query luceneQuery = query.toQuery(createShardContext());
+        Query luceneQuery = query.toQuery(createSearchExecutionContext());
         assertThat(luceneQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) luceneQuery;
         assertThat(functionScoreQuery.getFunctions().length, equalTo(1));
@@ -560,7 +561,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScore() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         Query parsedQuery = parseQuery(functionScoreQuery(termQuery(KEYWORD_FIELD_NAME, "banon"), weightFactorFunction(1.3f)))
                 .rewrite(context).toQuery(context);
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
@@ -570,7 +571,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScoreWithoutQueryGiven() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f))).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f))).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(functionScoreQuery.getSubQuery() instanceof MatchAllDocsQuery, equalTo(true));
@@ -656,7 +657,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 .scoreMode(FunctionScoreQuery.ScoreMode.SUM)
                 .setMinScore(1)
                 .maxBoost(100);
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createSearchExecutionContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
         assertEquals(rewrite.boostMode(), CombineFunction.REPLACE);
@@ -674,7 +675,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createSearchExecutionContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
         assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder(KEYWORD_FIELD_NAME, "1"));
@@ -689,7 +690,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 .setMinScore(1)
                 .maxBoost(100);
 
-        QueryBuilder rewrite = functionScoreQueryBuilder.rewrite(createShardContext());
+        QueryBuilder rewrite = functionScoreQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewrite, instanceOf(MatchNoneQueryBuilder.class));
     }
 
@@ -706,8 +707,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             builder.boostMode(randomFrom(CombineFunction.values()));
         }
 
-        QueryShardContext shardContext = createShardContext();
-        Query query = builder.rewrite(shardContext).toQuery(shardContext);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        Query query = builder.rewrite(searchExecutionContext).toQuery(searchExecutionContext);
         assertThat(query, instanceOf(FunctionScoreQuery.class));
 
         CombineFunction expectedBoostMode = builder.boostMode() != null
@@ -827,8 +828,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     public void testCacheability() throws IOException {
         FunctionScoreQueryBuilder queryBuilder = createTestQueryBuilder();
         boolean isCacheable = isCacheable(queryBuilder);
-        QueryShardContext context = createShardContext();
-        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         // we occasionally need to update the expected "isCacheable" flag after rewrite for MatchNoneQueryBuilder
         if (rewriteQuery instanceof MatchNoneQueryBuilder) {
@@ -841,16 +842,16 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
         queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
             new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), scriptScoreFunction) });
-        context = createShardContext();
-        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertTrue("function script query should be cacheable" + queryBuilder.toString(), context.isCacheable());
 
         RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
         queryBuilder = new FunctionScoreQueryBuilder(new FilterFunctionBuilder[] {
             new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunctionBuilder) });
-        context = createShardContext();
-        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertFalse("function random query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
@@ -868,7 +869,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
 

@@ -116,11 +116,11 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             String stringTerm;
             do {
                 stringTerm = RandomStrings.randomAsciiOfLength(random(), 8);
-            } while (!stringTerms.add(stringTerm));
+            } while (stringTerms.add(stringTerm) == false);
             long longTerm;
             do {
                 longTerm = randomInt(cardinality * 2);
-            } while (!longTerms.add(longTerm));
+            } while (longTerms.add(longTerm) == false);
             double doubleTerm = longTerm * Math.PI;
 
             ZonedDateTime time = ZonedDateTime.of(2014, 1, ((int) longTerm % 20) + 1, 0, 0, 0, 0, ZoneOffset.UTC);

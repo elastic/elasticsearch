@@ -38,6 +38,12 @@ DELETE _index_template/template_*
 
 `PUT /_index_template/<index-template>`
 
+[[put-index-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[put-index-template-api-desc]]
 ==== {api-description-title}
@@ -88,7 +94,7 @@ used to match the names of data streams and indices during creation.
 ====
 {es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and `synthetics-*-*` index
 patterns, each with a priority of `100`.
-{ingest-guide}/fleet-overview.html[{agent}] uses these templates to
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
 create data streams. If you use {agent}, assign your index templates a priority
 lower than `100` to avoid an overriding the built-in templates.
 
@@ -103,12 +109,20 @@ your template is applied instead of the built-in template for `logs-*-*`.
 
 [xpack]#`data_stream`#::
 (Optional, object)
-Indicates whether the template is used to create data streams and their backing
-indices. If so, use an empty object as the argument: +
-`data_stream: { }`.
+If this object is included, the template is used to create data streams and
+their backing indices. Supports an empty object: `data_stream: { }`
 +
 Data streams require a matching index template with a `data_stream` object.
 See <<create-a-data-stream-template>>.
++
+.Properties of `data_stream`
+[%collapsible%open]
+====
+[[data-stream-hidden]]
+`hidden`::
+(Optional, Boolean)
+If `true`, the data stream is <<hidden-indices,hidden>>. Defaults to `false`.
+====
 
 `template`::
 (Optional, object)

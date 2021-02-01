@@ -171,7 +171,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
             "Error validating JSON. See the report at: %s%s%s",
             getReport().toURI().toASCIIString(),
             System.lineSeparator(),
-            String.format("JSON validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
+            String.format("Verification failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
         );
         throw new GradleException(message);
     }

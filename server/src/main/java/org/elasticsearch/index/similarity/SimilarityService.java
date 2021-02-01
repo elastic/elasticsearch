@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -123,7 +124,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecate("base_similarity_ignored",
+            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "base_similarity_ignored",
                 "The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }

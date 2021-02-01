@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
@@ -54,6 +55,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -104,8 +106,14 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  */
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, EnginePlugin, ActionPlugin, ClusterPlugin, SystemIndexPlugin {
 
-    public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
+    public static final Setting<String> SNAPSHOT_REPOSITORY_NAME_SETTING = Setting.simpleString(
         "index.store.snapshot.repository_name",
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
+    );
+    public static final Setting<String> SNAPSHOT_REPOSITORY_UUID_SETTING = Setting.simpleString(
+        "index.store.snapshot.repository_uuid",
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex,
         Setting.Property.NotCopyableOnResize
@@ -172,8 +180,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
-    private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
+    private final SetOnce<SearchableSnapshotAllocator> allocator = new SetOnce<>();
     private final Settings settings;
 
     public SearchableSnapshots(final Settings settings) {
@@ -189,7 +197,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_REPOSITORY_UUID_SETTING,
+            SNAPSHOT_REPOSITORY_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_ID_SETTING,
             SNAPSHOT_INDEX_NAME_SETTING,
@@ -200,6 +209,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
+            CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
@@ -235,7 +245,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         } else {
             PersistentCache.cleanUp(settings, nodeEnvironment);
         }
-        this.client.set(client);
+        this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService()));
         components.add(new CacheServiceSupplier(cacheService.get()));
         return Collections.unmodifiableList(components);
     }
@@ -245,6 +255,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
             indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(settings, cacheService.get()));
             indexModule.addIndexEventListener(failShardsListener.get());
+
+            indexModule.addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
+                if (write == false) {
+                    throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
+                }
+            });
         }
     }
 
@@ -299,7 +315,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(
-                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false)
+                engineConfig -> new ReadOnlyEngine(
+                    engineConfig,
+                    null,
+                    new TranslogStats(),
+                    false,
+                    indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                        ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                        : Function.identity(),
+                    false
+                )
             );
         }
         return Optional.empty();
@@ -344,7 +369,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
-        return Map.of(SearchableSnapshotAllocator.ALLOCATOR_NAME, new SearchableSnapshotAllocator(client.get()));
+        return Map.of(SearchableSnapshotAllocator.ALLOCATOR_NAME, allocator.get());
     }
 
     // overridable by tests
@@ -374,14 +399,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             new ScalingExecutorBuilder(
                 CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
                 0,
-                32,
+                28,
                 TimeValue.timeValueSeconds(30L),
                 CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
                 CACHE_PREWARMING_THREAD_POOL_NAME,
                 0,
-                32,
+                16,
                 TimeValue.timeValueSeconds(30L),
                 CACHE_PREWARMING_THREAD_POOL_SETTING
             ) };
@@ -392,6 +417,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, "900")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
             .build();
     }

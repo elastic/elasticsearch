@@ -12,13 +12,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -32,12 +29,12 @@ import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
-import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.rate.InternalRate;
 import org.elasticsearch.xpack.analytics.rate.RateAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
@@ -50,8 +47,6 @@ import org.elasticsearch.xpack.analytics.ttest.PairedTTestState;
 import org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder;
 import org.elasticsearch.xpack.analytics.ttest.TTestState;
 import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
-import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
@@ -72,8 +67,6 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     public AnalyticsPlugin() { }
 
-    public static XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
-
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         List<PipelineAggregationSpec> pipelineAggs = new ArrayList<>();
@@ -81,17 +74,17 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             CumulativeCardinalityPipelineAggregationBuilder.NAME,
             CumulativeCardinalityPipelineAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER))));
+                CumulativeCardinalityPipelineAggregationBuilder.PARSER)));
         pipelineAggs.add(new PipelineAggregationSpec(
             MovingPercentilesPipelineAggregationBuilder.NAME,
             MovingPercentilesPipelineAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES,
-                checkLicense(MovingPercentilesPipelineAggregationBuilder.PARSER))));
+                MovingPercentilesPipelineAggregationBuilder.PARSER)));
         pipelineAggs.add(new PipelineAggregationSpec(
             NormalizePipelineAggregationBuilder.NAME,
             NormalizePipelineAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.NORMALIZE,
-                checkLicense(NormalizePipelineAggregationBuilder.PARSER))));
+                NormalizePipelineAggregationBuilder.PARSER)));
         return pipelineAggs;
     }
 
@@ -101,31 +94,31 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.STRING_STATS, StringStatsAggregationBuilder.PARSER))
                 .addResultReader(InternalStringStats::new)
                 .setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.BOXPLOT, BoxplotAggregationBuilder.PARSER))
                 .addResultReader(InternalBoxplot::new)
                 .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, TopMetricsAggregationBuilder.PARSER))
                 .addResultReader(InternalTopMetrics::new)
                 .setAggregatorRegistrar(TopMetricsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TTestAggregationBuilder.NAME,
                 TTestAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.T_TEST, TTestAggregationBuilder.PARSER))
                 .addResultReader(InternalTTest::new)
                 .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage),
             new AggregationSpec(
                 RateAggregationBuilder.NAME,
                 RateAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.RATE, checkLicense(RateAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER))
                 .addResultReader(InternalRate::new)
                 .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators)
         );
@@ -177,14 +170,5 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
             new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
         );
-    }
-
-    private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
-        return (parser, name) -> {
-            if (getLicenseState().checkFeature(XPackLicenseState.Feature.ANALYTICS) == false) {
-                throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
-            }
-            return realParser.parse(parser, name);
-        };
     }
 }

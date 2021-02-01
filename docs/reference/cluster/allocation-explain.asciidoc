@@ -12,6 +12,11 @@ Provides explanations for shard allocations in the cluster.
 
 `GET /_cluster/allocation/explain`
 
+[[cluster-allocation-explain-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-allocation-explain-api-desc]]
 ==== {api-description-title}

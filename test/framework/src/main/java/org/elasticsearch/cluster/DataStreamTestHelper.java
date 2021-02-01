@@ -181,7 +181,4 @@ public final class DataStreamTestHelper {
         return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}\\.\\d{2}\\.\\d{2}-)?%06d",dataStreamName, generation);
     }
 
-    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
-        return String.format(Locale.ROOT, ".ds-%s-%06d", dataStreamName, generation);
-    }
 }

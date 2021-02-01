@@ -13,7 +13,7 @@ dependencies {
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
-  keystorePassword 's3cr3t'
+  keystorePassword 'keystore-password'
 
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.anonymous.roles', 'anonymous'
@@ -29,5 +29,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 
   user username: 'admin_user', password: 'admin-password'
-  user username:'test-user' ,password: 'test-password', role: 'user_role'
+  user username:'test-user' ,password: 'test-user-password', role: 'user_role'
 }

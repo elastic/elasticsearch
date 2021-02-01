@@ -375,7 +375,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      * Yank a string array from a map. Emulates XContent's permissive String to
      * String array conversions and allow comma separated String.
      */
-    private static String[] extractStringArray(Map<String, Object> source, String name) {
+    static String[] extractStringArray(Map<String, Object> source, String name) {
         Object value = source.remove(name);
         if (value == null) {
             return null;
@@ -476,7 +476,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
     }
 
-    private static void failOnSizeSpecified() {
+    static void failOnSizeSpecified() {
         throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
     }
 }

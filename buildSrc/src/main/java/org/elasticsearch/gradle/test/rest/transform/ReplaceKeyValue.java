@@ -33,16 +33,19 @@ public class ReplaceKeyValue implements RestTestTransformByObjectKey {
 
     private final String keyToFind;
     private final String withChildKey;
+    private final String testName;
 
     /**
      * @param keyToFind       The object key name to find to evaluate for replacement
      * @param withChildKey    The required child key name. If null a child key is not required.
+     * @param testName        The testName required to apply this transformation. If {@code null} will apply to all tests.
      * @param replacementNode The value to replace with if the both the key and value pattern matches.
      */
-    public ReplaceKeyValue(String keyToFind, @Nullable String withChildKey, JsonNode replacementNode) {
+    public ReplaceKeyValue(String keyToFind, @Nullable String withChildKey, @Nullable String testName,  JsonNode replacementNode) {
         this.replacementNode = replacementNode;
         this.keyToFind = keyToFind;
         this.withChildKey = withChildKey;
+        this.testName = testName;
     }
 
     @Override
@@ -57,6 +60,11 @@ public class ReplaceKeyValue implements RestTestTransformByObjectKey {
     @Override
     public String withChildKey() {
         return withChildKey;
+    }
+
+    @Override
+    public String getTestName() {
+        return testName;
     }
 
     @Override

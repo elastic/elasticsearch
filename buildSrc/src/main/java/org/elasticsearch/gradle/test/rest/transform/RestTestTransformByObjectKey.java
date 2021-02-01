@@ -21,14 +21,10 @@ package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.util.regex.Pattern;
-
 /**
  * A type of {@link RestTestTransform} that finds the transformation by a given key in to an {@link ObjectNode}.
- * An optional value to match may also be defined.
  */
 public interface RestTestTransformByObjectKey extends RestTestTransform<ObjectNode> {
-    Pattern MATCH_ALL = Pattern.compile(".*");
 
     /**
      * @return The name of key to find in the REST test

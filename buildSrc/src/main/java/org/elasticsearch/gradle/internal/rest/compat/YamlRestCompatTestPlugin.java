@@ -59,14 +59,13 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
     public static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
     public static final String SOURCE_SET_NAME = "yamlRestCompatTest";
+    public static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
     private static final Path RELATIVE_API_PATH = Path.of("rest-api-spec/api");
     private static final Path RELATIVE_TEST_PATH = Path.of("rest-api-spec/test");
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
-    private static final String TEST_INTERMEDIATE_DIR_NAME = "v"
-        + (Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1)
-        + "restTests";
+    private static final String TEST_INTERMEDIATE_DIR_NAME = "v" + COMPATIBLE_VERSION + "restTests";
 
     @Override
     public void apply(Project project) {
@@ -165,7 +164,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
-            .register("transformCompatTests", RestCompatTestTransformTask.class, task -> {
+            .register("transformV"+ COMPATIBLE_VERSION+"RestTests", RestCompatTestTransformTask.class, task -> {
                 task.dependsOn(copyCompatYamlTestTask);
                 task.dependsOn(yamlCompatTestSourceSet.getProcessResourcesTaskName());
                 File resourceDir = yamlCompatTestSourceSet.getOutput().getResourcesDir();

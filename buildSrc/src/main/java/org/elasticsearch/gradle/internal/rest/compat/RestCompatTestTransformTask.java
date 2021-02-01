@@ -19,17 +19,15 @@
 
 package org.elasticsearch.gradle.internal.rest.compat;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
-import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.rest.transform.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.ReplaceKeyValue;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
@@ -37,6 +35,7 @@ import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -53,7 +52,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
+
+import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
 
 public class RestCompatTestTransformTask extends DefaultTask {
 
@@ -61,7 +61,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
     private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class);
-    public static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
+
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private static final Map<String, String> headers = Map.of(
@@ -71,33 +71,43 @@ public class RestCompatTestTransformTask extends DefaultTask {
         "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION
     );
 
-    private static String MATCH_KEY_NAME = "match";
-    private static ObjectNode MATCH_TYPE_REPLACEMENT = new ObjectNode(jsonNodeFactory);
-    static {
-        MATCH_TYPE_REPLACEMENT.set("_type", TextNode.valueOf("_doc"));
-    }
-
     private FileCollection input;
     private File output;
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
     private final PatternFilterable testPatternSet;
-    private final List<RestTestTransform<?>> allTransformations;
+    private final List<RestTestTransform<?>> transformations = new ArrayList<>();
     private final Map<String, List<RestTestTransform<?>>> perTestTransformation = new HashMap<>();
+    //Use a string to represent the state of the the transformations...this is simpler then ensuring correct serialization of objects
+    private StringBuilder transformationsKey = new StringBuilder();
+
+
 
     @Inject
     public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
-        allTransformations = new ArrayList<>();
-
-
         // always inject compat headers
-        allTransformations.add(new InjectHeaders(headers));
-        if(COMPATIBLE_VERSION == 7) {
-            // replace all "match" : { "_type" : <any> } with "match" : { "_type" : "_doc" }
-            allTransformations.add(new ReplaceKeyValue(MATCH_KEY_NAME, "_type", MATCH_TYPE_REPLACEMENT));
-        }
+        transformations.add(new InjectHeaders(headers));
+    }
+
+    public void replaceAllMatch(String subKey, Object value){
+        ObjectNode replacementNode = new ObjectNode(jsonNodeFactory);
+        replacementNode.set(subKey, MAPPER.convertValue(value, JsonNode.class));
+        transformations.add(new ReplaceKeyValue("match", subKey, null, replacementNode));
+        transformationsKey.append("match").append("subKey").append(replacementNode.toString());
+    }
+
+    public void replaceMatch(String subKey, Object value, String testName){
+        ObjectNode replacementNode = new ObjectNode(jsonNodeFactory);
+        replacementNode.set(subKey, MAPPER.convertValue(value, JsonNode.class));
+        transformations.add(new ReplaceKeyValue("match", subKey, testName, replacementNode));
+        transformationsKey.append("match").append("subKey").append(testName).append(replacementNode.toString());
+    }
+
+    @Input
+    public StringBuilder getTransformationsKey() {
+        return transformationsKey;
     }
 
     @OutputDirectory
@@ -117,7 +127,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         for (File file : getTestFiles().getFiles()) {
             YAMLParser yamlParser = YAML_FACTORY.createParser(file);
             List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
-            List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), allTransformations);
+            List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
             // convert to url to ensure forward slashes
             String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
             if (testFileParts.length != 2) {

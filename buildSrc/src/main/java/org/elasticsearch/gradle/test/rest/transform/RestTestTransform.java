@@ -33,4 +33,11 @@ public interface RestTestTransform<T extends JsonNode> {
      * @param node The node to transform. This may also be the logical parent of the node that should be transformed.
      */
     void transformTest(T node);
+
+    /**
+     * @return The test name to to apply this transformation to. if {@code null} will apply to any test irregardless of the name.
+     */
+    default String getTestName(){
+        return null;
+    }
 }

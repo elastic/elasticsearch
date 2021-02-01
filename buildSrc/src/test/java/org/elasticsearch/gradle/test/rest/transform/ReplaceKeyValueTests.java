@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.test.rest.transform;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SequenceWriter;
@@ -58,12 +59,14 @@ public class ReplaceKeyValueTests extends GradleUnitTestCase {
         RestTestTransformer transformer = new RestTestTransformer();
 
 
-        ObjectNode replacement = new ObjectNode(jsonNodeFactory);
-        replacement.set("_type", TextNode.valueOf("_doc"));
+
+
+        JsonNode replacementNode = MAPPER.convertValue("_doc", JsonNode.class);
+
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
-            Collections.singletonList(new ReplaceKeyValue("match", "_type", replacement))
+            Collections.singletonList(new ReplaceKeyValue("match", "_type", null, replacementNode))
         );
         printTest(testName, transformedTests);
         // // ensure setup is correct

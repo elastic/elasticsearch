@@ -974,7 +974,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         String previousMessage = normalizeLogLine(ring.getLast());
                         if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(previousMessage::contains)
                             && (previousMessage.contains("ERROR") || previousMessage.contains("WARN"))) {
-                            errorsAndWarnings.put(previousMessage, errorsAndWarnings.getOrDefault(previousMessage, 0) + 1);
+                            errorsAndWarnings.put(ring.getLast(), errorsAndWarnings.getOrDefault(previousMessage, 0) + 1);
                         }
                     } else {
                         // We combine multi line log messages to make sure we never break exceptions apart

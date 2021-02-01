@@ -161,7 +161,7 @@ public class TransportSimulateIndexTemplateAction
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulatedState.metadata(),
-            matchingTemplate, true);
+            matchingTemplate);
 
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings dummySettings = Settings.builder()

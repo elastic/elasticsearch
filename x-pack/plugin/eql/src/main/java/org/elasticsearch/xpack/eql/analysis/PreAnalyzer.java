@@ -27,7 +27,7 @@ public class PreAnalyzer {
         if (plan.analyzed() == false) {
             final EsRelation esRelation = new EsRelation(plan.source(), indices.get(), false);
             // FIXME: includeFrozen needs to be set already
-            plan = plan.transformUp(r -> esRelation, UnresolvedRelation.class);
+            plan = plan.transformUp(UnresolvedRelation.class, r -> esRelation);
             plan.forEachUp(LogicalPlan::setPreAnalyzed);
         }
         return plan;

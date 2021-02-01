@@ -63,7 +63,7 @@ public class TaskOperationFailure {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TaskOperationFailure)) return false;
+        if ((o instanceof TaskOperationFailure) == false) return false;
         TaskOperationFailure that = (TaskOperationFailure) o;
         return getTaskId() == that.getTaskId() &&
             Objects.equals(getNodeId(), that.getNodeId()) &&

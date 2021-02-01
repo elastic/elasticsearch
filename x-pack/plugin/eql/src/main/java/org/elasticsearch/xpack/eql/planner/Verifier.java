@@ -24,7 +24,7 @@ abstract class Verifier {
             if (p instanceof UnplannedExec) {
                 failures.add(fail(p, "Unplanned item {}", ((UnplannedExec) p).plan().nodeName()));
             }
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {
                     failures.add(fail(e, "Unresolved expression"));
                 }
@@ -40,7 +40,7 @@ abstract class Verifier {
             if (p instanceof Unexecutable) {
                 failures.add(fail(p, "Unexecutable item {}", p.nodeName()));
             }
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {
                     failures.add(fail(e, "Unresolved expression"));
                 }

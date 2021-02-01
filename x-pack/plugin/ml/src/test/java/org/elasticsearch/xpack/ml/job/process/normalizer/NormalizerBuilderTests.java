@@ -24,7 +24,7 @@ public class NormalizerBuilderTests extends ESTestCase {
         List<String> command = new NormalizerBuilder(env, jobId, null, 300).build();
         assertEquals(3, command.size());
         assertTrue(command.contains("./normalize"));
-        assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "300"));
+        assertTrue(command.contains(NormalizerBuilder.BUCKET_SPAN_ARG + "300"));
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
     }
 }

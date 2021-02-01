@@ -168,6 +168,25 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
 
         closeJob(jobId);
         deleteJob(jobId);
+
+        stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setFetchSource(false)
+            .setTrackTotalHits(true)
+            .setSize(10000)
+            .get();
+        numQuantileRecords = 0;
+        numStateRecords = 0;
+        for (SearchHit hit : stateDocsResponse.getHits().getHits()) {
+            logger.info(hit.getId());
+            if (hit.getId().contains("quantiles")) {
+                ++numQuantileRecords;
+            } else if (hit.getId().contains("model_state")) {
+                ++numStateRecords;
+            }
+        }
+        assertThat(numQuantileRecords, equalTo(0));
+        assertThat(numStateRecords, equalTo(0));
+
     }
 
     // Check an edge case where a job is opened and then immediately closed

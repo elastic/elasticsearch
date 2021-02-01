@@ -123,7 +123,7 @@ public final class RuntimeUtils {
             Pipe proc = ((ComputedRef) ref).processor();
             // collect hitNames
             Set<String> hitNames = new LinkedHashSet<>();
-            proc = proc.transformDown(l -> {
+            proc = proc.transformDown(ReferenceInput.class, l -> {
                 HitExtractor he = createExtractor(l.context(), cfg);
                 hitNames.add(he.hitName());
 
@@ -132,7 +132,7 @@ public final class RuntimeUtils {
                 }
 
                 return new HitExtractorInput(l.source(), l.expression(), he);
-            }, ReferenceInput.class);
+            });
             String hitName = null;
             if (hitNames.size() == 1) {
                 hitName = hitNames.iterator().next();

@@ -122,7 +122,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (! QUERY_FIELD.match(fieldName, parser.getDeprecationHandler())) {
+        if (QUERY_FIELD.match(fieldName, parser.getDeprecationHandler()) == false) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was " + fieldName);
         }
         parser.nextToken();
@@ -143,7 +143,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         throw new UnsupportedOperationException("this query must be rewritten first");
     }
 

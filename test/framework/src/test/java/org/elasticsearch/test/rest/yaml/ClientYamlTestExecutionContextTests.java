@@ -31,6 +31,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.is;
+
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
     public void testHeadersSupportStashedValueReplacement() throws IOException {
@@ -64,5 +66,31 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
         assertEquals("foo2", headersRef.get().get("foo"));
         assertEquals("baz bar1", headersRef.get().get("foo1"));
+    }
+
+    public void testStashHeadersOnException() throws IOException {
+        final Version version = VersionUtils.randomVersion(random());
+        final ClientYamlTestExecutionContext context =
+            new ClientYamlTestExecutionContext(null, randomBoolean()) {
+                @Override
+                ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
+                                                       HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
+                    throw new RuntimeException("boom!");
+                }
+
+                @Override
+                public Version esVersion() {
+                    return version;
+                }
+            };
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("Accept", "application/json");
+        headers.put("Authorization", "Basic password==");
+        try {
+            context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+        } catch (Exception e) {
+            //do nothing...behavior we are testing is the finally block of the production code
+        }
+        assertThat(context.stash().getValue("$request_headers"), is(headers));
     }
 }

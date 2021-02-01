@@ -59,7 +59,7 @@ public class DatePartPipeTests extends AbstractNodeTestCase<DatePartPipe, Pipe> 
             b1.left(),
             b1.right(),
             b1.zoneId());
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
 
         DatePartPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
@@ -70,7 +70,7 @@ public class DatePartPipeTests extends AbstractNodeTestCase<DatePartPipe, Pipe> 
             b2.right(),
             b2.zoneId());
         assertEquals(newB,
-            b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override

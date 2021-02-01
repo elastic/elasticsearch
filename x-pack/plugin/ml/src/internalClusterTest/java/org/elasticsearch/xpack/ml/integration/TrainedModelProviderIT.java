@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
@@ -39,6 +42,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNA
 import static org.elasticsearch.xpack.ml.integration.ChunkedTrainedModelPersisterIT.chunkStringWithSize;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -89,6 +93,21 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(putConfigHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
 
+        AtomicReference<Void> putMetadataHolder = new AtomicReference<>();
+        TrainedModelMetadata modelMetadata = new TrainedModelMetadata(modelId,
+            Collections.emptyList(),
+            new FeatureImportanceBaseline(1.0, Collections.emptyList()),
+            Collections.emptyList());
+        blockingCall(listener -> trainedModelProvider.storeTrainedModelMetadata(modelMetadata, listener),
+            putMetadataHolder,
+            exceptionHolder);
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        AtomicReference<RefreshResponse> refreshResponseAtomicReference = new AtomicReference<>();
+        blockingCall(listener -> trainedModelProvider.refreshInferenceIndex(listener),
+            refreshResponseAtomicReference,
+            new AtomicReference<>());
+
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(
             listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
@@ -98,6 +117,23 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(getConfigHolder.get(), is(not(nullValue())));
         assertThat(getConfigHolder.get(), equalTo(config));
         assertThat(getConfigHolder.get().getModelDefinition(), is(not(nullValue())));
+        assertThat(getConfigHolder.get().getMetadata(), is(nullValue()));
+        assertThat(getConfigHolder.get().getMetadata(), is(nullValue()));
+        assertThat(getConfigHolder.get().getMetadata(), is(nullValue()));
+
+        getConfigHolder = new AtomicReference<>();
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.all(), listener),
+            getConfigHolder,
+            exceptionHolder);
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
+        assertThat(getConfigHolder.get(), is(not(nullValue())));
+        assertThat(getConfigHolder.get().getModelDefinition(), is(not(nullValue())));
+        assertThat(getConfigHolder.get().getMetadata(), is(not(nullValue())));
+        assertThat(getConfigHolder.get().getMetadata(), hasKey("total_feature_importance"));
+        assertThat(getConfigHolder.get().getMetadata(), hasKey("feature_importance_baseline"));
+        assertThat(getConfigHolder.get().getMetadata(), hasKey("hyperparameters"));
     }
 
     public void testGetTrainedModelConfigWithoutDefinition() throws Exception {

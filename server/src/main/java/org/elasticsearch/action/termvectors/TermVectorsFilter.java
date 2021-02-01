@@ -179,7 +179,7 @@ public class TermVectorsFilter {
         PostingsEnum docsEnum = null;
 
         for (String fieldName : fields) {
-            if ((selectedFields != null) && (!selectedFields.contains(fieldName))) {
+            if (selectedFields != null && selectedFields.contains(fieldName) == false) {
                 continue;
             }
 
@@ -216,7 +216,7 @@ public class TermVectorsFilter {
 
                 // now call on docFreq
                 long docFreq = topLevelTermsEnum.docFreq();
-                if (!isAccepted(docFreq)) {
+                if (isAccepted(docFreq) == false) {
                     continue;
                 }
 

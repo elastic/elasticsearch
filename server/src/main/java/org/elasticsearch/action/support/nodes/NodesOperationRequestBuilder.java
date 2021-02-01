@@ -39,7 +39,7 @@ public abstract class NodesOperationRequestBuilder<Request extends BaseNodesRequ
     }
 
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setTimeout(TimeValue timeout) {
+    public RequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
         return (RequestBuilder) this;
     }

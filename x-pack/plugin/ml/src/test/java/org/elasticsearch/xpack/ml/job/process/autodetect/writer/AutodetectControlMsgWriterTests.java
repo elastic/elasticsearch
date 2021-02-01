@@ -187,7 +187,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter)
-            .writeField("u[modelPlotConfig]\nboundspercentile = 95.0\nterms = foo,bar\nannotations_enabled = false\n");
+            .writeField("u{\"model_plot_config\":{\"enabled\":true,\"terms\":\"foo,bar\",\"annotations_enabled\":false}}");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -201,11 +201,10 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[detectorRules]\ndetectorIndex=2\n" +
-                "rulesJson=[{\"actions\":[\"skip_result\"],\"conditions\":" +
-                "[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}," +
-                "{\"actions\":[\"skip_result\"],\"conditions\":[" +
-                "{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}]");
+        inOrder.verify(lengthEncodedWriter).writeField("u{\"detector_rules\":{\"detector_index\":2," +
+            "\"custom_rules\":[{\"actions\":[\"skip_result\"]," +
+            "\"conditions\":[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}," +
+            "{\"actions\":[\"skip_result\"],\"conditions\":[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}]}}");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -220,7 +219,8 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[filters]\nfilter.filter_1 = [\"a\"]\nfilter.filter_2 = [\"b\",\"c\"]\n");
+        inOrder.verify(lengthEncodedWriter).writeField("u{\"filters\":[{\"filter_id\":\"filter_1\",\"items\":[\"a\"]}," +
+            "{\"filter_id\":\"filter_2\",\"items\":[\"b\",\"c\"]}]}");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -246,15 +246,13 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
         ArgumentCaptor<String> capturedMessage = ArgumentCaptor.forClass(String.class);
         inOrder.verify(lengthEncodedWriter).writeField(capturedMessage.capture());
-        assertThat(capturedMessage.getValue(), equalTo("u[scheduledEvents]\n"
-                + "scheduledevent.0.description = new year\n"
-                + "scheduledevent.0.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
-                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5147648E9},"
-                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5148512E9}]}]\n"
-                + "scheduledevent.1.description = Jan maintenance day\n"
-                + "scheduledevent.1.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
-                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5151968E9},"
-                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5152832E9}]}]\n"));
+        assertThat(capturedMessage.getValue(), equalTo("u{\"events\":[{\"description\":\"new year\"," +
+            "\"rules\":[{\"actions\":[\"skip_result\",\"skip_model_update\"]," +
+            "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5147648E9}," +
+            "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5148512E9}]}]}," +
+            "{\"description\":\"Jan maintenance day\",\"rules\":[{\"actions\":[\"skip_result\",\"skip_model_update\"]," +
+            "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5151968E9}," +
+            "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5152832E9}]}]}]}"));
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -266,7 +264,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[scheduledEvents]\nclear = true\n");
+        inOrder.verify(lengthEncodedWriter).writeField("u{\"events\":[]}");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 

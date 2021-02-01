@@ -19,11 +19,13 @@ not be included yet.
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
 * <<graph-explore-api,Graph Explore API>>
+* <<find-structure>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<ingest-apis,Ingest APIs>>
 * <<info-api,Info API>>
 * <<licensing-apis,Licensing APIs>>
+* <<logstash-apis,Logstash APIs>>
 * <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<migration-api,Migration APIs>>
@@ -48,12 +50,14 @@ include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
+include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
 include::{es-repo-dir}/ingest/apis/index.asciidoc[]
 include::info.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
+include::{xes-repo-dir}/rest-api/logstash/index.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]

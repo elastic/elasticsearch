@@ -209,11 +209,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         SpanQueryBuilder queryBuilder = clauses.get(0);
         boolean isGap = queryBuilder instanceof SpanGapQueryBuilder;
         Query query = null;
-        if (!isGap) {
+        if (isGap == false) {
             query = queryBuilder.toQuery(context);
             assert query instanceof SpanQuery;
         }
@@ -249,7 +249,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                 String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();
                 String spanGapFieldName = queryFieldName(context, fieldName);
 
-                if (!spanNearFieldName.equals(spanGapFieldName)) {
+                if (spanNearFieldName.equals(spanGapFieldName) == false) {
                     throw new IllegalArgumentException("[span_near] clauses must have same field");
                 }
                 int gap = ((SpanGapQueryBuilder) queryBuilder).width();
@@ -263,7 +263,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return builder.build();
     }
 
-    private String queryFieldName(QueryShardContext context, String fieldName) {
+    private String queryFieldName(SearchExecutionContext context, String fieldName) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         return fieldType != null ? fieldType.name() : fieldName;
     }
@@ -342,7 +342,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
 
         @Override
-        public Query toQuery(QueryShardContext context) throws IOException {
+        public Query toQuery(SearchExecutionContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
 

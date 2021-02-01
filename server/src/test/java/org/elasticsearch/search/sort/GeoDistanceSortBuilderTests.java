@@ -46,7 +46,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -409,7 +409,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         // make sure the below tests test something...
         assertFalse(SortField.class.equals(LatLonDocValuesField.newDistanceSort("random_field_name", 3.5, 2.1).getClass()));
 
-        QueryShardContext context = createMockShardContext();
+        SearchExecutionContext context = createMockSearchExecutionContext();
         // The common case should use LatLonDocValuesField.newDistanceSort
         GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder("", new GeoPoint(3.5, 2.1));
         SortFieldAndFormat sort = builder.build(context);
@@ -445,25 +445,25 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
      * Test that the sort builder order gets transferred correctly to the SortField
      */
     public void testBuildSortFieldOrder() throws IOException {
-        QueryShardContext shardContextMock = createMockShardContext();
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
-        assertEquals(false, geoDistanceSortBuilder.build(shardContextMock).field.getReverse());
+        assertEquals(false, geoDistanceSortBuilder.build(searchExecutionContext).field.getReverse());
 
         geoDistanceSortBuilder.order(SortOrder.ASC);
-        assertEquals(false, geoDistanceSortBuilder.build(shardContextMock).field.getReverse());
+        assertEquals(false, geoDistanceSortBuilder.build(searchExecutionContext).field.getReverse());
 
         geoDistanceSortBuilder.order(SortOrder.DESC);
-        assertEquals(true, geoDistanceSortBuilder.build(shardContextMock).field.getReverse());
+        assertEquals(true, geoDistanceSortBuilder.build(searchExecutionContext).field.getReverse());
     }
 
     /**
      * Test that the sort builder mode gets transferred correctly to the SortField
      */
     public void testMultiValueMode() throws IOException {
-        QueryShardContext shardContextMock = createMockShardContext();
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         geoDistanceSortBuilder.sortMode(SortMode.MAX);
-        SortField sortField = geoDistanceSortBuilder.build(shardContextMock).field;
+        SortField sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MAX, comparatorSource.sortMode());
@@ -471,7 +471,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         // also use MultiValueMode.Max if no Mode set but order is DESC
         geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         geoDistanceSortBuilder.order(SortOrder.DESC);
-        sortField = geoDistanceSortBuilder.build(shardContextMock).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MAX, comparatorSource.sortMode());
@@ -480,7 +480,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         // need to use distance unit other than Meters to not get back a LatLonPointSortField
         geoDistanceSortBuilder.order(SortOrder.ASC).unit(DistanceUnit.INCH);
-        sortField = geoDistanceSortBuilder.build(shardContextMock).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MIN, comparatorSource.sortMode());
@@ -488,19 +488,19 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         geoDistanceSortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0);
         // need to use distance unit other than Meters to not get back a LatLonPointSortField
         geoDistanceSortBuilder.sortMode(SortMode.MIN).unit(DistanceUnit.INCH);
-        sortField = geoDistanceSortBuilder.build(shardContextMock).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MIN, comparatorSource.sortMode());
 
         geoDistanceSortBuilder.sortMode(SortMode.AVG);
-        sortField = geoDistanceSortBuilder.build(shardContextMock).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.AVG, comparatorSource.sortMode());
 
         geoDistanceSortBuilder.sortMode(SortMode.MEDIAN);
-        sortField = geoDistanceSortBuilder.build(shardContextMock).field;
+        sortField = geoDistanceSortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MEDIAN, comparatorSource.sortMode());
@@ -510,11 +510,11 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
      * Test that the sort builder nested object gets created in the SortField
      */
     public void testBuildNested() throws IOException {
-        QueryShardContext shardContextMock = createMockShardContext();
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
 
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0)
                 .setNestedSort(new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery()));
-        SortField sortField = sortBuilder.build(shardContextMock).field;
+        SortField sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
@@ -523,7 +523,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
         sortBuilder = new GeoDistanceSortBuilder("fieldName", 1.0, 1.0)
             .setNestedSort(new NestedSortBuilder("path"));
-        sortField = sortBuilder.build(shardContextMock).field;
+        sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
@@ -534,7 +534,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             .setNestedSort(new NestedSortBuilder("path")
                 .setFilter(QueryBuilders.matchAllQuery())
             );
-        sortField = sortBuilder.build(shardContextMock).field;
+        sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
@@ -546,12 +546,12 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
      * Test that if coercion is used, a point gets normalized but the original values in the builder are unchanged
      */
     public void testBuildCoerce() throws IOException {
-        QueryShardContext shardContextMock = createMockShardContext();
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", -180.0, -360.0);
         sortBuilder.validation(GeoValidationMethod.COERCE);
         assertEquals(-180.0, sortBuilder.points()[0].getLat(), 0.0);
         assertEquals(-360.0, sortBuilder.points()[0].getLon(), 0.0);
-        SortField sortField = sortBuilder.build(shardContextMock).field;
+        SortField sortField = sortBuilder.build(searchExecutionContext).field;
         assertEquals(LatLonDocValuesField.newDistanceSort("fieldName", 0.0, 180.0), sortField);
     }
 
@@ -559,17 +559,19 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
      * Test that if validation is strict, invalid points throw an error
      */
     public void testBuildInvalidPoints() throws IOException {
-        QueryShardContext shardContextMock = createMockShardContext();
+        SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
         {
             GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", -180.0, 0.0);
             sortBuilder.validation(GeoValidationMethod.STRICT);
-            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> sortBuilder.build(shardContextMock));
+            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+                () -> sortBuilder.build(searchExecutionContext));
             assertEquals("illegal latitude value [-180.0] for [GeoDistanceSort] for field [fieldName].", ex.getMessage());
         }
         {
             GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, -360.0);
             sortBuilder.validation(GeoValidationMethod.STRICT);
-            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> sortBuilder.build(shardContextMock));
+            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+                () -> sortBuilder.build(searchExecutionContext));
             assertEquals("illegal longitude value [-360.0] for [GeoDistanceSort] for field [fieldName].", ex.getMessage());
         }
     }
@@ -581,7 +583,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
                 return new MatchNoneQueryBuilder();
             }
         };
@@ -589,7 +591,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             new NestedSortBuilder("path")
                 .setFilter(rangeQuery)
         );
-        GeoDistanceSortBuilder rewritten = sortBuilder.rewrite(createMockShardContext());
+        GeoDistanceSortBuilder rewritten = sortBuilder.rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 
@@ -600,13 +602,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
                 return new MatchNoneQueryBuilder();
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
         GeoDistanceSortBuilder rewritten = (GeoDistanceSortBuilder) sortBuilder
-                .rewrite(createMockShardContext());
+                .rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 

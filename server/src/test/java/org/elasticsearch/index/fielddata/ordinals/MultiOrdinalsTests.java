@@ -110,7 +110,7 @@ public class MultiOrdinalsTests extends ESTestCase {
             if (docId == ordAndId.id) {
                 docOrds.add(ordAndId.ord);
             } else {
-                if (!docOrds.isEmpty()) {
+                if (docOrds.isEmpty() == false) {
                     assertTrue(singleOrds.advanceExact(docId));
                     assertThat((long) singleOrds.ordValue(), equalTo(docOrds.get(0)));
 

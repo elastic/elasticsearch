@@ -205,9 +205,14 @@ public class ClusterPermission {
 
         @Override
         protected boolean doImplies(ActionBasedPermissionCheck permissionCheck) {
-            return permissionCheck instanceof AutomatonPermissionCheck;
+            /*
+             * We know that "permissionCheck" has an automaton which is a subset of ours.
+             * Which means "permissionCheck" _cannot_ grant an action that we don't (see ActionBasedPermissionCheck#check)
+             * Since we grant _all_ requests on actions within our automaton, we must therefore grant _all_ actions+requests that the other
+             * permission check grants.
+             */
+            return true;
         }
-
     }
 
     // action, request based permission check

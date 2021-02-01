@@ -157,7 +157,7 @@ public class GetFieldMappingsResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof FieldMappingMetadata)) return false;
+            if ((o instanceof FieldMappingMetadata) == false) return false;
             FieldMappingMetadata that = (FieldMappingMetadata) o;
             return Objects.equals(fullName, that.fullName) && Objects.equals(source, that.source);
         }
@@ -177,7 +177,7 @@ public class GetFieldMappingsResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof GetFieldMappingsResponse)) return false;
+        if ((o instanceof GetFieldMappingsResponse) == false) return false;
         GetFieldMappingsResponse that = (GetFieldMappingsResponse) o;
         return Objects.equals(mappings, that.mappings);
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -36,13 +37,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -61,6 +65,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -82,6 +87,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -94,12 +100,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 
 public class TransportSearchActionTests extends ESTestCase {
 
@@ -934,6 +944,59 @@ public class TransportSearchActionTests extends ESTestCase {
                 indices, randomIntBetween(2, 127)));
             assertFalse(TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest,
                 indices, randomIntBetween(127, 10000)));
+        }
+    }
+
+    public void testLocalShardIteratorFromPointInTime() {
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(0, 2);
+        final String[] indices = {"test-1", "test-2"};
+        final ClusterState clusterState =
+            ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indices, numberOfShards, numberOfReplicas);
+        final IndexMetadata indexMetadata = clusterState.metadata().index("test-1");
+        Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
+        Set<ShardId> relocatedContexts = new HashSet<>();
+        for (int shardId = 0; shardId < numberOfShards; shardId++) {
+            final String targetNode;
+            if (randomBoolean()) {
+                final IndexRoutingTable routingTable = clusterState.routingTable().index(indexMetadata.getIndex());
+                targetNode = randomFrom(routingTable.shard(shardId).assignedShards()).currentNodeId();
+            } else {
+                // relocated or no longer assigned
+                relocatedContexts.add(new ShardId(indexMetadata.getIndex(), shardId));
+                targetNode = UUIDs.randomBase64UUID();
+            }
+            contexts.put(new ShardId(indexMetadata.getIndex(), shardId),
+                new SearchContextIdForNode(null, targetNode,
+                    new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), null)));
+        }
+        TimeValue keepAlive = randomBoolean() ? null : TimeValue.timeValueSeconds(between(30, 3600));
+        final List<SearchShardIterator> shardIterators = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+            clusterState,
+            OriginalIndices.NONE,
+            null,
+            new SearchContextId(contexts, Map.of()),
+            keepAlive
+        );
+        shardIterators.sort(Comparator.comparing(SearchShardIterator::shardId));
+        assertThat(shardIterators, hasSize(numberOfShards));
+        for (int id = 0; id < numberOfShards; id++) {
+            final ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
+            final SearchShardIterator shardIterator = shardIterators.get(id);
+            final SearchContextIdForNode context = contexts.get(shardId);
+            if (context.getSearchContextId().getSearcherId() == null) {
+                assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
+            } else {
+                final List<String> targetNodes = clusterState.routingTable().index(indexMetadata.getIndex()).shard(id).assignedShards()
+                    .stream().map(ShardRouting::currentNodeId).collect(Collectors.toList());
+                if (relocatedContexts.contains(shardId)) {
+                    targetNodes.add(context.getNode());
+                }
+                assertThat(shardIterator.getTargetNodeIds(), containsInAnyOrder(targetNodes.toArray(new String[0])));
+            }
+            assertThat(shardIterator.getTargetNodeIds().get(0), equalTo(context.getNode()));
+            assertThat(shardIterator.getSearchContextId(), equalTo(context.getSearchContextId()));
+            assertThat(shardIterator.getSearchContextKeepAlive(), equalTo(keepAlive));
         }
     }
 }

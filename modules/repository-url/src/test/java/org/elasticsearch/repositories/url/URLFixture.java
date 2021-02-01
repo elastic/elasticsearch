@@ -23,6 +23,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,18 +41,25 @@ public class URLFixture extends AbstractHttpFixture {
     /**
      * Creates a {@link URLFixture}
      */
-    private URLFixture(final String workingDir, final String repositoryDir) {
-        super(workingDir);
+    private URLFixture(final int port, final String workingDir, final String repositoryDir) {
+        super(workingDir, port);
         this.repositoryDir = dir(repositoryDir);
     }
 
     public static void main(String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("URLFixture <working directory> <repository directory>");
+        if (args == null || args.length != 3) {
+            throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
         }
-
-        final URLFixture fixture = new URLFixture(args[0], args[1]);
-        fixture.listen();
+        String workingDirectory = args[1];
+        if(Files.exists(dir(workingDirectory)) == false) {
+            throw new IllegalArgumentException("Configured working directory " + workingDirectory + " does not exist");
+        }
+        String repositoryDirectory = args[2];
+        if(Files.exists(dir(repositoryDirectory)) == false) {
+            throw new IllegalArgumentException("Configured repository directory " + repositoryDirectory + " does not exist");
+        }
+        final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), workingDirectory, repositoryDirectory);
+        fixture.listen(InetAddress.getByName("0.0.0.0"), false);
     }
 
     @Override

@@ -101,8 +101,8 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             XContentHelper.createParser(xContentRegistry(), null, new BytesArray(content), XContentType.JSON);
         Exception expectedException = expectThrows(Exception.class, () -> ComposableIndexTemplate.parse(parser));
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("logs-*-*"), null, null, null, null,
-            null, new ComposableIndexTemplate.DataStreamTemplate(), null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*-*"))
+              .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate()).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet());
         Exception actualException = (Exception) e.getCause();

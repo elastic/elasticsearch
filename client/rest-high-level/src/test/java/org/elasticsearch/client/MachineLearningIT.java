@@ -54,8 +54,6 @@ import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
-import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -160,7 +158,6 @@ import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
-import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
@@ -205,7 +202,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -1364,6 +1360,14 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setNumTopFeatureImportanceValues(3)
                 .setLossFunction(org.elasticsearch.client.ml.dataframe.Regression.LossFunction.MSLE)
                 .setLossFunctionParameter(1.0)
+                .setAlpha(0.5)
+                .setEtaGrowthRatePerTree(1.0)
+                .setSoftTreeDepthLimit(1.0)
+                .setSoftTreeDepthTolerance(0.1)
+                .setDownsampleFactor(0.5)
+                .setMaxOptimizationRoundsPerHyperparameter(3)
+                .setMaxOptimizationRoundsPerHyperparameter(3)
+                .setEarlyStoppingEnabled(false)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1409,6 +1413,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setMaxTrees(10)
                 .setFeatureBagFraction(0.5)
                 .setNumTopFeatureImportanceValues(3)
+                .setAlpha(0.5)
+                .setEtaGrowthRatePerTree(1.0)
+                .setSoftTreeDepthLimit(1.0)
+                .setSoftTreeDepthTolerance(0.1)
+                .setDownsampleFactor(0.5)
+                .setMaxOptimizationRoundsPerHyperparameter(3)
+                .setEarlyStoppingEnabled(false)
                 .build())
             .setDescription("this is a classification")
             .build();
@@ -2879,45 +2890,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(snapshotId, model.getSnapshotId());
         }
-    }
-
-    public void testFindFileStructure() throws IOException {
-
-        String sample = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
-                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
-            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
-                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
-
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-
-        FindFileStructureRequest request = new FindFileStructureRequest();
-        request.setSample(sample.getBytes(StandardCharsets.UTF_8));
-
-        FindFileStructureResponse response =
-            execute(request, machineLearningClient::findFileStructure, machineLearningClient::findFileStructureAsync);
-
-        FileStructure structure = response.getFileStructure();
-
-        assertEquals(2, structure.getNumLinesAnalyzed());
-        assertEquals(2, structure.getNumMessagesAnalyzed());
-        assertEquals(sample, structure.getSampleStart());
-        assertEquals(FileStructure.Format.NDJSON, structure.getFormat());
-        assertEquals(StandardCharsets.UTF_8.displayName(Locale.ROOT), structure.getCharset());
-        assertFalse(structure.getHasByteOrderMarker());
-        assertNull(structure.getMultilineStartPattern());
-        assertNull(structure.getExcludeLinesPattern());
-        assertNull(structure.getColumnNames());
-        assertNull(structure.getHasHeaderRow());
-        assertNull(structure.getDelimiter());
-        assertNull(structure.getQuote());
-        assertNull(structure.getShouldTrimFields());
-        assertNull(structure.getGrokPattern());
-        assertEquals(Collections.singletonList("UNIX_MS"), structure.getJavaTimestampFormats());
-        assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
-        assertEquals("timestamp", structure.getTimestampField());
-        assertFalse(structure.needClientTimezone());
     }
 
     public void testEnableUpgradeMode() throws Exception {

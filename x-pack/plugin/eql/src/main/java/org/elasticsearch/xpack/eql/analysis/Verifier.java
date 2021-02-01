@@ -92,7 +92,7 @@ public class Verifier {
             if (p instanceof Unresolvable) {
                 localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
             } else {
-                p.forEachExpressions(e -> {
+                p.forEachExpression(e -> {
                     // everything is fine, skip expression
                     if (e.resolved()) {
                         return;

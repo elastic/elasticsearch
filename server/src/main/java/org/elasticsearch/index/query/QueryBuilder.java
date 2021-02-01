@@ -35,7 +35,7 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
      * @param context additional information needed to construct the queries
      * @return the {@link Query} or {@code null} if this query should be ignored upstream
      */
-    Query toQuery(QueryShardContext context) throws IOException;
+    Query toQuery(SearchExecutionContext context) throws IOException;
 
     /**
      * Sets the arbitrary name to be assigned to the query (see named queries).
@@ -74,7 +74,7 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
      * did not change the identity reference must be returned otherwise the builder will be rewritten infinitely.
      */
     @Override
-    default QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
+    default QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 }

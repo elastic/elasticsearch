@@ -22,11 +22,8 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -258,18 +255,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     public void testCase(MappedFieldType ft,
                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                          Consumer<InternalExtendedStats> verify) throws IOException {
-        try (Directory directory = newDirectory();
-             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            buildIndex.accept(indexWriter);
-            try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg")
-                    .field("field")
-                    .sigma(randomDoubleBetween(0, 10, true));
-                InternalExtendedStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
-                verify.accept(stats);
-            }
-        }
+        ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg")
+            .field("field")
+            .sigma(randomDoubleBetween(0, 10, true));
+
+        testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, ft);
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -39,10 +40,12 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -342,6 +345,27 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
             IndicesStatsResponse response = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
             assertEquals(0, response.getTotal().refresh.getTotal());
+
+            // Retry with point in time
+            PlainActionFuture<ShardSearchContextId> openContextFuture = new PlainActionFuture<>();
+            searchService.openReaderContext(shard.shardId(), TimeValue.timeValueSeconds(60), openContextFuture);
+            final ShardSearchContextId contextId = openContextFuture.actionGet(TimeValue.timeValueSeconds(60));
+            assertNotNull(contextId.getSearcherId());
+            sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
+            assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 0, 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, contextId, null)).canMatch());
+
+            assertTrue(searchService.freeReaderContext(contextId));
+            sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
+            assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 0, 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, contextId, null)).canMatch());
+
+            expectThrows(SearchContextMissingException.class, () -> {
+                ShardSearchContextId withoutCommitId = new ShardSearchContextId(contextId.getSessionId(), contextId.getId(), null);
+                sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
+                assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 0, 1,
+                    new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, withoutCommitId, null)).canMatch());
+            });
         }
     }
 

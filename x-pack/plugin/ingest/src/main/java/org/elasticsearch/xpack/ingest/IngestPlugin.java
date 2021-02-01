@@ -15,6 +15,13 @@ public class IngestPlugin extends Plugin implements org.elasticsearch.plugins.In
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory());
+        return Map.of(
+            UriPartsProcessor.TYPE,
+            new UriPartsProcessor.Factory(),
+            NetworkDirectionProcessor.TYPE,
+            new NetworkDirectionProcessor.Factory(),
+            CommunityIdProcessor.TYPE,
+            new CommunityIdProcessor.Factory()
+        );
     }
 }

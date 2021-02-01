@@ -33,6 +33,11 @@ POST /alias1/_rollover/my-index-000002
 
 `POST /<rollover-target>/_rollover/`
 
+[[rollover-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the rollover target.
 
 [[rollover-index-api-desc]]
 ==== {api-description-title}
@@ -304,7 +309,7 @@ DELETE /_index_template/template
 ===== Specify settings for the target index
 
 The settings, mappings, and aliases for the new index are taken from any
-matching <<indices-templates,index templates>>. If the rollover target is an index
+matching <<index-templates,index templates>>. If the rollover target is an index
 alias, you can specify `settings`, `mappings`, and `aliases` in the body of the request
 just like the <<indices-create-index,create index>> API. Values specified in the request
 override any values set in matching index templates. For example, the following

@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -86,7 +86,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     /**
      * Create a script leaf factory for queries.
      */
-    protected final LeafFactory leafFactory(QueryShardContext context) {
+    protected final LeafFactory leafFactory(SearchExecutionContext context) {
         /*
          * Forking here causes us to count this field in the field data loop
          * detection code as though we were resolving field data for this field.
@@ -104,7 +104,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         ShapeRelation relation,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         if (relation == ShapeRelation.DISJOINT) {
             String message = "Runtime field [%s] of type [%s] does not support DISJOINT ranges";
@@ -120,7 +120,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     );
 
     @Override
@@ -130,18 +130,18 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
     }
 
     @Override
-    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
     }
 
     @Override
-    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
     }
 
@@ -152,7 +152,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         int matchFlags,
         int maxDeterminizedStates,
         MultiTermQuery.RewriteMethod method,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
     }
@@ -173,7 +173,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     @Override
-    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
         throw new IllegalArgumentException(unsupported("span prefix", "text"));
     }
 
@@ -188,7 +188,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         );
     }
 
-    protected final void checkAllowExpensiveQueries(QueryShardContext context) {
+    protected final void checkAllowExpensiveQueries(SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
@@ -197,7 +197,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
         return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
     }
 

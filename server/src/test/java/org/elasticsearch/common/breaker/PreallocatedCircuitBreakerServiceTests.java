@@ -21,17 +21,16 @@ package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
+import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assume.assumeThat;
 
 public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
     public void testUseNotPreallocated() {
@@ -92,9 +91,7 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
     public void testRandom() {
         try (HierarchyCircuitBreakerService real = real()) {
             CircuitBreaker realBreaker = real.getBreaker(CircuitBreaker.REQUEST);
-            long limit = ByteSizeValue.ofMb(100).getBytes();
-            assumeThat(limit, lessThanOrEqualTo(realBreaker.getLimit()));
-            long preallocatedBytes = randomLongBetween(1, limit);
+            long preallocatedBytes = randomLongBetween(1, (long) (realBreaker.getLimit() * .8));
             try (PreallocatedCircuitBreakerService preallocated = preallocateRequest(real, preallocatedBytes)) {
                 CircuitBreaker b = preallocated.getBreaker(CircuitBreaker.REQUEST);
                 boolean usedPreallocated = false;
@@ -109,12 +106,12 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
                         assertThat(realBreaker.getUsed(), equalTo(preallocatedBytes));
                     }
                     if (current > 0 && randomBoolean()) {
-                        long delta = randomLongBetween(-Math.min(current, limit / 100), 0);
+                        long delta = randomLongBetween(-Math.min(current, realBreaker.getLimit() / 100), 0);
                         b.addWithoutBreaking(delta);
                         current += delta;
                         continue;
                     }
-                    long delta = randomLongBetween(0, limit / 100);
+                    long delta = randomLongBetween(0, realBreaker.getLimit() / 100);
                     if (randomBoolean()) {
                         b.addWithoutBreaking(delta);
                         current += delta;
@@ -136,7 +133,12 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
 
     private HierarchyCircuitBreakerService real() {
         return new HierarchyCircuitBreakerService(
-            Settings.EMPTY,
+            Settings.builder()
+                // Pin the limit to something that'll totally fit in the heap we use for the tests
+                .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")
+                // Disable the real memory checking because it causes other tests to interfere with this one.
+                .put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                .build(),
             List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );

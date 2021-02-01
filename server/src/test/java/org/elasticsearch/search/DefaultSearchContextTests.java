@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -105,9 +105,9 @@ public class DefaultSearchContextTests extends ESTestCase {
         QueryCache queryCache = mock(QueryCache.class);
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject()))
-            .thenReturn(queryShardContext);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject()))
+            .thenReturn(searchExecutionContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -215,8 +215,8 @@ public class DefaultSearchContextTests extends ESTestCase {
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
-            when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-            when(queryShardContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
+            when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
+            when(searchExecutionContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
 
             readerContext.close();
             readerContext = new ReaderContext(newContextId(), indexService, indexShard,

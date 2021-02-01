@@ -71,6 +71,7 @@ public class NoOpNodeClient extends NodeClient {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public void initialize(Map<ActionType, TransportAction> actions, TaskManager taskManager, Supplier<String> localNodeId,
                            Transport.Connection localConnection, RemoteClusterService remoteClusterService,
                            NamedWriteableRegistry namedWriteableRegistry) {

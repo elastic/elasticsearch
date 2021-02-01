@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.areCompatible;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.defaultPrecision;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
@@ -136,6 +137,27 @@ public class SqlDataTypesTests extends ESTestCase {
         assertNull(compatibleInterval(INTERVAL_YEAR, INTERVAL_DAY_TO_HOUR));
         assertNull(compatibleInterval(INTERVAL_HOUR, INTERVAL_MONTH));
         assertNull(compatibleInterval(INTERVAL_MINUTE_TO_SECOND, INTERVAL_MONTH));
+    }
+
+    public void testIntervalCompabitilityWithDateTimes() {
+        for (DataType intervalType : asList(INTERVAL_YEAR,
+            INTERVAL_MONTH,
+            INTERVAL_DAY,
+            INTERVAL_HOUR,
+            INTERVAL_MINUTE,
+            INTERVAL_SECOND,
+            INTERVAL_YEAR_TO_MONTH,
+            INTERVAL_DAY_TO_HOUR,
+            INTERVAL_DAY_TO_MINUTE,
+            INTERVAL_DAY_TO_SECOND,
+            INTERVAL_HOUR_TO_MINUTE,
+            INTERVAL_HOUR_TO_SECOND,
+            INTERVAL_MINUTE_TO_SECOND)) {
+            for (DataType dateTimeType: asList(DATE, DATETIME)) {
+                assertTrue(areCompatible(intervalType, dateTimeType));
+                assertTrue(areCompatible(dateTimeType, intervalType));
+            }
+        }
     }
 
     public void testEsToDataType() {

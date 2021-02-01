@@ -1,3 +1,4 @@
+Hello world:
 [[search-template]]
 === Search Template
 

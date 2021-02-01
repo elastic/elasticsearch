@@ -114,15 +114,24 @@ public class RestTestTransformer {
      */
     private void traverseTest(JsonNode currentNode, Map<String, RestTestTransformByObjectKey> objectKeyFinders) {
         if (currentNode.isArray()) {
-            currentNode.elements().forEachRemaining(node -> { traverseTest(node, objectKeyFinders); });
+            currentNode.elements().forEachRemaining(node -> {
+                traverseTest(node, objectKeyFinders);
+            });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 RestTestTransformByObjectKey transform = objectKeyFinders.get(entry.getKey());
                 if (transform == null) {
                     traverseTest(entry.getValue(), objectKeyFinders);
                 } else {
-                    if (transform.valueToMatch().matcher(entry.getValue().toString()).matches()) {
+                    if (transform.withChildKey() == null) {
                         transform.transformTest((ObjectNode) currentNode);
+                    } else {
+                        if (entry.getValue().isObject()) {
+                            ObjectNode child = (ObjectNode) entry.getValue();
+                            if (child.has(transform.withChildKey())) {
+                                transform.transformTest((ObjectNode) currentNode);
+                            }
+                        }
                     }
                 }
             });

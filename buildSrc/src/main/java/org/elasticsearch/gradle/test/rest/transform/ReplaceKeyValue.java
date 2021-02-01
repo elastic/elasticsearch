@@ -22,7 +22,7 @@ package org.elasticsearch.gradle.test.rest.transform;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.util.regex.Pattern;
+import javax.annotation.Nullable;
 
 /**
  * Replace the value of a named object. Must match key, and the regex pattern defined.
@@ -30,18 +30,19 @@ import java.util.regex.Pattern;
 public class ReplaceKeyValue implements RestTestTransformByObjectKey {
 
     private final JsonNode replacementNode;
-    private final Pattern valueToMatch;
+
     private final String keyToFind;
+    private final String withChildKey;
 
     /**
-     * @param keyToFind The object key name to find to evaluate for replacement
-     * @param valueToMatch If the key matches and the (JSON) string of the value matches the regex pattern, then replace
+     * @param keyToFind       The object key name to find to evaluate for replacement
+     * @param withChildKey    The required child key name. If null a child key is not required.
      * @param replacementNode The value to replace with if the both the key and value pattern matches.
      */
-    public ReplaceKeyValue(String keyToFind, Pattern valueToMatch, JsonNode replacementNode) {
+    public ReplaceKeyValue(String keyToFind, @Nullable String withChildKey, JsonNode replacementNode) {
         this.replacementNode = replacementNode;
         this.keyToFind = keyToFind;
-        this.valueToMatch = valueToMatch;
+        this.withChildKey = withChildKey;
     }
 
     @Override
@@ -54,8 +55,8 @@ public class ReplaceKeyValue implements RestTestTransformByObjectKey {
     }
 
     @Override
-    public Pattern valueToMatch() {
-        return valueToMatch;
+    public String withChildKey() {
+        return withChildKey;
     }
 
     @Override

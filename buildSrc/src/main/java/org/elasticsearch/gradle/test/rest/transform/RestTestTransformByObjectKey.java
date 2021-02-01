@@ -36,9 +36,9 @@ public interface RestTestTransformByObjectKey extends RestTestTransform<ObjectNo
     String getKeyToFind();
 
     /**
-     * @return The regex pattern to match against (represented as JSON)
+     * @return The required child key name to satisfy the match. {@code null} to indicate no required children
      */
-    default Pattern valueToMatch() {
-        return MATCH_ALL;
+    default String withChildKey(){
+        return null;
     }
 }

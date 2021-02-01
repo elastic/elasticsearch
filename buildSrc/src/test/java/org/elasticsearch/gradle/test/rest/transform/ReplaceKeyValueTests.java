@@ -56,14 +56,14 @@ public class ReplaceKeyValueTests extends GradleUnitTestCase {
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
-        Pattern matchValue = Pattern.compile("\\{.*_type.*\\}");
+
 
         ObjectNode replacement = new ObjectNode(jsonNodeFactory);
         replacement.set("_type", TextNode.valueOf("_doc"));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
-            Collections.singletonList(new ReplaceKeyValue("match", matchValue, replacement))
+            Collections.singletonList(new ReplaceKeyValue("match", "_type", replacement))
         );
         printTest(testName, transformedTests);
         // // ensure setup is correct

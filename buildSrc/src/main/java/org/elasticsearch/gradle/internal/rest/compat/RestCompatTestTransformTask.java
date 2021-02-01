@@ -28,6 +28,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.rest.transform.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.ReplaceKeyValue;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
@@ -46,6 +48,8 @@ import org.gradle.internal.Factory;
 import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -57,17 +61,17 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
     private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class);
+    public static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
-        "application/vnd.elasticsearch+json;compatible-with=7",
+        "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION,
         "Accept",
-        "application/vnd.elasticsearch+json;compatible-with=7"
+        "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION
     );
 
     private static String MATCH_KEY_NAME = "match";
-    private static Pattern MATCH_TYPE_REGEX = Pattern.compile("\\{.*_type.*\\}");
     private static ObjectNode MATCH_TYPE_REPLACEMENT = new ObjectNode(jsonNodeFactory);
     static {
         MATCH_TYPE_REPLACEMENT.set("_type", TextNode.valueOf("_doc"));
@@ -78,18 +82,22 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
     private final PatternFilterable testPatternSet;
-    private final List<RestTestTransform<?>> transformations;
+    private final List<RestTestTransform<?>> allTransformations;
+    private final Map<String, List<RestTestTransform<?>>> perTestTransformation = new HashMap<>();
 
     @Inject
     public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
-        transformations = List.of(
-            // inject compat headers
-            new InjectHeaders(headers),
+        allTransformations = new ArrayList<>();
+
+
+        // always inject compat headers
+        allTransformations.add(new InjectHeaders(headers));
+        if(COMPATIBLE_VERSION == 7) {
             // replace all "match" : { "_type" : <any> } with "match" : { "_type" : "_doc" }
-            new ReplaceKeyValue(MATCH_KEY_NAME, MATCH_TYPE_REGEX, MATCH_TYPE_REPLACEMENT)
-        );
+            allTransformations.add(new ReplaceKeyValue(MATCH_KEY_NAME, "_type", MATCH_TYPE_REPLACEMENT));
+        }
     }
 
     @OutputDirectory
@@ -109,7 +117,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         for (File file : getTestFiles().getFiles()) {
             YAMLParser yamlParser = YAML_FACTORY.createParser(file);
             List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
-            List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
+            List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), allTransformations);
             // convert to url to ensure forward slashes
             String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
             if (testFileParts.length != 2) {

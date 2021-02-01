@@ -126,6 +126,8 @@ public class FrozenCacheService {
 
     private final AtomicReference<CacheFileRegion>[] regionOwners; // to assert exclusive access of regions
 
+    private final CacheDecayTask decayTask;
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @SuppressForbidden(reason = "Use temp dir for now")
     public FrozenCacheService(Settings settings, ThreadPool threadPool) throws IOException {
@@ -151,7 +153,8 @@ public class FrozenCacheService {
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
         sharedBytes = new SharedBytes(numRegions, regionSize, Files.createTempFile("cache", "snap"));
-        new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings)).rescheduleIfNecessary();
+        decayTask = new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings));
+        decayTask.rescheduleIfNecessary();
         this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
     }
@@ -260,9 +263,10 @@ public class FrozenCacheService {
             } else {
                 // check if we need to promote item
                 synchronized (this) {
-                    if (now - entry.lastAccessed > minTimeDelta && entry.freq + 1 < maxFreq) {
+                    if (now - entry.lastAccessed >= minTimeDelta && entry.freq + 1 < maxFreq) {
                         unlink(entry);
                         entry.freq++;
+                        entry.lastAccessed = now;
                         pushEntryToBack(entry);
                     }
                 }
@@ -380,7 +384,7 @@ public class FrozenCacheService {
             long now = currentTimeSupplier.getAsLong();
             for (int i = 0; i < maxFreq; i++) {
                 for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
-                    if (now - entry.lastAccessed > 2 * minTimeDelta) {
+                    if (now - entry.lastAccessed >= 2 * minTimeDelta) {
                         if (entry.freq > 0) {
                             unlink(entry);
                             entry.freq--;
@@ -422,6 +426,11 @@ public class FrozenCacheService {
                 }
             }
         }
+    }
+
+    // used by tests
+    int getFreq(CacheFileRegion cacheFileRegion) {
+        return keyMapping.get(cacheFileRegion.regionKey).freq;
     }
 
     class CacheDecayTask extends AbstractAsyncTask {

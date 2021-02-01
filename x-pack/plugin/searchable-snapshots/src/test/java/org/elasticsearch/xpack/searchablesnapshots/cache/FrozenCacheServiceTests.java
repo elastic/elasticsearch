@@ -115,6 +115,52 @@ public class FrozenCacheServiceTests extends ESTestCase {
         assertEquals(4, cacheService.freeRegionCount());
     }
 
+    public void testDecay() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
+        final FrozenCacheService cacheService = new FrozenCacheService(settings, taskQueue.getThreadPool());
+        final CacheKey cacheKey1 = generateCacheKey();
+        final CacheKey cacheKey2 = generateCacheKey();
+        assertEquals(5, cacheService.freeRegionCount());
+        final CacheFileRegion region0 = cacheService.get(cacheKey1, 250, 0);
+        assertEquals(4, cacheService.freeRegionCount());
+        final CacheFileRegion region1 = cacheService.get(cacheKey2, 250, 1);
+        assertEquals(3, cacheService.freeRegionCount());
+
+        assertEquals(0, cacheService.getFreq(region0));
+        assertEquals(0, cacheService.getFreq(region1));
+
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+
+        final CacheFileRegion region0Again = cacheService.get(cacheKey1, 250, 0);
+        assertSame(region0Again, region0);
+        assertEquals(1, cacheService.getFreq(region0));
+        assertEquals(0, cacheService.getFreq(region1));
+
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        cacheService.get(cacheKey1, 250, 0);
+        assertEquals(2, cacheService.getFreq(region0));
+
+        // advance 2 ticks (decay only starts after 2 ticks)
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertEquals(1, cacheService.getFreq(region0));
+        assertEquals(0, cacheService.getFreq(region1));
+
+        // advance another tick
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertEquals(0, cacheService.getFreq(region0));
+    }
+
     private static CacheKey generateCacheKey() {
         return new CacheKey(
             randomAlphaOfLength(10),

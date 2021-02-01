@@ -134,6 +134,7 @@ include-tagged::{doc-tests-file}[{api}-classification]
 <17> The soft tree depth tolerance. Controls how much the soft tree depth limit is respected. A double greater than or equal to 0.01.
 <18> The amount by which to downsample the data for stochastic gradient estimates. A double in (0, 1.0].
 <19> The maximum number of optimisation rounds we use for hyperparameter optimisation per parameter. An integer in [0, 20].
+<20> Whether to enable early stopping to finish training process if it is not finding better models.
 
 ===== Regression
 
@@ -164,6 +165,7 @@ fields. Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature e
 <17> The soft tree depth tolerance. Controls how much the soft tree depth limit is respected. A double greater than or equal to 0.01.
 <18> The amount by which to downsample the data for stochastic gradient estimates. A double in (0, 1.0].
 <19> The maximum number of optimisation rounds we use for hyperparameter optimisation per parameter. An integer in [0, 20].
+<20> Whether to enable early stopping to finish training process if it is not finding better models.
 
 ==== Analyzed fields
 

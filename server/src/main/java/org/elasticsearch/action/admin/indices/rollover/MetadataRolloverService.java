@@ -39,8 +39,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -207,6 +210,18 @@ public class MetadataRolloverService {
     private RolloverResult rolloverDataStream(ClusterState currentState, IndexAbstraction.DataStream dataStream, String dataStreamName,
                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
                                               boolean silent, boolean onlyValidate) throws Exception {
+
+        if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
+            // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
+            // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
+            // rollover
+            throw new SnapshotInProgressException(
+                    "Cannot roll over data stream that is being snapshotted: "
+                            + dataStream.getName()
+                            + ". Try again after snapshot finishes or cancel the currently running snapshot."
+            );
+        }
+
         lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();

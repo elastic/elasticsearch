@@ -33,7 +33,7 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
                     AbstractFieldScript.class.getCanonicalName(),
                     plugin.grokHelper(),
                     "grok",
-                    SimplePattern.class.getName(),
+                    NamedGroupExtractor.class.getName(),
                     List.of(String.class.getName()),
                     List.of(CompileTimeOnlyAnnotation.INSTANCE)
                 )

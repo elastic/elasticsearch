@@ -50,8 +50,8 @@ import org.elasticsearch.xpack.runtimefields.mapper.IpScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.KeywordScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.LongScriptFieldType;
-import org.elasticsearch.xpack.runtimefields.mapper.SimplePattern;
-import org.elasticsearch.xpack.runtimefields.mapper.SimplePattern.GrokHelper;
+import org.elasticsearch.xpack.runtimefields.mapper.NamedGroupExtractor;
+import org.elasticsearch.xpack.runtimefields.mapper.NamedGroupExtractor.GrokHelper;
 import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.Collection;
@@ -72,10 +72,13 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
         Setting.Property.NodeScope
     );
 
-    private final SimplePattern.GrokHelper grokHelper;
+    private final NamedGroupExtractor.GrokHelper grokHelper;
 
     public RuntimeFields(Settings settings) {
-        grokHelper = new SimplePattern.GrokHelper(GROK_WATCHDOG_INTERVAL.get(settings), GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings));
+        grokHelper = new NamedGroupExtractor.GrokHelper(
+            GROK_WATCHDOG_INTERVAL.get(settings),
+            GROK_WATCHDOG_MAX_EXECUTION_TIME.get(settings)
+        );
     }
 
     @Override

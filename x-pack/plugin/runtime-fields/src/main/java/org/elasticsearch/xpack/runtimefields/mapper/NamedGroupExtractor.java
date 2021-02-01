@@ -20,11 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
- * A simple pattern that we can implement against grok and dissect.
+ * Extracts named groups from grok and dissect. Think of it kind of like
+ * {@link Pattern} but for grok and dissect.
  */
-public interface SimplePattern {
+public interface NamedGroupExtractor {
     /**
      * Returns a {@link Map} containing all named capture groups if the
      * string matches or {@code null} if it doesn't.
@@ -32,19 +34,19 @@ public interface SimplePattern {
     Map<String, ?> extract(String in);
 
     /**
-     * Create a {@link SimplePattern} that runs {@link DissectParser}
+     * Create a {@link NamedGroupExtractor} that runs {@link DissectParser}
      * with the default {@code appendSeparator}.
      */
-    static SimplePattern dissect(String pattern) {
+    static NamedGroupExtractor dissect(String pattern) {
         return dissect(pattern, null);
     }
 
     /**
-     * Create a {@link SimplePattern} that runs {@link DissectParser}.
+     * Create a {@link NamedGroupExtractor} that runs {@link DissectParser}.
      */
-    static SimplePattern dissect(String pattern, String appendSeparator) {
+    static NamedGroupExtractor dissect(String pattern, String appendSeparator) {
         DissectParser dissect = new DissectParser(pattern, appendSeparator);
-        return new SimplePattern() {
+        return new NamedGroupExtractor() {
             @Override
             public Map<String, ?> extract(String in) {
                 return dissect.parse(in);
@@ -53,7 +55,7 @@ public interface SimplePattern {
     }
 
     /**
-     * Builds {@link SimplePattern}s from grok patterns.
+     * Builds {@link NamedGroupExtractor}s from grok patterns.
      */
     class GrokHelper {
         private final SetOnce<ThreadPool> threadPoolContainer = new SetOnce<>();
@@ -83,7 +85,7 @@ public interface SimplePattern {
             threadPoolContainer.set(threadPool);
         }
 
-        public SimplePattern grok(String pattern) {
+        public NamedGroupExtractor grok(String pattern) {
             MatcherWatchdog watchdog = watchdogSupplier.get();
             /*
              * Build the grok pattern in a PrivilegedAction so it can load
@@ -111,7 +113,7 @@ public interface SimplePattern {
                     }
                 }
             });
-            return new SimplePattern() {
+            return new NamedGroupExtractor() {
                 @Override
                 public Map<String, ?> extract(String in) {
                     return grok.captures(in);

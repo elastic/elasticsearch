@@ -258,7 +258,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             this.cacheService.set(cacheService);
             final FrozenCacheService frozenCacheService;
             try {
-                frozenCacheService = new FrozenCacheService(environment, settings, threadPool);
+                frozenCacheService = new FrozenCacheService(environment, threadPool);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

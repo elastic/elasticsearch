@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
@@ -122,8 +123,9 @@ public class FrozenCacheService implements Releasable {
     private final AtomicReference<CacheFileRegion>[] regionOwners; // to assert exclusive access of regions
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public FrozenCacheService(Environment environment, Settings settings, ThreadPool threadPool) throws IOException {
+    public FrozenCacheService(Environment environment, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
+        final Settings settings = environment.settings();
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         final int numRegions = Math.toIntExact(cacheSize / regionSize);
@@ -597,7 +599,7 @@ public class FrozenCacheService implements Releasable {
                 if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
                     return listener;
                 } else {
-                    decrementRef.close();
+                    IOUtils.close(decrementRef, fileChannel::decRef);
                     return null;
                 }
             } catch (Exception e) {

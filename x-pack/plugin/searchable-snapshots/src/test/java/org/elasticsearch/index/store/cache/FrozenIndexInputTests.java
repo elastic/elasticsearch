@@ -84,11 +84,14 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
             .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
             .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        final FrozenCacheService cacheService = new FrozenCacheService(environment, settings, threadPool);
 
-        try (TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(cacheService, tempDir, fileInfo, fileData)) {
+        try (
+            FrozenCacheService cacheService = new FrozenCacheService(environment, threadPool);
+            TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(cacheService, tempDir, fileInfo, fileData)
+        ) {
             directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
 
             // TODO does not test the checksum shortcut, does not test using the recovery range size

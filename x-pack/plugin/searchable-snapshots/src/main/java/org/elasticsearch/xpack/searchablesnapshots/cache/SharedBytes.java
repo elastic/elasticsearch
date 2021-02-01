@@ -46,6 +46,7 @@ public class SharedBytes extends AbstractRefCounted {
         final long fileSize = numRegions * regionSize;
         if (fileSize > 0) {
             final ByteBuffer fillBytes = ByteBuffer.allocate(Channels.WRITE_CHUNK_SIZE);
+            Files.createDirectories(file.getParent());
             this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
             long written = fileChannel.size();
             while (written < fileSize) {
@@ -80,13 +81,13 @@ public class SharedBytes extends AbstractRefCounted {
             if (io == null || io.tryIncRef() == false) {
                 final IO newIO;
                 boolean success = false;
-                SharedBytes.this.incRef();
+                incRef();
                 try {
                     newIO = new IO(p);
                     success = true;
                 } finally {
                     if (success == false) {
-                        SharedBytes.this.decRef();
+                        decRef();
                     }
                 }
                 return newIO;

@@ -21,6 +21,11 @@ package org.elasticsearch.painless.spi.annotation;
 
 import java.util.Map;
 
+/**
+ * Methods annotated with {@link CompileTimeOnlyAnnotation} must be run at
+ * compile time so their arguments must all be constant and they produce a
+ * constant.
+ */
 public class CompileTimeOnlyAnnotationParser implements WhitelistAnnotationParser {
 
     public static final CompileTimeOnlyAnnotationParser INSTANCE = new CompileTimeOnlyAnnotationParser();

@@ -19,6 +19,10 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
+/**
+ * Methods annotated with this must be run at compile time so their arguments
+ * must all be constant and they produce a constant.
+ */
 public class CompileTimeOnlyAnnotation {
     public static final String NAME = "compile_time_only";
 

@@ -33,7 +33,6 @@ import org.apache.http.util.VersionInfo;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.AccessControlException;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;

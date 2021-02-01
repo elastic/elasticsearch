@@ -99,7 +99,8 @@ recommend you also use the Elastic naming scheme for your other data streams.
 
 The naming scheme splits data into different data streams based on the following
 components. Each component corresponds to a
-<<constant-keyword-field-type,constant keyword>> field defined in the ECS.
+<<constant-keyword-field-type,constant keyword>> field defined in the
+{ecs-ref}[Elastic Common Schema (ECS)].
 
 `type`::
 Generic type describing the data, such as `logs`, `metrics`, or `synthetics`.

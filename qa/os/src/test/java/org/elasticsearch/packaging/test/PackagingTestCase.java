@@ -331,7 +331,7 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed", result.exitCode, equalTo(0));
+        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
         switch (distribution.packaging) {
             case TAR:
             case ZIP:

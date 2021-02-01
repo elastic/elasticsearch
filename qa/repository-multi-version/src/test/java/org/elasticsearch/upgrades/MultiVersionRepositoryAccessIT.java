@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -294,7 +295,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     private static void createRepository(RestHighLevelClient client, String repoName, boolean readOnly,
                                          boolean verify) throws IOException {
         assertThat(client.snapshot().createRepository(new PutRepositoryRequest(repoName).type("fs").settings(
-            Settings.builder().put("location", "./" + repoName).put("readonly", readOnly)).verify(verify), RequestOptions.DEFAULT)
+            Settings.builder().put("location", "./" + repoName).put(READONLY_SETTING_KEY, readOnly)).verify(verify), RequestOptions.DEFAULT)
                 .isAcknowledged(),
             is(true));
     }

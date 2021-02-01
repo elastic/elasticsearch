@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ilm;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -38,7 +39,11 @@ public class ShrinkActionTests extends AbstractXContentTestCase<ShrinkAction> {
     }
 
     static ShrinkAction randomInstance() {
-        return new ShrinkAction(randomIntBetween(1, 100));
+        if (randomBoolean()) {
+            return new ShrinkAction(randomIntBetween(1, 100), null);
+        } else {
+            return new ShrinkAction(null, new ByteSizeValue(randomIntBetween(1, 100)));
+        }
     }
 
     @Override
@@ -47,7 +52,17 @@ public class ShrinkActionTests extends AbstractXContentTestCase<ShrinkAction> {
     }
 
     public void testNonPositiveShardNumber() {
-        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0)));
+        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0), null));
         assertThat(e.getMessage(), equalTo("[number_of_shards] must be greater than 0"));
+    }
+
+    public void testMaxSinglePrimarySize() {
+        ByteSizeValue maxSinglePrimarySize1 = new ByteSizeValue(10);
+        Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxSinglePrimarySize1));
+        assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_single_primary_size]"));
+
+        ByteSizeValue maxSinglePrimarySize2 = new ByteSizeValue(0);
+        Exception e2 = expectThrows(Exception.class, () -> new org.elasticsearch.client.ilm.ShrinkAction(null, maxSinglePrimarySize2));
+        assertThat(e2.getMessage(), equalTo("[max_single_primary_size] must be greater than 0"));
     }
 }

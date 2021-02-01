@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
@@ -33,7 +35,7 @@ public final class EqlTestUtils {
     }
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), null, 
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, TimeValue.timeValueSeconds(30), null,
             123, "", new TaskId("test", 123), null);
 
     public static EqlConfiguration randomConfiguration() {
@@ -56,11 +58,11 @@ public final class EqlTestUtils {
     }
 
     public static InsensitiveEquals seq(Expression left, Expression right) {
-        return new InsensitiveEquals(EMPTY, left, right, randomZone());
+        return new InsensitiveWildcardEquals(EMPTY, left, right, randomZone());
     }
 
     public static InsensitiveNotEquals sneq(Expression left, Expression right) {
-        return new InsensitiveNotEquals(EMPTY, left, right, randomZone());
+        return new InsensitiveWildcardNotEquals(EMPTY, left, right, randomZone());
     }
 
     public static IndicesOptions randomIndicesOptions() {

@@ -131,6 +131,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (name.equals('secureHdfsFixture') || name.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options
     if (name.equals('haHdfsFixture') || name.equals('secureHaHdfsFixture')) {
@@ -165,6 +166,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     if (name.contains("Secure")) {
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
       if (name.contains("Ha")) {
         dependsOn "secureHaHdfsFixture"
       } else {

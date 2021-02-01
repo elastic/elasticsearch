@@ -661,11 +661,11 @@ public abstract class ParseContext {
      * @return null if no external value has been set or the value
      */
     public final <T> T parseExternalValue(Class<T> clazz) {
-        if (!externalValueSet() || externalValue() == null) {
+        if (externalValueSet() == false || externalValue() == null) {
             return null;
         }
 
-        if (!clazz.isInstance(externalValue())) {
+        if (clazz.isInstance(externalValue()) == false) {
             throw new IllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }

@@ -82,7 +82,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         }
         this.fieldName = fieldName;
         this.shell = new ArrayList<>(points);
-        if (!shell.get(shell.size() - 1).equals(shell.get(0))) {
+        if (shell.get(shell.size() - 1).equals(shell.get(0)) == false) {
             shell.add(shell.get(0));
         }
     }
@@ -161,7 +161,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
         }
-        if (!(fieldType instanceof GeoPointFieldType)) {
+        if ((fieldType instanceof GeoPointFieldType) == false) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
@@ -173,13 +173,13 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
         // validation was not available prior to 2.x, so to support bwc
         // percolation queries we only ignore_malformed on 2.x created indexes
-        if (!GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
+        if (GeoValidationMethod.isIgnoreMalformed(validationMethod) == false) {
             for (GeoPoint point : shell) {
-                if (!GeoUtils.isValidLatitude(point.lat())) {
+                if (GeoUtils.isValidLatitude(point.lat()) == false) {
                     throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(),
                             GeoPolygonQueryBuilder.NAME);
                 }
-                if (!GeoUtils.isValidLongitude(point.lon())) {
+                if (GeoUtils.isValidLongitude(point.lon()) == false) {
                     throw new QueryShardException(context, "illegal longitude value [{}] for [{}]", point.lon(),
                             GeoPolygonQueryBuilder.NAME);
                 }

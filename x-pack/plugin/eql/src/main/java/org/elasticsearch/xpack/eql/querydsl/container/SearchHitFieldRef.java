@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 // NB: this class is taken from SQL - it hasn't been ported over to QL
@@ -83,10 +84,13 @@ public class SearchHitFieldRef implements FieldExtraction {
     }
 
     private static boolean hasDocValues(DataType dataType) {
-        return dataType == KEYWORD || dataType == DATETIME;
+        return dataType == KEYWORD || dataType == DATETIME || dataType == DATETIME_NANOS;
     }
 
     private static String format(DataType dataType) {
+        if (dataType == DATETIME_NANOS) {
+            return "strict_date_optional_time_nanos";
+        }
         return dataType == DATETIME ? "epoch_millis" : null;
     }
 }

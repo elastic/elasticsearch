@@ -40,7 +40,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
-    public static final String JDK_TRIMMED_PREFIX = "jdk-?\\d.*";
+    public static final String JDK_TRIMMED_PREFIX = "(jdk-?\\d.*)|(zulu-?\\d.+).jdk";
 
     @Override
     public void apply(Project project) {

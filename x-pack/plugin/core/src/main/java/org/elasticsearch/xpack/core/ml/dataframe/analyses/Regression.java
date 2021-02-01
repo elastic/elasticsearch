@@ -184,7 +184,7 @@ public class Regression implements DataFrameAnalysis {
         } else {
             featureProcessors = Collections.emptyList();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             earlyStoppingEnabled = in.readBoolean();
         } else {
             earlyStoppingEnabled = true;
@@ -249,7 +249,7 @@ public class Regression implements DataFrameAnalysis {
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeNamedWriteableList(featureProcessors);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeBoolean(earlyStoppingEnabled);
         }
     }

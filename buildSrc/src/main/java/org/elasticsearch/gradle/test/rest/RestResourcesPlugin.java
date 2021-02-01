@@ -90,6 +90,9 @@ public class RestResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
+        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+        SourceSet defaultSourceSet = sourceSets.getByName(TEST_SOURCE_SET_NAME);
+
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
         Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
@@ -97,10 +100,10 @@ public class RestResourcesPlugin implements Plugin<Project> {
         project.getConfigurations().create("restXpackTests");
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
             .register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
-                task.includeCore.set(extension.restTests.getIncludeCore());
-                task.includeXpack.set(extension.restTests.getIncludeXpack());
-                task.coreConfig = testConfig;
-                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
+                task.getIncludeCore().set(extension.restTests.getIncludeCore());
+                task.getIncludeXpack().set(extension.restTests.getIncludeXpack());
+                task.setCoreConfig(testConfig);
+                task.setOutputResourceDir(defaultSourceSet.getOutput().getResourcesDir());
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()
@@ -125,36 +128,37 @@ public class RestResourcesPlugin implements Plugin<Project> {
         Configuration xpackSpecConfig = project.getConfigurations().create("restXpackSpec");
         project.getConfigurations().create("restSpecs");
         project.getConfigurations().create("restXpackSpecs");
-        Provider<CopyRestApiTask> copyRestYamlSpecTask = project.getTasks()
-            .register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
-                task.includeCore.set(extension.restApi.getIncludeCore());
-                task.includeXpack.set(extension.restApi.getIncludeXpack());
-                task.dependsOn(copyRestYamlTestTask);
-                task.coreConfig = specConfig;
-                task.sourceSetName = SourceSet.TEST_SOURCE_SET_NAME;
-                if (BuildParams.isInternal()) {
-                    Dependency restSpecDependency = project.getDependencies()
-                        .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
-                    project.getDependencies().add(specConfig.getName(), restSpecDependency);
-                    task.xpackConfig = xpackSpecConfig;
-                    Dependency restXpackSpecDependency = project.getDependencies()
-                        .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackSpecs"));
-                    project.getDependencies().add(xpackSpecConfig.getName(), restXpackSpecDependency);
-                    task.dependsOn(task.xpackConfig);
-                } else {
-                    Dependency dependency = project.getDependencies()
-                        .create("org.elasticsearch:rest-api-spec:" + VersionProperties.getElasticsearch());
-                    project.getDependencies().add(specConfig.getName(), dependency);
-                }
-                task.dependsOn(xpackSpecConfig);
-            });
-
-        project.afterEvaluate(p -> {
-            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-            SourceSet testSourceSet = sourceSets.findByName(SourceSet.TEST_SOURCE_SET_NAME);
-            if (testSourceSet != null) {
-                project.getTasks().named(testSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlSpecTask));
+        Provider<CopyRestApiTask> copyRestYamlApiTask = project.getTasks().register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
+            task.getIncludeCore().set(extension.restApi.getIncludeCore());
+            task.getIncludeXpack().set(extension.restApi.getIncludeXpack());
+            task.dependsOn(copyRestYamlTestTask);
+            task.setCoreConfig(specConfig);
+            task.setOutputResourceDir(defaultSourceSet.getOutput().getResourcesDir());
+            task.setSourceResourceDir(
+                defaultSourceSet.getResources()
+                    .getSrcDirs()
+                    .stream()
+                    .filter(f -> f.isDirectory() && f.getName().equals("resources"))
+                    .findFirst()
+                    .orElse(null)
+            );
+            if (BuildParams.isInternal()) {
+                Dependency restSpecDependency = project.getDependencies()
+                    .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
+                project.getDependencies().add(specConfig.getName(), restSpecDependency);
+                task.setXpackConfig(xpackSpecConfig);
+                Dependency restXpackSpecDependency = project.getDependencies()
+                    .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackSpecs"));
+                project.getDependencies().add(xpackSpecConfig.getName(), restXpackSpecDependency);
+                task.dependsOn(task.getXpackConfig());
+            } else {
+                Dependency dependency = project.getDependencies()
+                    .create("org.elasticsearch:rest-api-spec:" + VersionProperties.getElasticsearch());
+                project.getDependencies().add(specConfig.getName(), dependency);
             }
+            task.dependsOn(xpackSpecConfig);
         });
+
+        project.getTasks().named(defaultSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestYamlApiTask));
     }
 }

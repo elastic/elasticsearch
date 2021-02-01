@@ -198,7 +198,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         UNSIGNED_LONG {
             @Override
             public Object convert(DocValueFormat format, Object obj) {
-                return format.format((long) obj).toString();
+                return format.format((Long) obj).toString();
             }
 
             @Override
@@ -461,6 +461,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                         + " different indices"
                 );
             }
+            // Promotion to double is required if at least 2 of these 3 conditions are true.
             if ((hasDouble ? 1 : 0) + (hasUnsignedLong ? 1 : 0) + (hasLong ? 1 : 0) > 1) {
                 if (promotions == null) {
                     promotions = new boolean[keyConverters.size()];

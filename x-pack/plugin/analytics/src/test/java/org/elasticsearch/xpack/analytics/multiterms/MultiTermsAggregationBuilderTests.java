@@ -72,14 +72,12 @@ public class MultiTermsAggregationBuilderTests extends AbstractSerializingTestCa
     protected MultiTermsAggregationBuilder createTestInstance() {
         MultiTermsAggregationBuilder aggregationBuilder = new MultiTermsAggregationBuilder(aggregationName);
 
-        if (randomBoolean()) {
-            int termCount = randomIntBetween(1, 10);
-            List<MultiValuesSourceFieldConfig> terms = new ArrayList<>();
-            for (int i = 0; i < termCount; i++) {
-                terms.add(randomTermConfig());
-            }
-            aggregationBuilder.terms(terms);
+        int termCount = randomIntBetween(2, 10);
+        List<MultiValuesSourceFieldConfig> terms = new ArrayList<>();
+        for (int i = 0; i < termCount; i++) {
+            terms.add(randomTermConfig());
         }
+        aggregationBuilder.terms(terms);
         if (randomBoolean()) {
             if (randomBoolean()) {
                 aggregationBuilder.showTermDocCountError(randomBoolean());

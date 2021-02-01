@@ -155,6 +155,15 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         if (terms == null) {
             throw new IllegalArgumentException("[terms] must not be null: [" + name + "]");
         }
+        if (terms.size() < 2) {
+            throw new IllegalArgumentException(
+                "The [terms] parameter in the aggregation ["
+                    + name
+                    + "] must be present and have at least "
+                    + "2 fields or scripts."
+                    + (terms.size() == 1 ? " For a single field user terms aggregation." : "")
+            );
+        }
         this.terms = terms;
         return this;
     }
@@ -225,7 +234,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
      * search execution). The higher the shard size is, the more accurate the
      * results are.
      */
-
     public MultiTermsAggregationBuilder shardSize(int shardSize) {
         if (shardSize <= 0) {
             throw new IllegalArgumentException("[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
@@ -343,15 +351,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        if (terms.size() < 2) {
-            throw new IllegalArgumentException(
-                "The [terms] parameter in the aggregation ["
-                    + name
-                    + "] must be present and have at least "
-                    + "2 fields or scripts."
-                    + (terms.size() == 1 ? " For a single field user terms aggregation." : "")
-            );
-        }
         List<ValuesSourceConfig> configs = resolveConfig(context);
         return new MultiTermsAggregationFactory(
             name,

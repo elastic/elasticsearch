@@ -62,9 +62,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     @Deprecated
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
-        .withAllDeprecated("no replacement: `distance_type` is handled internally and no longer supported. "
-            + "It will be removed in a future version.");
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type").
+        withAllDeprecated();
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_FIELD = new ParseField("distance");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");

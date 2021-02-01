@@ -80,9 +80,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     @Deprecated
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
-        .withAllDeprecated("no replacement: `distance_type` is handled internally and no longer supported. "
-            + "It will be removed in a future version.");
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type").withAllDeprecated();
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
     private static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");

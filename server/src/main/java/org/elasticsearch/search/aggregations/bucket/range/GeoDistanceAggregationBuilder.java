@@ -59,9 +59,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
     static final ParseField UNIT_FIELD = new ParseField("unit");
     @Deprecated
-    static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
-        .withAllDeprecated("no replacement: `distance_type` is handled internally and no longer supported. "
-            + "It will be removed in a future version.");
+    static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type").
+        withAllDeprecated();
 
     private static final ObjectParser<GeoDistanceAggregationBuilder, Void> PARSER;
     static {

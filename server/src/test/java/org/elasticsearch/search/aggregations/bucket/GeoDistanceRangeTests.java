@@ -84,22 +84,28 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
     @Override
     public void testFromXContent() throws IOException {
         super.testFromXContent();
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 
     @Override
     public void testFromXContentMulti() throws IOException {
         super.testFromXContentMulti();
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely",
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely",
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely",
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely",
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely",
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely",
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 
     @Override
     public void testToString() throws IOException {
         super.testToString();
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 
     /**

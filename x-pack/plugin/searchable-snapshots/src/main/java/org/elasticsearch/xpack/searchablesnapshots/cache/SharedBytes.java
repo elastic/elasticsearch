@@ -32,6 +32,8 @@ public class SharedBytes extends AbstractRefCounted {
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE };
 
+    private static final String CACHE_FILE_NAME = "snap_cache";
+
     final int numRegions;
     final long regionSize;
 
@@ -51,7 +53,7 @@ public class SharedBytes extends AbstractRefCounted {
             for (Path path : environment.dataFiles()) {
                 // TODO: be resilient to this check failing and try next path?
                 long usableSpace = getUsableSpace(path);
-                Path p = path.resolve("snap_cache");
+                Path p = path.resolve(CACHE_FILE_NAME);
                 if (Files.exists(p)) {
                     usableSpace += Files.size(p);
                 }
@@ -82,6 +84,9 @@ public class SharedBytes extends AbstractRefCounted {
             }
         } else {
             this.fileChannel = null;
+            for (Path path : environment.dataFiles()) {
+                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
+            }
         }
         this.path = cacheFile;
     }

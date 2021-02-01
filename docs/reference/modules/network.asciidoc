@@ -144,9 +144,9 @@ The only requirements are that each node must be:
 ===== Using a single address
 
 The most common configuration is for {es} to bind to a single address at which
-it is exposed to clients and other nodes. In this configuration you should just
-set `network.host` to that address. You should not separately set any bind or
-publish addresses, nor should you separately configure the addresses for the
+it is accessible to clients and other nodes. In this configuration you should
+just set `network.host` to that address. You should not separately set any bind
+or publish addresses, nor should you separately configure the addresses for the
 HTTP or transport interfaces.
 
 ===== Using multiple addresses
@@ -187,7 +187,7 @@ NOTE: You can specify a list of addresses for `network.host` and
 to multiple addresses. If you do this then {es} chooses one of the addresses
 for its publish address. This choice uses heuristics based on IPv4/IPv6 stack
 preference and reachability and may change when the node restarts. You must
-make sure that each node is accessible at all its publish addresses.
+make sure that each node is accessible at all possible publish addresses.
 
 [[tcp-settings]]
 ===== Advanced TCP settings

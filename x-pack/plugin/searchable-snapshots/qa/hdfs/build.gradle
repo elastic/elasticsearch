@@ -79,6 +79,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (name.equals('secureHdfsFixture')) {
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
       miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
     }
@@ -120,7 +121,7 @@ tasks.register("integTestSecure", RestIntegTestTask) {
     "test.krb5.keytab.hdfs",
     project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
   )
-  onlyIf { BuildParams.inFipsJvm == false }
+  onlyIf { BuildParams.inFipsJvm == false && BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16}
 }
 tasks.named("check").configure { dependsOn("integTestSecure") }
 

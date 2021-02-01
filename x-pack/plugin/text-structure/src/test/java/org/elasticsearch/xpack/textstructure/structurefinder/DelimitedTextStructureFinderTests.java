@@ -20,7 +20,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.textstructure.structurefinder.DelimitedFileStructureFinder.levenshteinFieldwiseCompareRows;
+import static org.elasticsearch.xpack.textstructure.structurefinder.DelimitedTextStructureFinder.levenshteinFieldwiseCompareRows;
 import static org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinder.stringToNumberPosBitSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.not;
 
 public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
-    private final FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', '"', 2, false);
-    private final FileStructureFinderFactory tsvFactory = new DelimitedFileStructureFinderFactory('\t', '"', 3, false);
+    private final TextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
+    private final TextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 3, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = "time,message\n" + "2018-05-17T13:41:23,hello\n" + "2018-05-17T13:41:32,hello again\n";
@@ -39,13 +39,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -89,13 +89,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -140,13 +140,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.builder().setQuote('"').build(),
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.builder().setQuote('"').build(),
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -175,19 +175,19 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenCompleteCsvAndColumnNamesOverride() throws Exception {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setColumnNames(Arrays.asList("my_time", "my_message")).build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setColumnNames(Arrays.asList("my_time", "my_message")).build();
 
         String sample = "time,message\n" + "2018-05-17T13:41:23,hello\n" + "2018-05-17T13:41:32,hello again\n";
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
             overrides,
             NOOP_TIMEOUT_CHECKER
         );
@@ -218,19 +218,19 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         // It's obvious the first row really should be a header row, so by overriding
         // detection with the wrong choice the results will be completely changed
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setHasHeaderRow(false).build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setHasHeaderRow(false).build();
 
         String sample = "time,message\n" + "2018-05-17T13:41:23,hello\n" + "2018-05-17T13:41:32,hello again\n";
         assertTrue(csvFactory.canCreateFromSample(explanation, sample, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
             overrides,
             NOOP_TIMEOUT_CHECKER
         );
@@ -264,13 +264,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -307,13 +307,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -372,7 +372,7 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         // Default timestamp field is the first field from the start of each row that contains a
         // consistent timestamp format, so if we want the second we need an override
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("tpep_dropoff_datetime").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampField("tpep_dropoff_datetime").build();
 
         String sample = "VendorID,tpep_pickup_datetime,tpep_dropoff_datetime,passenger_count,trip_distance,RatecodeID,"
             + "store_and_fwd_flag,PULocationID,DOLocationID,payment_type,fare_amount,extra,mta_tax,tip_amount,tolls_amount,"
@@ -384,12 +384,12 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
             overrides,
             NOOP_TIMEOUT_CHECKER
         );
@@ -456,13 +456,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -516,7 +516,7 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenCsvWithTrailingNullsExceptHeaderAndColumnNamesOverride() throws Exception {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder()
+        TextStructureOverrides overrides = TextStructureOverrides.builder()
             .setColumnNames(
                 Arrays.asList(
                     "my_VendorID",
@@ -550,12 +550,12 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
             overrides,
             NOOP_TIMEOUT_CHECKER
         );
@@ -616,13 +616,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -666,13 +666,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = tsvFactory.createFromSample(
+        TextStructureFinder structureFinder = tsvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -707,13 +707,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = csvFactory.createFromSample(
+        TextStructureFinder structureFinder = csvFactory.createFromSample(
             explanation,
             sample,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -747,10 +747,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             + "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n"
             + "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = DelimitedFileStructureFinder.findHeaderFromSample(
+        Tuple<Boolean, String[]> header = DelimitedTextStructureFinder.findHeaderFromSample(
             explanation,
-            DelimitedFileStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE, NOOP_TIMEOUT_CHECKER).v1(),
-            FileStructureOverrides.EMPTY_OVERRIDES
+            DelimitedTextStructureFinder.readRows(withHeader, CsvPreference.EXCEL_PREFERENCE, NOOP_TIMEOUT_CHECKER).v1(),
+            TextStructureOverrides.EMPTY_OVERRIDES
         );
 
         assertTrue(header.v1());
@@ -763,10 +763,10 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             + "2014-06-23 00:00:01Z,JBU,877.5927,farequote\n"
             + "2014-06-23 00:00:01Z,KLM,1355.4812,farequote\n";
 
-        Tuple<Boolean, String[]> header = DelimitedFileStructureFinder.findHeaderFromSample(
+        Tuple<Boolean, String[]> header = DelimitedTextStructureFinder.findHeaderFromSample(
             explanation,
-            DelimitedFileStructureFinder.readRows(noHeader, CsvPreference.EXCEL_PREFERENCE, NOOP_TIMEOUT_CHECKER).v1(),
-            FileStructureOverrides.EMPTY_OVERRIDES
+            DelimitedTextStructureFinder.readRows(noHeader, CsvPreference.EXCEL_PREFERENCE, NOOP_TIMEOUT_CHECKER).v1(),
+            TextStructureOverrides.EMPTY_OVERRIDES
         );
 
         assertFalse(header.v1());
@@ -775,25 +775,25 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
     public void testLevenshteinDistance() {
 
-        assertEquals(0, DelimitedFileStructureFinder.levenshteinDistance("cat", "cat"));
-        assertEquals(3, DelimitedFileStructureFinder.levenshteinDistance("cat", "dog"));
-        assertEquals(5, DelimitedFileStructureFinder.levenshteinDistance("cat", "mouse"));
-        assertEquals(3, DelimitedFileStructureFinder.levenshteinDistance("cat", ""));
+        assertEquals(0, DelimitedTextStructureFinder.levenshteinDistance("cat", "cat"));
+        assertEquals(3, DelimitedTextStructureFinder.levenshteinDistance("cat", "dog"));
+        assertEquals(5, DelimitedTextStructureFinder.levenshteinDistance("cat", "mouse"));
+        assertEquals(3, DelimitedTextStructureFinder.levenshteinDistance("cat", ""));
 
-        assertEquals(3, DelimitedFileStructureFinder.levenshteinDistance("dog", "cat"));
-        assertEquals(0, DelimitedFileStructureFinder.levenshteinDistance("dog", "dog"));
-        assertEquals(4, DelimitedFileStructureFinder.levenshteinDistance("dog", "mouse"));
-        assertEquals(3, DelimitedFileStructureFinder.levenshteinDistance("dog", ""));
+        assertEquals(3, DelimitedTextStructureFinder.levenshteinDistance("dog", "cat"));
+        assertEquals(0, DelimitedTextStructureFinder.levenshteinDistance("dog", "dog"));
+        assertEquals(4, DelimitedTextStructureFinder.levenshteinDistance("dog", "mouse"));
+        assertEquals(3, DelimitedTextStructureFinder.levenshteinDistance("dog", ""));
 
-        assertEquals(5, DelimitedFileStructureFinder.levenshteinDistance("mouse", "cat"));
-        assertEquals(4, DelimitedFileStructureFinder.levenshteinDistance("mouse", "dog"));
-        assertEquals(0, DelimitedFileStructureFinder.levenshteinDistance("mouse", "mouse"));
-        assertEquals(5, DelimitedFileStructureFinder.levenshteinDistance("mouse", ""));
+        assertEquals(5, DelimitedTextStructureFinder.levenshteinDistance("mouse", "cat"));
+        assertEquals(4, DelimitedTextStructureFinder.levenshteinDistance("mouse", "dog"));
+        assertEquals(0, DelimitedTextStructureFinder.levenshteinDistance("mouse", "mouse"));
+        assertEquals(5, DelimitedTextStructureFinder.levenshteinDistance("mouse", ""));
 
-        assertEquals(3, DelimitedFileStructureFinder.levenshteinDistance("", "cat"));
-        assertEquals(3, DelimitedFileStructureFinder.levenshteinDistance("", "dog"));
-        assertEquals(5, DelimitedFileStructureFinder.levenshteinDistance("", "mouse"));
-        assertEquals(0, DelimitedFileStructureFinder.levenshteinDistance("", ""));
+        assertEquals(3, DelimitedTextStructureFinder.levenshteinDistance("", "cat"));
+        assertEquals(3, DelimitedTextStructureFinder.levenshteinDistance("", "dog"));
+        assertEquals(5, DelimitedTextStructureFinder.levenshteinDistance("", "mouse"));
+        assertEquals(0, DelimitedTextStructureFinder.levenshteinDistance("", ""));
     }
 
     public void testMakeShortFieldMask() {
@@ -804,13 +804,13 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         rows.add(Arrays.asList(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5)));
         rows.add(Arrays.asList(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(80)));
 
-        BitSet shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 110);
+        BitSet shortFieldMask = DelimitedTextStructureFinder.makeShortFieldMask(rows, 110);
         assertThat(shortFieldMask, equalTo(stringToNumberPosBitSet("111")));
-        shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 80);
+        shortFieldMask = DelimitedTextStructureFinder.makeShortFieldMask(rows, 80);
         assertThat(shortFieldMask, equalTo(stringToNumberPosBitSet("11 ")));
-        shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 50);
+        shortFieldMask = DelimitedTextStructureFinder.makeShortFieldMask(rows, 50);
         assertThat(shortFieldMask, equalTo(stringToNumberPosBitSet(" 1 ")));
-        shortFieldMask = DelimitedFileStructureFinder.makeShortFieldMask(rows, 20);
+        shortFieldMask = DelimitedTextStructureFinder.makeShortFieldMask(rows, 20);
         assertThat(shortFieldMask, equalTo(stringToNumberPosBitSet("   ")));
     }
 
@@ -883,44 +883,44 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
 
     public void testLineHasUnescapedQuote() {
 
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a,b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a,b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a,b,c\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a,\"b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a,b,\"c\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a,\"b\"\"\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a,b,\"c\"\"\"", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"\"\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a\"\"\",b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a,\"\"b\",c", CsvPreference.EXCEL_PREFERENCE));
-        assertTrue(DelimitedFileStructureFinder.lineHasUnescapedQuote("between\"words,b,c", CsvPreference.EXCEL_PREFERENCE));
-        assertTrue(DelimitedFileStructureFinder.lineHasUnescapedQuote("x and \"y\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a,b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a,b,c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a,\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a,b,\"c\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a,\"b\"\"\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a,b,\"c\"\"\"", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"\"\"a\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a\"\"\",b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a,\"\"b\",c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(DelimitedTextStructureFinder.lineHasUnescapedQuote("between\"words,b,c", CsvPreference.EXCEL_PREFERENCE));
+        assertTrue(DelimitedTextStructureFinder.lineHasUnescapedQuote("x and \"y\",b,c", CsvPreference.EXCEL_PREFERENCE));
 
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a\tb\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a\tb\tc\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a\t\"b\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a\t\"b\"\"\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"\"\"", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"\"\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a\"\"\"\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertFalse(DelimitedFileStructureFinder.lineHasUnescapedQuote("\"a\t\"\"b\"\tc", CsvPreference.TAB_PREFERENCE));
-        assertTrue(DelimitedFileStructureFinder.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
-        assertTrue(DelimitedFileStructureFinder.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a\tb\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a\tb\tc\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a\t\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a\t\"b\"\"\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("a\tb\t\"c\"\"\"", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"\"\"a\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a\"\"\"\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertFalse(DelimitedTextStructureFinder.lineHasUnescapedQuote("\"a\t\"\"b\"\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(DelimitedTextStructureFinder.lineHasUnescapedQuote("between\"words\tb\tc", CsvPreference.TAB_PREFERENCE));
+        assertTrue(DelimitedTextStructureFinder.lineHasUnescapedQuote("x and \"y\"\tb\tc", CsvPreference.TAB_PREFERENCE));
     }
 
     public void testRowContainsDuplicateNonEmptyValues() {
 
-        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Collections.singletonList("a")));
-        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Collections.singletonList("")));
-        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "c")));
-        assertEquals("a", DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "a")));
-        assertEquals("b", DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
-        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
-        assertNull(DelimitedFileStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
+        assertNull(DelimitedTextStructureFinder.findDuplicateNonEmptyValues(Collections.singletonList("a")));
+        assertNull(DelimitedTextStructureFinder.findDuplicateNonEmptyValues(Collections.singletonList("")));
+        assertNull(DelimitedTextStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "c")));
+        assertEquals("a", DelimitedTextStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "a")));
+        assertEquals("b", DelimitedTextStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "b", "b")));
+        assertNull(DelimitedTextStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("a", "", "")));
+        assertNull(DelimitedTextStructureFinder.findDuplicateNonEmptyValues(Arrays.asList("", "a", "")));
     }
 
     public void testMakeCsvProcessorSettings() {
@@ -930,7 +930,7 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         char separator = randomFrom(',', ';', '\t', '|');
         char quote = randomFrom('"', '\'');
         boolean trim = randomBoolean();
-        Map<String, Object> settings = DelimitedFileStructureFinder.makeCsvProcessorSettings(field, targetFields, separator, quote, trim);
+        Map<String, Object> settings = DelimitedTextStructureFinder.makeCsvProcessorSettings(field, targetFields, separator, quote, trim);
         assertThat(settings.get("field"), equalTo(field));
         assertThat(settings.get("target_fields"), equalTo(targetFields));
         assertThat(settings.get("ignore_missing"), equalTo(false));
@@ -967,12 +967,12 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         Map<String, Object> mappings = new TreeMap<>();
         for (String columnName : columnNames) {
             if (columnName.equals(timeFieldName)) {
-                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "date"));
             } else {
                 mappings.put(
                     columnName,
                     Collections.singletonMap(
-                        FileStructureUtils.MAPPING_TYPE_SETTING,
+                        TextStructureUtils.MAPPING_TYPE_SETTING,
                         randomFrom("boolean", "long", "double", "text", "keyword")
                     )
                 );
@@ -980,7 +980,7 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         }
 
         assertNull(
-            DelimitedFileStructureFinder.makeMultilineStartPattern(
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
                 explanation,
                 columnNames,
                 1,
@@ -1004,9 +1004,9 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         Map<String, Object> mappings = new TreeMap<>();
         for (String columnName : columnNames) {
             if (columnName.equals(timeFieldName)) {
-                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "date"));
             } else {
-                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
             }
         }
 
@@ -1015,7 +1015,7 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             + "\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}";
         assertEquals(
             expected,
-            DelimitedFileStructureFinder.makeMultilineStartPattern(
+            DelimitedTextStructureFinder.makeMultilineStartPattern(
                 explanation,
                 columnNames,
                 2,
@@ -1043,9 +1043,9 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         Map<String, Object> mappings = new TreeMap<>();
         for (String columnName : columnNames) {
             if (columnName.equals(chosenField)) {
-                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, type));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, type));
             } else {
-                mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+                mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
             }
         }
 
@@ -1058,7 +1058,7 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
             + "\"),";
         assertEquals(
             expected,
-            DelimitedFileStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null)
+            DelimitedTextStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null)
         );
         assertThat(explanation, contains("Created a multi-line start pattern based on [" + type + "] column [" + chosenField + "]"));
     }
@@ -1068,16 +1068,16 @@ public class DelimitedTextStructureFinderTests extends TextStructureTestCase {
         List<String> columnNames = Stream.generate(() -> randomAlphaOfLengthBetween(5, 10)).limit(10).collect(Collectors.toList());
         Map<String, Object> mappings = new TreeMap<>();
         for (String columnName : columnNames) {
-            mappings.put(columnName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
+            mappings.put(columnName, Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, randomFrom("text", "keyword")));
         }
 
-        assertNull(DelimitedFileStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null));
+        assertNull(DelimitedTextStructureFinder.makeMultilineStartPattern(explanation, columnNames, 2, ",", "\"", mappings, null, null));
         assertThat(explanation, contains("Failed to create a suitable multi-line start pattern"));
     }
 
     static Map<String, Object> randomCsvProcessorSettings() {
         String field = randomAlphaOfLength(10);
-        return DelimitedFileStructureFinder.makeCsvProcessorSettings(
+        return DelimitedTextStructureFinder.makeCsvProcessorSettings(
             field,
             Arrays.asList(generateRandomStringArray(10, field.length() - 1, false, false)),
             randomFrom(',', ';', '\t', '|'),

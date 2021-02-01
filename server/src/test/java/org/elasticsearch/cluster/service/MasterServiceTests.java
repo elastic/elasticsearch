@@ -452,7 +452,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             public void execute() {
-                if (!state.compareAndSet(false, true)) {
+                if (state.compareAndSet(false, true) == false) {
                     throw new IllegalStateException();
                 } else {
                     counter.incrementAndGet();

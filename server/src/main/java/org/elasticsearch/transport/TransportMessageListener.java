@@ -61,7 +61,7 @@ public interface TransportMessageListener {
 
     /**
      * Called for every response received
-     * @param requestId the request id for this reponse
+     * @param requestId the request id for this response
      * @param context the response context or null if the context was already processed ie. due to a timeout.
      */
     @SuppressWarnings("rawtypes")

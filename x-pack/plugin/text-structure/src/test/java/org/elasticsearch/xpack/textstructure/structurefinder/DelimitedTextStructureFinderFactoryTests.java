@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 public class DelimitedTextStructureFinderFactoryTests extends TextStructureTestCase {
 
-    private FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', '"', 2, false);
-    private FileStructureFinderFactory tsvFactory = new DelimitedFileStructureFinderFactory('\t', '"', 2, false);
-    private FileStructureFinderFactory semiColonDelimitedfactory = new DelimitedFileStructureFinderFactory(';', '"', 4, false);
-    private FileStructureFinderFactory pipeDelimitedFactory = new DelimitedFileStructureFinderFactory('|', '"', 5, true);
+    private final TextStructureFinderFactory csvFactory = new DelimitedTextStructureFinderFactory(',', '"', 2, false);
+    private final TextStructureFinderFactory tsvFactory = new DelimitedTextStructureFinderFactory('\t', '"', 2, false);
+    private final TextStructureFinderFactory semiColonDelimitedfactory = new DelimitedTextStructureFinderFactory(';', '"', 4, false);
+    private final TextStructureFinderFactory pipeDelimitedFactory = new DelimitedTextStructureFinderFactory('|', '"', 5, true);
 
     // CSV - no need to check NDJSON or XML because they come earlier in the order we check formats
 

@@ -49,6 +49,8 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
             assertEquals("index1", indices[0]);
         }
 
+        // the "*,-*" pattern is specially handled because it makes a destructive action non-destructive
+        assertAcked(client().admin().indices().prepareDelete("*", "-*"));
         assertAcked(client().admin().indices().prepareDelete("index1"));
     }
 
@@ -113,6 +115,10 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
                     () -> client().admin().indices().prepareOpen("_all").get());
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
+
+        // the "*,-*" pattern is specially handled because it makes a destructive action non-destructive
+        assertAcked(client().admin().indices().prepareClose("*", "-*"));
+        assertAcked(client().admin().indices().prepareOpen("*", "-*"));
 
         createIndex("index1");
         assertAcked(client().admin().indices().prepareClose("index1"));

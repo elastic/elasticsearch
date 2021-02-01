@@ -80,22 +80,22 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     @Override
     public void testFromXContent() throws IOException {
         super.testFromXContent();
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 
     @Override
     public void testUnknownField() throws IOException {
         super.testUnknownField();
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 
     @Override
     public void testValidOutput() throws IOException {
         super.testValidOutput();
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 
     public void testIllegalValues() {
@@ -345,8 +345,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
         assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 
     public void testIgnoreUnmapped() throws IOException {
@@ -394,7 +394,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
-            "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
+        assertWarnings(true,
+            "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
     }
 }

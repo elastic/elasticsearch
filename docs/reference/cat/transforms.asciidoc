@@ -57,6 +57,7 @@ specified columns.
 Valid columns are:
 
 `changes_last_detection_time`, `cldt`:::
+(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
 
 `checkpoint`, `cp`:::
@@ -86,6 +87,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 
 `documents_processed`, `docp`:::
+(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-processed]
 
 `frequency`, `f`:::
@@ -108,6 +110,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-total]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
 
 `last_search_time`, `lst`, `lastSearchTime`:::
+(Default)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-last-search-time]
 
 `max_page_search_size`, `mpsz`:::

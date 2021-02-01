@@ -1362,7 +1362,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(SLICE.getPreferredName(), sliceBuilder);
         }
 
-        if (!indexBoosts.isEmpty()) {
+        if (indexBoosts.isEmpty() == false) {
             builder.startArray(INDICES_BOOST_FIELD.getPreferredName());
             for (IndexBoost ib : indexBoosts) {
                 builder.startObject();

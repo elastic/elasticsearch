@@ -15,7 +15,7 @@
         <property name="tokens" value="EXPR"/>
         <property name="limitedTokens" value="LNOT"/>
         <property name="maximumNumber" value="0"/>
-        <property name="maximumDepth" value="1"/>
+        <property name="maximumDepth" value="2"/>
         <message
             key="descendant.token.max"
             value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
@@ -25,7 +25,7 @@
         <property name="severity" value="warning" />
         <!-- Exclude short methods from this check - we don't want to have to document getters -->
         <property name="minLineCount" value="2" />
-        <property name="allowedAnnotations" value="Override,Before,BeforeClass,After,AfterClass" />
+        <property name="allowedAnnotations" value="Override,Before,BeforeClass,After,AfterClass,Inject" />
         <message key="javadoc.missing" value="Public methods should be documented" />
     </module>
 

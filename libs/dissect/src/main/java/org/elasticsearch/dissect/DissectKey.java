@@ -174,13 +174,13 @@ public final class DissectKey {
 
         private static Modifier findModifier(String key) {
             Modifier modifier = Modifier.NONE;
-            if (key != null && !key.isEmpty()) {
+            if (key != null && key.isEmpty() == false) {
                 Matcher matcher = MODIFIER_PATTERN.matcher(key);
                 int matches = 0;
                 while (matcher.find()) {
                     Modifier priorModifier = modifier;
                     modifier = Modifier.fromString(matcher.group());
-                    if (++matches > 1 && !(APPEND.equals(priorModifier) && APPEND_WITH_ORDER.equals(modifier))) {
+                    if (++matches > 1 && (APPEND.equals(priorModifier) && APPEND_WITH_ORDER.equals(modifier)) == false) {
                         throw new DissectException.KeyParse(key, "multiple modifiers are not allowed.");
                     }
                 }

@@ -218,7 +218,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
-                            if (!allowExplicitIndex) {
+                            if (allowExplicitIndex == false) {
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
                             searchRequest.indices(nodeStringArrayValue(value));

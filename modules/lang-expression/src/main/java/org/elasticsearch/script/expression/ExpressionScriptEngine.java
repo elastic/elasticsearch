@@ -445,7 +445,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                     dateAccessor = true;
                 }
             }
-            if (!dateAccessor) {
+            if (dateAccessor == false) {
                 throw new IllegalArgumentException(
                     "Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()"
                 );
@@ -453,13 +453,13 @@ public class ExpressionScriptEngine implements ScriptEngine {
         }
 
         String fieldname = parts[1].text;
-        MappedFieldType fieldType = lookup.doc().fieldType(fieldname);
+        MappedFieldType fieldType = lookup.fieldType(fieldname);
 
         if (fieldType == null) {
             throw new ParseException("Field [" + fieldname + "] does not exist in mappings", 5);
         }
 
-        IndexFieldData<?> fieldData = lookup.doc().getForField(fieldType);
+        IndexFieldData<?> fieldData = lookup.getForField(fieldType);
         final DoubleValuesSource valueSource;
         if (fieldType instanceof GeoPointFieldType) {
             // geo

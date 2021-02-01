@@ -134,6 +134,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version REPOSITORY_UUID_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
+    // TODO: fold this into #REPOSITORY_UUID_IN_REPO_DATA_VERSION and remove separate handling of uuid and clusterUUID BwC where possible
+    public static final Version CLUSTER_UUID_IN_REPO_DATA_VERSION = Version.V_8_0_0;
+
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
@@ -675,15 +678,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         } else {
             builder = Metadata.builder(metadata);
         }
-        // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation
-        Map<String, DataStream> dataStreams = new HashMap<>();
+        // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation and that have
+        // all their indices contained in the snapshot
+        final Map<String, DataStream> dataStreams = new HashMap<>();
+        final Set<String> indicesInSnapshot = snapshot.indices().stream().map(IndexId::getName).collect(Collectors.toSet());
         for (String dataStreamName : snapshot.dataStreams()) {
             DataStream dataStream = metadata.dataStreams().get(dataStreamName);
             if (dataStream == null) {
                 assert snapshot.partial() : "Data stream [" + dataStreamName +
                         "] was deleted during a snapshot but snapshot was not partial.";
             } else {
-                dataStreams.put(dataStreamName, dataStream);
+                boolean missingIndex = false;
+                for (Index index : dataStream.getIndices()) {
+                    final String indexName = index.getName();
+                    if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
+                        assert snapshot.partial() : "Data stream [" + dataStreamName +
+                                "] is missing index [" + index + "] but snapshot was not partial.";
+                        missingIndex = true;
+                        break;
+                    }
+                }
+                if (missingIndex == false) {
+                    dataStreams.put(dataStreamName, dataStream);
+                }
             }
         }
         return builder.dataStreams(dataStreams).build();
@@ -1155,12 +1172,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
             final String repository = snapshot.getRepository();
-            final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
-                shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
-                entry.dataStreams(),
-                entry.startTime(), failure, threadPool.absoluteTimeInMillis(),
-                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
-                entry.includeGlobalState(), entry.userMetadata());
             final StepListener<Metadata> metadataListener = new StepListener<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {
@@ -1187,18 +1198,30 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 metadataListener.onResponse(metadata);
             }
-            metadataListener.whenComplete(meta -> repo.finalizeSnapshot(
-                    shardGenerations,
-                    repositoryData.getGenId(),
-                    metadataForSnapshot(entry, meta),
-                    snapshotInfo,
-                    entry.version(),
-                    state -> stateWithoutSnapshot(state, snapshot),
-                    ActionListener.wrap(newRepoData -> {
-                        completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
-                        logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
-                        runNextQueuedOperation(newRepoData, repository, true);
-                    }, e -> handleFinalizationFailure(e, entry, repositoryData))),
+            metadataListener.whenComplete(meta -> {
+                        final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
+                        final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
+                                shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                                entry.partial() ? entry.dataStreams().stream()
+                                        .filter(metaForSnapshot.dataStreams()::containsKey)
+                                        .collect(Collectors.toList()) : entry.dataStreams(),
+                                entry.startTime(), failure, threadPool.absoluteTimeInMillis(),
+                                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
+                                entry.includeGlobalState(), entry.userMetadata());
+                        repo.finalizeSnapshot(
+                                shardGenerations,
+                                repositoryData.getGenId(),
+                                metaForSnapshot,
+                                snapshotInfo,
+                                entry.version(),
+                                state -> stateWithoutSnapshot(state, snapshot),
+                                ActionListener.wrap(newRepoData -> {
+                                    completeListenersIgnoringException(
+                                            endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
+                                    logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                                    runNextQueuedOperation(newRepoData, repository, true);
+                                }, e -> handleFinalizationFailure(e, entry, repositoryData)));
+                    },
                     e -> handleFinalizationFailure(e, entry, repositoryData));
         } catch (Exception e) {
             assert false : new AssertionError(e);
@@ -1738,13 +1761,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
+     * Checks whether the metadata version supports writing a repository uuid to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports writing repository uuid to the repository
+     */
+    public static boolean includesRepositoryUuid(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(REPOSITORY_UUID_IN_REPO_DATA_VERSION);
+    }
+
+    /**
+     * Checks whether the metadata version supports writing the cluster uuid to the repository.
      *
      * @param repositoryMetaVersion version to check
      * @return true if version supports {@link ShardGenerations}
      */
-    public static boolean includesRepositoryUuid(Version repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(REPOSITORY_UUID_IN_REPO_DATA_VERSION);
+    public static boolean includesClusterUUID(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(CLUSTER_UUID_IN_REPO_DATA_VERSION);
     }
 
     /** Deletes snapshot from repository
@@ -2189,7 +2222,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     } else if (primary.relocating() || primary.initializing()) {
                         shardSnapshotStatus = new ShardSnapshotStatus(
                             primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
-                    } else if (!primary.started()) {
+                    } else if (primary.started() == false) {
                         shardSnapshotStatus =
                             new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
                                 "primary shard hasn't been started yet", shardRepoGeneration);

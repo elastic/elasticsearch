@@ -1,5 +1,8 @@
 [[search-profile]]
 === Profile API
+++++
+<titleabbrev>Profile</titleabbrev>
+++++
 
 WARNING: The Profile API is a debugging tool and adds significant overhead to search execution.
 

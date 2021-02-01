@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -38,13 +39,14 @@ import static java.util.Collections.singletonMap;
 public class LeafStoredFieldsLookup implements Map<Object, Object> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final LeafReader reader;
+    private final CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader;
 
     private int docId = -1;
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, LeafReader reader) {
+    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup,
+                           CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.reader = reader;
     }
@@ -136,7 +138,7 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
             List<Object> values = new ArrayList<>(2);
             SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
             try {
-                reader.document(docId, visitor);
+                reader.accept(docId, visitor);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }

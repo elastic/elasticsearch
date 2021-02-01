@@ -56,7 +56,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         matchers.put("symbol", CharMatcher.Basic.SYMBOL);
         // Populate with unicode categories from java.lang.Character
         for (Field field : Character.class.getFields()) {
-            if (!field.getName().startsWith("DIRECTIONALITY")
+            if (field.getName().startsWith("DIRECTIONALITY") == false
                     && Modifier.isPublic(field.getModifiers())
                     && Modifier.isStatic(field.getModifiers())
                     && field.getType() == byte.class) {

@@ -257,6 +257,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             return currentNodes;
         }
 
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
+            return roles;
+        }
+
         private boolean calculateCurrentCapacityAccurate() {
             return currentNodes.stream().allMatch(this::nodeHasAccurateCapacity);
         }

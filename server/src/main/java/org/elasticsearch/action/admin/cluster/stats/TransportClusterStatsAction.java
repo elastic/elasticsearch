@@ -117,6 +117,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                 }
             }
         }
+        VersionStats versionStats = VersionStats.of(metadata, responses);
         return new ClusterStatsResponse(
             System.currentTimeMillis(),
             state.metadata().clusterUUID(),
@@ -124,7 +125,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
             responses,
             failures,
             currentMappingStats,
-            currentAnalysisStats);
+            currentAnalysisStats,
+            versionStats);
     }
 
     @Override

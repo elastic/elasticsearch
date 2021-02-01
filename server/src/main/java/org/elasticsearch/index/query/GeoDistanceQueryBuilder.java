@@ -236,7 +236,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             }
         }
 
-        if (!(fieldType instanceof GeoShapeQueryable)) {
+        if ((fieldType instanceof GeoShapeQueryable) == false) {
             throw new QueryShardException(context,
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }

@@ -345,7 +345,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
         command = threadContext.preserveContext(command);
-        if (!Names.SAME.equals(executor)) {
+        if (Names.SAME.equals(executor) == false) {
             command = new ThreadedRunnable(command, executor(executor));
         }
         return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));

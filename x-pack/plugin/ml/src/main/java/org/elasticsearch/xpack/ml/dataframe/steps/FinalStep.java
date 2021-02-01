@@ -60,7 +60,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     protected void doExecute(ActionListener<StepResponse> listener) {
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
-            refreshResponse -> listener.onResponse(new StepResponse(true)),
+            refreshResponse -> listener.onResponse(new StepResponse(false)),
             listener::onFailure
         );
 
@@ -73,7 +73,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     }
 
     private void indexDataCounts(ActionListener<IndexResponse> listener) {
-        DataCounts dataCounts = task.getStatsHolder().getDataCountsTracker().report(config.getId());
+        DataCounts dataCounts = task.getStatsHolder().getDataCountsTracker().report();
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             dataCounts.toXContent(builder, new ToXContent.MapParams(
                 Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
@@ -110,5 +110,10 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     public void updateProgress(ActionListener<Void> listener) {
         // No progress to update
         listener.onResponse(null);
+    }
+
+    @Override
+    protected boolean shouldSkipIfTaskIsStopping() {
+        return false;
     }
 }

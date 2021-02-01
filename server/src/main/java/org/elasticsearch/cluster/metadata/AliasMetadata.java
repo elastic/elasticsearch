@@ -274,7 +274,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         public Builder filter(String filter) {
-            if (!Strings.hasLength(filter)) {
+            if (Strings.hasLength(filter) == false) {
                 this.filter = null;
                 return this;
             }

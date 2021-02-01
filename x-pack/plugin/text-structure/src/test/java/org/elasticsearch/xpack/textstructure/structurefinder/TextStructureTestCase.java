@@ -23,7 +23,7 @@ public abstract class TextStructureTestCase extends ESTestCase {
         Charset.availableCharsets()
             .keySet()
             .stream()
-            .filter(name -> FileStructureFinderManager.FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT)))
+            .filter(name -> TextStructureFinderManager.FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT)))
             .collect(Collectors.toList())
     );
 

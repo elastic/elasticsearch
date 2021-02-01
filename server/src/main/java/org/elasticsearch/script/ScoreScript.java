@@ -79,7 +79,7 @@ public abstract class ScoreScript {
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
-            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+            "_source", value -> ((SourceLookup)value).source()
     );
 
     public static final String[] PARAMETERS = new String[]{ "explanation" };

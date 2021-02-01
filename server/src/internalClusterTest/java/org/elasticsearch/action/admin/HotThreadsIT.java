@@ -97,7 +97,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                         }
                         success = true;
                     } finally {
-                        if (!success) {
+                        if (success == false) {
                             hasErrors.set(true);
                         }
                         latch.countDown();

@@ -461,7 +461,7 @@ public class BigArrays {
             adjustBreaker(array.ramBytesUsed(), true);
             success = true;
         } finally {
-            if (!success) {
+            if (success == false) {
                 Releasables.closeWhileHandlingException(array);
             }
         }

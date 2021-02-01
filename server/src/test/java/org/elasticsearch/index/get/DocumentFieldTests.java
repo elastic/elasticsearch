@@ -89,7 +89,7 @@ public class DocumentFieldTests extends ESTestCase {
         mutations.add(() -> new DocumentField(documentField.getName(), randomDocumentField(XContentType.JSON).v1().getValues()));
         final int index = randomFrom(0, 1);
         final DocumentField randomCandidate = mutations.get(index).get();
-        if (!documentField.equals(randomCandidate)) {
+        if (documentField.equals(randomCandidate) == false) {
             return randomCandidate;
         } else {
             // we are unlucky and our random mutation is equal to our mutation, try the other candidate

@@ -1214,7 +1214,16 @@ The API returns the following response:
         "built_in_tokenizers": [],
         "built_in_filters": [],
         "built_in_analyzers": []
-      }
+      },
+      "versions": [
+        {
+          "version": "8.0.0",
+          "index_count": 1,
+          "primary_shard_count": 1,
+          "total_primary_size": "7.4kb",
+          "total_primary_bytes": 7632
+        }
+      ]
    },
    "nodes": {
       "count": {

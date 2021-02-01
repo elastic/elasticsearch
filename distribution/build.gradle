@@ -530,8 +530,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  *  <dt>path.env</dt>
  *  <dd>The env file sourced before bin/elasticsearch to set environment
  *    variables. Think /etc/defaults/elasticsearch.</dd>
- *  <dt>heap.min and heap.max</dt>
- *  <dd>Default min and max heap</dd>
  *  <dt>scripts.footer</dt>
  *  <dd>Footer appended to control scripts embedded in the distribution that is
  *    (almost) entirely there for cosmetic reasons.</dd>
@@ -543,7 +541,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
  */
 subprojects {
   ext.expansionsForDistribution = { distributionType, oss, jdk ->
-    final String defaultHeapSize = "1g"
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
@@ -596,9 +593,6 @@ subprojects {
         'rpm': packagingLoggc,
         'def': 'logs/gc.log'
       ],
-
-      'heap.min': defaultHeapSize,
-      'heap.max': defaultHeapSize,
 
       'heap.dump.path': [
         'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -85,12 +86,18 @@ public final class RepositoryData {
             Collections.emptyMap(),
             Collections.emptyMap(),
             ShardGenerations.EMPTY,
-            IndexMetaDataGenerations.EMPTY);
+            IndexMetaDataGenerations.EMPTY,
+            MISSING_UUID);
 
     /**
      * A UUID that identifies this repository.
      */
     private final String uuid;
+
+    /**
+     * Cluster UUID as returned by {@link Metadata#clusterUUID()} of the cluster that wrote this instance to the repository.
+     */
+    private final String clusterUUID;
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -133,7 +140,8 @@ public final class RepositoryData {
             Map<String, Version> snapshotVersions,
             Map<IndexId, List<SnapshotId>> indexSnapshots,
             ShardGenerations shardGenerations,
-            IndexMetaDataGenerations indexMetaDataGenerations) {
+            IndexMetaDataGenerations indexMetaDataGenerations,
+            String clusterUUID) {
         this(
                 uuid,
                 genId,
@@ -143,7 +151,8 @@ public final class RepositoryData {
                 indexSnapshots.keySet().stream().collect(Collectors.toUnmodifiableMap(IndexId::getName, Function.identity())),
                 Collections.unmodifiableMap(indexSnapshots),
                 shardGenerations,
-                indexMetaDataGenerations);
+                indexMetaDataGenerations,
+                clusterUUID);
     }
 
     private RepositoryData(
@@ -155,7 +164,8 @@ public final class RepositoryData {
             Map<String, IndexId> indices,
             Map<IndexId, List<SnapshotId>> indexSnapshots,
             ShardGenerations shardGenerations,
-            IndexMetaDataGenerations indexMetaDataGenerations) {
+            IndexMetaDataGenerations indexMetaDataGenerations,
+            String clusterUUID) {
         this.uuid = Objects.requireNonNull(uuid);
         this.genId = genId;
         this.snapshotIds = snapshotIds;
@@ -165,6 +175,7 @@ public final class RepositoryData {
         this.shardGenerations = shardGenerations;
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.snapshotVersions = snapshotVersions;
+        this.clusterUUID = clusterUUID;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
                 + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
         assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size()) :
@@ -181,7 +192,8 @@ public final class RepositoryData {
                 indices,
                 indexSnapshots,
                 shardGenerations,
-                indexMetaDataGenerations);
+                indexMetaDataGenerations,
+                clusterUUID);
     }
 
     /**
@@ -204,7 +216,8 @@ public final class RepositoryData {
                 indices,
                 indexSnapshots,
                 shardGenerations,
-                indexMetaDataGenerations);
+                indexMetaDataGenerations,
+                clusterUUID);
     }
 
     public ShardGenerations shardGenerations() {
@@ -217,6 +230,14 @@ public final class RepositoryData {
      */
     public String getUuid() {
         return uuid;
+    }
+
+    /**
+     * @return the cluster UUID of the cluster that wrote this instance to the repository or {@link RepositoryData#MISSING_UUID} if this
+     * instance was written by a cluster older than {@link SnapshotsService#CLUSTER_UUID_IN_REPO_DATA_VERSION}.
+     */
+    public String getClusterUUID() {
+        return clusterUUID;
     }
 
     /**
@@ -366,7 +387,8 @@ public final class RepositoryData {
                 newSnapshotVersions,
                 allIndexSnapshots,
                 ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build(),
-                newIndexMetaGenerations);
+                newIndexMetaGenerations,
+                clusterUUID);
     }
 
     /**
@@ -388,7 +410,8 @@ public final class RepositoryData {
                 indices,
                 indexSnapshots,
                 shardGenerations,
-                indexMetaDataGenerations);
+                indexMetaDataGenerations,
+                clusterUUID);
     }
 
     /**
@@ -406,13 +429,14 @@ public final class RepositoryData {
                 indices,
                 indexSnapshots,
                 shardGenerations,
-                indexMetaDataGenerations);
+                indexMetaDataGenerations,
+                clusterUUID);
     }
 
     /**
      * For test purposes, make a copy of this instance with the UUID removed and all other fields unchanged, as if from an older version.
      */
-    public RepositoryData withoutUuid() {
+    public RepositoryData withoutRepositoryUUID() {
         return new RepositoryData(
                 MISSING_UUID,
                 genId,
@@ -422,7 +446,59 @@ public final class RepositoryData {
                 indices,
                 indexSnapshots,
                 shardGenerations,
-                indexMetaDataGenerations);
+                indexMetaDataGenerations,
+                clusterUUID);
+    }
+
+    /**
+     * For test purposes, make a copy of this instance with the cluster UUID removed and all other fields unchanged, as if from an older
+     * version.
+     */
+    public RepositoryData withoutClusterUUID() {
+        return new RepositoryData(
+                uuid,
+                genId,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations,
+                MISSING_UUID);
+    }
+
+    public RepositoryData withClusterUuid(String clusterUUID) {
+        assert clusterUUID.equals(MISSING_UUID) == false;
+        return new RepositoryData(
+                uuid,
+                genId,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations,
+                clusterUUID);
+    }
+
+    /**
+     * For test purposes, make a copy of this instance with the cluster UUID removed and all other fields unchanged,
+     * as if from an older version.
+     */
+    public RepositoryData withoutClusterUuid() {
+        return new RepositoryData(
+                uuid,
+                genId,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations,
+                MISSING_UUID);
     }
 
     /**
@@ -471,7 +547,8 @@ public final class RepositoryData {
                 indexSnapshots,
                 ShardGenerations.builder().putAll(shardGenerations).putAll(updatedShardGenerations)
                         .retainIndicesAndPruneDeletes(indexSnapshots.keySet()).build(),
-                indexMetaDataGenerations.withRemovedSnapshots(snapshots)
+                indexMetaDataGenerations.withRemovedSnapshots(snapshots),
+                clusterUUID
         );
     }
 
@@ -559,6 +636,7 @@ public final class RepositoryData {
     private static final String INDEX_ID = "id";
     private static final String NAME = "name";
     private static final String UUID = "uuid";
+    private static final String CLUSTER_UUID = "cluster_id";
     private static final String STATE = "state";
     private static final String VERSION = "version";
     private static final String MIN_VERSION = "min_version";
@@ -572,18 +650,20 @@ public final class RepositoryData {
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
-     * @param permitMissingUuid indicates whether we permit the repository UUID to be missing, e.g. we are serializing for the in-memory
-     *                          cache or running tests
+     * @param permitMissingUuid indicates whether we permit the repository- and cluster UUIDs to be missing,
+     *                          e.g. we are serializing for the in-memory cache or running tests
      */
     public XContentBuilder snapshotsToXContent(
             final XContentBuilder builder,
             final Version repoMetaVersion,
             boolean permitMissingUuid) throws IOException {
 
+        final boolean shouldWriteClusterId = SnapshotsService.includesClusterUUID(repoMetaVersion);
         final boolean shouldWriteRepoUuid = SnapshotsService.includesRepositoryUuid(repoMetaVersion);
         final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
         final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
 
+        assert Boolean.compare(shouldWriteClusterId, shouldWriteRepoUuid) <= 0;
         assert Boolean.compare(shouldWriteRepoUuid, shouldWriteIndexGens) <= 0;
         assert Boolean.compare(shouldWriteIndexGens, shouldWriteShardGens) <= 0;
 
@@ -592,7 +672,9 @@ public final class RepositoryData {
         if (shouldWriteShardGens) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
             final Version minVersion;
-            if (shouldWriteRepoUuid) {
+            if (shouldWriteClusterId) {
+                minVersion = SnapshotsService.CLUSTER_UUID_IN_REPO_DATA_VERSION;
+            } else if (shouldWriteRepoUuid) {
                 minVersion = SnapshotsService.REPOSITORY_UUID_IN_REPO_DATA_VERSION;
             } else if (shouldWriteIndexGens) {
                 minVersion = SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
@@ -610,6 +692,16 @@ public final class RepositoryData {
             }
         } else {
             assert uuid.equals(MISSING_UUID) : "lost uuid " + uuid;
+        }
+
+        if (shouldWriteClusterId) {
+            if (clusterUUID.equals(MISSING_UUID)) {
+                assert permitMissingUuid : "missing clusterUUID";
+            } else {
+                builder.field(CLUSTER_UUID, clusterUUID);
+            }
+        } else {
+            assert clusterUUID.equals(MISSING_UUID) : "lost clusterUUID " + clusterUUID;
         }
 
         // write the snapshots list
@@ -695,6 +787,7 @@ public final class RepositoryData {
         final Map<SnapshotId, Map<String, String>> indexMetaLookup = new HashMap<>();
         Map<String, String> indexMetaIdentifiers = null;
         String uuid = MISSING_UUID;
+        String clusterUUID = MISSING_UUID;
         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             final String field = parser.currentName();
             switch (field) {
@@ -722,6 +815,11 @@ public final class RepositoryData {
                     uuid = parser.text();
                     assert uuid.equals(MISSING_UUID) == false;
                     break;
+                case CLUSTER_UUID:
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
+                    clusterUUID = parser.text();
+                    assert clusterUUID.equals(MISSING_UUID) == false;
+                    break;
                 default:
                     XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
             }
@@ -738,7 +836,8 @@ public final class RepositoryData {
                 snapshotVersions,
                 indexSnapshots,
                 shardGenerations.build(),
-                buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers));
+                buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers),
+                clusterUUID);
     }
 
     /**

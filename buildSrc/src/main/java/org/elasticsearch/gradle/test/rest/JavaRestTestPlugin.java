@@ -53,9 +53,6 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        // disable transitive dependency management
-        GradleUtils.disableTransitiveDependenciesForSourceSet(project, javaTestSourceSet);
-
         // create the test cluster container
         createTestCluster(project, javaTestSourceSet);
 

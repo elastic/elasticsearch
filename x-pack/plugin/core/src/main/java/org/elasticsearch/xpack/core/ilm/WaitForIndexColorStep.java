@@ -75,13 +75,22 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        String indexName = indexNamePrefix != null ? indexNamePrefix + index.getName() : index.getName();
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
-
-        if (indexMetadata == null) {
+        // check if the original (managed) index still exists
+        if (clusterState.metadata().index(index) == null) {
             String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(), indexName);
+                getKey().getAction(), index.getName());
             // Index must have been since deleted
+            logger.debug(errorMessage);
+            return new Result(false, new Info(errorMessage));
+        }
+
+        String indexName = indexNamePrefix != null ? indexNamePrefix + index.getName() : index.getName();
+        IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        // check if the (potentially) derived index exists
+        if (indexMetadata == null) {
+            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but the target index [%s] " +
+                    "no longer exists",
+                getKey().getAction(), index.getName(), indexName);
             logger.debug(errorMessage);
             return new Result(false, new Info(errorMessage));
         }

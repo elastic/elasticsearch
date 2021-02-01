@@ -1279,7 +1279,7 @@ public final class OptimizerRules {
                     .create(bcl.source(), bcl, opRight);
                 bcRightExpression = tryFolding(bcRightExpression);
                 return bcRightExpression != null
-                    ? postProcess((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
+                    ? postProcess((BinaryComparison) comparison.replaceChildren(asList(opLeft, bcRightExpression)))
                     : comparison;
             }
 

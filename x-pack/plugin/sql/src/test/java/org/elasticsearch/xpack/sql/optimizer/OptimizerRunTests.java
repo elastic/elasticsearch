@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.GTE;
@@ -55,17 +56,18 @@ public class OptimizerRunTests extends ESTestCase {
     private final FunctionRegistry functionRegistry;
     private final Analyzer analyzer;
     private final Optimizer optimizer;
-    private static final Map<String, Class<? extends BinaryComparison>> COMPARISONS = new HashMap<>() {
-        {
-            put(EQ.symbol(), Equals.class);
-            put(NULLEQ.symbol(), NullEquals.class);
-            put(NEQ.symbol(), NotEquals.class);
-            put(GT.symbol(), GreaterThan.class);
-            put(GTE.symbol(), GreaterThanOrEqual.class);
-            put(LT.symbol(), LessThan.class);
-            put(LTE.symbol(), LessThanOrEqual.class);
-        }
-    };
+    private static final Map<String, Class<? extends BinaryComparison>> COMPARISONS =
+	    new HashMap<String, Class<? extends BinaryComparison>>() {
+                {
+                    put(EQ.symbol(), Equals.class);
+                    put(NULLEQ.symbol(), NullEquals.class);
+                    put(NEQ.symbol(), NotEquals.class);
+                    put(GT.symbol(), GreaterThan.class);
+                    put(GTE.symbol(), GreaterThanOrEqual.class);
+                    put(LT.symbol(), LessThan.class);
+                    put(LTE.symbol(), LessThanOrEqual.class);
+                }
+            };
     private static final BooleanLiteralsOnTheRight LITERALS_ON_THE_RIGHT = new BooleanLiteralsOnTheRight();
 
     public OptimizerRunTests() {
@@ -185,8 +187,8 @@ public class OptimizerRunTests extends ESTestCase {
     }
 
     public void testSimplifyComparisonArithmeticSkippedOnFloats() {
-        for (String field : List.of("int", "float")) {
-            for (Tuple<? extends Number, ? extends Number> nr : List.of(new Tuple<>(.4, 1), new Tuple<>(1, .4))) {
+        for (String field : asList("int", "float")) {
+            for (Tuple<? extends Number, ? extends Number> nr : asList(new Tuple<>(.4, 1), new Tuple<>(1, .4))) {
                 assertNotSimplified(field + " + " + nr.v1() + " " + randomBinaryComparison() + " " + nr.v2());
                 assertNotSimplified(field + " - " + nr.v1() + " " + randomBinaryComparison() + " " + nr.v2());
                 assertNotSimplified(nr.v1()+ " + " + field  + " " + randomBinaryComparison() + " " + nr.v2());

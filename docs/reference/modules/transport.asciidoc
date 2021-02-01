@@ -10,8 +10,8 @@ settings>> to configure both interfaces together.
 (<<static-cluster-setting,Static>>)
 The port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port
-in the range. Configure this setting to use a single port only on
-every master-eligible node.
+in the range. Set this setting to a single port, not a range, on every
+master-eligible node.
 +
 Defaults to `9300-9400`.
 

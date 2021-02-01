@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      version: "all"
+      reason:  "Until backport of https://github.com/elastic/elasticsearch/pull/68099"
 
   - do:
       index:

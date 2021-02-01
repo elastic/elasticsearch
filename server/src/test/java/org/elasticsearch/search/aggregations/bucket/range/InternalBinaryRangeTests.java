@@ -86,7 +86,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedBinaryRange> implementationClass() {
         return ParsedBinaryRange.class;
     }
 

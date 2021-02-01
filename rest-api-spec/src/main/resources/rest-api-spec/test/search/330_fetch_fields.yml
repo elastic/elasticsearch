@@ -550,6 +550,32 @@ Test nested field inside object structure:
               fields: ["obj.other_obj_field"]
   - match:
         hits.hits.0.fields.obj\.other_obj_field.0: other_value
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["obj.products.manufacturer"]
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"]}
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["RealTec"]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["obj.pro*ts.manufacturer"]
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"]}
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["RealTec"]}
 ---
 Test doubly nested fields:
   -  skip:

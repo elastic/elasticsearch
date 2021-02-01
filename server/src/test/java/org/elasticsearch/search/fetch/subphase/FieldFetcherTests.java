@@ -37,7 +37,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -776,53 +775,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().size(), equalTo(2));
         assertThat(fields.get("date_field").getValues().get(0), equalTo("11"));
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
-    }
-
-    /**
-     * test how FieldFetcher filters existing available nested field mappers to the provided field patterns
-     */
-    public void testDetermineMatchingNestedFields() throws IOException {
-        List<String> nestedMappings = Arrays.asList("user", "user.address", "user.address.zip", "products");
-        Set<String> result = FieldFetcher.determineMatchingNestedFieldPaths(
-            Collections.singletonList(new FieldAndFormat("*", null)),
-            nestedMappings
-        );
-        assertEquals(2, result.size());
-        assertThat(result, containsInAnyOrder("user", "products"));
-
-        result = FieldFetcher.determineMatchingNestedFieldPaths(
-            Collections.singletonList(new FieldAndFormat("user.address", null)),
-            nestedMappings
-        );
-        assertEquals(1, result.size());
-        assertThat(result, containsInAnyOrder("user"));
-
-        result = FieldFetcher.determineMatchingNestedFieldPaths(
-            Collections.singletonList(new FieldAndFormat("products.some_field.inside", null)),
-            nestedMappings
-        );
-        assertEquals(1, result.size());
-        assertThat(result, containsInAnyOrder("products"));
-
-        nestedMappings = Arrays.asList("user.address", "user.address.zip", "products");
-        result = FieldFetcher.determineMatchingNestedFieldPaths(
-            Collections.singletonList(new FieldAndFormat("user", null)),
-            nestedMappings
-        );
-        assertEquals(0, result.size());
-
-        result = FieldFetcher.determineMatchingNestedFieldPaths(
-            Collections.singletonList(new FieldAndFormat("user.*", null)),
-            nestedMappings
-        );
-        assertEquals(1, result.size());
-        assertThat(result, containsInAnyOrder("user.address"));
-
-        result = FieldFetcher.determineMatchingNestedFieldPaths(
-            Collections.singletonList(new FieldAndFormat("different_field", null)),
-            nestedMappings
-        );
-        assertEquals(0, result.size());
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {

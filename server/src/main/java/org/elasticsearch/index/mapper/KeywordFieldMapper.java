@@ -142,6 +142,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private KeywordFieldType buildFieldType(ContentPath contentPath, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
+            NamedAnalyzer quoteAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
             if (Objects.equals(normalizerName, "default") == false) {
                 assert indexAnalyzers != null;
@@ -149,16 +150,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (normalizer == null) {
                     throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
                 }
+                searchAnalyzer = quoteAnalyzer = normalizer;
                 if (splitQueriesOnWhitespace.getValue()) {
                     searchAnalyzer = indexAnalyzers.getWhitespaceNormalizer(normalizerName);
-                } else {
-                    searchAnalyzer = normalizer;
                 }
             }
             else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
-            return new KeywordFieldType(buildFullName(contentPath), fieldType, normalizer, searchAnalyzer, this);
+            return new KeywordFieldType(buildFullName(contentPath), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
         }
 
         @Override
@@ -182,12 +182,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final NamedAnalyzer normalizer;
 
         public KeywordFieldType(String name, FieldType fieldType,
-                                NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
+                                NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, NamedAnalyzer quoteAnalyzer,
+                                Builder builder) {
             super(name,
                 fieldType.indexOptions() != IndexOptions.NONE,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
-                new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, searchAnalyzer),
+                new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
                 builder.meta.getValue());
             setEagerGlobalOrdinals(builder.eagerGlobalOrdinals.getValue());
             this.normalizer = normalizer;

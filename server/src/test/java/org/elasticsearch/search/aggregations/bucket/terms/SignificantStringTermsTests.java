@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.util.ArrayList;
@@ -57,7 +56,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedSignificantStringTerms> implementationClass() {
         return ParsedSignificantStringTerms.class;
     }
 

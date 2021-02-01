@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,7 +54,7 @@ public class StringTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedStringTerms> implementationClass() {
         return ParsedStringTerms.class;
     }
 

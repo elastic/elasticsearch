@@ -134,7 +134,7 @@ public class ElasticsearchAssertions {
      *
      * @param builder the request builder
      */
-    public static void assertBlocked(ActionRequestBuilder builder) {
+    public static void assertBlocked(ActionRequestBuilder<?, ?> builder) {
         assertBlocked(builder, (ClusterBlock) null);
     }
 
@@ -165,7 +165,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlockId the expected block id
      */
-    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final Integer expectedBlockId) {
+    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
         try {
             builder.get();
             fail("Request executed with success but a ClusterBlockException was expected");
@@ -193,7 +193,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlock the expected block
      */
-    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final ClusterBlock expectedBlock) {
+    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 

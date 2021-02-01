@@ -535,6 +535,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
             assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
             assertEquals(restoreSnapshotResponse.failedShards(), 0);
+            assertFalse(partial);
         } else {
             assertTrue(partial);
         }

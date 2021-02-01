@@ -57,6 +57,9 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     public List<Object> fetchValues(SourceLookup lookup, Set<String> ignoredFields) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
+            if (ignoredFields != null && ignoredFields.contains(path)) {
+                continue;
+            }
             Object sourceValue = lookup.extractValue(path, nullValue);
             if (sourceValue == null) {
                 return List.of();

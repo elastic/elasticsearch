@@ -154,9 +154,6 @@ public class FieldFetcher {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
-            if (ignoredFields != null && ignoredFields.contains(field)) {
-                continue;
-            }
 
             ValueFetcher valueFetcher = context.valueFetcher;
             List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredFields);

@@ -1513,7 +1513,8 @@ setup:
                 "soft_tree_depth_limit": 2.0,
                 "soft_tree_depth_tolerance": 3.0,
                 "downsample_factor": 0.5,
-                "max_optimization_rounds_per_hyperparameter": 3
+                "max_optimization_rounds_per_hyperparameter": 3,
+                "early_stopping_enabled": true
               }
             }
           }
@@ -1538,7 +1539,8 @@ setup:
       "soft_tree_depth_limit": 2.0,
       "soft_tree_depth_tolerance": 3.0,
       "downsample_factor": 0.5,
-      "max_optimization_rounds_per_hyperparameter": 3
+      "max_optimization_rounds_per_hyperparameter": 3,
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time
@@ -1870,7 +1872,8 @@ setup:
                 "soft_tree_depth_limit": 2.0,
                 "soft_tree_depth_tolerance": 3.0,
                 "downsample_factor": 0.5,
-                "max_optimization_rounds_per_hyperparameter": 3
+                "max_optimization_rounds_per_hyperparameter": 3,
+                "early_stopping_enabled": true
               }
             }
           }
@@ -1895,7 +1898,8 @@ setup:
       "soft_tree_depth_limit": 2.0,
       "soft_tree_depth_tolerance": 3.0,
       "downsample_factor": 0.5,
-      "max_optimization_rounds_per_hyperparameter": 3
+      "max_optimization_rounds_per_hyperparameter": 3,
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time
@@ -1939,7 +1943,8 @@ setup:
       "training_percent": 100.0,
       "randomize_seed": 24,
       "class_assignment_objective": "maximize_minimum_recall",
-      "num_top_classes": 2
+      "num_top_classes": 2,
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time
@@ -1977,7 +1982,8 @@ setup:
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
       "randomize_seed": 42,
-      "loss_function": "mse"
+      "loss_function": "mse",
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time

@@ -60,7 +60,7 @@ public final class DestructiveOperations {
      * Fail if there is wildcard usage in indices and the named is required for destructive operations.
      */
     public void failDestructive(String[] aliasesOrIndices) {
-        if (!destructiveRequiresName) {
+        if (destructiveRequiresName == false) {
             return;
         }
 

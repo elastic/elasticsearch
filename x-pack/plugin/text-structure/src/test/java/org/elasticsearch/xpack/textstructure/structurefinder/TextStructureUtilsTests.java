@@ -23,22 +23,22 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TextStructureUtilsTests extends TextStructureTestCase {
 
     public void testMoreLikelyGivenText() {
-        assertTrue(FileStructureUtils.isMoreLikelyTextThanKeyword("the quick brown fox jumped over the lazy dog"));
-        assertTrue(FileStructureUtils.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(257, 10000)));
+        assertTrue(TextStructureUtils.isMoreLikelyTextThanKeyword("the quick brown fox jumped over the lazy dog"));
+        assertTrue(TextStructureUtils.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(257, 10000)));
     }
 
     public void testMoreLikelyGivenKeyword() {
-        assertFalse(FileStructureUtils.isMoreLikelyTextThanKeyword("1"));
-        assertFalse(FileStructureUtils.isMoreLikelyTextThanKeyword("DEBUG"));
-        assertFalse(FileStructureUtils.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
+        assertFalse(TextStructureUtils.isMoreLikelyTextThanKeyword("1"));
+        assertFalse(TextStructureUtils.isMoreLikelyTextThanKeyword("DEBUG"));
+        assertFalse(TextStructureUtils.isMoreLikelyTextThanKeyword(randomAlphaOfLengthBetween(1, 256)));
     }
 
     public void testGuessTimestampGivenSingleSampleSingleField() {
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Collections.singletonList(sample),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNotNull(match);
@@ -49,10 +49,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
     public void testGuessTimestampGivenSingleSampleSingleFieldAndConsistentTimeFieldOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("field1").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampField("field1").build();
 
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Collections.singletonList(sample),
             overrides,
@@ -66,12 +66,12 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
     public void testGuessTimestampGivenSingleSampleSingleFieldAndImpossibleTimeFieldOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("field2").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampField("field2").build();
 
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides, NOOP_TIMEOUT_CHECKER)
+            () -> TextStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides, NOOP_TIMEOUT_CHECKER)
         );
 
         assertEquals("Specified timestamp field [field2] is not present in record [{field1=2018-05-24T17:28:31,735}]", e.getMessage());
@@ -79,10 +79,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
     public void testGuessTimestampGivenSingleSampleSingleFieldAndConsistentTimeFormatOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("ISO8601").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampFormat("ISO8601").build();
 
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Collections.singletonList(sample),
             overrides,
@@ -96,12 +96,12 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
     public void testGuessTimestampGivenSingleSampleSingleFieldAndImpossibleTimeFormatOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("EEE MMM dd HH:mm:ss yyyy").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampFormat("EEE MMM dd HH:mm:ss yyyy").build();
 
         Map<String, String> sample = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> FileStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides, NOOP_TIMEOUT_CHECKER)
+            () -> TextStructureUtils.guessTimestampField(explanation, Collections.singletonList(sample), overrides, NOOP_TIMEOUT_CHECKER)
         );
 
         assertEquals(
@@ -113,10 +113,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     public void testGuessTimestampGivenSamplesWithSameSingleTimeField() {
         Map<String, String> sample1 = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Map<String, String> sample2 = Collections.singletonMap("field1", "2018-05-24T17:33:39,406");
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNotNull(match);
@@ -128,10 +128,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     public void testGuessTimestampGivenSamplesWithOneSingleTimeFieldDifferentFormat() {
         Map<String, String> sample1 = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Map<String, String> sample2 = Collections.singletonMap("field1", "Thu May 24 17:33:39 2018");
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNull(match);
@@ -140,10 +140,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     public void testGuessTimestampGivenSamplesWithDifferentSingleTimeField() {
         Map<String, String> sample1 = Collections.singletonMap("field1", "2018-05-24T17:28:31,735");
         Map<String, String> sample2 = Collections.singletonMap("another_field", "2018-05-24T17:33:39,406");
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNull(match);
@@ -154,10 +154,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample.put("foo", "not a time");
         sample.put("time", "2018-05-24 17:28:31,735");
         sample.put("bar", 42);
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Collections.singletonList(sample),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNotNull(match);
@@ -175,10 +175,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample2.put("foo", "whatever");
         sample2.put("time", "2018-05-29 11:53:02,837");
         sample2.put("bar", 17);
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNotNull(match);
@@ -196,10 +196,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample2.put("foo", "whatever");
         sample2.put("time", "May 29 2018 11:53:02");
         sample2.put("bar", 17);
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNull(match);
@@ -214,10 +214,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample2.put("red_herring", "whatever");
         sample2.put("time", "2018-05-29 11:53:02,837");
         sample2.put("bar", 17);
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNotNull(match);
@@ -235,10 +235,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample2.put("foo", "whatever");
         sample2.put("time", "May 29 2018 11:53:02");
         sample2.put("red_herring", "17");
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNotNull(match);
@@ -256,10 +256,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample2.put("foo", "whatever");
         sample2.put("time2", "May 29 2018 11:53:02");
         sample2.put("bar", 42);
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNull(match);
@@ -276,10 +276,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample2.put("time2", "May 10 2018 11:53:02");
         sample2.put("time3", "Thu, May 10 2018 11:53:02");
         sample2.put("bar", 42);
-        Tuple<String, TimestampFormatFinder> match = FileStructureUtils.guessTimestampField(
+        Tuple<String, TimestampFormatFinder> match = TextStructureUtils.guessTimestampField(
             explanation,
             Arrays.asList(sample1, sample2),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         assertNotNull(match);
@@ -293,26 +293,26 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     }
 
     public void testGuessMappingGivenKeyword() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
     }
 
     public void testGuessMappingGivenText() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("a", "the quick brown fox jumped over the lazy dog")));
     }
 
     public void testGuessMappingGivenIp() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("10.0.0.1", "172.16.0.1", "192.168.0.1")));
     }
 
     public void testGuessMappingGivenDouble() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "double");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "double");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("3.14159265359", "0", "-8")));
         // 12345678901234567890 is too long for long
@@ -322,7 +322,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     }
 
     public void testGuessMappingGivenLong() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("500", "3", "-3")));
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(500, 6, 0)));
@@ -330,31 +330,31 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
     public void testGuessMappingGivenDate() {
         Map<String, String> expected = new HashMap<>();
-        expected.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        expected.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
+        expected.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expected.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("2018-06-11T13:26:47Z", "2018-06-11T13:27:12Z")));
     }
 
     public void testGuessMappingGivenBoolean() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "boolean");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "boolean");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("false", "true")));
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(true, false)));
     }
 
     public void testGuessMappingGivenArray() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(42, Arrays.asList(1, -99))));
 
-        expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+        expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(new String[] { "x", "y" }, "z")));
     }
 
     public void testGuessMappingGivenObject() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "object");
+        Map<String, String> expected = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "object");
 
         assertEquals(
             expected,
@@ -387,18 +387,18 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         sample2.put("bar", 17);
         sample2.put("nothing", null);
 
-        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = FileStructureUtils
+        Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
             .guessMappingsAndCalculateFieldStats(explanation, Arrays.asList(sample1, sample2), NOOP_TIMEOUT_CHECKER);
         assertNotNull(mappingsAndFieldStats);
 
         Map<String, Object> mappings = mappingsAndFieldStats.v1();
         assertNotNull(mappings);
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
         Map<String, String> expectedTimeMapping = new HashMap<>();
-        expectedTimeMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        expectedTimeMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "yyyy-MM-dd HH:mm:ss,SSS");
+        expectedTimeMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedTimeMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "yyyy-MM-dd HH:mm:ss,SSS");
         assertEquals(expectedTimeMapping, mappings.get("time"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
         assertNull(mappings.get("nothing"));
 
         Map<String, FieldStats> fieldStats = mappingsAndFieldStats.v2();
@@ -422,7 +422,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     public void testMakeIngestPipelineDefinitionGivenNdJsonWithoutTimestamp() {
 
         assertNull(
-            FileStructureUtils.makeIngestPipelineDefinition(
+            TextStructureUtils.makeIngestPipelineDefinition(
                 null,
                 Collections.emptyMap(),
                 null,
@@ -446,7 +446,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         boolean needClientTimezone = randomBoolean();
         boolean needNanosecondPrecision = randomBoolean();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(
+        Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             null,
             Collections.emptyMap(),
             null,
@@ -470,7 +470,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
         assertEquals(timestampFormats, dateProcessor.get("formats"));
         if (needNanosecondPrecision) {
-            assertEquals(FileStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
+            assertEquals(TextStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
         } else {
             assertNull(dateProcessor.get("output_format"));
         }
@@ -484,7 +484,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
         Map<String, Object> csvProcessorSettings = DelimitedTextStructureFinderTests.randomCsvProcessorSettings();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(
+        Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             null,
             Collections.emptyMap(),
             csvProcessorSettings,
@@ -523,7 +523,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         String firstTargetField = ((List<String>) csvProcessorSettings.get("target_fields")).get(0);
         csvProcessorSettings.put("field", firstTargetField);
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(
+        Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             null,
             Collections.emptyMap(),
             csvProcessorSettings,
@@ -560,10 +560,10 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         String firstTargetField = ((List<String>) csvProcessorSettings.get("target_fields")).get(0);
         Map<String, Object> mappingsForConversions = Collections.singletonMap(
             firstTargetField,
-            Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType)
+            Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType)
         );
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(
+        Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             null,
             Collections.emptyMap(),
             csvProcessorSettings,
@@ -616,7 +616,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         boolean needClientTimezone = randomBoolean();
         boolean needNanosecondPrecision = randomBoolean();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(
+        Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             null,
             Collections.emptyMap(),
             csvProcessorSettings,
@@ -646,7 +646,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
         assertEquals(timestampFormats, dateProcessor.get("formats"));
         if (needNanosecondPrecision) {
-            assertEquals(FileStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
+            assertEquals(TextStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
         } else {
             assertNull(dateProcessor.get("output_format"));
         }
@@ -671,7 +671,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         boolean needClientTimezone = randomBoolean();
         boolean needNanosecondPrecision = randomBoolean();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(
+        Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             grokPattern,
             Collections.emptyMap(),
             null,
@@ -700,7 +700,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
         assertEquals(timestampFormats, dateProcessor.get("formats"));
         if (needNanosecondPrecision) {
-            assertEquals(FileStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
+            assertEquals(TextStructureUtils.NANOSECOND_DATE_OUTPUT_FORMAT, dateProcessor.get("output_format"));
         } else {
             assertNull(dateProcessor.get("output_format"));
         }
@@ -714,25 +714,25 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     }
 
     public void testGuessGeoPoint() {
-        Map<String, String> mapping = FileStructureUtils.guessScalarMapping(
+        Map<String, String> mapping = TextStructureUtils.guessScalarMapping(
             explanation,
             "foo",
             Arrays.asList("POINT (-77.03653 38.897676)", "POINT (-50.03653 28.8973)"),
             NOOP_TIMEOUT_CHECKER
         );
-        assertThat(mapping.get(FileStructureUtils.MAPPING_TYPE_SETTING), equalTo("geo_point"));
+        assertThat(mapping.get(TextStructureUtils.MAPPING_TYPE_SETTING), equalTo("geo_point"));
 
-        mapping = FileStructureUtils.guessScalarMapping(
+        mapping = TextStructureUtils.guessScalarMapping(
             explanation,
             "foo",
             Arrays.asList("POINT (-77.03653 38.897676)", "bar"),
             NOOP_TIMEOUT_CHECKER
         );
-        assertThat(mapping.get(FileStructureUtils.MAPPING_TYPE_SETTING), equalTo("keyword"));
+        assertThat(mapping.get(TextStructureUtils.MAPPING_TYPE_SETTING), equalTo("keyword"));
     }
 
     public void testGuessGeoShape() {
-        Map<String, String> mapping = FileStructureUtils.guessScalarMapping(
+        Map<String, String> mapping = TextStructureUtils.guessScalarMapping(
             explanation,
             "foo",
             Arrays.asList(
@@ -751,19 +751,19 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             ),
             NOOP_TIMEOUT_CHECKER
         );
-        assertThat(mapping.get(FileStructureUtils.MAPPING_TYPE_SETTING), equalTo("geo_shape"));
+        assertThat(mapping.get(TextStructureUtils.MAPPING_TYPE_SETTING), equalTo("geo_shape"));
 
-        mapping = FileStructureUtils.guessScalarMapping(
+        mapping = TextStructureUtils.guessScalarMapping(
             explanation,
             "foo",
             Arrays.asList("POINT (-77.03653 38.897676)", "LINESTRING (-77.03653 38.897676, -77.009051 38.889939)", "bar"),
             NOOP_TIMEOUT_CHECKER
         );
-        assertThat(mapping.get(FileStructureUtils.MAPPING_TYPE_SETTING), equalTo("keyword"));
+        assertThat(mapping.get(TextStructureUtils.MAPPING_TYPE_SETTING), equalTo("keyword"));
     }
 
     private Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {
-        Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = FileStructureUtils.guessMappingAndCalculateFieldStats(
+        Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = TextStructureUtils.guessMappingAndCalculateFieldStats(
             explanation,
             fieldName,
             fieldValues,

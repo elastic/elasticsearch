@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-public class TextLogTextStructureFinderFactoryTests extends TextStructureTestCase {
+public class LogTextStructureFinderFactoryTests extends TextStructureTestCase {
 
-    private FileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new LogTextStructureFinderFactory();
 
     // No need to check NDJSON, XML, CSV, TSV, semi-colon delimited values or pipe
     // delimited values because they come earlier in the order we check formats

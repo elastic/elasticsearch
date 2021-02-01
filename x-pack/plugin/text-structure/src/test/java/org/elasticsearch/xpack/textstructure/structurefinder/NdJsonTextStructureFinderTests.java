@@ -11,20 +11,20 @@ import java.util.Collections;
 
 public class NdJsonTextStructureFinderTests extends TextStructureTestCase {
 
-    private final FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new NdJsonTextStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodJson() throws Exception {
         assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(
+        TextStructureFinder structureFinder = factory.createFromSample(
             explanation,
             NDJSON_SAMPLE,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 

@@ -9,10 +9,22 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 
 public class ConstantProcessorTests extends AbstractWireSerializingTestCase<ConstantProcessor> {
+
     public static ConstantProcessor randomConstantProcessor() {
-        return new ConstantProcessor(randomAlphaOfLength(5));
+        if (randomBoolean()) {
+            Clock clock = Clock.tickMillis(randomZone());
+            if (randomBoolean()) {
+                clock = Clock.tick(clock, Duration.ofNanos(1));
+            }
+            return new ConstantProcessor( ZonedDateTime.now(clock));
+        } else {
+            return new ConstantProcessor(randomAlphaOfLength(5));
+        }
     }
 
     @Override

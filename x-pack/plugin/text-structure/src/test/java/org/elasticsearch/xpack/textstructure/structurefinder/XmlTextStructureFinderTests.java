@@ -11,20 +11,20 @@ import java.util.Collections;
 
 public class XmlTextStructureFinderTests extends TextStructureTestCase {
 
-    private final FileStructureFinderFactory factory = new XmlFileStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new XmlTextStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodXml() throws Exception {
         assertTrue(factory.canCreateFromSample(explanation, XML_SAMPLE, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(
+        TextStructureFinder structureFinder = factory.createFromSample(
             explanation,
             XML_SAMPLE,
             charset,
             hasByteOrderMarker,
-            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 

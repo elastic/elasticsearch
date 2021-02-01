@@ -65,7 +65,7 @@ public final class TrackingMappedFieldsLookup {
         }
     }
 
-    public TrackingMappedFieldsLookup excludingField(String field) {
+    public TrackingMappedFieldsLookup trackingField(String field) {
         return new TrackingMappedFieldsLookup(lookup, this.references, field);
     }
 

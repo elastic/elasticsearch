@@ -512,6 +512,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
+        when(searchExecutionContext.lookup(anyString())).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        }));
         return searchExecutionContext;
     }
 }

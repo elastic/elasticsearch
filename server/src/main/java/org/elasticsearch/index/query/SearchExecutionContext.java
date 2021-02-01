@@ -66,6 +66,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.TrackingMappedFieldsLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -435,6 +436,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
             );
         }
         return this.lookup;
+    }
+
+    /**
+     * Get a search lookup that tracks circular references starting from {@code field}
+     */
+    public SearchLookup lookup(String field) {
+        return new SearchLookup(
+            new TrackingMappedFieldsLookup(this::getFieldType).trackingField(field)::get,
+            (f, s) -> indexFieldDataService.apply(f, fullyQualifiedIndex.getName(), s)
+        );
     }
 
     public NestedScope nestedScope() {

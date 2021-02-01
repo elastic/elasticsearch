@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.TrackingMappedFieldsLookup;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
 import java.io.IOException;
@@ -209,6 +210,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
+        when(context.lookup(anyString())).thenAnswer(invocationOnMock -> {
+            String field = (String) invocationOnMock.getArguments()[0];
+            TrackingMappedFieldsLookup tracker = new TrackingMappedFieldsLookup(context::getFieldType).trackingField(field);
+            return new SearchLookup(tracker::get, (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null));
+        });
         return context;
     }
 

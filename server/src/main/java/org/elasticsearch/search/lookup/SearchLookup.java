@@ -45,21 +45,17 @@ public class SearchLookup {
         this.fieldDataLookup = fieldDataLookup;
     }
 
-    private SearchLookup(SearchLookup searchLookup, String field) {
-        this.sourceLookup = searchLookup.sourceLookup;
-        this.fieldTypeLookup = searchLookup.fieldTypeLookup.excludingField(field);
-        this.fieldDataLookup = searchLookup.fieldDataLookup;
-    }
-
     /**
-     * Create a new {@link SearchLookup} that looks fields up the same as this one,
+     * Create a new {@link SearchLookup} that looks fields up the same as the wrapped one,
      * while also tracking field references starting from the provided field name. It detects cycles
      * and prevents resolving fields that depend on more than
      * {@link TrackingMappedFieldsLookup#MAX_FIELD_CHAIN_DEPTH} fields.
      * @param field        the field to exclude from further field lookups
      */
-    public SearchLookup forkAndTrackReferences(String field) {
-        return new SearchLookup(this, field);
+    private SearchLookup(SearchLookup searchLookup, String field) {
+        this.sourceLookup = searchLookup.sourceLookup;
+        this.fieldTypeLookup = searchLookup.fieldTypeLookup.trackingField(field);
+        this.fieldDataLookup = searchLookup.fieldDataLookup;
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {

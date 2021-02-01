@@ -30,6 +30,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 
 import java.util.Map;
 
+import static org.gradle.api.tasks.SourceSet.TEST_SOURCE_SET_NAME;
+
 /**
  * <p>
  * Gradle plugin to help configure {@link CopyRestApiTask}'s and {@link CopyRestTestsTask} that copies the artifacts needed for the Rest API
@@ -110,11 +112,11 @@ public class RestResourcesPlugin implements Plugin<Project> {
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
                     project.getDependencies().add(testConfig.getName(), restTestdependency);
                     // x-pack
-                    task.xpackConfig = xpackTestConfig;
+                    task.setXpackConfig(xpackTestConfig);
                     Dependency restXPackTestdependency = project.getDependencies()
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
                     project.getDependencies().add(xpackTestConfig.getName(), restXPackTestdependency);
-                    task.dependsOn(task.xpackConfig);
+                    task.dependsOn(task.getXpackConfig());
                 } else {
                     Dependency dependency = project.getDependencies()
                         .create("org.elasticsearch:rest-api-spec:" + VersionProperties.getElasticsearch());

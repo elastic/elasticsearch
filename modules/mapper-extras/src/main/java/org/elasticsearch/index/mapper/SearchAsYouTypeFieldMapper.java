@@ -293,7 +293,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                QueryShardContext context) throws IOException {
+                SearchExecutionContext context) throws IOException {
             checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
@@ -306,7 +306,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                QueryShardContext context) throws IOException {
+                SearchExecutionContext context) throws IOException {
             checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
@@ -319,7 +319,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
-                QueryShardContext context) throws IOException {
+                SearchExecutionContext context) throws IOException {
             int numPos = countPosition(stream);
             if (numPos > 1) {
                 checkForPositions();
@@ -528,19 +528,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                QueryShardContext context) throws IOException {
+                SearchExecutionContext context) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                QueryShardContext context) throws IOException {
+                SearchExecutionContext context) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
-                QueryShardContext context) throws IOException {
+                SearchExecutionContext context) throws IOException {
             final String prefixFieldName = slop > 0
                 ? null
                 : prefixFieldType.name();

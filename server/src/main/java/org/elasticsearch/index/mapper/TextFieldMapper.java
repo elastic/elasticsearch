@@ -707,7 +707,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements,
-                QueryShardContext queryShardContext) throws IOException {
+                SearchExecutionContext context) throws IOException {
             String field = name();
             checkForPositions();
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
@@ -743,7 +743,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-                QueryShardContext context) throws IOException {
+                SearchExecutionContext context) throws IOException {
             String field = name();
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
@@ -763,7 +763,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
             if (countTokens(stream) > 1) {
                 checkForPositions();
             }

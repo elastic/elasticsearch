@@ -265,18 +265,19 @@ public abstract class MappedFieldType {
         }
     }
 
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, QueryShardContext context) throws IOException {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+            SearchExecutionContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
-            QueryShardContext context) throws IOException {
+        SearchExecutionContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, QueryShardContext context) throws IOException {
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
         throw new IllegalArgumentException("Can only use phrase prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }

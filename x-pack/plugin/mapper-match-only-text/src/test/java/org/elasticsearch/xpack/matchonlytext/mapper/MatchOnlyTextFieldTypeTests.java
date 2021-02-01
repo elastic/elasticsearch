@@ -56,12 +56,12 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         assertEquals(
             new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
-            ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC)
+            ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
         );
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[range] queries on [text] or [keyword] fields cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
@@ -71,11 +71,11 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testRegexpQuery() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
-        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
+        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -84,12 +84,19 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         assertEquals(
             new ConstantScoreQuery(new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true)),
-            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC)
+            ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1, randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE)
+            () -> ft.fuzzyQuery(
+                "foo",
+                Fuzziness.AUTO,
+                randomInt(10) + 1,
+                randomInt(10) + 1,
+                randomBoolean(),
+                MOCK_CONTEXT_DISALLOW_EXPENSIVE
+            )
         );
         assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
@@ -111,7 +118,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     public void testPhraseQuery() throws IOException {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
-        Query query = ft.phraseQuery(ts, 0, true, MOCK_QSC);
+        Query query = ft.phraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
         assertEquals(new PhraseQuery("field", "a", "b"), delegate);
         assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
@@ -120,7 +127,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     public void testMultiPhraseQuery() throws IOException {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 0, 0, 3), new Token("c", 4, 7));
-        Query query = ft.multiPhraseQuery(ts, 0, true, MOCK_QSC);
+        Query query = ft.multiPhraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
         MultiPhraseQuery expected = new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "b") })
             .add(new Term("field", "c"))
@@ -132,7 +139,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     public void testPhrasePrefixQuery() throws IOException {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 0, 0, 3), new Token("c", 4, 7));
-        Query query = ft.phrasePrefixQuery(ts, 0, 10, MOCK_QSC);
+        Query query = ft.phrasePrefixQuery(ts, 0, 10, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
         MultiPhrasePrefixQuery expected = new MultiPhrasePrefixQuery("field");
         expected.add(new Term[] { new Term("field", "a"), new Term("field", "b") });

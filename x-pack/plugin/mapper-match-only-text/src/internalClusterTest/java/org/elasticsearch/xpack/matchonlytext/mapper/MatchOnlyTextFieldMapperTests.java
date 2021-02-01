@@ -31,7 +31,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -39,7 +38,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.matchonlytext.MatchOnlyTextMapperPlugin;
 import org.hamcrest.Matchers;
@@ -252,8 +251,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         mapping.endObject().endObject();
 
         MapperService mapperService = createMapperService(mapping);
-        MappedFieldType ft = ((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType();
-        QueryShardContext context = createQueryShardContext(mapperService);
+        MappedFieldType ft = mapperService.fieldType("foo");
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.phraseQuery(ts, 0, true, context));
         assertThat(e.getMessage(), Matchers.containsString("cannot run positional queries since [_source] is disabled"));

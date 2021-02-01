@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.nio.file.Path;
 import java.util.Objects;
@@ -31,9 +32,14 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final Supplier<CacheService> cacheService;
+    private final Supplier<FrozenCacheService> frozenCacheService;
 
-    public SearchableSnapshotIndexFoldersDeletionListener(Supplier<CacheService> cacheService) {
+    public SearchableSnapshotIndexFoldersDeletionListener(
+        Supplier<CacheService> cacheService,
+        Supplier<FrozenCacheService> frozenCacheService
+    ) {
         this.cacheService = Objects.requireNonNull(cacheService);
+        this.frozenCacheService = Objects.requireNonNull(frozenCacheService);
     }
 
     @Override
@@ -58,6 +64,14 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
 
         logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: cache files deleted from disk)", shardId);
         cacheService.markShardAsEvictedInCache(
+            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
+            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+            shardId
+        );
+
+        final FrozenCacheService frozenCacheService = this.frozenCacheService.get();
+        assert frozenCacheService != null : "frozen cache service not initialized";
+        frozenCacheService.markShardAsEvictedInCache(
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
             SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
             shardId

@@ -27,11 +27,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
@@ -122,6 +125,8 @@ public class FrozenCacheService implements Releasable {
 
     private final AtomicReference<CacheFileRegion>[] regionOwners; // to assert exclusive access of regions
 
+    private final CacheDecayTask decayTask;
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(Environment environment, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
@@ -147,7 +152,8 @@ public class FrozenCacheService implements Releasable {
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
         sharedBytes = new SharedBytes(numRegions, regionSize, environment);
-        new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings)).rescheduleIfNecessary();
+        decayTask = new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings));
+        decayTask.rescheduleIfNecessary();
         this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
     }
@@ -256,9 +262,10 @@ public class FrozenCacheService implements Releasable {
             } else {
                 // check if we need to promote item
                 synchronized (this) {
-                    if (now - entry.lastAccessed > minTimeDelta && entry.freq + 1 < maxFreq) {
+                    if (now - entry.lastAccessed >= minTimeDelta && entry.freq + 1 < maxFreq) {
                         unlink(entry);
                         entry.freq++;
+                        entry.lastAccessed = now;
                         pushEntryToBack(entry);
                     }
                 }
@@ -376,7 +383,7 @@ public class FrozenCacheService implements Releasable {
             long now = currentTimeSupplier.getAsLong();
             for (int i = 0; i < maxFreq; i++) {
                 for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
-                    if (now - entry.lastAccessed > 2 * minTimeDelta) {
+                    if (now - entry.lastAccessed >= 2 * minTimeDelta) {
                         if (entry.freq > 0) {
                             unlink(entry);
                             entry.freq--;
@@ -386,6 +393,43 @@ public class FrozenCacheService implements Releasable {
                 }
             }
         }
+    }
+
+    public void removeFromCache(CacheKey cacheKey) {
+        forceEvict(k -> cacheKey.equals(k));
+    }
+
+    public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        forceEvict(
+            k -> shardId.equals(k.getShardId())
+                && snapshotIndexName.equals(k.getSnapshotIndexName())
+                && snapshotUUID.equals(k.getSnapshotUUID())
+        );
+    }
+
+    private void forceEvict(Predicate<CacheKey> cacheKeyPredicate) {
+        final List<Entry<CacheFileRegion>> matchingEntries = new ArrayList<>();
+        keyMapping.forEach((key, value) -> {
+            if (cacheKeyPredicate.test(key.file)) {
+                matchingEntries.add(value);
+            }
+        });
+        if (matchingEntries.isEmpty() == false) {
+            synchronized (this) {
+                for (Entry<CacheFileRegion> entry : matchingEntries) {
+                    boolean evicted = entry.chunk.forceEvict();
+                    if (evicted) {
+                        unlink(entry);
+                        keyMapping.remove(entry.chunk.regionKey, entry);
+                    }
+                }
+            }
+        }
+    }
+
+    // used by tests
+    int getFreq(CacheFileRegion cacheFileRegion) {
+        return keyMapping.get(cacheFileRegion.regionKey).freq;
     }
 
     @Override
@@ -488,6 +532,15 @@ public class FrozenCacheService implements Releasable {
         public boolean tryEvict() {
             if (refCount() <= 1 && evicted.compareAndSet(false, true)) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                decRef();
+                return true;
+            }
+            return false;
+        }
+
+        public boolean forceEvict() {
+            if (evicted.compareAndSet(false, true)) {
+                logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 decRef();
                 return true;
             }

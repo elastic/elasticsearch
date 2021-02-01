@@ -347,7 +347,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void clearCache() {
         for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
-            cacheService.removeFromCache(createCacheKey(file.physicalName()));
+            final CacheKey cacheKey = createCacheKey(file.physicalName());
+            cacheService.removeFromCache(cacheKey);
+            if (partial) {
+                frozenCacheService.removeFromCache(cacheKey);
+            }
         }
     }
 

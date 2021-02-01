@@ -24,6 +24,7 @@ import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -45,6 +46,7 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
     private final String targetIndex;
     private Settings settings = Settings.EMPTY;
     private Set<Alias> aliases = new HashSet<>();
+    private ByteSizeValue maxSinglePrimarySize;
 
     /**
      * Creates a new resize request
@@ -85,6 +87,20 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
      */
     public Set<Alias> getAliases() {
         return Collections.unmodifiableSet(this.aliases);
+    }
+
+    /**
+     * Sets the max single primary shard size of the target index
+     */
+    public void setMaxSinglePrimarySize(ByteSizeValue maxSinglePrimarySize) {
+        this.maxSinglePrimarySize = maxSinglePrimarySize;
+    }
+
+    /**
+     * Return the max single primary shard size of the target index
+     */
+    public ByteSizeValue getMaxSinglePrimarySize() {
+        return maxSinglePrimarySize;
     }
 
     @Override

@@ -111,7 +111,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
 
-        inferenceRunner.inferTestDocs(localModel, testDocsIterator);
+        inferenceRunner.inferTestDocs(localModel, testDocsIterator, 0L);
 
         ArgumentCaptor<BulkRequest> argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
@@ -150,7 +150,7 @@ public class InferenceRunnerTests extends ESTestCase {
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
         inferenceRunner.cancel();
 
-        inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator);
+        inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator, 0L);
 
         Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));

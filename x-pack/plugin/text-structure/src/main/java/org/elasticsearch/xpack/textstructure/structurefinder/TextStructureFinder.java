@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.List;
 
-public interface FileStructureFinder {
+public interface TextStructureFinder {
 
     /**
      * The (possibly multi-line) messages that the sampled lines were combined into.
@@ -18,8 +18,8 @@ public interface FileStructureFinder {
     List<String> getSampleMessages();
 
     /**
-     * Retrieve the structure of the file used to instantiate the finder.
-     * @return The file structure.
+     * Retrieve the structure of the text used to instantiate the finder.
+     * @return The text structure.
      */
     TextStructure getStructure();
 }

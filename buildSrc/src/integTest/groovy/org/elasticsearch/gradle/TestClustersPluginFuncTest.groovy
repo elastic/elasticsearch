@@ -20,10 +20,7 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.gradle.testkit.runner.GradleRunner
 import spock.lang.IgnoreIf
-import spock.lang.Requires
-import spock.util.environment.OperatingSystem
 
 import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
 
@@ -57,7 +54,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                 testDistribution = 'default'
               }
             }
-            
+
             tasks.register('myTask', SomeClusterAwareTask) {
                 useCluster testClusters.myCluster
             }
@@ -70,8 +67,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("elasticsearch-keystore script executed!")
-        assertEsStdoutContains("myCluster", "Starting Elasticsearch process")
-        assertEsStdoutContains("myCluster", "Stopping node")
+        assertEsLogContains("myCluster", "Starting Elasticsearch process")
+        assertEsLogContains("myCluster", "Stopping node")
         assertNoCustomDistro('myCluster')
     }
 
@@ -95,8 +92,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("elasticsearch-keystore script executed!")
-        assertEsStdoutContains("myCluster", "Starting Elasticsearch process")
-        assertEsStdoutContains("myCluster", "Stopping node")
+        assertEsLogContains("myCluster", "Starting Elasticsearch process")
+        assertEsLogContains("myCluster", "Stopping node")
         assertNoCustomDistro('myCluster')
     }
 
@@ -109,7 +106,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                 extraJarFile(file('${someJar().absolutePath}'))
               }
             }
-            
+
             tasks.register('myTask', SomeClusterAwareTask) {
                 useCluster testClusters.myCluster
             }
@@ -122,14 +119,14 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("elasticsearch-keystore script executed!")
-        assertEsStdoutContains("myCluster", "Starting Elasticsearch process")
-        assertEsStdoutContains("myCluster", "Stopping node")
+        assertEsLogContains("myCluster", "Starting Elasticsearch process")
+        assertEsLogContains("myCluster", "Stopping node")
         assertCustomDistro('myCluster')
     }
 
-    boolean assertEsStdoutContains(String testCluster, String expectedOutput) {
+    boolean assertEsLogContains(String testCluster, String expectedOutput) {
         assert new File(testProjectDir.root,
-                "build/testclusters/${testCluster}-0/logs/es.stdout.log").text.contains(expectedOutput)
+                "build/testclusters/${testCluster}-0/logs/${testCluster}.log").text.contains(expectedOutput)
         true
     }
 

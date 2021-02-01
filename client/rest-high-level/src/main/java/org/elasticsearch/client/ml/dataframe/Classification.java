@@ -63,6 +63,7 @@ public class Classification implements DataFrameAnalysis {
     static final ParseField SOFT_TREE_DEPTH_TOLERANCE = new ParseField("soft_tree_depth_tolerance");
     static final ParseField DOWNSAMPLE_FACTOR = new ParseField("downsample_factor");
     static final ParseField MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER = new ParseField("max_optimization_rounds_per_hyperparameter");
+    static final ParseField EARLY_STOPPING_ENABLED = new ParseField("early_stopping_enabled");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Classification, Void> PARSER =
@@ -88,7 +89,8 @@ public class Classification implements DataFrameAnalysis {
                 (Double) a[15],
                 (Double) a[16],
                 (Double) a[17],
-                (Integer) a[18]
+                (Integer) a[18],
+                (Boolean) a[19]
             ));
 
     static {
@@ -115,6 +117,7 @@ public class Classification implements DataFrameAnalysis {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), SOFT_TREE_DEPTH_TOLERANCE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), DOWNSAMPLE_FACTOR);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), EARLY_STOPPING_ENABLED);
     }
 
     private final String dependentVariable;
@@ -136,6 +139,7 @@ public class Classification implements DataFrameAnalysis {
     private final Double softTreeDepthTolerance;
     private final Double downsampleFactor;
     private final Integer maxOptimizationRoundsPerHyperparameter;
+    private final Boolean earlyStoppingEnabled;
 
     private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                            @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
@@ -144,7 +148,7 @@ public class Classification implements DataFrameAnalysis {
                            @Nullable ClassAssignmentObjective classAssignmentObjective, @Nullable List<PreProcessor> featureProcessors,
                            @Nullable Double alpha, @Nullable Double etaGrowthRatePerTree, @Nullable Double softTreeDepthLimit,
                            @Nullable Double softTreeDepthTolerance, @Nullable Double downsampleFactor,
-                           @Nullable Integer maxOptimizationRoundsPerHyperparameter) {
+                           @Nullable Integer maxOptimizationRoundsPerHyperparameter, @Nullable Boolean earlyStoppingEnabled) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -164,6 +168,7 @@ public class Classification implements DataFrameAnalysis {
         this.softTreeDepthTolerance = softTreeDepthTolerance;
         this.downsampleFactor = downsampleFactor;
         this.maxOptimizationRoundsPerHyperparameter = maxOptimizationRoundsPerHyperparameter;
+        this.earlyStoppingEnabled = earlyStoppingEnabled;
     }
 
     @Override
@@ -247,6 +252,10 @@ public class Classification implements DataFrameAnalysis {
         return maxOptimizationRoundsPerHyperparameter;
     }
 
+    public Boolean getEarlyStoppingEnable() {
+        return earlyStoppingEnabled;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -305,6 +314,9 @@ public class Classification implements DataFrameAnalysis {
         if (maxOptimizationRoundsPerHyperparameter != null) {
             builder.field(MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName(), maxOptimizationRoundsPerHyperparameter);
         }
+        if (earlyStoppingEnabled != null) {
+            builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
+        }
         builder.endObject();
         return builder;
     }
@@ -313,7 +325,8 @@ public class Classification implements DataFrameAnalysis {
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
             predictionFieldName, trainingPercent, randomizeSeed, numTopClasses, classAssignmentObjective, featureProcessors, alpha,
-            etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter);
+            etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter,
+            earlyStoppingEnabled);
     }
 
     @Override
@@ -339,7 +352,8 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(softTreeDepthLimit, that.softTreeDepthLimit)
             && Objects.equals(softTreeDepthTolerance, that.softTreeDepthTolerance)
             && Objects.equals(downsampleFactor, that.downsampleFactor)
-            && Objects.equals(maxOptimizationRoundsPerHyperparameter, that.maxOptimizationRoundsPerHyperparameter);
+            && Objects.equals(maxOptimizationRoundsPerHyperparameter, that.maxOptimizationRoundsPerHyperparameter)
+            && Objects.equals(earlyStoppingEnabled, that.earlyStoppingEnabled);
     }
 
     @Override
@@ -380,6 +394,7 @@ public class Classification implements DataFrameAnalysis {
         private Double softTreeDepthTolerance;
         private Double downsampleFactor;
         private Integer maxOptimizationRoundsPerHyperparameter;
+        private Boolean earlyStoppingEnabled;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -475,11 +490,16 @@ public class Classification implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setEarlyStoppingEnabled(Boolean earlyStoppingEnabled) {
+            this.earlyStoppingEnabled = earlyStoppingEnabled;
+            return this;
+        }
+
         public Classification build() {
             return new Classification(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
                 numTopFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed,
                 classAssignmentObjective, featureProcessors, alpha, etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance,
-                downsampleFactor, maxOptimizationRoundsPerHyperparameter);
+                downsampleFactor, maxOptimizationRoundsPerHyperparameter, earlyStoppingEnabled);
         }
     }
 }

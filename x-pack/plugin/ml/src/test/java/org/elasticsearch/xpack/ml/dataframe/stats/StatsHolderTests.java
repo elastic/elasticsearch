@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.Arrays;
@@ -29,7 +30,7 @@ public class StatsHolderTests extends ESTestCase {
                 new PhaseProgress("writing_results", 0)
             )
         );
-        StatsHolder statsHolder = new StatsHolder(phases);
+        StatsHolder statsHolder = newStatsHolder(phases);
 
         statsHolder.adjustProgressTracker(Arrays.asList("a", "b"), false);
 
@@ -55,7 +56,7 @@ public class StatsHolderTests extends ESTestCase {
                 new PhaseProgress("writing_results", 50)
             )
         );
-        StatsHolder statsHolder = new StatsHolder(phases);
+        StatsHolder statsHolder = newStatsHolder(phases);
 
         statsHolder.adjustProgressTracker(Arrays.asList("a", "b"), false);
 
@@ -81,7 +82,7 @@ public class StatsHolderTests extends ESTestCase {
                 new PhaseProgress("writing_results", 50)
             )
         );
-        StatsHolder statsHolder = new StatsHolder(phases);
+        StatsHolder statsHolder = newStatsHolder(phases);
 
         statsHolder.adjustProgressTracker(Arrays.asList("c", "d"), false);
 
@@ -107,7 +108,7 @@ public class StatsHolderTests extends ESTestCase {
                 new PhaseProgress("writing_results", 50)
             )
         );
-        StatsHolder statsHolder = new StatsHolder(phases);
+        StatsHolder statsHolder = newStatsHolder(phases);
 
         statsHolder.adjustProgressTracker(Arrays.asList("a", "b"), false);
 
@@ -123,6 +124,32 @@ public class StatsHolderTests extends ESTestCase {
         assertThat(phaseProgresses.get(4).getProgressPercent(), equalTo(0));
     }
 
+    public void testAdjustProgressTracker_GivenAllPhasesCompleteExceptInference() {
+        List<PhaseProgress> phases = Collections.unmodifiableList(
+            Arrays.asList(
+                new PhaseProgress("reindexing", 100),
+                new PhaseProgress("loading_data", 100),
+                new PhaseProgress("a", 100),
+                new PhaseProgress("writing_results", 100),
+                new PhaseProgress("inference", 20)
+            )
+        );
+        StatsHolder statsHolder = newStatsHolder(phases);
+
+        statsHolder.adjustProgressTracker(Arrays.asList("a", "b"), true);
+
+        List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
+
+        assertThat(phaseProgresses, contains(
+            new PhaseProgress("reindexing", 100),
+            new PhaseProgress("loading_data", 100),
+            new PhaseProgress("a", 100),
+            new PhaseProgress("b", 100),
+            new PhaseProgress("writing_results", 100),
+            new PhaseProgress("inference", 0)
+        ));
+    }
+
     public void testResetProgressTracker() {
         List<PhaseProgress> phases = Collections.unmodifiableList(
             Arrays.asList(
@@ -133,7 +160,7 @@ public class StatsHolderTests extends ESTestCase {
                 new PhaseProgress("writing_results", 50)
             )
         );
-        StatsHolder statsHolder = new StatsHolder(phases);
+        StatsHolder statsHolder = newStatsHolder(phases);
 
         statsHolder.resetProgressTracker(Arrays.asList("a", "b"), false);
 
@@ -147,5 +174,9 @@ public class StatsHolderTests extends ESTestCase {
         assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(3).getProgressPercent(), equalTo(0));
         assertThat(phaseProgresses.get(4).getProgressPercent(), equalTo(0));
+    }
+
+    private static StatsHolder newStatsHolder(List<PhaseProgress> progress) {
+        return new StatsHolder(progress, null, null, new DataCounts("test_job"));
     }
 }

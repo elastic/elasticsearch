@@ -63,7 +63,7 @@ public class ClusterBlockException extends ElasticsearchException {
 
     public boolean retryable() {
         for (ClusterBlock block : blocks) {
-            if (!block.retryable()) {
+            if (block.retryable() == false) {
                 return false;
             }
         }

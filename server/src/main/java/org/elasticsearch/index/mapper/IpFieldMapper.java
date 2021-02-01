@@ -30,6 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -100,8 +102,8 @@ public class IpFieldMapper extends FieldMapper {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.deprecate("ip_mapper_null_field", "Error parsing [" + nullValue.getValue()
-                        + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
+                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" +
+                        nullValue.getValue() + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                     return null;
                 }
             }
@@ -196,7 +198,7 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             InetAddress[] addresses = new InetAddress[values.size()];
             int i = 0;
             for (Object value : values) {

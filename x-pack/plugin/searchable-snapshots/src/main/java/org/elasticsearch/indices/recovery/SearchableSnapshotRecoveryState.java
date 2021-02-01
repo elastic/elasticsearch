@@ -60,6 +60,11 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         index.addFileToIgnore(name);
     }
 
+    public synchronized void markIndexFileAsReused(String name) {
+        SearchableSnapshotRecoveryState.Index index = (Index) getIndex();
+        index.markFileAsReused(name);
+    }
+
     private static final class Index extends RecoveryState.Index {
         // We ignore the files that won't be part of the pre-warming
         // phase since the information for those files won't be
@@ -84,6 +89,10 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             }
 
             super.addFileDetail(name, length, reused);
+        }
+
+        private synchronized void markFileAsReused(String name) {
+            ((SearchableSnapshotRecoveryFilesDetails) fileDetails).markFileAsReused(name);
         }
 
         // We have to bypass all the calls to the timer
@@ -118,6 +127,12 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
                 + "] and ["
                 + length
                 + "]";
+        }
+
+        void markFileAsReused(String name) {
+            final FileDetail fileDetail = fileDetails.get(name);
+            assert fileDetail != null;
+            fileDetails.put(name, new FileDetail(fileDetail.name(), fileDetail.length(), true));
         }
 
         @Override

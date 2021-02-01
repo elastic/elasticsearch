@@ -91,14 +91,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
-    private final CompatibleVersion compatibleVersion;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
-                          CompatibleVersion compatibleVersion) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
-        this.compatibleVersion = compatibleVersion;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -330,8 +327,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 
-        Version compatibleVersion = this.compatibleVersion.
-            get(request.getParsedAccept(), request.getParsedContentType(), request.hasContent());
+        Version compatibleVersion = request.getCompatibleVersion();
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

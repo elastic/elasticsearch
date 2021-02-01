@@ -48,6 +48,8 @@ public class AnalysisStep extends AbstractDataFrameAnalyticsStep {
 
     @Override
     protected void doExecute(ActionListener<StepResponse> listener) {
+        task.getStatsHolder().getDataCountsTracker().reset();
+
         final ParentTaskAssigningClient parentTaskClient = parentTaskClient();
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(

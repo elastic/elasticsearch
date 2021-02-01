@@ -3,7 +3,7 @@
 [[find-structure]]
 = Find structure API
 
-Finds the structure of a text file. The text file must
+Finds the structure of text. The text must
 contain data that is suitable to be ingested into the
 {stack}.
 
@@ -30,25 +30,24 @@ is suitable for subsequent use with other {stack} functionality.
 
 Unlike other {es} endpoints, the data that is posted to this endpoint does not
 need to be UTF-8 encoded and in JSON format. It must, however, be text; binary
-file formats are not currently supported.
+text formats are not currently supported.
 
 The response from the API contains:
 
-* A couple of messages from the beginning of the file.
+* A couple of messages from the beginning of the text.
 * Statistics that reveal the most common values for all fields detected within
-the file and basic numeric statistics for numeric fields.
-* Information about the structure of the file, which is useful when you write
-ingest configurations to index the file contents.
-* Appropriate mappings for an {es} index, which you could use to ingest the file
-contents.
+the text and basic numeric statistics for numeric fields.
+* Information about the structure of the text, which is useful when you write
+ingest configurations to index it or similarly formatted text.
+* Appropriate mappings for an {es} index, which you could use to ingest the text.
 
 All this information can be calculated by the structure finder with no guidance.
-However, you can optionally override some of the decisions about the file
+However, you can optionally override some of the decisions about the text
 structure by specifying one or more query parameters.
 
 Details of the output can be seen in the <<find-structure-examples,examples>>.
 
-If the structure finder produces unexpected results for a particular file,
+If the structure finder produces unexpected results for some text,
 specify the `explain` query parameter. It causes an `explanation` to appear in
 the response, which should help in determining why the returned structure was
 chosen.
@@ -58,7 +57,7 @@ chosen.
 == {api-query-parms-title}
 
 `charset`::
-(Optional, string) The file's character set. It must be a character set that is
+(Optional, string) The text's character set. It must be a character set that is
 supported by the JVM that {es} uses. For example, `UTF-8`, `UTF-16LE`,
 `windows-1252`, or `EUC-JP`. If this parameter is not specified, the structure
 finder chooses an appropriate character set.
@@ -66,8 +65,8 @@ finder chooses an appropriate character set.
 `column_names`::
 (Optional, string) If you have set `format` to `delimited`, you can specify the
 column names in a comma-separated list. If this parameter is not specified, the
-structure finder uses the column names from the header row of the file. If the
-file does not have a header role, columns are named "column1", "column2",
+structure finder uses the column names from the header row of the text. If the
+text does not have a header role, columns are named "column1", "column2",
 "column3", etc.
 
 `delimiter`::
@@ -85,7 +84,7 @@ field named `explanation`, which is an array of strings that indicate how the
 structure finder produced its result. The default value is `false`.
 
 `format`::
-(Optional, string) The high level structure of the file. Valid values are
+(Optional, string) The high level structure of the text. Valid values are
 `ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the API
 chooses the format. In this default scenario, all rows must have the same number
 of fields for a delimited format to be detected. If the `format` is set to
@@ -95,7 +94,7 @@ of rows that have a different number of columns than the first row.
 `grok_pattern`::
 (Optional, string) If you have set `format` to `semi_structured_text`, you can
 specify a Grok pattern that is used to extract fields from every message in the
-file. The name of the timestamp field in the Grok pattern must match what is
+text. The name of the timestamp field in the Grok pattern must match what is
 specified in the `timestamp_field` parameter. If that parameter is not
 specified, the name of the timestamp field in the Grok pattern must match
 "timestamp". If `grok_pattern` is not specified, the structure finder creates a
@@ -103,30 +102,30 @@ Grok pattern.
 
 `has_header_row`::
 (Optional, Boolean) If you have set `format` to `delimited`, you can use this
-parameter to indicate whether the column names are in the first row of the file.
+parameter to indicate whether the column names are in the first row of the text.
 If this parameter is not specified, the structure finder guesses based on the
-similarity of the first row of the file to other rows.
+similarity of the first row of the text to other rows.
 
 `line_merge_size_limit`::
 (Optional, unsigned integer) The maximum number of characters in a message when
-lines are merged to form messages while analyzing semi-structured files. The
+lines are merged to form messages while analyzing semi-structured text. The
 default is `10000`. If you have extremely long messages you may need to increase
 this, but be aware that this may lead to very long processing times if the way
 to group lines into messages is misdetected.
 
 `lines_to_sample`::
 (Optional, unsigned integer) The number of lines to include in the structural
-analysis, starting from the beginning of the file. The minimum is 2; the default
+analysis, starting from the beginning of the text. The minimum is 2; the default
 is `1000`. If the value of this parameter is greater than the number of lines in
-the file, the analysis proceeds (as long as there are at least two lines in the
-file) for all of the lines.
+the text, the analysis proceeds (as long as there are at least two lines in the
+text) for all of the lines.
 +
 --
 NOTE: The number of lines and the variation of the lines affects the speed of
-the analysis. For example, if you upload a log file where the first 1000 lines
+the analysis. For example, if you upload text where the first 1000 lines
 are all variations on the same message, the analysis will find more commonality
 than would be seen with a bigger sample. If possible, however, it is more
-efficient to upload a sample file with more variety in the first 1000 lines than
+efficient to upload sample text with more variety in the first 1000 lines than
 to request analysis of 100000 lines to achieve some variety.
 
 --
@@ -135,7 +134,7 @@ to request analysis of 100000 lines to achieve some variety.
 (Optional, string) If you have set `format` to `delimited`, you can specify the
 character used to quote the values in each row if they contain newlines or the
 delimiter character. Only a single character is supported. If this parameter is
-not specified, the default value is a double quote (`"`). If your delimited file
+not specified, the default value is a double quote (`"`). If your delimited text
 format does not use quoting, a workaround is to set this argument to a character
 that does not appear anywhere in the sample.
 
@@ -152,25 +151,25 @@ expires then it will be aborted. The default value is 25 seconds.
 
 `timestamp_field`::
 (Optional, string) The name of the field that contains the primary timestamp of
-each record in the file. In particular, if the file were ingested into an index,
+each record in the text. In particular, if the text were ingested into an index,
 this is the field that would be used to populate the `@timestamp` field.
 +
 --
 If the `format` is `semi_structured_text`, this field must match the name of the
 appropriate extraction in the `grok_pattern`. Therefore, for semi-structured
-file formats, it is best not to specify this parameter unless `grok_pattern` is
+text, it is best not to specify this parameter unless `grok_pattern` is
 also specified.
 
-For structured file formats, if you specify this parameter, the field must exist
-within the file.
+For structured text, if you specify this parameter, the field must exist
+within the text.
 
 If this parameter is not specified, the structure finder makes a decision about
-which field (if any) is the primary timestamp field. For structured file
-formats, it is not compulsory to have a timestamp in the file.
+which field (if any) is the primary timestamp field. For structured text,
+it is not compulsory to have a timestamp in the text.
 --
 
 `timestamp_format`::
-(Optional, string) The Java time format of the timestamp field in the file.
+(Optional, string) The Java time format of the timestamp field in the text.
 +
 --
 Only a subset of Java time format letter groups are supported:
@@ -203,7 +202,7 @@ quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override
 format.
 
 One valuable use case for this parameter is when the format is semi-structured
-text, there are multiple timestamp formats in the file, and you know which
+text, there are multiple timestamp formats in the text, and you know which
 format corresponds to the primary timestamp, but you do not want to specify the
 full `grok_pattern`. Another is when the timestamp format is one that the
 structure finder does not consider by default.
@@ -231,7 +230,7 @@ for more information about date and time format syntax.
 [[find-structure-request-body]]
 == {api-request-body-title}
 
-The text file that you want to analyze. It must contain data that is suitable to
+The text that you want to analyze. It must contain data that is suitable to
 be ingested into {es}. It does not need to be in JSON format and it does not
 need to be UTF-8 encoded. The size is limited to the {es} HTTP receive buffer
 size, which defaults to 100 Mb.
@@ -244,7 +243,7 @@ size, which defaults to 100 Mb.
 [[find-structure-example-nld-json]]
 === Ingesting newline-delimited JSON
 
-Suppose you have a newline-delimited JSON file that contains information about
+Suppose you have newline-delimited JSON text that contains information about
 some books. You can send the contents to the `find_structure` endpoint:
 
 [source,console]
@@ -317,7 +316,7 @@ If the request does not encounter errors, you receive the following result:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "date" : {
@@ -525,18 +524,18 @@ If the request does not encounter errors, you receive the following result:
 }
 ----
 // TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
-// The substitution is because the "file" is pre-processed by the test harness,
+// The substitution is because the text is pre-processed by the test harness,
 // so the fields may get reordered in the JSON the endpoint sees
 
-<1> `num_lines_analyzed` indicates how many lines of the file were analyzed.
+<1> `num_lines_analyzed` indicates how many lines of the text were analyzed.
 <2> `num_messages_analyzed` indicates how many distinct messages the lines
 contained. For NDJSON, this value is the same as `num_lines_analyzed`. For other
-file formats, messages can span several lines.
-<3> `sample_start` reproduces the first two messages in the file verbatim. This
-may help diagnose parse errors or accidental uploads of the wrong file.
-<4> `charset` indicates the character encoding used to parse the file.
+text formats, messages can span several lines.
+<3> `sample_start` reproduces the first two messages in the text verbatim. This
+may help diagnose parse errors or accidental uploads of the wrong text.
+<4> `charset` indicates the character encoding used to parse the text.
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
-file begins with a byte order marker.
+text begins with a byte order marker.
 <6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
 <7> The `timestamp_field` names the field considered most likely to be the
 primary timestamp of each document.
@@ -544,7 +543,7 @@ primary timestamp of each document.
 <9> `java_timestamp_formats` are the Java time formats recognized in the time
 fields. {es} mappings and ingest pipelines use this format.
 <10> If a timestamp format is detected that does not include a timezone,
-`need_client_timezone` will be `true`. The server that parses the file must
+`need_client_timezone` will be `true`. The server that parses the text must
 therefore be told the correct timezone by the client.
 <11> `mappings` contains some suitable mappings for an index into which the data
 could be ingested. In this case, the `release_date` field has been given a
@@ -683,7 +682,7 @@ If the request does not encounter errors, you receive the following result:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "csv" : {
@@ -1463,10 +1462,10 @@ lists the column names in the order they appear in the sample.
 <4> `has_header_row` indicates that for this sample the column names were in
 the first row of the sample. (If they hadn't been then it would have been a good
 idea to specify them in the `column_names` query parameter.)
-<5> The `delimiter` for this sample is a comma, as it's a CSV file.
+<5> The `delimiter` for this sample is a comma, as it's CSV formatted text.
 <6> The `quote` character is the default double quote. (The structure finder
-does not attempt to deduce any other quote character, so if you have a delimited
-file that's quoted with some other character you must specify it using the
+does not attempt to deduce any other quote character, so if you have delimited
+text that's quoted with some other character you must specify it using the
 `quote` query parameter.)
 <7> The `timestamp_field` has been chosen to be `tpep_pickup_datetime`.
 `tpep_dropoff_datetime` would work just as well, but `tpep_pickup_datetime` was
@@ -1577,7 +1576,7 @@ this:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "grok" : {
@@ -1693,7 +1692,7 @@ calculate `field_stats` for your additional fields.
 
 In the case of the {es} log a more complete Grok pattern is
 `\[%{TIMESTAMP_ISO8601:timestamp}\]\[%{LOGLEVEL:loglevel} *\]\[%{JAVACLASS:class} *\] \[%{HOSTNAME:node}\] %{JAVALOGMESSAGE:message}`.
-You can analyze the same log file again, submitting this `grok_pattern` as a
+You can analyze the same text again, submitting this `grok_pattern` as a
 query parameter (appropriately URL escaped):
 
 [source,js]
@@ -1745,7 +1744,7 @@ this:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "grok" : {

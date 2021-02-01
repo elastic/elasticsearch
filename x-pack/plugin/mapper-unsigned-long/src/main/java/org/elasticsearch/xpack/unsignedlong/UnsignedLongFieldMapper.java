@@ -42,6 +42,7 @@ import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -170,12 +171,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
-            for (int i = 0; i < values.size(); i++) {
-                Object value = values.get(i);
+            for (Object value : values) {
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
                     lvalues[upTo++] = unsignedToSortableSignedLong(longValue);

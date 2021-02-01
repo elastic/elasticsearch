@@ -294,7 +294,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             String childId = "c" + i;
             builders.add(createIndexRequest("test", "child", childId, previousParentId, "c_field", childId));
 
-            if (!parentToChildren.containsKey(previousParentId)) {
+            if (parentToChildren.containsKey(previousParentId) == false) {
                 parentToChildren.put(previousParentId, new HashSet<>());
             }
             assertThat(parentToChildren.get(previousParentId).add(childId), is(true));

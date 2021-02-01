@@ -89,7 +89,7 @@ public interface PainlessScript {
                 }
                 break;
             // but filter our own internal stacks (e.g. indy bootstrap)
-            } else if (!shouldFilter(element)) {
+            } else if (shouldFilter(element) == false) {
                 scriptStack.add(element.toString());
             }
         }

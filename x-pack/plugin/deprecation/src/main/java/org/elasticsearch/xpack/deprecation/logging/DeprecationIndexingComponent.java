@@ -64,7 +64,10 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
 
-        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder().setType("deprecation").setConfiguration(configuration).build();
+        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder()
+            .setDataset("elasticsearch.deprecation")
+            .setConfiguration(configuration)
+            .build();
 
         this.filter = new RateLimitingFilter();
         this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);

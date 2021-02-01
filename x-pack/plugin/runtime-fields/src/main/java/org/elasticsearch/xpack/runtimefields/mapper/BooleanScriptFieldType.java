@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldTermQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -183,7 +183,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public Query termsQuery(List<?> values, SearchExecutionContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("Empty terms query");
         }

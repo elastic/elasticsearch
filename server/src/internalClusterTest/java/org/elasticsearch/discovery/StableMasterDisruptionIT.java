@@ -194,7 +194,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
                 DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
                 DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
-                if (!Objects.equals(previousMaster, currentMaster)) {
+                if (Objects.equals(previousMaster, currentMaster) == false) {
                     logger.info("--> node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
                         event.previousState());
                     String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;

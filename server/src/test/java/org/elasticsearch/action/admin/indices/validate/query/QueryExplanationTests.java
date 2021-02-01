@@ -32,7 +32,7 @@ public class QueryExplanationTests extends AbstractSerializingTestCase<QueryExpl
         int shard = randomInt(100);
         Boolean valid = isValid;
         String errorField = null;
-        if (!valid) {
+        if (valid == false) {
             errorField = randomAlphaOfLength(randomIntBetween(10, 100));
         }
         String explanation = randomAlphaOfLength(randomIntBetween(10, 100));

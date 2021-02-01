@@ -257,7 +257,7 @@ public class EsExecutors {
         @Override
         public boolean offer(E e) {
             // first try to transfer to a waiting worker thread
-            if (!tryTransfer(e)) {
+            if (tryTransfer(e) == false) {
                 // check if there might be spare capacity in the thread
                 // pool executor
                 int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();

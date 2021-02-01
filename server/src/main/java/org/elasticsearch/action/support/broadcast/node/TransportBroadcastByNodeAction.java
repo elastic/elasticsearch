@@ -138,7 +138,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 totalShards += response.getTotalShards();
                 successfulShards += response.getSuccessfulShards();
                 for (BroadcastShardOperationFailedException throwable : response.getExceptions()) {
-                    if (!TransportActions.isShardNotAvailableException(throwable)) {
+                    if (TransportActions.isShardNotAvailableException(throwable) == false) {
                         exceptions.add(new DefaultShardOperationFailedException(throwable.getShardId().getIndexName(),
                             throwable.getShardId().getId(), throwable));
                     }
@@ -281,7 +281,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 // routing table as such
                 if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                     String nodeId = shard.currentNodeId();
-                    if (!nodeIds.containsKey(nodeId)) {
+                    if (nodeIds.containsKey(nodeId) == false) {
                         nodeIds.put(nodeId, new ArrayList<>());
                     }
                     nodeIds.get(nodeId).add(shard);

@@ -97,7 +97,7 @@ public class RestClusterStateAction extends BaseRestHandler {
 
         final String[] indices = Strings.splitStringByCommaToArray(request.param("indices", "_all"));
         boolean isAllIndicesOnly = indices.length == 1 && "_all".equals(indices[0]);
-        if (!isAllIndicesOnly) {
+        if (isAllIndicesOnly == false) {
             clusterStateRequest.indices(indices);
         }
 

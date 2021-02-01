@@ -88,7 +88,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             builder.endArray();
 
-            if (!nodeInfo.getNode().getAttributes().isEmpty()) {
+            if (nodeInfo.getNode().getAttributes().isEmpty() == false) {
                 builder.startObject("attributes");
                 for (Map.Entry<String, String> entry : nodeInfo.getNode().getAttributes().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());

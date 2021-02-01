@@ -281,7 +281,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
             edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1, p2, dateline);
-            if (!Double.isNaN(position)) {
+            if (Double.isNaN(position) == false) {
                 edges[i].intersection(position);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
@@ -517,7 +517,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ShapeBuilder)) return false;
+        if ((o instanceof ShapeBuilder) == false) return false;
 
         ShapeBuilder<?,?,?> that = (ShapeBuilder<?,?,?>) o;
 

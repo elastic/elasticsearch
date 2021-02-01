@@ -53,7 +53,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSparseVectorWith8xIndex() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_12_0, Version.CURRENT);
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .build();

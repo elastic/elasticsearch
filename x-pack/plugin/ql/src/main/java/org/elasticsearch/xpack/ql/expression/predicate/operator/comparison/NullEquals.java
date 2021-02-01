@@ -41,4 +41,9 @@ public class NullEquals extends BinaryComparison {
     public Nullability nullable() {
         return Nullability.FALSE;
     }
+
+    @Override
+    public BinaryComparison reverse() {
+        return this;
+    }
 }

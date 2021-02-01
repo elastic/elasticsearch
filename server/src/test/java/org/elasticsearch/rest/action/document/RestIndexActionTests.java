@@ -79,7 +79,6 @@ public class RestIndexActionTests extends RestActionTestCase {
             assertThat(request, instanceOf(IndexRequest.class));
             assertThat(((IndexRequest) request).opType(), equalTo(expectedOpType));
             executeCalled.set(true);
-            return null;
         });
         RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.POST)

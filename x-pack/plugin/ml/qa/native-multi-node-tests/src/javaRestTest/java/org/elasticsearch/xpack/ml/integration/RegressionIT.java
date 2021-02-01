@@ -78,7 +78,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler", "DEBUG"))
+                .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG"))
             .get();
     }
 
@@ -88,7 +88,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().cluster()
         .prepareUpdateSettings()
         .setTransientSettings(Settings.builder()
-            .putNull("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler"))
+            .putNull("logger.org.elasticsearch.xpack.ml.process"))
         .get();
     }
 
@@ -307,7 +307,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67581")
     public void testStopAndRestart() throws Exception {
         initialize("regression_stop_and_restart");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";

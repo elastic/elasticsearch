@@ -55,8 +55,6 @@ import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
  */
-// TODO: support running tests against multiple prior versions in addition to bwc:minor. To achieve this we will need to create published
-// artifacts that include all of the REST tests for the latest 7.x.y releases
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
     public static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
@@ -66,7 +64,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
-    public static final String TEST_INTERMEDIATE_DIR_NAME = "v"
+    private static final String TEST_INTERMEDIATE_DIR_NAME = "v"
         + (Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1)
         + "restTests";
 
@@ -97,14 +95,22 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
-            .register("copyRestApiCompatSpecsTask", CopyRestApiTask.class, task -> {
+            .register("copyRestCompatApiTask", CopyRestApiTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
                 task.setCoreConfig(bwcMinorConfig);
                 task.setXpackConfig(bwcMinorConfig);
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestApi().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestApi().getIncludeXpack());
-                task.setSourceSetName(SOURCE_SET_NAME);
+                task.setOutputResourceDir(yamlCompatTestSourceSet.getOutput().getResourcesDir());
+                task.setSourceResourceDir(
+                    yamlCompatTestSourceSet.getResources()
+                        .getSrcDirs()
+                        .stream()
+                        .filter(f -> f.isDirectory() && f.getName().equals("resources"))
+                        .findFirst()
+                        .orElse(null)
+                );
                 task.setSkipHasRestTestCheck(true);
                 task.setCoreConfigToFileTree(
                     config -> project.fileTree(
@@ -127,14 +133,16 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // copy compatible rest tests
         Provider<CopyRestTestsTask> copyCompatYamlTestTask = project.getTasks()
-            .register("copyRestApiCompatTestTask", CopyRestTestsTask.class, task -> {
+            .register("copyRestCompatTestTask", CopyRestTestsTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
                 task.setCoreConfig(bwcMinorConfig);
                 task.setXpackConfig(bwcMinorConfig);
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
-                task.setSourceSetName(SOURCE_SET_NAME);
+                File resourceDir = yamlCompatTestSourceSet.getOutput().getResourcesDir();
+                File intermediateDir = new File(resourceDir, TEST_INTERMEDIATE_DIR_NAME);
+                task.setOutputResourceDir(intermediateDir);
                 task.setCoreConfigToFileTree(
                     config -> project.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
@@ -152,7 +160,6 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                task.setOutputResourceRoot(TEST_INTERMEDIATE_DIR_NAME);
                 task.onlyIf(t -> isEnabled(project));
             });
 

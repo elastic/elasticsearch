@@ -218,11 +218,7 @@ public class Classification implements DataFrameAnalysis {
         } else {
             featureProcessors = Collections.emptyList();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            earlyStoppingEnabled = in.readBoolean();
-        } else {
-            earlyStoppingEnabled = true;
-        }
+        earlyStoppingEnabled = in.readBoolean();
     }
 
     public String getDependentVariable() {
@@ -283,9 +279,7 @@ public class Classification implements DataFrameAnalysis {
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeNamedWriteableList(featureProcessors);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(earlyStoppingEnabled);;
-        }
+        out.writeBoolean(earlyStoppingEnabled);
     }
 
     @Override

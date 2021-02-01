@@ -75,17 +75,18 @@ public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTes
         }
         {
             // tag::find-structure-execute-listener
-            ActionListener<FindStructureResponse> listener = new ActionListener<FindStructureResponse>() {
-                @Override
-                public void onResponse(FindStructureResponse response) {
-                    // <1>
-                }
+            ActionListener<FindStructureResponse> listener =
+                new ActionListener<FindStructureResponse>() {
+                    @Override
+                    public void onResponse(FindStructureResponse response) {
+                        // <1>
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
             // end::find-structure-execute-listener
             FindStructureRequest request = new FindStructureRequest();
             request.setSample(Files.readAllBytes(anInterestingFile));

@@ -92,6 +92,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
+                safeName(clusterName),
                 path,
                 clusterName + "-0",
                 project,
@@ -102,8 +103,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 workingDirBase
             )
         );
-        // configure the cluster name eagerly so nodes know about it
-        this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
     }
@@ -124,6 +123,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         for (int i = nodes.size(); i < numberOfNodes; i++) {
             this.nodes.add(
                 new ElasticsearchNode(
+                    safeName(clusterName),
                     path,
                     clusterName + "-" + i,
                     project,

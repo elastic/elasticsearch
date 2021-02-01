@@ -57,7 +57,7 @@ public class OptimizerRunTests extends ESTestCase {
     private final Analyzer analyzer;
     private final Optimizer optimizer;
     private static final Map<String, Class<? extends BinaryComparison>> COMPARISONS =
-	    new HashMap<String, Class<? extends BinaryComparison>>() {
+        new HashMap<String, Class<? extends BinaryComparison>>() {
                 {
                     put(EQ.symbol(), Equals.class);
                     put(NULLEQ.symbol(), NullEquals.class);

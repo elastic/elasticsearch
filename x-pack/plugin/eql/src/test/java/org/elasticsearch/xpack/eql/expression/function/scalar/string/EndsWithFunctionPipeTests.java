@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
@@ -34,9 +33,9 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
 
     public static EndsWithFunctionPipe randomEndsWithFunctionPipe() {
         return (EndsWithFunctionPipe) (new EndsWith(randomSource(),
-                randomStringLiteral(),
-                randomStringLiteral(),
-                EqlTestUtils.randomConfiguration())
+            randomStringLiteral(),
+            randomStringLiteral(),
+            randomBoolean())
             .makePipe());
     }
 
@@ -45,25 +44,25 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
         // test transforming only the properties (source, expression),
         // skipping the children (input and pattern) which are tested separately
         EndsWithFunctionPipe b1 = randomInstance();
-        Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomEndsWithFunctionExpression());
+        Expression newExpression = randomValueOtherThan(b1.expression(), this::randomEndsWithFunctionExpression);
         EndsWithFunctionPipe newB = new EndsWithFunctionPipe(
-                b1.source(),
-                newExpression,
-                b1.input(),
-                b1.pattern(),
-                b1.isCaseSensitive());
+            b1.source(),
+            newExpression,
+            b1.input(),
+            b1.pattern(),
+            b1.isCaseInsensitive());
         assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
 
         EndsWithFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new EndsWithFunctionPipe(
-                newLoc,
-                b2.expression(),
-                b2.input(),
-                b2.pattern(),
-                b2.isCaseSensitive());
+            newLoc,
+            b2.expression(),
+            b2.input(),
+            b2.pattern(),
+            b2.isCaseInsensitive());
         assertEquals(newB,
-                b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
+            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -71,9 +70,9 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
         EndsWithFunctionPipe b = randomInstance();
         Pipe newInput = pipe(((Expression) randomValueOtherThan(b.input(), () -> randomStringLiteral())));
         Pipe newPattern = pipe(((Expression) randomValueOtherThan(b.pattern(), () -> randomStringLiteral())));
-        boolean newCaseSensitive = randomValueOtherThan(b.isCaseSensitive(), () -> randomBoolean());
+        boolean newCaseSensitive = randomValueOtherThan(b.isCaseInsensitive(), () -> randomBoolean());
         EndsWithFunctionPipe newB =
-                new EndsWithFunctionPipe(b.source(), b.expression(), b.input(), b.pattern(), newCaseSensitive);
+            new EndsWithFunctionPipe(b.source(), b.expression(), b.input(), b.pattern(), newCaseSensitive);
 
         EndsWithFunctionPipe transformed = newB.replaceChildren(newInput, b.pattern());
         assertEquals(transformed.input(), newInput);
@@ -98,20 +97,20 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
     protected EndsWithFunctionPipe mutate(EndsWithFunctionPipe instance) {
         List<Function<EndsWithFunctionPipe, EndsWithFunctionPipe>> randoms = new ArrayList<>();
         randoms.add(f -> new EndsWithFunctionPipe(f.source(),
-                f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.input(), () -> randomStringLiteral()))),
-                f.pattern(),
-                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
+            f.expression(),
+            pipe(((Expression) randomValueOtherThan(f.input(), () -> randomStringLiteral()))),
+            f.pattern(),
+            randomValueOtherThan(f.isCaseInsensitive(), () -> randomBoolean())));
         randoms.add(f -> new EndsWithFunctionPipe(f.source(),
-                f.expression(),
-                f.input(),
-                pipe(((Expression) randomValueOtherThan(f.pattern(), () -> randomStringLiteral()))),
-                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
+            f.expression(),
+            f.input(),
+            pipe(((Expression) randomValueOtherThan(f.pattern(), () -> randomStringLiteral()))),
+            randomValueOtherThan(f.isCaseInsensitive(), () -> randomBoolean())));
         randoms.add(f -> new EndsWithFunctionPipe(f.source(),
-                f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.input(), () -> randomStringLiteral()))),
-                pipe(((Expression) randomValueOtherThan(f.pattern(), () -> randomStringLiteral()))),
-                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
+            f.expression(),
+            pipe(((Expression) randomValueOtherThan(f.input(), () -> randomStringLiteral()))),
+            pipe(((Expression) randomValueOtherThan(f.pattern(), () -> randomStringLiteral()))),
+            randomValueOtherThan(f.isCaseInsensitive(), () -> randomBoolean())));
 
         return randomFrom(randoms).apply(instance);
     }
@@ -119,9 +118,9 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
     @Override
     protected EndsWithFunctionPipe copy(EndsWithFunctionPipe instance) {
         return new EndsWithFunctionPipe(instance.source(),
-                instance.expression(),
-                instance.input(),
-                instance.pattern(),
-                instance.isCaseSensitive());
+            instance.expression(),
+            instance.input(),
+            instance.pattern(),
+            instance.isCaseInsensitive());
     }
 }

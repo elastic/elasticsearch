@@ -327,7 +327,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
             if (first && docValue == null) {
                 assertNull(previousValue);
-            } else if (!first && docValue != null) {
+            } else if (first == false && docValue != null) {
                 assertNotNull(previousValue);
             }
             final BytesRef value = docValue == null ? null : new BytesRef(docValue);

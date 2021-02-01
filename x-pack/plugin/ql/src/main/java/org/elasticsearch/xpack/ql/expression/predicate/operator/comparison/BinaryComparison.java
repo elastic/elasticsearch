@@ -49,4 +49,11 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     public static Integer compare(Object left, Object right) {
         return Comparisons.compare(left, right);
     }
+
+    /**
+     * Reverses the direction of this comparison on the comparison axis.
+     * Some operations like Greater/LessThan/OrEqual will behave as if the operands of a numerical comparison get multiplied with a
+     * negative number. Others like Not/Equal can be immutable to this operation.
+     */
+    public abstract BinaryComparison reverse();
 }

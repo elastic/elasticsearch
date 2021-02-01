@@ -42,4 +42,9 @@ public class Equals extends BinaryComparison implements Negatable<BinaryComparis
     public BinaryComparison negate() {
         return new NotEquals(source(), left(), right(), zoneId());
     }
+
+    @Override
+    public BinaryComparison reverse() {
+        return this;
+    }
 }

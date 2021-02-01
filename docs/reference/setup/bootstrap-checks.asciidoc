@@ -24,10 +24,10 @@ documented individually.
 [[dev-vs-prod-mode]]
 === Development vs. production mode
 
-By default, Elasticsearch binds to loopback addresses for
+By default, {es} binds to loopback addresses for
 <<modules-network,HTTP and transport (internal) communication>>. This is fine
-for downloading and playing with Elasticsearch as well as everyday development,
-but it's useless for production systems. To join a cluster, an Elasticsearch
+for downloading and playing with {es} as well as everyday development,
+but it's useless for production systems. To join a cluster, an {es}
 node must be reachable via transport communication. To join a cluster via a
 non-loopback address, a node must bind transport to a non-loopback address and
 not be using <<single-node-discovery,single-node discovery>>. Thus, we consider

@@ -1,16 +1,18 @@
 ==== Request tracing
 
-It is possible to trace individual requests made on the HTTP and transport
-layers. Be warned that this tracing can generate extremely high log volumes
-which may destabilise your cluster. Do not enable request tracing on busy or
+You can trace individual requests made on the HTTP and transport
+layers.
+
+WARNING: Tracing can generate extremely high log volumes
+that can destabilize your cluster. Do not enable request tracing on busy or
 important clusters.
 
 [[http-rest-request-tracer]]
 ===== REST request tracer
 
-The HTTP layer has a dedicated tracer logger which, when activated, logs
-incoming requests and the corresponding outgoing responses. The log can be
-dynamically activated by setting the level of the
+The HTTP layer has a dedicated tracer that logs
+incoming requests and the corresponding outgoing responses. Activate
+the tracer by setting the level of the
 `org.elasticsearch.http.HttpTracer` logger to `TRACE`:
 
 [source,console]
@@ -40,9 +42,9 @@ PUT _cluster/settings
 [[transport-tracer]]
 ===== Transport tracer
 
-The transport layer has a dedicated tracer logger which, when activated, logs
-incoming and outgoing requests and responses. The log can be dynamically
-activated by setting the level of the
+The transport layer has a dedicated tracer that logs
+incoming and outgoing requests and responses. Activate the tracer 
+by setting the level of the
 `org.elasticsearch.transport.TransportService.tracer` logger to `TRACE`:
 
 [source,console]
@@ -69,4 +71,3 @@ PUT _cluster/settings
    }
 }
 --------------------------------------------------
-

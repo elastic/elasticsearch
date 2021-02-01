@@ -17,8 +17,8 @@ Defaults to `9200-9300`.
 (<<static-cluster-setting,Static>>)
 Sets the address of this node for HTTP traffic. The node will bind to this
 address and will also use it as its HTTP publish address. Accepts an IP
-address, a hostname, or a <<network-interface-values,special value>>. You
-should only use this setting if you require different configurations for the
+address, a hostname, or a <<network-interface-values,special value>>.
+Use this setting only if you require different configurations for the
 transport and HTTP interfaces.
 +
 Defaults to the address given by `network.host`.
@@ -35,7 +35,7 @@ and HTTP interfaces.
 
 `http.publish_host`::
 (<<static-cluster-setting,Static>>)
-The network address at which the node can be contacted by HTTP clients using
+The network address for HTTP clients to contact the node using
 sniffing. Accepts an IP address, a hostname, or a
 <<network-interface-values,special value>>. Defaults to the address given by
 `http.host` or `network.publish_host`. You should only use this setting if you
@@ -46,7 +46,7 @@ transport and HTTP interfaces.
 `http.publish_port`::
 (<<static-cluster-setting,Static>>)
 The port of the <<modules-network-binding-publishing,HTTP publish address>>.
-You should only set this if you need the publish port to be different from
+Configure this setting only if you need the publish port to be different from
 `http.port`. Defaults to the port assigned via `http.port`.
 
 `http.max_content_length`::

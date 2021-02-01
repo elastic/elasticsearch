@@ -264,4 +264,7 @@ public class ClientYamlTestExecutionContext {
         return clientYamlTestClient.getMasterVersion();
     }
 
+    public String os() {
+        return clientYamlTestClient.getOs();
+    }
 }

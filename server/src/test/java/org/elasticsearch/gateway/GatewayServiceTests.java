@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryA
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -81,22 +80,6 @@ public class GatewayServiceTests extends ESTestCase {
         service = createService(Settings.builder().put("gateway.recover_after_time",
             timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
-    }
-
-    public void testDeprecatedSettings() {
-        GatewayService service = createService(Settings.builder());
-
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.EXPECTED_MASTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] {GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING });
     }
 
     public void testRecoverStateUpdateTask() throws Exception {

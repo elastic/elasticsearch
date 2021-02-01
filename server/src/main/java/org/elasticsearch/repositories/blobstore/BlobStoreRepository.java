@@ -188,6 +188,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
     /**
+     * All {@link BlobStoreRepository} implementations can be made read-only by setting this key to {@code true} in their settings.
+     */
+    public static final String READONLY_SETTING_KEY = "readonly";
+
+    /**
      * Prefix used for the identifiers of data blobs that were not actually written to the repository physically because their contents are
      * already stored in the metadata referencing them, i.e. in {@link BlobStoreIndexShardSnapshot} and
      * {@link BlobStoreIndexShardSnapshots}. This is the case for files for which {@link StoreFileMetadata#hashEqualsContents()} is
@@ -333,7 +338,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
-        readOnly = metadata.settings().getAsBoolean("readonly", false);
+        readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
         this.namedXContentRegistry = namedXContentRegistry;

@@ -7,10 +7,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-analytics'
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes"
-}
-
 dependencies {
   compileOnly project(":server")
 

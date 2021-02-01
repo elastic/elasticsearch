@@ -31,7 +31,7 @@ import java.util.List;
  */
 public class CollectionMatchers {
 
-    public static class ImmutableOpenMapHasKeyMatcher extends TypeSafeMatcher<ImmutableOpenMap> {
+    public static class ImmutableOpenMapHasKeyMatcher extends TypeSafeMatcher<ImmutableOpenMap<String, ?>> {
 
         private final String key;
 
@@ -40,12 +40,12 @@ public class CollectionMatchers {
         }
 
         @Override
-        protected boolean matchesSafely(ImmutableOpenMap item) {
+        protected boolean matchesSafely(ImmutableOpenMap<String, ?> item) {
             return item.containsKey(key);
         }
 
         @Override
-        public void describeMismatchSafely(final ImmutableOpenMap map, final Description mismatchDescription) {
+        public void describeMismatchSafely(final ImmutableOpenMap<String, ?> map, final Description mismatchDescription) {
             if (map.size() == 0) {
                 mismatchDescription.appendText("was empty");
             } else {
@@ -59,7 +59,7 @@ public class CollectionMatchers {
         }
     }
 
-    public static class ImmutableOpenMapHasAllKeysMatcher extends TypeSafeMatcher<ImmutableOpenMap> {
+    public static class ImmutableOpenMapHasAllKeysMatcher extends TypeSafeMatcher<ImmutableOpenMap<String, ?>> {
 
         private final List<String> keys;
         private String missingKey;
@@ -69,7 +69,7 @@ public class CollectionMatchers {
         }
 
         @Override
-        protected boolean matchesSafely(ImmutableOpenMap item) {
+        protected boolean matchesSafely(ImmutableOpenMap<String, ?> item) {
             for (String key: keys) {
                 if (item.containsKey(key) == false) {
                     missingKey = key;
@@ -81,7 +81,7 @@ public class CollectionMatchers {
         }
 
         @Override
-        public void describeMismatchSafely(final ImmutableOpenMap map, final Description mismatchDescription) {
+        public void describeMismatchSafely(final ImmutableOpenMap<String, ?> map, final Description mismatchDescription) {
             if (map.size() == 0) {
                 mismatchDescription.appendText("was empty");
             } else {

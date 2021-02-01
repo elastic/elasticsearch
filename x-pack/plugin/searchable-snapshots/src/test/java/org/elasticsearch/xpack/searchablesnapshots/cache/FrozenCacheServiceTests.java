@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +29,11 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
-        final FrozenCacheService cacheService = new FrozenCacheService(settings, taskQueue.getThreadPool());
+        final FrozenCacheService cacheService = new FrozenCacheService(
+            TestEnvironment.newEnvironment(settings),
+            settings,
+            taskQueue.getThreadPool()
+        );
         final CacheKey cacheKey = generateCacheKey();
         assertEquals(5, cacheService.freeRegionCount());
         final CacheFileRegion region0 = cacheService.get(cacheKey, 250, 0);
@@ -68,7 +73,11 @@ public class FrozenCacheServiceTests extends ESTestCase {
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
-        final FrozenCacheService cacheService = new FrozenCacheService(settings, taskQueue.getThreadPool());
+        final FrozenCacheService cacheService = new FrozenCacheService(
+            TestEnvironment.newEnvironment(settings),
+            settings,
+            taskQueue.getThreadPool()
+        );
         final CacheKey cacheKey = generateCacheKey();
         assertEquals(2, cacheService.freeRegionCount());
         final CacheFileRegion region0 = cacheService.get(cacheKey, 250, 0);

@@ -121,7 +121,7 @@ public class FrozenCacheService implements Releasable {
 
     private final AtomicReference<CacheFileRegion>[] regionOwners; // to assert exclusive access of regions
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(Environment environment, Settings settings, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();

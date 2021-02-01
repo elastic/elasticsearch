@@ -334,6 +334,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     }
 
     public boolean isValid() {
+        // todo: base this on validate
         if (pivotConfig != null && pivotConfig.isValid() == false) {
             return false;
         }
@@ -343,6 +344,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
 
         if (syncConfig != null && syncConfig.isValid() == false) {
+            return false;
+        }
+
+        if (retentionPolicyConfig != null && retentionPolicyConfig.validate(null) != null) {
             return false;
         }
 

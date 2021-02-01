@@ -58,5 +58,4 @@ user-dls:
 
 user-manage:
   cluster:
-    - manage_security
     - manage

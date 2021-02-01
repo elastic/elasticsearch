@@ -591,7 +591,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                 }
                 // create slice that is positioned to read the given values
                 final ByteBuffer dup = buffer.duplicate();
-                // assert dup.position() == 0;
                 final int newPosition = dup.position() + Math.toIntExact(relativePos);
                 assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
                 assert newPosition + length <= buffer.limit() : "oldpos "

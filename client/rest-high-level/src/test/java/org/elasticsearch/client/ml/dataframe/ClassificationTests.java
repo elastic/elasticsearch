@@ -60,7 +60,7 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
             .setSoftTreeDepthTolerance(randomBoolean() ? null : randomDoubleBetween(0.01, Double.MAX_VALUE, true))
             .setDownsampleFactor(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, false))
             .setMaxOptimizationRoundsPerHyperparameter(randomBoolean() ? null : randomIntBetween(0, 20))
-            .setEarlyStoppingEnabled(randomBoolean())
+            .setEarlyStoppingEnabled(randomBoolean() ? null : randomBoolean())
             .build();
     }
 

@@ -88,7 +88,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         Long randomizeSeed = randomBoolean() ? null : randomLong();
         Regression.LossFunction lossFunction = randomBoolean() ? null : randomFrom(Regression.LossFunction.values());
         Double lossFunctionParameter = randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, false);
-        Boolean earlyStoppingEnabled = randomBoolean();
+        Boolean earlyStoppingEnabled = randomBoolean() ? null : randomBoolean();
         return new Regression(dependentVariableName, boostedTreeParams, predictionFieldName, trainingPercent, randomizeSeed, lossFunction,
             lossFunctionParameter,
             randomBoolean() ?

@@ -97,7 +97,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         Integer numTopClasses = randomBoolean() ? null : randomIntBetween(-1, 1000);
         Double trainingPercent = randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, false);
         Long randomizeSeed = randomBoolean() ? null : randomLong();
-        Boolean earlyStoppingEnabled = randomBoolean();
+        Boolean earlyStoppingEnabled = randomBoolean() ? null : randomBoolean();
         return new Classification(dependentVariableName, boostedTreeParams, predictionFieldName, classAssignmentObjective,
             numTopClasses, trainingPercent, randomizeSeed,
             randomBoolean() ?

@@ -33,6 +33,7 @@ import org.apache.http.util.VersionInfo;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.AccessControlException;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
@@ -94,8 +95,14 @@ public final class RestClientBuilder {
         USER_AGENT_HEADER_VALUE = String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
             VERSION.isEmpty() ? "Unknown" : VERSION, System.getProperty("java.version"));
 
-        VersionInfo httpClientVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client",
-            HttpAsyncClientBuilder.class.getClassLoader());
+        VersionInfo httpClientVersion = null;
+        try {
+            httpClientVersion = AccessController.doPrivileged((PrivilegedAction<VersionInfo>)() ->
+                VersionInfo.loadVersionInfo("org.apache.http.nio.client", HttpAsyncClientBuilder.class.getClassLoader())
+            );
+        } catch (Exception e) {
+            // Keep unknown
+        }
 
         // service, language, transport, followed by additional information
         META_HEADER_VALUE = "es=" + VERSION +

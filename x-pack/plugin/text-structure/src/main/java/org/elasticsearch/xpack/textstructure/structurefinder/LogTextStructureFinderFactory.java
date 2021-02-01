@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class TextLogFileStructureFinderFactory implements FileStructureFinderFactory {
+public class LogTextStructureFinderFactory implements TextStructureFinderFactory {
 
     // This works because, by default, dot doesn't match newlines
     private static final Pattern TWO_NON_BLANK_LINES_PATTERN = Pattern.compile(".\n+.");
@@ -40,16 +40,16 @@ public class TextLogFileStructureFinderFactory implements FileStructureFinderFac
     }
 
     @Override
-    public FileStructureFinder createFromSample(
+    public TextStructureFinder createFromSample(
         List<String> explanation,
         String sample,
         String charsetName,
         Boolean hasByteOrderMarker,
         int lineMergeSizeLimit,
-        FileStructureOverrides overrides,
+        TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) {
-        return TextLogFileStructureFinder.makeTextLogFileStructureFinder(
+        return LogTextStructureFinder.makeLogTextStructureFinder(
             explanation,
             sample,
             charsetName,

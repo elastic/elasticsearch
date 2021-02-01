@@ -6,6 +6,7 @@
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
@@ -53,12 +54,22 @@ public class XDocsClientYamlTestSuiteIT extends AbstractXPackRestTest {
 
     @Override
     protected ClientYamlTestClient initClientYamlTestClient(
-            final ClientYamlSuiteRestSpec restSpec,
-            final RestClient restClient,
-            final List<HttpHost> hosts,
-            final Version esVersion,
-            final Version masterVersion) {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts,
+        final Version esVersion,
+        final Version masterVersion,
+        final String os
+    ) {
+        return new ClientYamlDocsTestClient(
+            restSpec,
+            restClient,
+            hosts,
+            esVersion,
+            masterVersion,
+            os,
+            this::getClientBuilderWithSniffedHosts
+        );
     }
 
     /**

@@ -1501,10 +1501,10 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             + "[2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [x-pack-watcher]\n"
             + "[2018-06-27T11:59:23,588][INFO ][o.e.p.PluginsService     ] [node-0] no plugins loaded\n";
 
-        TimestampFormatFinder timestampFormatFinder = TextLogFileStructureFinder.populateTimestampFormatFinder(
+        TimestampFormatFinder timestampFormatFinder = LogTextStructureFinder.populateTimestampFormatFinder(
             explanation,
             sample.split("\n"),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
         timestampFormatFinder.selectBestMatch();
@@ -1519,10 +1519,10 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     public void testSelectBestMatchGivenExceptionTrace() {
 
-        TimestampFormatFinder timestampFormatFinder = TextLogFileStructureFinder.populateTimestampFormatFinder(
+        TimestampFormatFinder timestampFormatFinder = LogTextStructureFinder.populateTimestampFormatFinder(
             explanation,
             EXCEPTION_TRACE_SAMPLE.split("\n"),
-            FileStructureOverrides.EMPTY_OVERRIDES,
+            TextStructureOverrides.EMPTY_OVERRIDES,
             NOOP_TIMEOUT_CHECKER
         );
 
@@ -1541,9 +1541,9 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     public void testSelectBestMatchGivenExceptionTraceAndTimestampFormatOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("yyyy-MM-dd HH:mm:ss").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampFormat("yyyy-MM-dd HH:mm:ss").build();
 
-        TimestampFormatFinder timestampFormatFinder = TextLogFileStructureFinder.populateTimestampFormatFinder(
+        TimestampFormatFinder timestampFormatFinder = LogTextStructureFinder.populateTimestampFormatFinder(
             explanation,
             EXCEPTION_TRACE_SAMPLE.split("\n"),
             overrides,
@@ -1556,9 +1556,9 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     public void testSelectBestMatchGivenExceptionTraceAndImpossibleTimestampFormatOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("MMM dd HH:mm:ss").build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampFormat("MMM dd HH:mm:ss").build();
 
-        TimestampFormatFinder timestampFormatFinder = TextLogFileStructureFinder.populateTimestampFormatFinder(
+        TimestampFormatFinder timestampFormatFinder = LogTextStructureFinder.populateTimestampFormatFinder(
             explanation,
             EXCEPTION_TRACE_SAMPLE.split("\n"),
             overrides,

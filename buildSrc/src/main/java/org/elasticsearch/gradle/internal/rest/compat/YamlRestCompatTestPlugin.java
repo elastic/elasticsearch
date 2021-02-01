@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle.internal.rest.compat;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.test.rest.CopyRestApiTask;
@@ -64,6 +66,9 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
+    public static final String TEST_INTERMEDIATE_DIR_NAME = "v"
+        + (Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1)
+        + "restTests";
 
     @Override
     public void apply(Project project) {
@@ -147,6 +152,20 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
+                task.setOutputResourceRoot(TEST_INTERMEDIATE_DIR_NAME);
+                task.onlyIf(t -> isEnabled(project));
+            });
+
+        // transform the copied tests task
+        TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
+            .register("transformCompatTests", RestCompatTestTransformTask.class, task -> {
+                task.dependsOn(copyCompatYamlTestTask);
+                task.dependsOn(yamlCompatTestSourceSet.getProcessResourcesTaskName());
+                File resourceDir = yamlCompatTestSourceSet.getOutput().getResourcesDir();
+                File intermediateDir = new File(resourceDir, TEST_INTERMEDIATE_DIR_NAME);
+                task.setInput(project.files(new File(intermediateDir, RELATIVE_TEST_PATH.toString())));
+                task.setOutput(new File(resourceDir, RELATIVE_TEST_PATH.toString()));
+
                 task.onlyIf(t -> isEnabled(project));
             });
 
@@ -166,6 +185,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.dependsOn(copyCompatYamlTestTask);
+            testTask.dependsOn(transformCompatTestTask);
             testTask.onlyIf(t -> isEnabled(project));
         });
 

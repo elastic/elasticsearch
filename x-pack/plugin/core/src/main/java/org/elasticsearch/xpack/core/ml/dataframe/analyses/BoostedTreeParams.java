@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -144,26 +143,13 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         eta = in.readOptionalDouble();
         maxTrees = in.readOptionalVInt();
         featureBagFraction = in.readOptionalDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            numTopFeatureImportanceValues = in.readOptionalInt();
-        } else {
-            numTopFeatureImportanceValues = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            alpha = in.readOptionalDouble();
-            etaGrowthRatePerTree = in.readOptionalDouble();
-            softTreeDepthLimit = in.readOptionalDouble();
-            softTreeDepthTolerance = in.readOptionalDouble();
-            downsampleFactor = in.readOptionalDouble();
-            maxOptimizationRoundsPerHyperparameter = in.readOptionalVInt();
-        } else {
-            alpha = null;
-            etaGrowthRatePerTree = null;
-            softTreeDepthLimit = null;
-            softTreeDepthTolerance = null;
-            downsampleFactor = null;
-            maxOptimizationRoundsPerHyperparameter = null;
-        }
+        numTopFeatureImportanceValues = in.readOptionalInt();
+        alpha = in.readOptionalDouble();
+        etaGrowthRatePerTree = in.readOptionalDouble();
+        softTreeDepthLimit = in.readOptionalDouble();
+        softTreeDepthTolerance = in.readOptionalDouble();
+        downsampleFactor = in.readOptionalDouble();
+        maxOptimizationRoundsPerHyperparameter = in.readOptionalVInt();
     }
 
     public Double getLambda() {
@@ -221,17 +207,13 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         out.writeOptionalDouble(eta);
         out.writeOptionalVInt(maxTrees);
         out.writeOptionalDouble(featureBagFraction);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalInt(numTopFeatureImportanceValues);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalDouble(alpha);
-            out.writeOptionalDouble(etaGrowthRatePerTree);
-            out.writeOptionalDouble(softTreeDepthLimit);
-            out.writeOptionalDouble(softTreeDepthTolerance);
-            out.writeOptionalDouble(downsampleFactor);
-            out.writeOptionalVInt(maxOptimizationRoundsPerHyperparameter);
-        }
+        out.writeOptionalInt(numTopFeatureImportanceValues);
+        out.writeOptionalDouble(alpha);
+        out.writeOptionalDouble(etaGrowthRatePerTree);
+        out.writeOptionalDouble(softTreeDepthLimit);
+        out.writeOptionalDouble(softTreeDepthTolerance);
+        out.writeOptionalDouble(downsampleFactor);
+        out.writeOptionalVInt(maxOptimizationRoundsPerHyperparameter);
     }
 
     @Override

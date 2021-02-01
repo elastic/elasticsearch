@@ -589,7 +589,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
             }
             if (routing != null) {
-                if (!routing.equals(aliasMd.indexRouting())) {
+                if (routing.equals(aliasMd.indexRouting()) == false) {
                     throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" +
                         aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
@@ -751,19 +751,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
-        if (!metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata)) {
+        if (metadata1.coordinationMetadata.equals(metadata2.coordinationMetadata) == false) {
             return false;
         }
-        if (!metadata1.persistentSettings.equals(metadata2.persistentSettings)) {
+        if (metadata1.persistentSettings.equals(metadata2.persistentSettings) == false) {
             return false;
         }
-        if (!metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings)) {
+        if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
             return false;
         }
-        if (!metadata1.templates.equals(metadata2.templates())) {
+        if (metadata1.templates.equals(metadata2.templates()) == false) {
             return false;
         }
-        if (!metadata1.clusterUUID.equals(metadata2.clusterUUID)) {
+        if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
             return false;
         }
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
@@ -773,7 +773,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metadata1.customs) {
             if (cursor.value.context().contains(XContentContext.GATEWAY)) {
-                if (!cursor.value.equals(metadata2.custom(cursor.key))) return false;
+                if (cursor.value.equals(metadata2.custom(cursor.key)) == false) {
+                    return false;
+                }
                 customCount1++;
             }
         }
@@ -783,7 +785,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 customCount2++;
             }
         }
-        if (customCount1 != customCount2) return false;
+        if (customCount1 != customCount2) {
+            return false;
+        }
         return true;
     }
 
@@ -1449,6 +1453,24 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                             " including '" + conflicts.iterator().next() + "'");
                     }
                 }
+
+                // Sanity check, because elsewhere a more user friendly error should have occurred:
+                List<String> conflictingAliases = indicesLookup.values().stream()
+                    .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
+                    .filter(ia -> {
+                        for (IndexMetadata index : ia.getIndices()) {
+                            if (indicesLookup.get(index.getIndex().getName()).getParentDataStream() != null) {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    })
+                    .map(IndexAbstraction::getName)
+                    .collect(Collectors.toList());
+                if (conflictingAliases.isEmpty() == false) {
+                    throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
+                }
             }
         }
 
@@ -1505,7 +1527,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             // we might get here after the meta-data element, or on a fresh parser
             XContentParser.Token token = parser.currentToken();
             String currentFieldName = parser.currentName();
-            if (!"meta-data".equals(currentFieldName)) {
+            if ("meta-data".equals(currentFieldName) == false) {
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_OBJECT) {
                     // move to the field name (meta-data)
@@ -1519,7 +1541,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 currentFieldName = parser.currentName();
             }
 
-            if (!"meta-data".equals(parser.currentName())) {
+            if ("meta-data".equals(parser.currentName()) == false) {
                 throw new IllegalArgumentException("Expected [meta-data] as a field name but got " + currentFieldName);
             }
             if (token != XContentParser.Token.START_OBJECT) {

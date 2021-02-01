@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -73,13 +74,13 @@ public abstract class CoreTestTranslater {
 
     protected abstract Suite suite(ClientYamlTestCandidate candidate);
 
-    // TODO geo_points are missing
     private static final Set<String> RUNTIME_TYPES = Set.of(
         BooleanFieldMapper.CONTENT_TYPE,
         DateFieldMapper.CONTENT_TYPE,
         NumberType.DOUBLE.typeName(),
         KeywordFieldMapper.CONTENT_TYPE,
         IpFieldMapper.CONTENT_TYPE,
+        GeoPointFieldMapper.CONTENT_TYPE,
         NumberType.LONG.typeName()
     );
 
@@ -112,12 +113,14 @@ public abstract class CoreTestTranslater {
                     /*
                      * It would be great to use dynamic:runtime rather than dynamic templates.
                      * Unfortunately, string gets dynamically mapped as a multi-field (text + keyword) which we can't mimic as
-                     * runtime fields don't support text, and from a dynamic template a field can either be runtime of concrete.
+                     * runtime fields don't support text, and from a dynamic template a field can either be runtime or concrete.
                      * We would like to define a keyword sub-field under runtime and leave the main field under properties but that
                      * is not possible. What we do for now is skip strings: we register a dynamic template for each type besides string.
-                     * Ip fields never get dynamically mapped so they'll just look like strings.
+                     * Ip and geo_point fields never get dynamically mapped so they'll just look like strings.
                      */
-                    if (type.equals(IpFieldMapper.CONTENT_TYPE) || type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    if (type.equals(IpFieldMapper.CONTENT_TYPE)
+                        || type.equals(GeoPointFieldMapper.CONTENT_TYPE)
+                        || type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
                         continue;
                     }
                     HashMap<String, Object> map = new HashMap<>();

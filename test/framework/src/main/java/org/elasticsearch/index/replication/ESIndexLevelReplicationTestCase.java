@@ -795,8 +795,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    private <Request extends ReplicatedWriteRequest & DocWriteRequest> BulkShardRequest executeReplicationRequestOnPrimary(
-            IndexShard primary, Request request) throws Exception {
+    private <
+        Request extends ReplicatedWriteRequest<Request> & DocWriteRequest<Request>> BulkShardRequest executeReplicationRequestOnPrimary(
+            IndexShard primary,
+            Request request
+        ) throws Exception {
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(),
             new BulkItemRequest[]{new BulkItemRequest(0, request)});
         final PlainActionFuture<BulkShardRequest> res = new PlainActionFuture<>();

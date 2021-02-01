@@ -75,7 +75,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
         RolloverAction rolloverAction = new RolloverAction(null, null, 1L);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
-        ShrinkAction shrinkAction = new ShrinkAction(1);
+        ShrinkAction shrinkAction = new ShrinkAction(1, null);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));
         Map<String, Phase> phases = new HashMap<>();
         phases.put(hotPhase.getName(), hotPhase);

@@ -53,7 +53,7 @@ public abstract class FieldScript {
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
-            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+            "_source", value -> ((SourceLookup)value).source()
     );
 
     /** The generic runtime parameters for the script. */

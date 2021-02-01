@@ -427,7 +427,7 @@ public class CompletionFieldMapper extends FieldMapper {
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                    if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
+                    if (ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName) == false) {
                         throw new IllegalArgumentException("unknown field name [" + currentFieldName
                             + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }

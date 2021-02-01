@@ -61,7 +61,7 @@ public final class IfConfig {
             msg.append(System.lineSeparator());
 
             // display name (e.g. on windows)
-            if (!nic.getName().equals(nic.getDisplayName())) {
+            if (nic.getName().equals(nic.getDisplayName()) == false) {
                 msg.append(INDENT);
                 msg.append(nic.getDisplayName());
                 msg.append(System.lineSeparator());

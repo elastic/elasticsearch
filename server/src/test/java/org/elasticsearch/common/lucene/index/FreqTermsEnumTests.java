@@ -141,7 +141,7 @@ public class FreqTermsEnumTests extends ESTestCase {
         for (int docId = 0; docId < reader.maxDoc(); docId++) {
             Document doc = reader.document(docId);
             addFreqs(doc, referenceAll);
-            if (!deletedIds.contains(doc.getField("id").stringValue())) {
+            if (deletedIds.contains(doc.getField("id").stringValue()) == false) {
                 addFreqs(doc, referenceNotDeleted);
                 if (randomBoolean()) {
                     filterTerms.add(new BytesRef(doc.getField("id").stringValue()));
@@ -157,7 +157,7 @@ public class FreqTermsEnumTests extends ESTestCase {
         for (IndexableField field : doc.getFields("field")) {
             String term = field.stringValue();
             FreqHolder freqHolder = reference.get(term);
-            if (!addedDocFreq.contains(term)) {
+            if (addedDocFreq.contains(term) == false) {
                 freqHolder.docFreq++;
                 addedDocFreq.add(term);
             }
@@ -204,7 +204,7 @@ public class FreqTermsEnumTests extends ESTestCase {
 
            Collections.shuffle(terms, random());
             for (String term : terms) {
-                if (!termsEnum.seekExact(new BytesRef(term))) {
+                if (termsEnum.seekExact(new BytesRef(term)) == false) {
                     assertThat("term : " + term, reference.get(term).docFreq, is(0));
                     continue;
                 }

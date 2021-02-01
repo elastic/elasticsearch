@@ -90,7 +90,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedDateRange> implementationClass() {
         return ParsedDateRange.class;
     }
 

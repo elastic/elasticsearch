@@ -444,7 +444,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         mutableShardRoutings = routingNodes.shardsWithState(ShardRoutingState.INITIALIZING);
         for (ShardRouting r : mutableShardRoutings) {
-            if (!r.primary()) {
+            if (r.primary() == false) {
                 ShardRouting primary = routingNodes.activePrimary(r.shardId());
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();

@@ -85,7 +85,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         @Override
         public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
                                            AggregationContext context) {
-            Number missing = docValueFormat.parseDouble(rawMissing.toString(), false, context::nowInMillis);
+            Number missing;
+            if (rawMissing instanceof Number) {
+                missing = (Number) rawMissing;
+            } else {
+                missing = docValueFormat.parseDouble(rawMissing.toString(), false, context::nowInMillis);
+            }
             return MissingValues.replaceMissing((ValuesSource.Numeric) valuesSource, missing);
         }
 

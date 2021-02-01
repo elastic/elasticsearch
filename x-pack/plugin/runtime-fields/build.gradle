@@ -8,10 +8,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-runtime-fields'
 
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes"
-}
-
 dependencies {
   compileOnly project(":server")
   compileOnly project(':modules:lang-painless:spi')
@@ -23,4 +19,3 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
 }
-

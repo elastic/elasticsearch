@@ -20,22 +20,24 @@ specify settings, mappings, and aliases.
 
 If a new data stream or index matches more than one index template, the index template with the highest priority is used.
 
+// tag::built-in-index-templates[]
 [IMPORTANT]
 ====
-{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and `synthetics-*-*` index
-patterns, each with a priority of `100`.
-{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
-create data streams. If you use {agent}, assign your index templates a priority
-lower than `100` to avoid an overriding the built-in templates.
+{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and
+`synthetics-*-*` index patterns, each with a priority of `100`. The
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to create data
+streams. If you use the {agent}, assign your index templates a priority lower
+than `100` to avoid overriding the built-in templates.
 
 Otherwise, to avoid accidentally applying the built-in templates, use a
 non-overlapping index pattern or assign templates with an overlapping pattern a
 `priority` higher than `100`.
 
-For example, if you don't use {agent} and want to create a template for the
+For example, if you don't use the {agent} and want to create a template for the
 `logs-*` index pattern, assign your template a priority of `200`. This ensures
 your template is applied instead of the built-in template for `logs-*-*`.
 ====
+// end::built-in-index-templates[]
 
 When a composable template matches a given index
 it always takes precedence over a legacy template. If no composable template matches, a legacy

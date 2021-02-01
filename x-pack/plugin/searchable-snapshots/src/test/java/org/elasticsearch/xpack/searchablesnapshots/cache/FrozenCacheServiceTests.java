@@ -92,6 +92,29 @@ public class FrozenCacheServiceTests extends ESTestCase {
         assertEquals(1, cacheService.freeRegionCount());
     }
 
+    public void testForceEviction() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
+        final FrozenCacheService cacheService = new FrozenCacheService(settings, taskQueue.getThreadPool());
+        final CacheKey cacheKey1 = generateCacheKey();
+        final CacheKey cacheKey2 = generateCacheKey();
+        assertEquals(5, cacheService.freeRegionCount());
+        final CacheFileRegion region0 = cacheService.get(cacheKey1, 250, 0);
+        assertEquals(4, cacheService.freeRegionCount());
+        final CacheFileRegion region1 = cacheService.get(cacheKey2, 250, 1);
+        assertEquals(3, cacheService.freeRegionCount());
+        assertFalse(region0.isEvicted());
+        assertFalse(region1.isEvicted());
+        cacheService.removeFromCache(cacheKey1);
+        assertTrue(region0.isEvicted());
+        assertFalse(region1.isEvicted());
+        assertEquals(4, cacheService.freeRegionCount());
+    }
+
     private static CacheKey generateCacheKey() {
         return new CacheKey(
             randomAlphaOfLength(10),

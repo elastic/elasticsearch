@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,6 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
@@ -389,6 +392,38 @@ public class FrozenCacheService {
         }
     }
 
+    public void removeFromCache(CacheKey cacheKey) {
+        forceEvict(k -> cacheKey.equals(k));
+    }
+
+    public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        forceEvict(
+            k -> shardId.equals(k.getShardId())
+                && snapshotIndexName.equals(k.getSnapshotIndexName())
+                && snapshotUUID.equals(k.getSnapshotUUID())
+        );
+    }
+
+    private void forceEvict(Predicate<CacheKey> cacheKeyPredicate) {
+        final List<Entry<CacheFileRegion>> matchingEntries = new ArrayList<>();
+        keyMapping.forEach((key, value) -> {
+            if (cacheKeyPredicate.test(key.file)) {
+                matchingEntries.add(value);
+            }
+        });
+        if (matchingEntries.isEmpty() == false) {
+            synchronized (this) {
+                for (Entry<CacheFileRegion> entry : matchingEntries) {
+                    boolean evicted = entry.chunk.forceEvict();
+                    if (evicted) {
+                        unlink(entry);
+                        keyMapping.remove(entry.chunk.regionKey, entry);
+                    }
+                }
+            }
+        }
+    }
+
     class CacheDecayTask extends AbstractAsyncTask {
 
         CacheDecayTask(ThreadPool threadPool, TimeValue interval) {
@@ -484,6 +519,15 @@ public class FrozenCacheService {
         public boolean tryEvict() {
             if (refCount() <= 1 && evicted.compareAndSet(false, true)) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
+                decRef();
+                return true;
+            }
+            return false;
+        }
+
+        public boolean forceEvict() {
+            if (evicted.compareAndSet(false, true)) {
+                logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 decRef();
                 return true;
             }

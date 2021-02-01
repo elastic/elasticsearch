@@ -212,6 +212,9 @@ public class MetadataRolloverService {
                                               boolean silent, boolean onlyValidate) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
+            // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
+            // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
+            // rollover
             throw new SnapshotInProgressException(
                     "Cannot roll over data stream that is being snapshotted: "
                             + dataStream.getName()

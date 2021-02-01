@@ -19,15 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ComparisonNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -61,74 +55,13 @@ public class EComp extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitComp(this, scope);
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
-        Class<?> promotedType;
-
-        Output output = new Output();
-
-        Input leftInput = new Input();
-        Output leftOutput = analyze(leftNode, classNode, semanticScope, leftInput);
-
-        Input rightInput = new Input();
-        Output rightOutput = analyze(rightNode, classNode, semanticScope, rightInput);
-
-        if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
-            promotedType = AnalyzerCaster.promoteEquality(leftOutput.actual, rightOutput.actual);
-        } else if (operation == Operation.GT || operation == Operation.GTE || operation == Operation.LT || operation == Operation.LTE) {
-            promotedType = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
-        } else {
-            throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
-        }
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                    "[" + operation.symbol + "] to the types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
-        }
-
-        if (operation != Operation.EQR && operation != Operation.NER && promotedType == def.class) {
-            leftInput.expected = leftOutput.actual;
-            rightInput.expected = rightOutput.actual;
-        } else {
-            leftInput.expected = promotedType;
-            rightInput.expected = promotedType;
-        }
-
-        if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
-                && leftNode instanceof ENull && rightNode instanceof ENull) {
-            throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
-        }
-
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
-
-        output.actual = boolean.class;
-
-        ComparisonNode comparisonNode = new ComparisonNode();
-
-        comparisonNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
-        comparisonNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-
-        comparisonNode.setLocation(getLocation());
-        comparisonNode.setExpressionType(output.actual);
-        comparisonNode.setComparisonType(promotedType);
-        comparisonNode.setOperation(operation);
-
-        output.expressionNode = comparisonNode;
-
-        return output;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        leftNode.visit(userTreeVisitor, scope);
+        rightNode.visit(userTreeVisitor, scope);
     }
 }

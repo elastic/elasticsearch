@@ -45,9 +45,15 @@ public class RestHealthAction extends AbstractCatAction {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/health\n");
     }
+
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {

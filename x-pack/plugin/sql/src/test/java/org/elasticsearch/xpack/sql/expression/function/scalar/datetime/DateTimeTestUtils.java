@@ -36,7 +36,7 @@ public class DateTimeTestUtils {
     }
 
     public static ZonedDateTime dateTime(long millisSinceEpoch) {
-        return DateUtils.asDateTime(millisSinceEpoch);
+        return DateUtils.asDateTimeWithMillis(millisSinceEpoch);
     }
 
     public static OffsetTime time(long millisSinceEpoch) {
@@ -61,6 +61,10 @@ public class DateTimeTestUtils {
         LocalTime lt = LocalTime.of(hour, minute, second, nano);
         LocalDateTime ldt = lt.atDate(LocalDate.EPOCH);
         return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
+    }
+
+    public static ZonedDateTime date(int year, int month, int day, ZoneId zoneId) {
+        return LocalDate.of(year, month, day).atStartOfDay(zoneId);
     }
 
     static ZonedDateTime nowWithMillisResolution() {

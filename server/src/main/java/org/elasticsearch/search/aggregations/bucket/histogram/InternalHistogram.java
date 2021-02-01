@@ -31,12 +31,12 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -152,12 +152,12 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
     }
 
-    static class EmptyBucketInfo {
+    public static class EmptyBucketInfo {
 
         final double interval, offset, minBound, maxBound;
         final InternalAggregations subAggregations;
 
-        EmptyBucketInfo(double interval, double offset, double minBound, double maxBound, InternalAggregations subAggregations) {
+        public EmptyBucketInfo(double interval, double offset, double minBound, double maxBound, InternalAggregations subAggregations) {
             this.interval = interval;
             this.offset = offset;
             this.minBound = minBound;
@@ -203,8 +203,15 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     private final long minDocCount;
     final EmptyBucketInfo emptyBucketInfo;
 
-    InternalHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
-            DocValueFormat formatter, boolean keyed, Map<String, Object> metadata) {
+    public InternalHistogram(
+        String name,
+        List<Bucket> buckets,
+        BucketOrder order,
+        long minDocCount,
+        EmptyBucketInfo emptyBucketInfo,
+        DocValueFormat formatter,
+        boolean keyed,
+        Map<String, Object> metadata) {
         super(name, metadata);
         this.buckets = buckets;
         this.order = order;
@@ -272,24 +279,12 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private static class IteratorAndCurrent {
-
-        private final Iterator<Bucket> iterator;
-        private Bucket current;
-
-        IteratorAndCurrent(Iterator<Bucket> iterator) {
-            this.iterator = iterator;
-            current = iterator.next();
-        }
-
-    }
-
     private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
-        final PriorityQueue<IteratorAndCurrent> pq = new PriorityQueue<IteratorAndCurrent>(aggregations.size()) {
+        final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
-            protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
-                return Double.compare(a.current.key, b.current.key) < 0;
+            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                return Double.compare(a.current().key, b.current().key) < 0;
             }
         };
         for (InternalAggregation aggregation : aggregations) {
@@ -303,12 +298,12 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same key
             List<Bucket> currentBuckets = new ArrayList<>();
-            double key = pq.top().current.key;
+            double key = pq.top().current().key;
 
             do {
-                final IteratorAndCurrent top = pq.top();
+                final IteratorAndCurrent<Bucket> top = pq.top();
 
-                if (Double.compare(top.current.key, key) != 0) {
+                if (Double.compare(top.current().key, key) != 0) {
                     // The key changes, reduce what we already buffered and reset the buffer for current buckets.
                     // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
@@ -316,15 +311,14 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                         reducedBuckets.add(reduced);
                     }
                     currentBuckets.clear();
-                    key = top.current.key;
+                    key = top.current().key;
                 }
 
-                currentBuckets.add(top.current);
+                currentBuckets.add(top.current());
 
-                if (top.iterator.hasNext()) {
-                    final Bucket next = top.iterator.next();
-                    assert Double.compare(next.key, top.current.key) > 0 : "shards must return data sorted by key";
-                    top.current = next;
+                if (top.hasNext()) {
+                    top.next();
+                    assert Double.compare(top.current().key, key) > 0 : "shards must return data sorted by key";
                     pq.updateTop();
                 } else {
                     pq.pop();

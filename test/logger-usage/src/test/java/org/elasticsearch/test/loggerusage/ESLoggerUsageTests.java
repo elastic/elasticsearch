@@ -26,6 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
@@ -262,8 +263,8 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkDeprecationLogger() {
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        deprecationLogger.deprecate("key","message {}", 123);
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
+        deprecationLogger.deprecate(DeprecationCategory.OTHER, "key","message {}", 123);
     }
 
 }

@@ -107,7 +107,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
 
     public static SearchProfileShardResults fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         Map<String, ProfileShardResult> searchProfileResults = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_ARRAY) {
@@ -128,7 +128,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContentFra
     private static void parseSearchProfileResultsEntry(XContentParser parser,
             Map<String, ProfileShardResult> searchProfileResults) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
         String id = null;

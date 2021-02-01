@@ -23,7 +23,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -35,14 +34,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -64,7 +61,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final boolean requiredFullRange;
 
     private final IndexSearcher indexSearcher;
-    private final MapperService mapperService;
     private int docIndex = 0;
     private final int totalHits;
     private ScoreDoc[] scoreDocs;
@@ -75,13 +71,12 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
      * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
-     * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
      * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      */
-    LuceneChangesSnapshot(Engine.Searcher engineSearcher, MapperService mapperService, int searchBatchSize,
+    LuceneChangesSnapshot(Engine.Searcher engineSearcher, int searchBatchSize,
                           long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
@@ -95,7 +90,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 IOUtils.close(engineSearcher);
             }
         };
-        this.mapperService = mapperService;
         final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
         this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
         this.fromSeqNo = fromSeqNo;
@@ -236,9 +230,12 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex] ? SourceFieldMapper.RECOVERY_SOURCE_NAME :
             SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
-        leaf.reader().document(segmentDocID, fields);
-        fields.postProcess(mapperService);
-
+        if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
+            ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader().visitDocument(segmentDocID, fields);
+        } else {
+            assert false : "The changes reader isn't wrapped with Lucene#wrapAllDocsLive";
+            throw new IllegalStateException("The changes reader isn't wrapped with Lucene#wrapAllDocsLive");
+        }
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
         if (isTombstone && fields.id() == null) {
@@ -247,9 +244,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
             final String id = fields.id();
-            final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
             if (isTombstone) {
-                op = new Translog.Delete(id, uid, seqNo, primaryTerm, version);
+                op = new Translog.Delete(id, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
                 final BytesReference source = fields.source();

@@ -92,7 +92,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.GRAPH)) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.GRAPH)) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));

@@ -23,9 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -51,8 +48,8 @@ public class FsProbe {
         this.nodeEnv = nodeEnv;
     }
 
-    public FsInfo stats(FsInfo previous, @Nullable ClusterInfo clusterInfo) throws IOException {
-        if (!nodeEnv.hasNodeFile()) {
+    public FsInfo stats(FsInfo previous) throws IOException {
+        if (nodeEnv.hasNodeFile() == false) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
         NodePath[] dataLocations = nodeEnv.nodePaths();
@@ -70,13 +67,7 @@ public class FsProbe {
             }
             ioStats = ioStats(devicesNumbers, previous);
         }
-        DiskUsage leastDiskEstimate = null;
-        DiskUsage mostDiskEstimate = null;
-        if (clusterInfo != null) {
-            leastDiskEstimate = clusterInfo.getNodeLeastAvailableDiskUsages().get(nodeEnv.nodeId());
-            mostDiskEstimate = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeEnv.nodeId());
-        }
-        return new FsInfo(System.currentTimeMillis(), ioStats, paths, leastDiskEstimate, mostDiskEstimate);
+        return new FsInfo(System.currentTimeMillis(), ioStats, paths);
     }
 
     final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {
@@ -92,12 +83,12 @@ public class FsProbe {
             List<FsInfo.DeviceStats> devicesStats = new ArrayList<>();
 
             List<String> lines = readProcDiskStats();
-            if (!lines.isEmpty()) {
+            if (lines.isEmpty() == false) {
                 for (String line : lines) {
                     String fields[] = line.trim().split("\\s+");
                     final int majorDeviceNumber = Integer.parseInt(fields[0]);
                     final int minorDeviceNumber = Integer.parseInt(fields[1]);
-                    if (!devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))) {
+                    if (devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)) == false) {
                         continue;
                     }
                     final String deviceName = fields[2];

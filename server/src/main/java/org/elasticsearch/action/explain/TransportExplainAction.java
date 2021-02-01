@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.explain;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -36,8 +35,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
@@ -113,12 +110,11 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         Engine.GetResult result = null;
         try {
             // No need to check the type, IndexShard#get does it for us
-            Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
-            result = context.indexShard().get(new Engine.Get(false, false, request.id(), uidTerm));
-            if (!result.exists()) {
+            result = context.indexShard().get(new Engine.Get(false, false, request.id()));
+            if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
-            context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
+            context.parsedQuery(context.getSearchExecutionContext().toQuery(request.query()));
             context.preProcess(true);
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);

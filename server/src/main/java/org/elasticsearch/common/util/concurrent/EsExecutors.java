@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -41,7 +40,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 public class EsExecutors {
 
@@ -192,15 +190,6 @@ public class EsExecutors {
         return DIRECT_EXECUTOR_SERVICE;
     }
 
-    public static String threadName(Settings settings, String ... names) {
-        String namePrefix =
-                Arrays
-                        .stream(names)
-                        .filter(name -> name != null)
-                        .collect(Collectors.joining(".", "[", "]"));
-        return threadName(settings, namePrefix);
-    }
-
     public static String threadName(Settings settings, String namePrefix) {
         if (Node.NODE_NAME_SETTING.exists(settings)) {
             return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
@@ -222,10 +211,6 @@ public class EsExecutors {
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
         assert nodeName != null && false == nodeName.isEmpty();
         return daemonThreadFactory(threadName(nodeName, namePrefix));
-    }
-
-    public static ThreadFactory daemonThreadFactory(Settings settings, String ... names) {
-        return daemonThreadFactory(threadName(settings, names));
     }
 
     public static ThreadFactory daemonThreadFactory(String namePrefix) {

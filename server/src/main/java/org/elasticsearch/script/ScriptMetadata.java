@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +51,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
      */
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptMetadata.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScriptMetadata.class);
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -219,9 +219,17 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
                         if (source.getSource().isEmpty()) {
                             if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
-                                deprecationLogger.deprecate("empty_templates", "empty templates should no longer be used");
+                                deprecationLogger.deprecate(
+                                    DeprecationCategory.TEMPLATES,
+                                    "empty_templates",
+                                    "empty templates should no longer be used"
+                                );
                             } else {
-                                deprecationLogger.deprecate("empty_scripts", "empty scripts should no longer be used");
+                                deprecationLogger.deprecate(
+                                    DeprecationCategory.TEMPLATES,
+                                    "empty_scripts",
+                                    "empty scripts should no longer be used"
+                                );
                             }
                         }
                     }

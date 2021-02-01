@@ -6,10 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,13 +66,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetTrainedModelsStatsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends AbstractGetResourcesResponse<Response.TrainedModelStats> {
 
         public static class TrainedModelStats implements ToXContentObject, Writeable {
@@ -102,11 +92,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 modelId = in.readString();
                 ingestStats = new IngestStats(in);
                 pipelineCount = in.readVInt();
-                if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-                    this.inferenceStats = in.readOptionalWriteable(InferenceStats::new);
-                } else {
-                    this.inferenceStats = null;
-                }
+                this.inferenceStats = in.readOptionalWriteable(InferenceStats::new);
             }
 
             public String getModelId() {
@@ -142,9 +128,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 out.writeString(modelId);
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
-                if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                    out.writeOptionalWriteable(this.inferenceStats);
-                }
+                out.writeOptionalWriteable(this.inferenceStats);
             }
 
             @Override

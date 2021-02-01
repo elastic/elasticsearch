@@ -93,7 +93,7 @@ public class PainlessCast {
     public final Class<?> boxTargetType;
 
     private PainlessCast(Class<?> originalType, Class<?> targetType, boolean explicitCast,
-            Class<?> unboxOriginalType, Class<?> unboxTargetType, Class<?> boxOriginalType, Class<?> boxTargetType) {
+                         Class<?> unboxOriginalType, Class<?> unboxTargetType, Class<?> boxOriginalType, Class<?> boxTargetType) {
 
         this.originalType = originalType;
         this.targetType = targetType;
@@ -117,12 +117,12 @@ public class PainlessCast {
         PainlessCast that = (PainlessCast)object;
 
         return explicitCast == that.explicitCast &&
-                Objects.equals(originalType, that.originalType) &&
-                Objects.equals(targetType, that.targetType) &&
-                Objects.equals(unboxOriginalType, that.unboxOriginalType) &&
-                Objects.equals(unboxTargetType, that.unboxTargetType) &&
-                Objects.equals(boxOriginalType, that.boxOriginalType) &&
-                Objects.equals(boxTargetType, that.boxTargetType);
+            Objects.equals(originalType, that.originalType) &&
+            Objects.equals(targetType, that.targetType) &&
+            Objects.equals(unboxOriginalType, that.unboxOriginalType) &&
+            Objects.equals(unboxTargetType, that.unboxTargetType) &&
+            Objects.equals(boxOriginalType, that.boxOriginalType) &&
+            Objects.equals(boxTargetType, that.boxTargetType);
     }
 
     @Override

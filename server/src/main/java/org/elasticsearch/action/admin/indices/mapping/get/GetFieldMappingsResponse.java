@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -61,27 +60,18 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        Map<String, Map<String, FieldMappingMetadata>> indexMapBuilder = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                int typesSize = in.readVInt();
+        mappings = unmodifiableMap(in.readMap(StreamInput::readString, mapIn -> {
+            if (mapIn.getVersion().before(Version.V_8_0_0)) {
+                int typesSize = mapIn.readVInt();
                 assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
                 if (typesSize == 0) {
-                    indexMapBuilder.put(index, Collections.emptyMap());
-                    continue;
+                    return Collections.emptyMap();
                 }
-                in.readString(); // type
+                mapIn.readString(); // type
             }
-            int fieldSize = in.readVInt();
-            Map<String, FieldMappingMetadata> fieldMapBuilder = new HashMap<>(fieldSize);
-            for (int k = 0; k < fieldSize; k++) {
-                fieldMapBuilder.put(in.readString(), new FieldMappingMetadata(in.readString(), in.readBytesReference()));
-            }
-            indexMapBuilder.put(index, unmodifiableMap(fieldMapBuilder));
-        }
-        mappings = unmodifiableMap(indexMapBuilder);
+            return unmodifiableMap(mapIn.readMap(StreamInput::readString,
+                    inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference())));
+        }));
     }
 
     /** returns the retrieved field mapping. The return map keys are index, field (as specified in the request). */
@@ -141,8 +131,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 a -> new FieldMappingMetadata((String)a[0], (BytesReference)a[1])
             );
 
-        private String fullName;
-        private BytesReference source;
+        private final String fullName;
+        private final BytesReference source;
 
         public FieldMappingMetadata(String fullName, BytesReference source) {
             this.fullName = fullName;
@@ -198,21 +188,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, Map<String, FieldMappingMetadata>> indexEntry : mappings.entrySet()) {
-            out.writeString(indexEntry.getKey());
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(1);
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        out.writeMap(mappings, StreamOutput::writeString, (outpt, map) -> {
+            if (outpt.getVersion().before(Version.V_8_0_0)) {
+                outpt.writeVInt(1);
+                outpt.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
-            out.writeVInt(indexEntry.getValue().size());
-            for (Map.Entry<String, FieldMappingMetadata> fieldEntry : indexEntry.getValue().entrySet()) {
-                out.writeString(fieldEntry.getKey());
-                FieldMappingMetadata fieldMapping = fieldEntry.getValue();
-                out.writeString(fieldMapping.fullName());
-                out.writeBytesReference(fieldMapping.source);
-            }
-        }
+            outpt.writeMap(map, StreamOutput::writeString, (o, v) -> {
+                o.writeString(v.fullName());
+                o.writeBytesReference(v.source);
+            });
+        });
     }
 
     @Override

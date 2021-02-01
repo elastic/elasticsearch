@@ -166,6 +166,7 @@ public class Shell {
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);
         }
+        builder.environment().keySet().remove("JAVA_HOME"); // start with a fresh environment
         for (Map.Entry<String, String> entry : env.entrySet()) {
             builder.environment().put(entry.getKey(), entry.getValue());
         }

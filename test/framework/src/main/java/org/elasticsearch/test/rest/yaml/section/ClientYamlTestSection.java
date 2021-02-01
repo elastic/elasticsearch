@@ -60,7 +60,12 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
     private final SkipSection skipSection;
     private final List<ExecutableSection> executableSections;
 
-    ClientYamlTestSection(XContentLocation location, String name, SkipSection skipSection, List<ExecutableSection> executableSections) {
+    public ClientYamlTestSection(
+        XContentLocation location,
+        String name,
+        SkipSection skipSection,
+        List<ExecutableSection> executableSections
+    ) {
         this.location = location;
         this.name = name;
         this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
@@ -90,7 +95,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
 
         ClientYamlTestSection that = (ClientYamlTestSection) o;
 
-        if (name != null ? !name.equals(that.name) : that.name != null) return false;
+        if (name != null ? name.equals(that.name) == false : that.name != null) return false;
 
         return true;
     }

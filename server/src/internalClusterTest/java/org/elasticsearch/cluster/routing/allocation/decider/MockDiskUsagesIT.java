@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -89,7 +90,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        clusterInfoService.onMaster();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);
@@ -102,7 +102,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), watermarkBytes ? "0b" : "100%")
-            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")));
+            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")));
         // Create an index with 10 shards so we can check allocation for it
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 10).put("number_of_replicas", 0)));
         ensureGreen("test");
@@ -151,7 +151,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        clusterInfoService.onMaster();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);
@@ -225,9 +224,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final AtomicReference<ClusterState> masterAppliedClusterState = new AtomicReference<>();
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
-                masterAppliedClusterState.set(event.state());
-                clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
-            });
+            masterAppliedClusterState.set(event.state());
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
+        });
 
         // shards are 1 byte large
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 1L);
@@ -239,7 +238,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100%")
-            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")));
+            .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")));
 
         final List<String> nodeIds = StreamSupport.stream(client().admin().cluster().prepareState().get().getState()
             .getRoutingNodes().spliterator(), false).map(RoutingNode::nodeId).collect(Collectors.toList());
@@ -265,7 +264,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 ? 101L - masterAppliedClusterState.get().getRoutingNodes().node(nodeIds.get(2)).numberOfOwningShards()
                 : 1000L));
 
-        clusterInfoService.refresh();
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
 
         logger.info("--> waiting for shards to relocate off node [{}]", nodeIds.get(2));
 
@@ -293,7 +292,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
             assertThat(event.state().getRoutingNodes().node(nodeIds.get(2)).size(), lessThanOrEqualTo(1));
             masterAppliedClusterState.set(event.state());
-            clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
+            ClusterInfoServiceUtils.refresh(clusterInfoService); // so that subsequent reroutes see disk usage according to current state
         });
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()

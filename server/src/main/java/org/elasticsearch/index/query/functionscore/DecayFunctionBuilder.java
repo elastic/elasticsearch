@@ -51,7 +51,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -184,7 +184,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
         AbstractDistanceScoreFunction scoreFunction;
         // EMPTY is safe because parseVariable doesn't use namedObject
         try (InputStream stream = functionBytes.streamInput();
@@ -200,16 +200,17 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
      * */
     protected abstract DecayFunction getDecayFunction();
 
-    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, SearchExecutionContext context,
             MultiValueMode mode) throws IOException {
         //the field must exist, else we cannot read the value for the doc later
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new ParsingException(parser.getTokenLocation(), "unknown field [{}]", fieldName);
         }
 
         // dates and time and geo need special handling
         parser.nextToken();
+        // TODO these ain't gonna work with runtime fields
         if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
         } else if (fieldType instanceof GeoPointFieldType) {
@@ -222,7 +223,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
     }
 
-    private AbstractDistanceScoreFunction parseNumberVariable(XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseNumberVariable(XContentParser parser, SearchExecutionContext context,
             MappedFieldType fieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
@@ -257,7 +258,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
-    private AbstractDistanceScoreFunction parseGeoVariable(XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseGeoVariable(XContentParser parser, SearchExecutionContext context,
             MappedFieldType fieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
@@ -291,7 +292,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
     }
 
-    private AbstractDistanceScoreFunction parseDateVariable(XContentParser parser, QueryShardContext context,
+    private AbstractDistanceScoreFunction parseDateVariable(XContentParser parser, SearchExecutionContext context,
             MappedFieldType dateFieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;

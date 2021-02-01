@@ -5,6 +5,10 @@
       "description":"Provides quick access to the document count of the entire cluster, or individual indices."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

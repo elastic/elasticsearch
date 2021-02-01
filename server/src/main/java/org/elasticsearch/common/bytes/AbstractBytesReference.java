@@ -23,9 +23,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.function.ToIntBiFunction;
 
@@ -51,7 +49,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
     @Override
     public StreamInput streamInput() throws IOException {
-        return new MarkSupportingStreamInputWrapper(this);
+        return new BytesReferenceStreamInput(this);
     }
 
     @Override
@@ -73,7 +71,7 @@ public abstract class AbstractBytesReference implements BytesReference {
         return new BytesRefIterator() {
             BytesRef ref = length() == 0 ? null : toBytesRef();
             @Override
-            public BytesRef next() throws IOException {
+            public BytesRef next() {
                 BytesRef r = ref;
                 ref = null; // only return it once...
                 return r;
@@ -115,7 +113,7 @@ public abstract class AbstractBytesReference implements BytesReference {
             }
             return hash = result;
         } else {
-            return hash.intValue();
+            return hash;
         }
     }
 
@@ -181,84 +179,10 @@ public abstract class AbstractBytesReference implements BytesReference {
         ref.offset += length;
     }
 
-    /**
-     * Instead of adding the complexity of {@link InputStream#reset()} etc to the actual impl
-     * this wrapper builds it on top of the BytesReferenceStreamInput which is much simpler
-     * that way.
-     */
-    private static final class MarkSupportingStreamInputWrapper extends StreamInput {
-        // can't use FilterStreamInput it needs to reset the delegate
-        private final BytesReference reference;
-        private BytesReferenceStreamInput input;
-        private int mark = 0;
-
-        private MarkSupportingStreamInputWrapper(BytesReference reference) throws IOException {
-            this.reference = reference;
-            this.input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
-        }
-
-        @Override
-        public byte readByte() throws IOException {
-            return input.readByte();
-        }
-
-        @Override
-        public void readBytes(byte[] b, int offset, int len) throws IOException {
-            input.readBytes(b, offset, len);
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            return input.read(b, off, len);
-        }
-
-        @Override
-        public void close() throws IOException {
-            input.close();
-        }
-
-        @Override
-        public int read() throws IOException {
-            return input.read();
-        }
-
-        @Override
-        public int available() throws IOException {
-            return input.available();
-        }
-
-        @Override
-        protected void ensureCanReadBytes(int length) throws EOFException {
-            input.ensureCanReadBytes(length);
-        }
-
-        @Override
-        public void reset() throws IOException {
-            input = new BytesReferenceStreamInput(reference.iterator(), reference.length());
-            input.skip(mark);
-        }
-
-        @Override
-        public boolean markSupported() {
-            return true;
-        }
-
-        @Override
-        public void mark(int readLimit) {
-            // readLimit is optional it only guarantees that the stream remembers data upto this limit but it can remember more
-            // which we do in our case
-            this.mark = input.getOffset();
-        }
-
-        @Override
-        public long skip(long n) throws IOException {
-            return input.skip(n);
-        }
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         BytesRef bytes = toBytesRef();
         return builder.value(bytes.bytes, bytes.offset, bytes.length);
     }
+
 }

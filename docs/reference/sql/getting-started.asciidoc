@@ -23,7 +23,7 @@ And now you can execute SQL using the <<sql-rest>> right away:
 --------------------------------------------------
 POST /_sql?format=txt
 {
-    "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
+  "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
 }
 --------------------------------------------------
 // TEST[continued]

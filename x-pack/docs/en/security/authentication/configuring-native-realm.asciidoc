@@ -13,6 +13,8 @@ cache options.
 explicitly set the `order` attribute for the realm. 
 +
 --
+NOTE: You can configure only one native realm on {es} nodes.
+
 See <<ref-native-settings>> for all of the options you can set for the `native` realm.
 For example, the following snippet shows a `native` realm configuration that
 sets the `order` to zero so the realm is checked first:

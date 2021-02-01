@@ -185,7 +185,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         archiveProject.getConfigurations().create("default");
         archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
         createDistro(project, "distro", VersionProperties.getElasticsearch(), Type.INTEG_TEST_ZIP, null, null, null);
-        checkPlugin(project);
     }
 
     public void testLocalCurrentVersionArchives() {
@@ -200,7 +199,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
                     archiveProject.getConfigurations().create("default");
                     archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
                     createDistro(project, "distro", VersionProperties.getElasticsearch(), Type.ARCHIVE, platform, flavor, bundledJdk);
-                    checkPlugin(project);
                 }
             }
         }
@@ -216,7 +214,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
                     packageProject.getConfigurations().create("default");
                     packageProject.getArtifacts().add("default", new File("doesnotmatter"));
                     createDistro(project, "distro", VersionProperties.getElasticsearch(), packageType, null, flavor, bundledJdk);
-                    checkPlugin(project);
                 }
             }
         }
@@ -294,7 +291,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
             if (bundledJdk != null) {
                 distro.setBundledJdk(bundledJdk);
             }
-        });
+        }).maybeFreeze();
     }
 
     // create a distro and finalize its configuration
@@ -312,12 +309,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         return distribution;
     }
 
-    // check the download plugin can be fully configured
-    private void checkPlugin(Project project) {
-        DistributionDownloadPlugin plugin = project.getPlugins().getPlugin(DistributionDownloadPlugin.class);
-        plugin.setupDistributions(project);
-    }
-
     private void checkBwc(
         String projectName,
         String config,
@@ -333,7 +324,6 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         archiveProject.getConfigurations().create(config);
         archiveProject.getArtifacts().add(config, new File("doesnotmatter"));
         createDistro(project, "distro", version.toString(), type, platform, flavor, true);
-        checkPlugin(project);
     }
 
     private Project createProject(BwcVersions bwcVersions, boolean isInternal) {

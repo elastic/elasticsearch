@@ -5,12 +5,12 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Delete {anomaly-job} API
+=== Delete {anomaly-jobs} API
 
 Deletes an {anomaly-job} that exists in the cluster.
 
 [id="{upid}-{api}-request"]
-==== Delete {anomaly-job} request
+==== Delete {anomaly-jobs} request
 
 A +{request}+ object requires a non-null `jobId` and can optionally set `force`.
 
@@ -40,7 +40,7 @@ before returning. Defaults to `true`.
 
 
 [id="{upid}-{api}-response"]
-==== Delete {anomaly-job} response
+==== Delete {anomaly-jobs} response
 
 The returned +{response}+ object indicates the acknowledgement of the job
 deletion or the deletion task depending on whether the request was set to wait

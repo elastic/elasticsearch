@@ -13,6 +13,7 @@ import org.elasticsearch.http.HttpChannel;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
+import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isInsufficientBufferRemainingException;
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isNotSslRecordException;
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
@@ -38,6 +39,9 @@ public final class SecurityHttpExceptionHandler implements BiConsumer<HttpChanne
             CloseableChannel.closeChannel(channel);
         } else if (isCloseDuringHandshakeException(e)) {
             logger.debug("connection {} closed during ssl handshake", channel);
+            CloseableChannel.closeChannel(channel);
+        } else if (isInsufficientBufferRemainingException(e)) {
+            logger.debug("connection {} closed abruptly", channel);
             CloseableChannel.closeChannel(channel);
         } else if (isReceivedCertificateUnknownException(e)) {
             logger.warn("http client did not trust this server's certificate, closing connection {}", channel);

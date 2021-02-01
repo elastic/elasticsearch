@@ -62,8 +62,8 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
     }
 
     /**
-     * Wraps the given reader in a {@link org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader} as
-     * well as all it's sub-readers in {@link org.elasticsearch.common.lucene.index.ElasticsearchLeafReader} to
+     * Wraps the given reader in a {@link ElasticsearchDirectoryReader} as
+     * well as all it's sub-readers in {@link ElasticsearchLeafReader} to
      * expose the given shard Id.
      *
      * @param reader the reader to wrap

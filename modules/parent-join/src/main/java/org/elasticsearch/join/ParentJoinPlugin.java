@@ -63,6 +63,6 @@ public class ParentJoinPlugin extends Plugin implements SearchPlugin, MapperPlug
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(ParentJoinFieldMapper.CONTENT_TYPE, new ParentJoinFieldMapper.TypeParser());
+        return Collections.singletonMap(ParentJoinFieldMapper.CONTENT_TYPE, ParentJoinFieldMapper.PARSER);
     }
 }

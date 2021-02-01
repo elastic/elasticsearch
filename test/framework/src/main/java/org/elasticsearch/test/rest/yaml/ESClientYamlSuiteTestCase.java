@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
@@ -30,11 +31,13 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -57,6 +60,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -131,8 +135,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
             final Version esVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
-            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
+            final String os = readOsFromNodesInfo(adminClient());
+
+            logger.info(
+                "initializing client, minimum es version [{}], master version, [{}], hosts {}, os [{}]",
+                esVersion,
+                masterVersion,
+                hosts,
+                os
+            );
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -160,8 +172,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final Version masterVersion) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+            final Version masterVersion,
+            final String os) {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -270,7 +283,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
-        if (!Strings.hasLength(property)) {
+        if (Strings.hasLength(property) == false) {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
         } else {
             return property.split(PATHS_SEPARATOR);
@@ -290,7 +303,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     for (ClientYamlSuiteRestApi.Path path : restApi.getPaths()) {
                         List<String> methodsList = Arrays.asList(path.getMethods());
                         if (methodsList.contains("GET") && restApi.isBodySupported()) {
-                            if (!methodsList.contains("POST")) {
+                            if (methodsList.contains("POST") == false) {
                                 errorMessage.append("\n- ").append(restApi.getName())
                                     .append(" supports GET with a body but doesn't support POST");
                             }
@@ -333,6 +346,26 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
+    private String readOsFromNodesInfo(RestClient restClient) throws IOException {
+        final Request request = new Request("GET", "/_nodes/os");
+        Response response = restClient.performRequest(request);
+        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+        Set<String> osPrettyNames = new HashSet<>();
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
+
+        for (Entry<String, Object> node : nodes.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+
+            osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
+        }
+
+        assert osPrettyNames.size() == 1 : "mixed os cluster found";
+        return osPrettyNames.iterator().next();
+    }
+
     protected RequestOptions getCatNodesVersionMasterRequestOptions() {
         return RequestOptions.DEFAULT;
     }
@@ -354,6 +387,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         //skip test if test section is disabled
         assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
             testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if os is excluded
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os()));
 
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
@@ -364,10 +400,20 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
+            // Because this has not yet transitioned to a composable template, it's possible that
+            // this can overlap an installed composable template since this is a global (*)
+            // template. In order to avoid this failing the test, we override the warnings handler
+            // to be permissive in this case. This can be removed once all tests use composable
+            // templates instead of legacy templates
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
+        assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140"));
 
-        if (!testCandidate.getSetupSection().isEmpty()) {
+        if (testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
                 executeSection(executableSection);
@@ -429,14 +475,5 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;
-    }
-
-    protected final boolean preserveDataStreamsUponCompletion() {
-        // TODO: enable automatic deleting of data streams
-        // For now don't automatically try to remove all data streams after each yaml test.
-        // The client runners need to be adjust to remove data streams after each test too,
-        // otherwise rest yaml tests using data streams succeed in Elasticsearch, but may fail when clients run
-        // the yaml test suite. In the mean time we should delete data streams manually after each test.
-        return true;
     }
 }

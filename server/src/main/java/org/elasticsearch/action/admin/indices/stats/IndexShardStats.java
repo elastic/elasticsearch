@@ -30,17 +30,13 @@ import java.util.Iterator;
 
 public class IndexShardStats implements Iterable<ShardStats>, Writeable {
 
-    private ShardId shardId;
+    private final ShardId shardId;
 
-    private ShardStats[] shards;
+    private final ShardStats[] shards;
 
     public IndexShardStats(StreamInput in) throws IOException {
         shardId = new ShardId(in);
-        int shardSize = in.readVInt();
-        shards = new ShardStats[shardSize];
-        for (int i = 0; i < shardSize; i++) {
-            shards[i] = new ShardStats(in);
-        }
+        shards = in.readArray(ShardStats::new, ShardStats[]::new);
     }
 
     public IndexShardStats(ShardId shardId, ShardStats[] shards) {
@@ -98,9 +94,6 @@ public class IndexShardStats implements Iterable<ShardStats>, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
-        out.writeVInt(shards.length);
-        for (ShardStats stats : shards) {
-            stats.writeTo(out);
-        }
+        out.writeArray(shards);
     }
 }

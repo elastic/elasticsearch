@@ -52,7 +52,8 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -60,7 +61,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
@@ -143,7 +143,7 @@ public class MatchQuery {
 
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
-    protected final QueryShardContext context;
+    protected final SearchExecutionContext context;
 
     protected Analyzer analyzer;
 
@@ -172,12 +172,12 @@ public class MatchQuery {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    public MatchQuery(QueryShardContext context) {
+    public MatchQuery(SearchExecutionContext context) {
         this.context = context;
     }
 
     public void setAnalyzer(String analyzerName) {
-        this.analyzer = context.getMapperService().getIndexAnalyzers().get(analyzerName);
+        this.analyzer = context.getIndexAnalyzers().get(analyzerName);
         if (analyzer == null) {
             throw new IllegalArgumentException("No analyzer found for [" + analyzerName + "]");
         }
@@ -233,16 +233,19 @@ public class MatchQuery {
     }
 
     public Query parse(Type type, String fieldName, Object value) throws IOException {
-        final MappedFieldType fieldType = context.fieldMapper(fieldName);
+        final MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);
         }
-        Set<String> fields = context.simpleMatchToIndexNames(fieldName);
-        if (fields.contains(fieldName)) {
-            assert fields.size() == 1;
-            // this field is a concrete field or an alias so we use the
-            // field type name directly
-            fieldName = fieldType.name();
+        // We check here that the field supports text searches -
+        // if it doesn't, we can bail out early without doing any further parsing.
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+            IllegalArgumentException iae = new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
+                fieldType.typeName() + "] does not support match queries");
+            if (lenient) {
+                return newLenientFieldQuery(fieldName, iae);
+            }
+            throw iae;
         }
 
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
@@ -257,7 +260,7 @@ public class MatchQuery {
          * a prefix query instead
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
-            final Term term = new Term(fieldName, value.toString());
+            final Term term = new Term(fieldType.name(), value.toString());
             if (type == Type.BOOLEAN_PREFIX
                     && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
@@ -266,7 +269,7 @@ public class MatchQuery {
             }
         }
 
-        return parseInternal(type, fieldName, builder, value);
+        return parseInternal(type, fieldType.name(), builder, value);
     }
 
     protected final Query parseInternal(Type type, String fieldName, MatchQueryBuilder builder, Object value) throws IOException {
@@ -296,8 +299,10 @@ public class MatchQuery {
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
+        TextSearchInfo tsi = fieldType.getTextSearchInfo();
+        assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
-            return quoted ? context.getSearchQuoteAnalyzer(fieldType) : context.getSearchAnalyzer(fieldType);
+            return quoted ? tsi.getSearchQuoteAnalyzer() : tsi.getSearchAnalyzer();
         } else {
             return analyzer;
         }
@@ -563,7 +568,7 @@ public class MatchQuery {
             OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
 
             stream.reset();
-            if (!stream.incrementToken()) {
+            if (stream.incrementToken() == false) {
                 throw new AssertionError();
             }
             final Term term = new Term(field, termAtt.getBytesRef());

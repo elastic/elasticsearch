@@ -24,7 +24,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.time.ZonedDateTime;
@@ -65,13 +64,13 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             emptyBucketInfo = null;
         } else {
             minDocCount = 0;
-            ExtendedBounds extendedBounds = null;
+            LongBounds extendedBounds = null;
             if (randomBoolean()) {
                 //it's ok if min and max are outside the range of the generated buckets, that will just mean that
                 //empty buckets won't be added before the first bucket and/or after the last one
                 long min = baseMillis - intervalMillis * randomNumberOfBuckets();
                 long max = baseMillis + randomNumberOfBuckets() * intervalMillis;
-                extendedBounds = new ExtendedBounds(min, max);
+                extendedBounds = new LongBounds(min, max);
             }
             emptyBucketInfo = new InternalDateHistogram.EmptyBucketInfo(rounding, InternalAggregations.EMPTY, extendedBounds);
         }
@@ -147,7 +146,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedDateHistogram> implementationClass() {
         return ParsedDateHistogram.class;
     }
 

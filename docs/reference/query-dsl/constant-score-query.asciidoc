@@ -12,14 +12,14 @@ parameter value.
 ----
 GET /_search
 {
-    "query": {
-        "constant_score" : {
-            "filter" : {
-                "term" : { "user" : "kimchy"}
-            },
-            "boost" : 1.2
-        }
+  "query": {
+    "constant_score": {
+      "filter": {
+        "term": { "user.id": "kimchy" }
+      },
+      "boost": 1.2
     }
+  }
 }
 ----
 

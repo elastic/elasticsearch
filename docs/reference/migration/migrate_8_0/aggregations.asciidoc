@@ -1,6 +1,6 @@
-[float]
+[discrete]
 [[breaking_80_aggregations_changes]]
-=== Aggregations changes
+==== Aggregations changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

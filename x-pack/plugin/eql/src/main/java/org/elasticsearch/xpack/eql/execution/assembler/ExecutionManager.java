@@ -6,27 +6,33 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
+import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
+import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
+import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
-import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class ExecutionManager {
 
@@ -43,27 +49,70 @@ public class ExecutionManager {
                                Attribute timestamp,
                                Attribute tiebreaker,
                                OrderDirection direction,
+                               TimeValue maxSpan,
                                Limit limit) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
-        
-        List<Criterion> criteria = new ArrayList<>(plans.size() - 1);
-        
+
+        boolean descending = direction == OrderDirection.DESC;
+
+        // fields
+        HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
+        HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
+        // NB: since there's no aliasing inside EQL, the attribute name is the same as the underlying field name
+        String timestampName = Expressions.name(timestamp);
+
+        // secondary criteria
+        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
+
         // build a criterion for each query
-        for (int i = 0; i < plans.size() - 1; i++) {
+        for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
-            // fields
-            HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
-            HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
+            List<String> keyFields = new ArrayList<>(keyExtractors.size());
+
+            // extract top-level fields used as keys to optimize query lookups
+            // this process gets skipped for nested fields
+            for (HitExtractor extractor : keyExtractors) {
+                if (extractor instanceof AbstractFieldHitExtractor) {
+                    AbstractFieldHitExtractor hitExtractor = (AbstractFieldHitExtractor) extractor;
+                    // no nested fields
+                    if (hitExtractor.hitName() == null) {
+                        keyFields.add(hitExtractor.fieldName());
+                    } else {
+                        keyFields = emptyList();
+                        break;
+                    }
+                }
+            }
 
             PhysicalPlan query = plans.get(i);
             // search query
-            // TODO: this could be generalized into an exec only query
-            Check.isTrue(query instanceof EsQueryExec, "Expected a query but got [{}]", query.getClass());
-            QueryRequest request = ((EsQueryExec) query).queryRequest(session);
-            criteria.add(new Criterion(request.searchSource(), keyExtractors, tsExtractor, tbExtractor));
+            if (query instanceof EsQueryExec) {
+                SearchSourceBuilder source = ((EsQueryExec) query).source(session);
+                QueryRequest original = () -> source;
+                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields);
+                Criterion<BoxedQueryRequest> criterion =
+                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i == 0 && descending);
+                criteria.add(criterion);
+            } else {
+                // until
+                if (i != plans.size() - 1) {
+                    throw new EqlIllegalArgumentException("Expected a query but got [{}]", query.getClass());
+                } else {
+                    criteria.add(null);
+                }
+            }
         }
-        return new SequenceRuntime(criteria, new BasicQueryClient(session), direction == OrderDirection.DESC, limit);
+
+        int completionStage = criteria.size() - 1;
+        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
+
+        TumblingWindow w = new TumblingWindow(new PITAwareQueryClient(session),
+                criteria.subList(0, completionStage),
+                criteria.get(completionStage),
+                matcher);
+
+        return w;
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

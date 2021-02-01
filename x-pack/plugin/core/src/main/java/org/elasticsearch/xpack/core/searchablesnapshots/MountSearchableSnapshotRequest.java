@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +24,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -102,7 +104,12 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     @Override
     public ActionRequestValidationException validate() {
-       return null;
+        ActionRequestValidationException validationException = null;
+        if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexSettings)) {
+            validationException = addValidationError( "setting [" + IndexMetadata.SETTING_DATA_PATH
+                + "] is not permitted on searchable snapshots", validationException);
+        }
+        return validationException;
     }
 
     /**

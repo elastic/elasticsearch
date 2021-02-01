@@ -27,9 +27,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -42,11 +42,7 @@ import java.util.Map;
 public abstract class ConstantFieldType extends MappedFieldType {
 
     public ConstantFieldType(String name, Map<String, String> meta) {
-        super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-    }
-
-    public ConstantFieldType(ConstantFieldType other) {
-        super(other);
+        super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
     }
 
     @Override
@@ -63,7 +59,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.
      */
-    protected abstract boolean matches(String pattern, QueryShardContext context);
+    protected abstract boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context);
 
     private static String valueToString(Object value) {
         return value instanceof BytesRef
@@ -72,9 +68,9 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termQuery(Object value, QueryShardContext context) {
+    public final Query termQuery(Object value, SearchExecutionContext context) {
         String pattern = valueToString(value);
-        if (matches(pattern, context)) {
+        if (matches(pattern, false, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
@@ -82,10 +78,20 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termsQuery(List<?> values, QueryShardContext context) {
+    public final Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
+        String pattern = valueToString(value);
+        if (matches(pattern, true, context)) {
+            return Queries.newMatchAllQuery();
+        } else {
+            return new MatchNoDocsQuery();
+        }
+    }
+
+    @Override
+    public final Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
-            if (matches(pattern, context)) {
+            if (matches(pattern, false, context)) {
                 // `terms` queries are a disjunction, so one matching term is enough
                 return Queries.newMatchAllQuery();
             }
@@ -96,9 +102,10 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query prefixQuery(String prefix,
                              @Nullable MultiTermQuery.RewriteMethod method,
-                             QueryShardContext context) {
+                             boolean caseInsensitive,
+                             SearchExecutionContext context) {
         String pattern = prefix + "*";
-        if (matches(pattern, context)) {
+        if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
@@ -108,12 +115,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
     @Override
     public final Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
-                               QueryShardContext context) {
-        if (matches(value, context)) {
+                               boolean caseInsensitive,
+                               SearchExecutionContext context) {
+        if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {
             return new MatchNoDocsQuery();
         }
     }
-
 }

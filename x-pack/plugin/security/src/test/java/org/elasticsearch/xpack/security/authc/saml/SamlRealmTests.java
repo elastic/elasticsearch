@@ -298,7 +298,7 @@ public class SamlRealmTests extends SamlTestCase {
     private void initializeRealms(Realm... realms) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
         for (Realm realm : realms) {
@@ -433,6 +433,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder()
                 .put(REALM_SETTINGS_PREFIX + ".type", "saml")
@@ -481,6 +482,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
@@ -520,6 +522,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateSigningCredentialFromKeyStoreFailureScenarios() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");

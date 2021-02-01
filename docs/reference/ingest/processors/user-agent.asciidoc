@@ -1,5 +1,8 @@
 [[user-agent-processor]]
-=== User Agent processor
+=== User agent processor
+++++
+<titleabbrev>User agent</titleabbrev>
+++++
 
 The `user_agent` processor extracts details from the user agent string a browser sends with its web requests.
 This processor adds this information by default under the `user_agent` field.
@@ -36,11 +39,11 @@ PUT _ingest/pipeline/user_agent
     }
   ]
 }
-PUT my_index/_doc/my_id?pipeline=user_agent
+PUT my-index-000001/_doc/my_id?pipeline=user_agent
 {
   "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
 }
-GET my_index/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Which returns
@@ -49,7 +52,7 @@ Which returns
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my_index",
+  "_index": "my-index-000001",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 22,
@@ -66,7 +69,7 @@ Which returns
         "full": "Mac OS X 10.10.5"
       },
       "device" : {
-        "name" : "Other"
+        "name" : "Mac"
       },
     }
   }

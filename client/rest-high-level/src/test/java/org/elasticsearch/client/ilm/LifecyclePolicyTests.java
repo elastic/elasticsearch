@@ -44,8 +44,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     private static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
         ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME);
     private static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME,
-        FreezeAction.NAME);
-    private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME);
+        FreezeAction.NAME, SearchableSnapshotAction.NAME);
+    private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME);
 
     private String lifecycleName;
 
@@ -75,8 +75,12 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME),
+                WaitForSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
         ));
         return new NamedXContentRegistry(entries);
@@ -95,7 +99,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             phaseName += randomAlphaOfLength(5);
         }
         Map<String, Phase> phases = Collections.singletonMap(phaseName,
-            new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
+            new Phase(phaseName, TimeValue.ZERO, phaseName.equals("delete") ? Collections.singletonMap(DeleteAction.NAME,
+                new DeleteAction()) : Collections.emptyMap()));
         if (invalid) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new LifecyclePolicy(lifecycleName, phases));
             assertThat(e.getMessage(), equalTo("Lifecycle does not support phase [" + phaseName + "]"));
@@ -188,6 +193,17 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         }
     }
 
+    public void testValidateEmptyDeletePhase() {
+        Map<String, LifecycleAction> actions = new HashMap<>();
+
+        Phase delete = new Phase("delete", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("delete", delete);
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new LifecyclePolicy(lifecycleName, phases));
+        assertThat(e.getMessage(), equalTo("phase [" + delete.getName() + "] must define actions"));
+    }
+
     public static LifecyclePolicy createRandomPolicy(String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(Arrays.asList("hot", "warm", "cold", "delete"));
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
@@ -201,6 +217,17 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                     return VALID_COLD_ACTIONS;
                 case "delete":
                     return VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, Boolean> allowEmptyActions = (phase) -> {
+            switch (phase) {
+                case "hot":
+                case "warm":
+                case "cold":
+                    return true;
+                case "delete":
+                    return false;
                 default:
                     throw new IllegalArgumentException("invalid phase [" + phase + "]");
             }};
@@ -220,17 +247,26 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                     return ShrinkActionTests.randomInstance();
                 case FreezeAction.NAME:
                     return new FreezeAction();
+                case WaitForSnapshotAction.NAME:
+                    return WaitForSnapshotActionTests.randomInstance();
                 case SetPriorityAction.NAME:
                     return SetPriorityActionTests.randomInstance();
                 case UnfollowAction.NAME:
                     return new UnfollowAction();
+                case SearchableSnapshotAction.NAME:
+                    return SearchableSnapshotActionTests.randomInstance();
                 default:
                     throw new IllegalArgumentException("invalid action [" + action + "]");
             }};
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
-            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+            List<String> actionNames;
+            if (allowEmptyActions.apply(phase)) {
+                actionNames = randomSubsetOf(validActions.apply(phase));
+            } else {
+                actionNames = randomSubsetOf(randomIntBetween(1, validActions.apply(phase).size()), validActions.apply(phase));
+            }
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }
@@ -255,8 +291,12 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                 return ShrinkActionTests.randomInstance();
             case FreezeAction.NAME:
                 return new FreezeAction();
+            case WaitForSnapshotAction.NAME:
+                return WaitForSnapshotActionTests.randomInstance();
             case SetPriorityAction.NAME:
                 return SetPriorityActionTests.randomInstance();
+            case SearchableSnapshotAction.NAME:
+                return SearchableSnapshotActionTests.randomInstance();
             case UnfollowAction.NAME:
                 return new UnfollowAction();
             default:

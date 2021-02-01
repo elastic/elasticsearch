@@ -55,7 +55,7 @@ public class TextTemplateEngine {
         Script script = new Script(textTemplate.getType(),
                 textTemplate.getType() == ScriptType.STORED ? null : "mustache", template, options, mergedModel);
         TemplateScript.Factory compiledTemplate = service.compile(script, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        return compiledTemplate.newInstance(model).execute();
+        return compiledTemplate.newInstance(mergedModel).execute();
     }
 
     private String trimContentType(TextTemplate textTemplate) {
@@ -82,7 +82,7 @@ public class TextTemplateEngine {
             //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
             int endOfContentName = content.indexOf("__::", 3);
             if (endOfContentName != -1) {
-                return XContentType.fromMediaTypeOrFormat(content.substring(2, endOfContentName));
+                return XContentType.fromFormat(content.substring(2, endOfContentName));
             }
         }
         return null;

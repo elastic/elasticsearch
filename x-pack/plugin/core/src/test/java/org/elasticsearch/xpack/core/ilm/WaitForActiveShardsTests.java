@@ -168,8 +168,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
-                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
             )

@@ -28,7 +28,7 @@ public class PutIndexTemplateAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/template/put";
 
     private PutIndexTemplateAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

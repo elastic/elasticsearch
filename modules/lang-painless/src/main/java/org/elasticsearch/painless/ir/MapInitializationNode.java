@@ -19,13 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,44 +57,28 @@ public class MapInitializationNode extends ExpressionNode {
         return valueNodes;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    private PainlessConstructor constructor;
-    private PainlessMethod method;
-
-    public void setConstructor(PainlessConstructor constructor) {
-        this.constructor = constructor;
-    }
-
-    public PainlessConstructor getConstructor() {
-        return constructor;
-    }
-
-    public void setMethod(PainlessMethod method) {
-        this.method = method;
-    }
-
-    public PainlessMethod getMethod() {
-        return method;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeDebugInfo(location);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitMapInitialization(this, scope);
+    }
 
-        methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
-        methodWriter.dup();
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (ExpressionNode keyNode : keyNodes) {
+            keyNode.visit(irTreeVisitor, scope);
+        }
 
-        for (int index = 0; index < getArgumentsSize(); ++index) {
-            methodWriter.dup();
-            getKeyNode(index).write(classWriter, methodWriter, scopeTable);
-            getValueNode(index).write(classWriter, methodWriter, scopeTable);
-            methodWriter.invokeMethodCall(method);
-            methodWriter.pop();
+        for (ExpressionNode valueNode : valueNodes) {
+            valueNode.visit(irTreeVisitor, scope);
         }
     }
+
+    /* ---- end visitor ---- */
+
+    public MapInitializationNode(Location location) {
+        super(location);
+    }
+
 }

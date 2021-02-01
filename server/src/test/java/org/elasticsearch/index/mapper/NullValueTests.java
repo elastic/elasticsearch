@@ -1,8 +1,3 @@
-package org.elasticsearch.index.mapper;
-
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -22,38 +17,33 @@ import org.elasticsearch.common.compress.CompressedXContent;
  * under the License.
  */
 
+package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
-import static org.hamcrest.Matchers.equalTo;
+import java.util.Map;
 
-public class NullValueTests extends ESSingleNodeTestCase {
+import static org.hamcrest.Matchers.containsString;
+
+public class NullValueTests extends MapperServiceTestCase {
+
     public void testNullNullValue() throws Exception {
-        IndexService indexService = createIndex("test", Settings.builder().build());
+
         String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point"};
 
         for (String type : typesToTest) {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                    .startObject()
-                        .startObject("type")
-                            .startObject("properties")
-                                .startObject("numeric")
-                                    .field("type", type)
-                                    .field("null_value", (String) null)
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject());
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).nullField("null_value")));
 
-            try {
-                indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-                fail("Test should have failed because [null_value] was null.");
-            } catch (MapperParsingException e) {
-                assertThat(e.getMessage(), equalTo("Property [null_value] cannot be null."));
-            }
+            mapper.parse(source(b -> b.nullField("field")));
+
+            ToXContent.Params params = new ToXContent.MapParams(Map.of("include_defaults", "true"));
+            XContentBuilder b = JsonXContent.contentBuilder().startObject();
+            mapper.mapping().toXContent(b, params);
+            b.endObject();
+            assertThat(Strings.toString(b), containsString("\"null_value\":null"));
         }
     }
 }

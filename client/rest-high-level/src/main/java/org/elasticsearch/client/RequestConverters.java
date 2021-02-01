@@ -554,8 +554,20 @@ final class RequestConverters {
         return prepareReindexRequest(reindexRequest, false);
     }
 
+    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
+        return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
+    }
+
     static Request submitDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
         return prepareDeleteByQueryRequest(deleteByQueryRequest, false);
+    }
+
+    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        return prepareUpdateByQueryRequest(updateByQueryRequest, true);
+    }
+
+    static Request submitUpdateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+        return prepareUpdateByQueryRequest(updateByQueryRequest, false);
     }
 
     private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
@@ -608,7 +620,8 @@ final class RequestConverters {
         return request;
     }
 
-    static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
+    static Request prepareUpdateByQueryRequest(UpdateByQueryRequest updateByQueryRequest,
+                                               boolean waitForCompletion) throws IOException {
         String endpoint = endpoint(updateByQueryRequest.indices(), "_update_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params()
@@ -619,6 +632,7 @@ final class RequestConverters {
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
             .withIndicesOptions(updateByQueryRequest.indicesOptions())
+            .withWaitForCompletion(waitForCompletion)
             .withSlices(updateByQueryRequest.getSlices());
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
@@ -635,10 +649,6 @@ final class RequestConverters {
         request.addParameters(params.asMap());
         request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
-    }
-
-    static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
-        return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
     }
 
     static Request rethrottleReindex(RethrottleRequest rethrottleRequest) {
@@ -1167,14 +1177,14 @@ final class RequestConverters {
      */
     static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
         XContentType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType.canonical() != XContentType.JSON && requestContentType.canonical() != XContentType.SMILE) {
             throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
                     + "], only JSON and SMILE are supported");
         }
         if (xContentType == null) {
             return requestContentType;
         }
-        if (requestContentType != xContentType) {
+        if (requestContentType.canonical() != xContentType.canonical()) {
             throw new IllegalArgumentException("Mismatching content-type found for request with content-type [" + requestContentType
                     + "], previous requests have content-type [" + xContentType + "]");
         }

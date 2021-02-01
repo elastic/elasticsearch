@@ -44,12 +44,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -220,13 +220,20 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      */
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
+    /**
+     * Resolves a list of concrete index names. Override this if index names should be resolved differently than normal.
+     *
+     * @param clusterState the cluster state
+     * @param request the underlying request
+     * @return a list of concrete index names that this action should operate on
+     */
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, Request request) {
+        return indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+    }
+
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         new AsyncAction(task, request, listener).start();
-    }
-
-    protected boolean shouldIncludeDataStreams() {
-        return true;
     }
 
     protected class AsyncAction {
@@ -253,7 +260,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw globalBlockException;
             }
 
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request, shouldIncludeDataStreams());
+            String[] concreteIndices = resolveConcreteIndexNames(clusterState, request);
             ClusterBlockException requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (requestBlockException != null) {
                 throw requestBlockException;
@@ -310,31 +317,30 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void sendNodeRequest(final DiscoveryNode node, List<ShardRouting> shards, final int nodeIndex) {
             try {
-                NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
+                final NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
-                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
-                    @Override
-                    public NodeResponse read(StreamInput in) throws IOException {
-                        return new NodeResponse(in);
-                    }
 
-                    @Override
-                    public void handleResponse(NodeResponse response) {
-                        onNodeResponse(node, nodeIndex, response);
-                    }
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onNodeFailure(node, nodeIndex, exp);
-                    }
+                transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, transportRequestOptions,
+                        new TransportResponseHandler<NodeResponse>() {
+                            @Override
+                            public NodeResponse read(StreamInput in) throws IOException {
+                                return new NodeResponse(in);
+                            }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-                });
+                            @Override
+                            public void handleResponse(NodeResponse response) {
+                                onNodeResponse(node, nodeIndex, response);
+                            }
+
+                            @Override
+                            public void handleException(TransportException exp) {
+                                onNodeFailure(node, nodeIndex, exp);
+                            }
+                        });
             } catch (Exception e) {
                 onNodeFailure(node, nodeIndex, e);
             }

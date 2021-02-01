@@ -30,11 +30,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -89,32 +85,20 @@ public class FieldDataCacheTests extends ESTestCase {
     }
 
     private SortedSetOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new SortedSetOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, CoreValuesSourceType.BYTES,
+        return new SortedSetOrdinalsIndexFieldData(indexFieldDataCache, fieldName, CoreValuesSourceType.KEYWORD,
             new NoneCircuitBreakerService(), AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
         return new PagedBytesIndexFieldData(
-            createIndexSettings(),
             fieldName,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             indexFieldDataCache,
             new NoneCircuitBreakerService(),
             TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE
         );
-    }
-
-    private IndexSettings createIndexSettings() {
-        Settings settings = Settings.EMPTY;
-        IndexMetadata indexMetadata = IndexMetadata.builder("_name")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .creationDate(System.currentTimeMillis())
-                .build();
-        return new IndexSettings(indexMetadata, settings);
     }
 
     private class DummyAccountingFieldDataCache implements IndexFieldDataCache {
@@ -131,7 +115,7 @@ public class FieldDataCacheTests extends ESTestCase {
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
                                                                                           IFD indexFieldData) throws Exception {
             cachedGlobally++;
-            return (IFD) indexFieldData.localGlobalDirect(indexReader);
+            return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override

@@ -21,8 +21,10 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 
 import java.io.IOException;
 
@@ -30,19 +32,19 @@ import java.io.IOException;
  * A specialized, bytes only request, that can potentially be optimized on the network
  * layer, specifically for the same large buffer send to several nodes.
  */
-public class BytesTransportRequest extends TransportRequest {
+public class BytesTransportRequest extends TransportRequest implements RefCounted {
 
-    BytesReference bytes;
-    Version version;
+    final ReleasableBytesReference bytes;
+    private final Version version;
 
     public BytesTransportRequest(StreamInput in) throws IOException {
         super(in);
-        bytes = in.readBytesReference();
+        bytes = in.readReleasableBytesReference();
         version = in.getVersion();
     }
 
     public BytesTransportRequest(BytesReference bytes, Version version) {
-        this.bytes = bytes;
+        this.bytes = ReleasableBytesReference.wrap(bytes);
         this.version = version;
     }
 
@@ -67,5 +69,20 @@ public class BytesTransportRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBytesReference(bytes);
+    }
+
+    @Override
+    public void incRef() {
+        bytes.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return bytes.decRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return bytes.decRef();
     }
 }

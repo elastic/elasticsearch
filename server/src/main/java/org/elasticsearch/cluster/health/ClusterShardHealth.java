@@ -228,12 +228,12 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     }
 
     public static ClusterShardHealth fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         String shardIdStr = parser.currentName();
         ClusterShardHealth parsed = innerFromXContent(parser, Integer.valueOf(shardIdStr));
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return parsed;
     }
 
@@ -245,7 +245,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ClusterShardHealth)) return false;
+        if ((o instanceof ClusterShardHealth) == false) return false;
         ClusterShardHealth that = (ClusterShardHealth) o;
         return shardId == that.shardId &&
                 activeShards == that.activeShards &&

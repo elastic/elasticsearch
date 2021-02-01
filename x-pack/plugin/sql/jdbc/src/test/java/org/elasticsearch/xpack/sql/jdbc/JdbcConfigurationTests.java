@@ -42,8 +42,9 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testInvalidUrl() {
         JdbcSQLException e = expectThrows(JdbcSQLException.class, () -> ci("jdbc:es://localhost9200/?ssl=#5#"));
-        assertEquals("Invalid URL [jdbc:es://localhost9200/?ssl=#5#], format should be " +
-            "[jdbc:es://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]", e.getMessage());
+        assertEquals("Invalid URL: Invalid connection configuration: Illegal character in fragment at index 28: "
+            + "http://localhost9200/?ssl=#5#; format should be "
+            + "[jdbc:[es|elasticsearch]://[[http|https]://]?[host[:port]]?/[prefix]?[\\?[option=value]&]*]", e.getMessage());
     }
 
     public void testJustThePrefix() throws Exception {

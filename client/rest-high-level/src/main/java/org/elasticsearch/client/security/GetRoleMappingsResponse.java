@@ -58,10 +58,10 @@ public final class GetRoleMappingsResponse {
     public static GetRoleMappingsResponse fromXContent(XContentParser parser) throws IOException {
         final List<ExpressionRoleMapping> roleMappings = new ArrayList<>();
 
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             roleMappings.add(ExpressionRoleMapping.PARSER.parse(parser, parser.currentName()));
         }
 

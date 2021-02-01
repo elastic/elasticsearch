@@ -21,7 +21,6 @@ package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -71,14 +70,7 @@ public class CompressorFactory {
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"));
-        BytesReference uncompressed;
-        if (compressor != null) {
-            uncompressed = uncompress(bytes, compressor);
-        } else {
-            uncompressed = bytes;
-        }
-
-        return uncompressed;
+        return compressor == null ? bytes : compressor.uncompress(bytes);
     }
 
     /** Decompress the provided {@link BytesReference}. */
@@ -87,10 +79,6 @@ public class CompressorFactory {
         if (compressor == null) {
             throw new NotCompressedException();
         }
-        return uncompress(bytes, compressor);
-    }
-
-    private static BytesReference uncompress(BytesReference bytes, Compressor compressor) throws IOException {
-        return Streams.readFully(compressor.streamInput(bytes.streamInput()));
+        return compressor.uncompress(bytes);
     }
 }

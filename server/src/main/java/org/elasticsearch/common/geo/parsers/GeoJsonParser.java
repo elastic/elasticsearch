@@ -19,7 +19,6 @@
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
@@ -50,14 +49,10 @@ abstract class GeoJsonParser {
         GeometryCollectionBuilder geometryCollections = null;
 
         Orientation orientation = (shapeMapper == null)
-            ? AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value()
+            ? Orientation.RIGHT
             : shapeMapper.orientation();
-        Explicit<Boolean> coerce = (shapeMapper == null)
-            ? AbstractShapeGeometryFieldMapper.Defaults.COERCE
-            : shapeMapper.coerce();
-        Explicit<Boolean> ignoreZValue = (shapeMapper == null)
-            ? AbstractShapeGeometryFieldMapper.Defaults.IGNORE_Z_VALUE
-            : shapeMapper.ignoreZValue();
+        boolean coerce = shapeMapper != null && shapeMapper.coerce();
+        boolean ignoreZValue = shapeMapper == null || shapeMapper.ignoreZValue();
 
         String malformedException = null;
 
@@ -78,7 +73,7 @@ abstract class GeoJsonParser {
                         }
                     } else if (ShapeParser.FIELD_COORDINATES.match(fieldName, subParser.getDeprecationHandler())) {
                         subParser.nextToken();
-                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue.value());
+                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue);
                         if (coordinateNode != null && tempNode.numDimensions() != coordinateNode.numDimensions()) {
                             throw new ElasticsearchParseException("Exception parsing coordinates: " +
                                 "number of dimensions do not match");
@@ -134,7 +129,7 @@ abstract class GeoJsonParser {
             return geometryCollections;
         }
 
-        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce.value());
+        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce);
     }
 
     /**

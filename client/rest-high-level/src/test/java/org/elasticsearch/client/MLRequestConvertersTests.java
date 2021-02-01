@@ -40,8 +40,6 @@ import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequestTests;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
-import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.ForecastJobRequest;
 import org.elasticsearch.client.ml.GetBucketsRequest;
@@ -84,6 +82,7 @@ import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
@@ -95,7 +94,6 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStatsNamedXContentProvider;
-import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelConfigTests;
@@ -120,7 +118,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -159,14 +156,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/anomaly_detectors", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getJobRequest = new GetJobRequest("job1", "jobs*");
-        getJobRequest.setAllowNoJobs(true);
+        getJobRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getJob(getJobRequest);
 
         assertEquals("/_ml/anomaly_detectors/job1,jobs*", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testGetJobStats() {
@@ -176,14 +173,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/anomaly_detectors/_stats", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_jobs"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getJobStatsRequestRequest = new GetJobStatsRequest("job1", "jobs*");
-        getJobStatsRequestRequest.setAllowNoJobs(true);
+        getJobStatsRequestRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getJobStats(getJobStatsRequestRequest);
 
         assertEquals("/_ml/anomaly_detectors/job1,jobs*/_stats", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testOpenJob() throws Exception {
@@ -208,12 +205,12 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         closeJobRequest = new CloseJobRequest(jobId, "otherjobs*");
         closeJobRequest.setForce(true);
-        closeJobRequest.setAllowNoJobs(false);
+        closeJobRequest.setAllowNoMatch(false);
         closeJobRequest.setTimeout(TimeValue.timeValueMinutes(10));
         request = MLRequestConverters.closeJob(closeJobRequest);
 
         assertEquals("/_ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
-        assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
+        assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_match\":false}",
             requestEntityToString(request));
     }
 
@@ -330,14 +327,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_datafeeds"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getDatafeedRequest = new GetDatafeedRequest("feed-1", "feed-*");
-        getDatafeedRequest.setAllowNoDatafeeds(true);
+        getDatafeedRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getDatafeed(getDatafeedRequest);
 
         assertEquals("/_ml/datafeeds/feed-1,feed-*", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testDeleteDatafeed() {
@@ -371,7 +368,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         StopDatafeedRequest datafeedRequest = new StopDatafeedRequest("datafeed_1", "datafeed_2");
         datafeedRequest.setForce(true);
         datafeedRequest.setTimeout(TimeValue.timeValueMinutes(10));
-        datafeedRequest.setAllowNoDatafeeds(true);
+        datafeedRequest.setAllowNoMatch(true);
         Request request = MLRequestConverters.stopDatafeed(datafeedRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds/" +
@@ -390,14 +387,14 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/datafeeds/_stats", request.getEndpoint());
-        assertFalse(request.getParameters().containsKey("allow_no_datafeeds"));
+        assertFalse(request.getParameters().containsKey("allow_no_match"));
 
         getDatafeedStatsRequestRequest = new GetDatafeedStatsRequest("datafeed1", "datafeeds*");
-        getDatafeedStatsRequestRequest.setAllowNoDatafeeds(true);
+        getDatafeedStatsRequestRequest.setAllowNoMatch(true);
         request = MLRequestConverters.getDatafeedStats(getDatafeedStatsRequestRequest);
 
         assertEquals("/_ml/datafeeds/datafeed1,datafeeds*/_stats", request.getEndpoint());
-        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_datafeeds"));
+        assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_match"));
     }
 
     public void testPreviewDatafeed() {
@@ -504,6 +501,30 @@ public class MLRequestConvertersTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             UpdateModelSnapshotRequest parsedRequest = UpdateModelSnapshotRequest.PARSER.apply(parser, null);
             assertThat(parsedRequest, equalTo(updateModelSnapshotRequest));
+        }
+    }
+
+    public void testUpgradeJobModelSnapshot() {
+        String jobId = randomAlphaOfLength(10);
+        String snapshotId = randomAlphaOfLength(10);
+        TimeValue timeout = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        boolean waitForCompletion = randomBoolean();
+        boolean includeTimeout = randomBoolean();
+        boolean includeWaitForCompletion = randomBoolean();
+        UpgradeJobModelSnapshotRequest upgradeJobModelSnapshotRequest = new UpgradeJobModelSnapshotRequest(jobId,
+            snapshotId,
+            includeTimeout ? timeout : null,
+            includeWaitForCompletion ? waitForCompletion : null);
+
+        Request request = MLRequestConverters.upgradeJobSnapshot(upgradeJobModelSnapshotRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/anomaly_detectors/" + jobId + "/model_snapshots/" + snapshotId + "/_upgrade", request.getEndpoint());
+        assertThat(request.getParameters().isEmpty(), equalTo(includeTimeout == false && includeWaitForCompletion == false));
+        if (includeTimeout) {
+            assertThat(request.getParameters().get("timeout"), equalTo(timeout.getStringRep()));
+        }
+        if (includeWaitForCompletion) {
+            assertThat(request.getParameters().get("wait_for_completion"), equalTo(Boolean.toString(waitForCompletion)));
         }
     }
 
@@ -894,13 +915,13 @@ public class MLRequestConvertersTests extends ESTestCase {
         GetTrainedModelsRequest getRequest = new GetTrainedModelsRequest(modelId1, modelId2, modelId3)
             .setAllowNoMatch(false)
             .setDecompressDefinition(true)
-            .setIncludeDefinition(false)
+            .includeDefinition()
             .setTags("tag1", "tag2")
             .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getTrainedModels(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
+        assertEquals("/_ml/trained_models/" + modelId1 + "," + modelId2 + "," + modelId3, request.getEndpoint());
         assertThat(request.getParameters(),
             allOf(
                 hasEntry("from", "100"),
@@ -908,7 +929,7 @@ public class MLRequestConvertersTests extends ESTestCase {
                 hasEntry("allow_no_match", "false"),
                 hasEntry("decompress_definition", "true"),
                 hasEntry("tags", "tag1,tag2"),
-                hasEntry("include_model_definition", "false")
+                hasEntry("include", "definition")
             ));
         assertNull(request.getEntity());
     }
@@ -923,7 +944,7 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         Request request = MLRequestConverters.getTrainedModelsStats(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/inference/" + modelId1 + "," + modelId2 + "," + modelId3 + "/_stats", request.getEndpoint());
+        assertEquals("/_ml/trained_models/" + modelId1 + "," + modelId2 + "," + modelId3 + "/_stats", request.getEndpoint());
         assertThat(request.getParameters(),
             allOf(
                 hasEntry("from", "100"),
@@ -937,7 +958,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         DeleteTrainedModelRequest deleteRequest = new DeleteTrainedModelRequest(randomAlphaOfLength(10));
         Request request = MLRequestConverters.deleteTrainedModel(deleteRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/inference/" + deleteRequest.getId(), request.getEndpoint());
+        assertEquals("/_ml/trained_models/" + deleteRequest.getId(), request.getEndpoint());
         assertNull(request.getEntity());
     }
 
@@ -948,7 +969,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.putTrainedModel(putTrainedModelRequest);
 
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertThat(request.getEndpoint(), equalTo("/_ml/inference/" + trainedModelConfig.getModelId()));
+        assertThat(request.getEndpoint(), equalTo("/_ml/trained_models/" + trainedModelConfig.getModelId()));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
             TrainedModelConfig parsedTrainedModelConfig = TrainedModelConfig.PARSER.apply(parser, null).build();
             assertThat(parsedTrainedModelConfig, equalTo(trainedModelConfig));
@@ -1024,85 +1045,6 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_ml/info"));
         assertNull(request.getEntity());
-    }
-
-    public void testFindFileStructure() throws Exception {
-
-        String sample = randomAlphaOfLength(randomIntBetween(1000, 2000));
-        FindFileStructureRequest findFileStructureRequest = FindFileStructureRequestTests.createTestRequestWithoutSample();
-        findFileStructureRequest.setSample(sample.getBytes(StandardCharsets.UTF_8));
-        Request request = MLRequestConverters.findFileStructure(findFileStructureRequest);
-
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/find_file_structure", request.getEndpoint());
-        if (findFileStructureRequest.getLinesToSample() != null) {
-            assertEquals(findFileStructureRequest.getLinesToSample(), Integer.valueOf(request.getParameters().get("lines_to_sample")));
-        } else {
-            assertNull(request.getParameters().get("lines_to_sample"));
-        }
-        if (findFileStructureRequest.getTimeout() != null) {
-            assertEquals(findFileStructureRequest.getTimeout().toString(), request.getParameters().get("timeout"));
-        } else {
-            assertNull(request.getParameters().get("timeout"));
-        }
-        if (findFileStructureRequest.getCharset() != null) {
-            assertEquals(findFileStructureRequest.getCharset(), request.getParameters().get("charset"));
-        } else {
-            assertNull(request.getParameters().get("charset"));
-        }
-        if (findFileStructureRequest.getFormat() != null) {
-            assertEquals(findFileStructureRequest.getFormat(), FileStructure.Format.fromString(request.getParameters().get("format")));
-        } else {
-            assertNull(request.getParameters().get("format"));
-        }
-        if (findFileStructureRequest.getColumnNames() != null) {
-            assertEquals(findFileStructureRequest.getColumnNames(),
-                Arrays.asList(Strings.splitStringByCommaToArray(request.getParameters().get("column_names"))));
-        } else {
-            assertNull(request.getParameters().get("column_names"));
-        }
-        if (findFileStructureRequest.getHasHeaderRow() != null) {
-            assertEquals(findFileStructureRequest.getHasHeaderRow(), Boolean.valueOf(request.getParameters().get("has_header_row")));
-        } else {
-            assertNull(request.getParameters().get("has_header_row"));
-        }
-        if (findFileStructureRequest.getDelimiter() != null) {
-            assertEquals(findFileStructureRequest.getDelimiter().toString(), request.getParameters().get("delimiter"));
-        } else {
-            assertNull(request.getParameters().get("delimiter"));
-        }
-        if (findFileStructureRequest.getQuote() != null) {
-            assertEquals(findFileStructureRequest.getQuote().toString(), request.getParameters().get("quote"));
-        } else {
-            assertNull(request.getParameters().get("quote"));
-        }
-        if (findFileStructureRequest.getShouldTrimFields() != null) {
-            assertEquals(findFileStructureRequest.getShouldTrimFields(),
-                Boolean.valueOf(request.getParameters().get("should_trim_fields")));
-        } else {
-            assertNull(request.getParameters().get("should_trim_fields"));
-        }
-        if (findFileStructureRequest.getGrokPattern() != null) {
-            assertEquals(findFileStructureRequest.getGrokPattern(), request.getParameters().get("grok_pattern"));
-        } else {
-            assertNull(request.getParameters().get("grok_pattern"));
-        }
-        if (findFileStructureRequest.getTimestampFormat() != null) {
-            assertEquals(findFileStructureRequest.getTimestampFormat(), request.getParameters().get("timestamp_format"));
-        } else {
-            assertNull(request.getParameters().get("timestamp_format"));
-        }
-        if (findFileStructureRequest.getTimestampField() != null) {
-            assertEquals(findFileStructureRequest.getTimestampField(), request.getParameters().get("timestamp_field"));
-        } else {
-            assertNull(request.getParameters().get("timestamp_field"));
-        }
-        if (findFileStructureRequest.getExplain() != null) {
-            assertEquals(findFileStructureRequest.getExplain(), Boolean.valueOf(request.getParameters().get("explain")));
-        } else {
-            assertNull(request.getParameters().get("explain"));
-        }
-        assertEquals(sample, requestEntityToString(request));
     }
 
     public void testSetUpgradeMode() {

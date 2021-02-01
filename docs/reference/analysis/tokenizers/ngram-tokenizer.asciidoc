@@ -6,14 +6,14 @@
 
 The `ngram` tokenizer first breaks text down into words whenever it encounters
 one of a list of specified characters, then it emits
-https://en.wikipedia.org/wiki/N-gram[N-grams] of each word of the specified
+{wikipedia}/N-gram[N-grams] of each word of the specified
 length.
 
 N-grams are like a sliding window that moves across the word - a continuous
 sequence of characters of the specified length. They are useful for querying
 languages that don't use spaces or that have long compound words, like German.
 
-[float]
+[discrete]
 === Example output
 
 With the default settings, the `ngram` tokenizer treats the initial text as a
@@ -168,7 +168,7 @@ The above sentence would produce the following terms:
 [ Q, Qu, u, ui, i, ic, c, ck, k, "k ", " ", " F", F, Fo, o, ox, x ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `ngram` tokenizer accepts the following parameters:
@@ -210,7 +210,7 @@ matches.  A tri-gram (length `3`) is a good place to start.
 The index level setting `index.max_ngram_diff` controls the maximum allowed
 difference between `max_gram` and `min_gram`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `ngram` tokenizer to treat letters and
@@ -218,7 +218,7 @@ digits as tokens, and to produce tri-grams (grams of length `3`):
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -242,7 +242,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "2 Quick Foxes."

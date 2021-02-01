@@ -30,6 +30,7 @@ public final class StringUtils {
     public static final String EMPTY = "";
     public static final String NEW_LINE = "\n";
     public static final String SQL_WILDCARD = "%";
+    public static final String WILDCARD = "*";
 
     private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 
@@ -62,7 +63,7 @@ public final class StringUtils {
         }
         return sb.toString().toUpperCase(Locale.ROOT);
     }
-    
+
     //CAMEL_CASE to camelCase
     public static String underscoreToLowerCamelCase(String string) {
         if (!Strings.hasText(string)) {
@@ -92,7 +93,7 @@ public final class StringUtils {
 
     // % -> .*
     // _ -> .
-    // escape character - can be 0 (in which case every regex gets escaped) or
+    // escape character - can be 0 (in which case no regex gets escaped) or
     // should be followed by % or _ (otherwise an exception is thrown)
     public static String likeToJavaPattern(String pattern, char escape) {
         StringBuilder regex = new StringBuilder(pattern.length() + 4);
@@ -155,7 +156,7 @@ public final class StringUtils {
      * <pre>
      * % -&gt; *
      * _ -&gt; ?
-     * escape character - can be 0 (in which case every regex gets escaped) or should be followed by
+     * escape character - can be 0 (in which case no regex gets escaped) or should be followed by
      * % or _ (otherwise an exception is thrown)
      * </pre>
      */
@@ -174,7 +175,7 @@ public final class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "?");
@@ -220,7 +221,7 @@ public final class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "*");

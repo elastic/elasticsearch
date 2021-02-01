@@ -24,7 +24,7 @@ setup:
 ---
 "Plain Highligher should skip highlighting ignored keyword values":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.6.99"
       reason: "skip highlighting of ignored values was introduced in 7.7"
   - do:
       search:
@@ -45,7 +45,7 @@ setup:
 ---
 "Unified Highligher should skip highlighting ignored keyword values":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.6.99"
       reason: "skip highlighting of ignored values was introduced in 7.7"
   - do:
       search:

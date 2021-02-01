@@ -49,7 +49,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
         //them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(submit.getSearchRequest(), request, parser, setSize));
+            parseSearchRequest(submit.getSearchRequest(), request, parser, client.getNamedWriteableRegistry(), setSize));
 
         if (request.hasParam("wait_for_completion_timeout")) {
             submit.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", submit.getWaitForCompletionTimeout()));

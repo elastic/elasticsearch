@@ -13,10 +13,12 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor.Formatter;
 
 import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
@@ -32,7 +34,8 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         return new DateTimeFormatProcessor(
             new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-            randomZone()
+            randomZone(),
+            randomFrom(Formatter.values())
         );
     }
 
@@ -60,11 +63,12 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         return new DateTimeFormatProcessor(
             new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
-            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone)
+            randomZone(),
+            randomValueOtherThan(instance.formatter(), () -> randomFrom(Formatter.values()))
         );
     }
 
-    public void testInvalidInputs() {
+    public void testDateTimeFormatInvalidInputs() {
         SqlIllegalArgumentException siae = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateTimeFormat(Source.EMPTY, l("foo"), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
@@ -100,10 +104,50 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
     }
 
+    public void testFormatInvalidInputs() {
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Format(Source.EMPTY, l("foo"), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("A date/datetime/time is required; received [foo]", siae.getMessage());
+
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Format(Source.EMPTY, randomDatetimeLiteral(), l(5), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("A string is required; received [5]", siae.getMessage());
+
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Format(Source.EMPTY, l(dateTime(2019, 9, 3, 18, 10, 37, 0)), l("invalid"), randomZone()).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+        assertEquals(
+            "Invalid pattern [invalid] is received for formatting date/time [2019-09-03T18:10:37Z]; Unknown pattern letter: i",
+            siae.getMessage()
+        );
+
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Format(Source.EMPTY, l(time(18, 10, 37, 123000000)), l("MM/dd"), randomZone()).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+        assertEquals(
+            "Invalid pattern [MM/dd] is received for formatting date/time [18:10:37.123Z]; Unsupported field: MonthOfYear",
+            siae.getMessage()
+        );
+    }
+
     public void testWithNulls() {
         assertNull(new DateTimeFormat(Source.EMPTY, randomDatetimeLiteral(), NULL, randomZone()).makePipe().asProcessor().process(null));
         assertNull(new DateTimeFormat(Source.EMPTY, randomDatetimeLiteral(), l(""), randomZone()).makePipe().asProcessor().process(null));
         assertNull(new DateTimeFormat(Source.EMPTY, NULL, randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null));
+
+        assertNull(new Format(Source.EMPTY, randomDatetimeLiteral(), NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new Format(Source.EMPTY, randomDatetimeLiteral(), l(""), randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new Format(Source.EMPTY, NULL, randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null));
     }
 
     public void testFormatting() {
@@ -141,5 +185,111 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
                 .asProcessor()
                 .process(null)
         );
+
+
+        zoneId = ZoneId.of("Etc/GMT-10");
+        dateTime = l(dateTime(2019, 9, 3, 18, 10, 37, 123456789));
+
+        assertEquals("AD : 3", new Format(Source.EMPTY, dateTime, l("G : Q"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("AD", new Format(Source.EMPTY, dateTime, l("g"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals(
+            "2019-09-04",
+            new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd"), zoneId).makePipe().asProcessor().process(null)
+        );
+        assertEquals(
+            "2019-09-04 Wed",
+            new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd ddd"), zoneId).makePipe().asProcessor().process(null)
+        );
+        assertEquals(
+            "2019-09-04 Wednesday",
+            new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd dddd"), zoneId).makePipe().asProcessor().process(null)
+        );
+        assertEquals(
+            "04:10:37.123456",
+            new Format(Source.EMPTY, dateTime, l("HH:mm:ss.ffffff"), zoneId).makePipe().asProcessor().process(null)
+        );
+        assertEquals(
+            "2019-09-04 04:10:37.12345678",
+            new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd HH:mm:ss.ffffffff"), zoneId).makePipe().asProcessor().process(null)
+        );
+        assertEquals(
+            "2019-09-04 04:10:37.12345678 AM",
+            new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd HH:mm:ss.ffffffff tt"), zoneId).makePipe().asProcessor().process(null)
+        );
+        assertEquals(
+            "2019-09-04 04:10:37.12345678 AM",
+            new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd HH:mm:ss.ffffffff t"), zoneId).makePipe().asProcessor().process(null)
+        );
+        assertEquals("+1000", new Format(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("+10", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("VV"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("Etc/GMT-10", new Format(Source.EMPTY, dateTime, l("K"), zoneId).makePipe().asProcessor().process(null));
+
+        assertEquals("1", new Format(Source.EMPTY, dateTime, l("F"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("12", new Format(Source.EMPTY, dateTime, l("FF"), zoneId).makePipe().asProcessor().process(null));
+
+        zoneId = ZoneId.of("America/Sao_Paulo");
+        assertEquals("-0300", new Format(Source.EMPTY, dateTime, l("Z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("-03", new Format(Source.EMPTY, dateTime, l("z"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals(
+            "America/Sao_Paulo",
+            new Format(Source.EMPTY, dateTime, l("VV"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "07:11:22.1234",
+            new Format(Source.EMPTY, l(time(10, 11, 22, 123456789), TIME), l("HH:mm:ss.ffff"), zoneId).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+
+        assertEquals(
+            "10:11",
+            new Format(Source.EMPTY, l(time(10, 11, 22, 123456789), TIME), l("H:m"), ZoneOffset.UTC).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+
+        assertEquals(
+            "21:9",
+            new Format(Source.EMPTY, l(time(21, 11, 22, 123456789), TIME), l("H:h"), ZoneOffset.UTC).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+        assertEquals(
+            "2-02",
+            new Format(Source.EMPTY, l(time(21, 11, 2, 123456789), TIME), l("s-ss"), ZoneOffset.UTC).makePipe()
+                .asProcessor()
+                .process(null)
+        );
+
+        assertEquals("9-09-Sep-September",
+            new Format(Source.EMPTY, dateTime, l("M-MM-MMM-MMMM"), zoneId).makePipe()
+                .asProcessor()
+                .process(null));
+
+        assertEquals("arr: 3:10 PM",
+            new Format(Source.EMPTY, dateTime, l("'arr:' h:m t"), zoneId).makePipe()
+                .asProcessor()
+                .process(null))
+        ;
+        assertEquals("-03/-0300/-03:00",
+            new Format(Source.EMPTY, dateTime, l("z/zz/zzz"), zoneId).makePipe()
+                .asProcessor()
+                .process(null));
+        assertEquals("3", new Format(Source.EMPTY, dateTime, l("d"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("2001-01-2001-02001",
+            new Format(Source.EMPTY, l(dateTime(2001, 9, 3, 18, 10, 37, 123456789)),
+                l("y-yy-yyyy-yyyyy"), zoneId).makePipe().asProcessor().process(null));
+
+        assertEquals("%9-\"09-\\Sep-September",
+            new Format(Source.EMPTY, dateTime, l("%M-\"MM-\\MMM-MMMM"), zoneId).makePipe()
+                .asProcessor()
+                .process(null));
+
+        assertEquals("45-0045",
+            new Format(Source.EMPTY, l(dateTime(45, 9, 3, 18, 10, 37, 123456789)), l("y-yyyy"), zoneId).makePipe()
+                .asProcessor()
+                .process(null));
     }
 }

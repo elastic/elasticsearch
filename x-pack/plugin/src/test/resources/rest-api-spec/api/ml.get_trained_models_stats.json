@@ -1,14 +1,18 @@
 {
   "ml.get_trained_models_stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models-stats.html",
       "description":"Retrieves usage information for trained inference models."
     },
-    "stability":"experimental",
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
-          "path":"/_ml/inference/{model_id}/_stats",
+          "path":"/_ml/trained_models/{model_id}/_stats",
           "methods":[
             "GET"
           ],
@@ -20,7 +24,7 @@
           }
         },
         {
-          "path":"/_ml/inference/_stats",
+          "path":"/_ml/trained_models/_stats",
           "methods":[
             "GET"
           ]

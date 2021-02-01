@@ -26,6 +26,11 @@ public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlS
         return true;
     }
 
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
     public MultiClusterSearchWithSecurityYamlTestSuiteIT(
             @Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

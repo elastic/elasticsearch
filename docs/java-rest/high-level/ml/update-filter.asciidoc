@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Update filter API
+=== Update filters API
 
 Updates an existing {ml} filter in the cluster. The API accepts a +{request}+
 object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Update filter request
+==== Update filters request
 
 A +{request}+ requires the following argument:
 

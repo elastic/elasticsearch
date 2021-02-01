@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.eql.execution.search.AsEventListener;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.ReverseListener;
@@ -49,17 +51,18 @@ public class EsQueryExec extends LeafExec {
         return output;
     }
 
-    public QueryRequest queryRequest(EqlSession session) {
+    public SearchSourceBuilder source(EqlSession session) {
         EqlConfiguration cfg = session.configuration();
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(queryContainer, cfg.filter(), cfg.size());
-        return () -> sourceBuilder;
+        // by default use the configuration size
+        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter());
     }
 
     @Override
     public void execute(EqlSession session, ActionListener<Payload> listener) {
-        QueryRequest request = queryRequest(session);
+        // endpoint - fetch all source
+        QueryRequest request = () -> source(session).fetchSource(FetchSourceContext.FETCH_SOURCE);
         listener = shouldReverse(request) ? new ReverseListener(listener) : listener;
-        new BasicQueryClient(session).query(request, listener);
+        new BasicQueryClient(session).query(request, new AsEventListener(listener));
     }
 
     private boolean shouldReverse(QueryRequest query) {

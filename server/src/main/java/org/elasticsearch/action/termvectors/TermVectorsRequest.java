@@ -441,7 +441,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets the settings for filtering out terms.
      */
     public TermVectorsRequest filterSettings(FilterSettings settings) {
-        this.filterSettings = settings != null ? settings : null;
+        this.filterSettings = settings;
         return this;
     }
 
@@ -464,9 +464,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     }
 
     private void setFlag(Flag flag, boolean set) {
-        if (set && !flagsEnum.contains(flag)) {
+        if (set && flagsEnum.contains(flag) == false) {
             flagsEnum.add(flag);
-        } else if (!set) {
+        } else if (set == false) {
             flagsEnum.remove(flag);
             assert (!flagsEnum.contains(flag));
         }
@@ -493,7 +493,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            out.writeEnum(xContentType);
+            XContentHelper.writeTo(out, xContentType);
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
@@ -503,10 +503,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
         out.writeVLong(longFlags);
         if (selectedFields != null) {
-            out.writeVInt(selectedFields.size());
-            for (String selectedField : selectedFields) {
-                out.writeString(selectedField);
-            }
+            out.writeStringCollection(selectedFields);
         } else {
             out.writeVInt(0);
         }

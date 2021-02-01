@@ -29,7 +29,7 @@ to return.
 Take no refresh related actions. The changes made by this request will be made
 visible at some point after the request returns.
 
-[float]
+[discrete]
 ==== Choosing which setting to use
 // tag::refresh-default[]
 Unless you have a good reason to wait for the change to become visible, always
@@ -62,7 +62,7 @@ refresh immediately, `refresh=true` will affect other ongoing request. In
 general, if you have a running system you don't wish to disturb then
 `refresh=wait_for` is a smaller modification.
 
-[float]
+[discrete]
 [[refresh_wait_for-force-refresh]]
 ==== `refresh=wait_for` Can Force a Refresh
 
@@ -78,7 +78,7 @@ contain `"forced_refresh": true`.
 Bulk requests only take up one slot on each shard that they touch no matter how
 many times they modify the shard.
 
-[float]
+[discrete]
 ==== Examples
 
 These will create a document and immediately refresh the index so it is visible:

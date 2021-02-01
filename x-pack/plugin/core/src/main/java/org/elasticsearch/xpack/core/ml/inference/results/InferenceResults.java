@@ -6,10 +6,29 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-public interface InferenceResults extends NamedWriteable {
+import java.util.Map;
 
-    void writeResult(IngestDocument document, String parentResultField);
+public interface InferenceResults extends NamedWriteable, ToXContentFragment {
+    String MODEL_ID_RESULTS_FIELD = "model_id";
 
+    static void writeResult(InferenceResults results, IngestDocument ingestDocument, String resultField, String modelId) {
+        ExceptionsHelper.requireNonNull(results, "results");
+        ExceptionsHelper.requireNonNull(ingestDocument, "ingestDocument");
+        ExceptionsHelper.requireNonNull(resultField, "resultField");
+        Map<String, Object> resultMap = results.asMap();
+        resultMap.put(MODEL_ID_RESULTS_FIELD, modelId);
+        if (ingestDocument.hasField(resultField)) {
+            ingestDocument.appendFieldValue(resultField, resultMap);
+        } else {
+            ingestDocument.setFieldValue(resultField, resultMap);
+        }
+    }
+
+    Map<String, Object> asMap();
+
+    Object predictedValue();
 }

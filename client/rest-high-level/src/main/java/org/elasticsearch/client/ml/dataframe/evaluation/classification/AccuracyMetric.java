@@ -20,11 +20,9 @@ package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -99,10 +97,10 @@ public class AccuracyMetric implements EvaluationMetric {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
 
         static {
-            PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
+            PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), OVERALL_ACCURACY);
         }
 
@@ -111,11 +109,11 @@ public class AccuracyMetric implements EvaluationMetric {
         }
 
         /** List of per-class results. */
-        private final List<PerClassResult> classes;
+        private final List<PerClassSingleValue> classes;
         /** Fraction of documents for which predicted class equals the actual class. */
         private final double overallAccuracy;
 
-        public Result(List<PerClassResult> classes, double overallAccuracy) {
+        public Result(List<PerClassSingleValue> classes, double overallAccuracy) {
             this.classes = Collections.unmodifiableList(Objects.requireNonNull(classes));
             this.overallAccuracy = overallAccuracy;
         }
@@ -125,7 +123,7 @@ public class AccuracyMetric implements EvaluationMetric {
             return NAME;
         }
 
-        public List<PerClassResult> getClasses() {
+        public List<PerClassSingleValue> getClasses() {
             return classes;
         }
 
@@ -154,67 +152,6 @@ public class AccuracyMetric implements EvaluationMetric {
         @Override
         public int hashCode() {
             return Objects.hash(classes, overallAccuracy);
-        }
-    }
-
-    public static class PerClassResult implements ToXContentObject {
-
-        private static final ParseField CLASS_NAME = new ParseField("class_name");
-        private static final ParseField ACCURACY = new ParseField("accuracy");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<PerClassResult, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_per_class_result", true, a -> new PerClassResult((String) a[0], (double) a[1]));
-
-        static {
-            PARSER.declareString(constructorArg(), CLASS_NAME);
-            PARSER.declareDouble(constructorArg(), ACCURACY);
-        }
-
-        /** Name of the class. */
-        private final String className;
-        /** Fraction of documents that are either true positives or true negatives wrt {@code className}. */
-        private final double accuracy;
-
-        public PerClassResult(String className, double accuracy) {
-            this.className = Objects.requireNonNull(className);
-            this.accuracy = accuracy;
-        }
-
-        public String getClassName() {
-            return className;
-        }
-
-        public double getAccuracy() {
-            return accuracy;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CLASS_NAME.getPreferredName(), className);
-            builder.field(ACCURACY.getPreferredName(), accuracy);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PerClassResult that = (PerClassResult) o;
-            return Objects.equals(this.className, that.className)
-                && this.accuracy == that.accuracy;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(className, accuracy);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
         }
     }
 }

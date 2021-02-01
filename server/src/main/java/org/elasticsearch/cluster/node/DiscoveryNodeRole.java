@@ -56,6 +56,17 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return roleNameAbbreviation;
     }
 
+    private final boolean canContainData;
+
+    /**
+     * Indicates whether a node with this role can contain data.
+     *
+     * @return true if a node with this role can contain data, otherwise false
+     */
+    public final boolean canContainData() {
+        return canContainData;
+    }
+
     private final boolean isKnownRole;
 
     public boolean isEnabledByDefault(final Settings settings) {
@@ -63,13 +74,25 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     }
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation) {
-        this(true, roleName, roleNameAbbreviation);
+        this(roleName, roleNameAbbreviation, false);
     }
 
-    private DiscoveryNodeRole(final boolean isKnownRole, final String roleName, final String roleNameAbbreviation) {
+    protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+        this(true, roleName, roleNameAbbreviation, canContainData);
+        assert canContainData == isDataRoleBasedOnNamingConvention(roleName) :
+            "Role '" + roleName + "' not compliant to data role naming convention";
+    }
+
+    private DiscoveryNodeRole(
+        final boolean isKnownRole,
+        final String roleName,
+        final String roleNameAbbreviation,
+        final boolean canContainData
+    ) {
         this.isKnownRole = isKnownRole;
         this.roleName = Objects.requireNonNull(roleName);
         this.roleNameAbbreviation = Objects.requireNonNull(roleNameAbbreviation);
+        this.canContainData = canContainData;
     }
 
     public abstract Setting<Boolean> legacySetting();
@@ -81,12 +104,13 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         DiscoveryNodeRole that = (DiscoveryNodeRole) o;
         return roleName.equals(that.roleName) &&
             roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
+            canContainData == that.canContainData &&
             isKnownRole == that.isKnownRole;
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation());
+        return Objects.hash(isKnownRole, roleName(), roleNameAbbreviation(), canContainData());
     }
 
     @Override
@@ -99,6 +123,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         return "DiscoveryNodeRole{" +
                 "roleName='" + roleName + '\'' +
                 ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
+                ", canContainData=" + canContainData +
                 (isKnownRole ? "" : ", isKnownRole=false") +
                 '}';
     }
@@ -106,7 +131,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
     /**
      * Represents the role for a data node.
      */
-    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d") {
+    public static final DiscoveryNodeRole DATA_ROLE = new DiscoveryNodeRole("data", "d", true) {
 
         @Override
         public Setting<Boolean> legacySetting() {
@@ -115,6 +140,14 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         }
 
     };
+
+    /**
+     * Allows determining the "data" property without the need to load plugins, but does this purely based on
+     * naming conventions.
+     */
+    static boolean isDataRoleBasedOnNamingConvention(String role) {
+        return role.equals("data") || role.startsWith("data_");
+    }
 
     /**
      * Represents the role for an ingest node.
@@ -169,9 +202,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
          *
          * @param roleName             the role name
          * @param roleNameAbbreviation the role name abbreviation
+         * @param canContainData       whether or not nodes with the role can contain data
          */
-        UnknownRole(final String roleName, final String roleNameAbbreviation) {
-            super(false, roleName, roleNameAbbreviation);
+        UnknownRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
+            super(false, roleName, roleNameAbbreviation, canContainData);
         }
 
         @Override

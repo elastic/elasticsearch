@@ -20,55 +20,32 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class MultiFieldCopyToMapperTests extends ESTestCase {
+public class MultiFieldCopyToMapperTests extends MapperServiceTestCase {
 
-    public void testExceptionForCopyToInMultiFields() throws IOException {
-        XContentBuilder mapping = createMappinmgWithCopyToInMultiField();
+    public void testExceptionForCopyToInMultiFields() {
 
-        // first check that for newer versions we throw exception if copy_to is found within multi field
-        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "test");
-        try {
-            mapperService.parse("type", new CompressedXContent(Strings.toString(mapping)));
-            fail("Parsing should throw an exception because the mapping contains a copy_to in a multi field");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("copy_to in multi fields is not allowed. Found the copy_to in field [c]"
-                + " which is within a multi field."));
-        }
-    }
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("a").field("type", "text").endObject();
+            b.startObject("b");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                {
+                    b.startObject("subfield");
+                    {
+                        b.field("type", "text");
+                        b.field("copy_to", "a");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
 
-    private static XContentBuilder createMappinmgWithCopyToInMultiField() throws IOException {
-        XContentBuilder mapping = jsonBuilder();
-        mapping.startObject()
-            .startObject("type")
-            .startObject("properties")
-            .startObject("a")
-            .field("type", "text")
-            .endObject()
-            .startObject("b")
-            .field("type", "text")
-            .startObject("fields")
-            .startObject("c")
-            .field("type", "text")
-            .field("copy_to", "a")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        return mapping;
+        assertThat(e.getMessage(), equalTo("[copy_to] may not be used to copy from a multi-field: [b.subfield]"));
     }
 
 }

@@ -32,5 +32,4 @@ public class XPackInfoRequestBuilder extends ActionRequestBuilder<XPackInfoReque
         request.setCategories(categories);
         return this;
     }
-
 }

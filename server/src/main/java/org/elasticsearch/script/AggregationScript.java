@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -40,22 +40,21 @@ public abstract class AggregationScript implements ScorerAware {
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
-                deprecationLogger.deprecate("aggregation-script_doc",
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "aggregation-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an aggregation-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
             "_doc", value -> {
-                deprecationLogger.deprecate("aggregation-script__doc",
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "aggregation-script__doc",
                         "Accessing variable [doc] via [params._doc] from within an aggregation-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
-            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+            "_source", value -> ((SourceLookup)value).source()
     );
 
     /**

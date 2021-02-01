@@ -19,54 +19,45 @@
 
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MissingAggregatorSupplier aggregatorSupplier;
+
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
-            (MissingAggregatorSupplier) MissingAggregator::new);
+        builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new, true);
     }
 
-    public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+    public MissingAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                                     AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                    Map<String, Object> metadata,
+                                    MissingAggregatorSupplier aggregatorSupplier) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected MissingAggregator createUnmapped(SearchContext searchContext,
-                                                Aggregator parent,
-                                                Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, config, searchContext, parent, metadata);
+    protected MissingAggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new MissingAggregator(name, factories, config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+    protected Aggregator doCreateInternal(Aggregator parent,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config, MissingAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected MissingAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-
-        return ((MissingAggregatorSupplier) aggregatorSupplier).build(name, factories, config, searchContext, parent, metadata);
+        return aggregatorSupplier
+            .build(name, factories, config, context, parent, cardinality, metadata);
     }
-
 }

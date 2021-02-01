@@ -84,7 +84,7 @@ public abstract class ValuesSource {
      * This returns a {@linkplain Function} because auto date histogram will
      * need to call it many times over the course of running the aggregation.
      */
-    public abstract Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException;
+    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
 
     /**
      * Check if this values source supports using global ordinals
@@ -114,7 +114,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
             // TODO lookup the min and max rounding when appropriate
             return Rounding::prepareForUnknown;
         }
@@ -130,7 +130,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
             throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
@@ -395,7 +395,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
             return Rounding::prepareForUnknown;
         }
 
@@ -592,7 +592,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
             throw new AggregationExecutionException("can't round a [GEO_POINT]");
         }
 

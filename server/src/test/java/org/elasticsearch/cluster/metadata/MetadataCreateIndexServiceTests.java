@@ -46,18 +46,19 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -73,7 +74,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,10 +89,10 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.aggregateIndexSettings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
@@ -101,7 +101,6 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.pars
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -115,18 +114,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private AliasValidator aliasValidator;
     private CreateIndexClusterStateUpdateRequest request;
-    private QueryShardContext queryShardContext;
+    private SearchExecutionContext searchExecutionContext;
 
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
         aliasValidator = new AliasValidator();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        queryShardContext = new QueryShardContext(0,
+        searchExecutionContext = new SearchExecutionContext(0, 0,
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null, () -> true, null);
+            null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap());
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
@@ -211,7 +210,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
         AllocationService service = new AllocationService(new AllocationDeciders(
             Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -273,7 +273,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         AllocationService service = new AllocationService(new AllocationDeciders(
             Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -409,7 +410,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
                 new TestGatewayAllocator(),
                 new BalancedShardsAllocator(Settings.EMPTY),
-                EmptyClusterInfoService.INSTANCE);
+                EmptyClusterInfoService.INSTANCE,
+                EmptySnapshotsInfoService.INSTANCE);
 
         final RoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute").routingTable();
         final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
@@ -456,7 +458,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                Collections.emptyList(),
+                new SystemIndices(Collections.emptyMap()),
                 false
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
@@ -516,7 +518,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test3", "test"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
-        systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test-overlapping", "test-2"));
 
         withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
@@ -529,33 +530,25 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                systemIndexDescriptors,
+                new SystemIndices(Collections.singletonMap("foo", systemIndexDescriptors)),
                 false
             );
             // Check deprecations
-            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, false);
+            assertFalse(checkerService.validateDotIndex(".test2", false));
             assertWarnings("index name [.test2] starts with a dot '.', in the next major version, index " +
                 "names starting with a dot are reserved for hidden indices and system indices");
 
             // Check non-system hidden indices don't trigger a warning
-            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, true);
+            assertFalse(checkerService.validateDotIndex(".test2", true));
 
             // Check NO deprecation warnings if we give the index name
-            checkerService.validateDotIndex(".test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateDotIndex(".test3", ClusterState.EMPTY_STATE, false);
+            assertTrue(checkerService.validateDotIndex(".test", false));
+            assertTrue(checkerService.validateDotIndex(".test3", false));
 
             // Check that patterns with wildcards work
-            checkerService.validateDotIndex(".pattern-test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateDotIndex(".pattern-test-with-suffix", ClusterState.EMPTY_STATE, false);
-            checkerService.validateDotIndex(".pattern-test-other-suffix", ClusterState.EMPTY_STATE, false);
-
-            // Check that an exception is thrown if more than one descriptor matches the index name
-            AssertionError exception = expectThrows(AssertionError.class,
-                () -> checkerService.validateDotIndex(".pattern-test-overlapping", ClusterState.EMPTY_STATE, false));
-            assertThat(exception.getMessage(),
-                containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));
-            assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));
-            assertThat(exception.getMessage(), containsString("pattern: [.pattern-test-overlapping], description: [test-2]"));
+            assertTrue(checkerService.validateDotIndex(".pattern-test", false));
+            assertTrue(checkerService.validateDotIndex(".pattern-test-with-suffix", false));
+            assertTrue(checkerService.validateDotIndex(".pattern-test-other-suffix", false));
         }));
     }
 
@@ -591,7 +584,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.settings(Settings.builder().put("request_setting", "value2").build());
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
@@ -604,7 +598,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         expectThrows(InvalidAliasNameException.class, () ->
             resolveAndValidateAliases(request.index(), request.aliases(), List.of(), Metadata.builder().build(),
-                aliasValidator, xContentRegistry(), queryShardContext)
+                aliasValidator, xContentRegistry(), searchExecutionContext)
         );
     }
 
@@ -626,9 +620,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             List.of(templateMetadata.mappings()), xContentRegistry());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext);
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet());
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
         assertThat(aggregatedIndexSettings.get("key1"), equalTo("requestValue"));
@@ -642,7 +637,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testDefaultSettings() {
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
@@ -650,7 +646,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testSettingsFromClusterState() {
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService());
+            randomShardLimitService(), Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
     }
@@ -674,10 +670,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ));
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request,
             MetadataIndexTemplateService.resolveSettings(templates), null, Settings.EMPTY,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext);
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
         AliasMetadata alias = resolvedAliases.get(0);
         assertThat(alias.getSearchRouting(), equalTo("3"));
@@ -702,7 +698,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
             clusterState.metadata().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            randomShardLimitService());
+            randomShardLimitService(), Collections.emptySet());
 
         assertThat(aggregatedIndexSettings.get("templateSetting"), is(nullValue()));
         assertThat(aggregatedIndexSettings.get("requestSetting"), is("requestValue"));
@@ -839,7 +835,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata);
+        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
@@ -887,7 +883,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
             aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+                Collections.emptySet());
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
@@ -902,13 +899,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         if (randomBoolean()) {
-            settings.put(SETTING_INDEX_VERSION_CREATED.getKey(),
+            settings.put(SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT));
         }
         request.settings(settings.build());
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService()));
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+                Collections.emptySet()));
         assertThat(error.getMessage(), equalTo("Translog retention settings [index.translog.retention.age] " +
             "and [index.translog.retention.size] are no longer supported. Please do not specify values for these settings"));
     }
@@ -921,317 +919,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
-        settings.put(SETTING_INDEX_VERSION_CREATED.getKey(), VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
+        settings.put(SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
         request.settings(settings.build());
         aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
+            Collections.emptySet());
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
-    }
-
-    @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
-    public void testMappingsMergingIsSmart() throws Exception {
-        Template ctt1 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"_source\":{\"enabled\": false},\"_meta\":{\"ct1\":{\"ver\": \"text\"}}," +
-                "\"properties\":{\"foo\":{\"type\":\"text\",\"ignore_above\":7,\"analyzer\":\"english\"}}}}"), null);
-        Template ctt2 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"_meta\":{\"ct1\":{\"ver\": \"keyword\"},\"ct2\":\"potato\"}," +
-                "\"properties\":{\"foo\":{\"type\":\"keyword\",\"ignore_above\":13}}}}"), null);
-
-        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
-
-        boolean shouldBeText = randomBoolean();
-        List<String> composedOf = shouldBeText ? Arrays.asList("ct2", "ct1") : Arrays.asList("ct1", "ct2");
-        logger.info("--> the {} analyzer should win ({})", shouldBeText ? "text" : "keyword", composedOf);
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, composedOf, null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("ct1", ct1)
-                .put("ct2", ct2)
-                .put("index-template", template)
-                .build())
-            .build();
-
-        Map<String, Object> resolved =
-            MetadataCreateIndexService.resolveV2Mappings("{\"_doc\":{\"_meta\":{\"ct2\":\"eggplant\"}," +
-                    "\"properties\":{\"bar\":{\"type\":\"text\"}}}}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
-
-        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
-        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(3));
-
-        Map<String, Object> nonProperties = new HashMap<>(innerResolved);
-        nonProperties.remove("properties");
-        Map<String, Object> expectedNonProperties = new HashMap<>();
-        expectedNonProperties.put("_source", Collections.singletonMap("enabled", false));
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("ct2", "eggplant");
-        if (shouldBeText) {
-            meta.put("ct1", Collections.singletonMap("ver", "text"));
-        } else {
-            meta.put("ct1", Collections.singletonMap("ver", "keyword"));
-        }
-        expectedNonProperties.put("_meta", meta);
-        assertThat(nonProperties, equalTo(expectedNonProperties));
-
-        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
-        assertThat(innerInnerResolved.size(), equalTo(2));
-        assertThat(innerInnerResolved.get("bar"), equalTo(Collections.singletonMap("type", "text")));
-        Map<String, Object> fooMappings = new HashMap<>();
-        if (shouldBeText) {
-            fooMappings.put("type", "text");
-            fooMappings.put("ignore_above", 7);
-            fooMappings.put("analyzer", "english");
-        } else {
-            fooMappings.put("type", "keyword");
-            fooMappings.put("ignore_above", 13);
-        }
-        assertThat(innerInnerResolved.get("foo"), equalTo(fooMappings));
-    }
-
-    @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
-    public void testMappingsMergingHandlesDots() throws Exception {
-        Template ctt1 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\": \"long\"}}}}}}"), null);
-        Template ctt2 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo.bar\":{\"type\": \"text\",\"analyzer\":\"english\"}}}}"), null);
-
-        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
-
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, Arrays.asList("ct2", "ct1"), null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("ct1", ct1)
-                .put("ct2", ct2)
-                .put("index-template", template)
-                .build())
-            .build();
-
-        Map<String, Object> resolved =
-            MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
-
-        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
-        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(1));
-
-        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
-        assertThat(innerInnerResolved.size(), equalTo(1));
-        assertThat(innerInnerResolved.get("foo"),
-            equalTo(Collections.singletonMap("properties", Collections.singletonMap("bar", Collections.singletonMap("type", "long")))));
-    }
-
-    public void testMappingsMergingThrowsOnConflictDots() throws Exception {
-        Template ctt1 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\": \"long\"}}}}}}"), null);
-        Template ctt2 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo.bar\":{\"type\": \"text\",\"analyzer\":\"english\"}}}}"), null);
-
-        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
-
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, Arrays.asList("ct2", "ct1"), null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("ct1", ct1)
-                .put("ct2", ct2)
-                .put("index-template", template)
-                .build())
-            .build();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                    "index-template", new NamedXContentRegistry(Collections.emptyList())));
-
-        assertThat(e.getMessage(), containsString("mapping fields [foo.bar] cannot be replaced during template composition"));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testDedupTemplateDynamicTemplates() throws Exception {
-        Template template = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
-                "{\n" +
-                "   \"docker.container.labels\": {\n" +
-                "     \"mapping\": {\n" +
-                "         \"type\": \"keyword\"\n" +
-                "       },\n" +
-                "       \"match_mapping_type\": \"string\",\n" +
-                "       \"path_match\": \"labels.*\"\n" +
-                "     }\n" +
-                "   },\n" +
-                "   {\n" +
-                "     \"docker.container.labels\": {\n" +
-                "       \"mapping\": {\n" +
-                "         \"type\": \"keyword\"\n" +
-                "       },\n" +
-                "       \"match_mapping_type\": \"string\",\n" +
-                "       \"path_match\": \"docker.container.labels.*\"\n" +
-                "     }\n" +
-                "}]}}"), null);
-
-        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList("index"),
-            template, null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("index-template", indexTemplate)
-                .build())
-            .build();
-
-        Map<String, Object> resolved =
-            MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
-
-        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
-        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
-        assertThat(dynamicTemplates.size(), is(1));
-        Map<String, Object> dynamicMapping = (Map<String, Object>) dynamicTemplates.get(0).get("docker.container.labels");
-        assertThat(dynamicMapping, is(notNullValue()));
-        assertThat("last mapping with the same name must override previously defined mappings with the same name",
-            dynamicMapping.get("path_match"), is("docker.container.labels.*"));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
-    public void testDedupRequestDynamicTemplates() throws Exception {
-        String requestMappingJson = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
-            "{\n" +
-            "   \"docker.container.labels\": {\n" +
-            "     \"mapping\": {\n" +
-            "         \"type\": \"keyword\"\n" +
-            "       },\n" +
-            "       \"match_mapping_type\": \"string\",\n" +
-            "       \"path_match\": \"labels.*\"\n" +
-            "     }\n" +
-            "   },\n" +
-            "   {\n" +
-            "     \"docker.container.labels\": {\n" +
-            "       \"mapping\": {\n" +
-            "         \"type\": \"keyword\"\n" +
-            "       },\n" +
-            "       \"match_mapping_type\": \"string\",\n" +
-            "       \"path_match\": \"source.request.*\"\n" +
-            "     }\n" +
-            "}]}}";
-
-        String templateMappingJson = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
-            "{\n" +
-            "   \"docker.container.labels\": {\n" +
-            "     \"mapping\": {\n" +
-            "         \"type\": \"text\",\n" +
-            "         \"copy_to\": \"text_labels\"\n" +
-            "       },\n" +
-            "       \"match_mapping_type\": \"string\",\n" +
-            "       \"path_match\": \"source.template.*\"\n" +
-            "     }\n" +
-            "   }\n" +
-            "]}}";
-        Template template = new Template(null, new CompressedXContent(templateMappingJson), null);
-
-        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList("index"),
-            template, null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("index-template", indexTemplate)
-                .build())
-            .build();
-
-        Map<String, Object> resolved =
-            MetadataCreateIndexService.resolveV2Mappings(requestMappingJson, state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
-
-        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
-        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
-        assertThat(dynamicTemplates.size(), is(1));
-        Map<String, Object> dynamicMapping = (Map<String, Object>) dynamicTemplates.get(0).get("docker.container.labels");
-        assertThat(dynamicMapping, is(notNullValue()));
-        assertThat("last mapping with the same name must override previously defined mappings with the same name",
-            dynamicMapping.get("path_match"), is("source.request.*"));
-        Map<String, Object> mapping = (Map<String, Object>) dynamicMapping.get("mapping");
-        assertThat("the dynamic template defined in the request must not be merged with the dynamic template with the " +
-            "same name defined in the index template", mapping.size(), is(1));
-        assertThat(mapping.get("type"), is("keyword"));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
-    public void testMultipleComponentTemplatesDefineSameDynamicTemplate() throws Exception {
-        String ct1Mapping = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
-            "{\n" +
-            "   \"docker.container.labels\": {\n" +
-            "     \"mapping\": {\n" +
-            "         \"type\": \"text\",\n" +
-            "         \"copy_to\": \"text_labels\"\n" +
-            "       },\n" +
-            "       \"match_mapping_type\": \"string\",\n" +
-            "       \"path_match\": \"source.first.ct.*\"\n" +
-            "     }\n" +
-            "   },\n" +
-            "{\n" +
-            "   \"other.labels\": {\n" +
-            "     \"mapping\": {\n" +
-            "         \"type\": \"keyword\"\n" +
-            "       },\n" +
-            "       \"match_mapping_type\": \"string\",\n" +
-            "       \"path_match\": \"source.first.ct.other.labels*\"\n" +
-            "     }\n" +
-            "   }\n" +
-            "]}}";
-        String ct2Mapping = "{\"_doc\":{\"_source\":{\"enabled\": false}, \"dynamic_templates\": [" +
-            "{\n" +
-            "   \"docker.container.labels\": {\n" +
-            "     \"mapping\": {\n" +
-            "         \"type\": \"keyword\"\n" +
-            "       },\n" +
-            "       \"match_mapping_type\": \"string\",\n" +
-            "       \"path_match\": \"source.second.ct.*\"\n" +
-            "     }\n" +
-            "   }\n" +
-            "]}}";
-
-        Template ctt1 = new Template(null, new CompressedXContent(ct1Mapping), null);
-        Template ctt2 = new Template(null, new CompressedXContent(ct2Mapping), null);
-        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
-
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, Arrays.asList("ct1", "ct2"), null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("ct1", ct1)
-                .put("ct2", ct2)
-                .put("index-template", template)
-                .build())
-            .build();
-
-        Map<String, Object> resolved =
-            MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
-
-        Map<String, Object> doc = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
-        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) doc.get("dynamic_templates");
-        assertThat(dynamicTemplates.size(), is(2));
-        Map<String, Object> dockerLabelsDynamicTemplate = dynamicTemplates.get(0).get("docker.container.labels") != null ?
-            dynamicTemplates.get(0) : dynamicTemplates.get(1);
-        Map<String, Object> dynamicMapping = (Map<String, Object>) dockerLabelsDynamicTemplate.get("docker.container.labels");
-        assertThat(dynamicMapping, is(notNullValue()));
-        assertThat("dynamic template defined in the last defined component template must override the previously defined dynamic templates",
-            dynamicMapping.get("path_match"), is("source.second.ct.*"));
-        Map<String, Object> mapping = (Map<String, Object>) dynamicMapping.get("mapping");
-        assertThat("the dynamic template defined in the second component template must not be merged with the dynamic template with the " +
-            "same name defined in the first component template", mapping.size(), is(1));
-        assertThat(mapping.get("type"), is("keyword"));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

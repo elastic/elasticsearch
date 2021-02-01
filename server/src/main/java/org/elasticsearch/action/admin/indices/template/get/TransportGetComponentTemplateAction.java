@@ -30,13 +30,11 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -48,17 +46,8 @@ public class TransportGetComponentTemplateAction extends
                                                ThreadPool threadPool, ActionFilters actionFilters,
                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetComponentTemplateAction.Request::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetComponentTemplateAction.Response read(StreamInput in) throws IOException {
-        return new GetComponentTemplateAction.Response(in);
+                GetComponentTemplateAction.Request::new, indexNameExpressionResolver, GetComponentTemplateAction.Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override

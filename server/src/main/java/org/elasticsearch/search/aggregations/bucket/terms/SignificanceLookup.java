@@ -38,9 +38,11 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 
@@ -62,19 +64,19 @@ class SignificanceLookup {
         long freq(long term) throws IOException;
     }
 
-    private final QueryShardContext context;
+    private final AggregationContext context;
     private final MappedFieldType fieldType;
     private final DocValueFormat format;
     private final Query backgroundFilter;
     private final int supersetNumDocs;
     private TermsEnum termsEnum;
 
-    SignificanceLookup(QueryShardContext context, MappedFieldType fieldType, DocValueFormat format, QueryBuilder backgroundFilter)
+    SignificanceLookup(AggregationContext context, MappedFieldType fieldType, DocValueFormat format, QueryBuilder backgroundFilter)
         throws IOException {
         this.context = context;
         this.fieldType = fieldType;
         this.format = format;
-        this.backgroundFilter = backgroundFilter == null ? null : backgroundFilter.toQuery(context);
+        this.backgroundFilter = backgroundFilter == null ? null : context.buildQuery(backgroundFilter);
         /*
          * We need to use a superset size that includes deleted docs or we
          * could end up blowing up with bad statistics that cause us to blow
@@ -94,8 +96,8 @@ class SignificanceLookup {
     /**
      * Get the background frequency of a {@link BytesRef} term.
      */
-    BackgroundFrequencyForBytes bytesLookup(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-        if (collectsFromSingleBucket) {
+    BackgroundFrequencyForBytes bytesLookup(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+        if (cardinality == CardinalityUpperBound.ONE) {
             return new BackgroundFrequencyForBytes() {
                 @Override
                 public long freq(BytesRef term) throws IOException {
@@ -133,14 +135,14 @@ class SignificanceLookup {
      * Get the background frequency of a {@link BytesRef} term.
      */
     private long getBackgroundFrequency(BytesRef term) throws IOException {
-        return getBackgroundFrequency(fieldType.termQuery(format.format(term).toString(), context));
+        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
     }
 
     /**
      * Get the background frequency of a {@code long} term.
      */
-    BackgroundFrequencyForLong longLookup(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-        if (collectsFromSingleBucket) {
+    BackgroundFrequencyForLong longLookup(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+        if (cardinality == CardinalityUpperBound.ONE) {
             return new BackgroundFrequencyForLong() {
                 @Override
                 public long freq(long term) throws IOException {
@@ -178,7 +180,7 @@ class SignificanceLookup {
      * Get the background frequency of a {@code long} term.
      */
     private long getBackgroundFrequency(long term) throws IOException {
-        return getBackgroundFrequency(fieldType.termQuery(format.format(term).toString(), context));
+        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
@@ -204,7 +206,7 @@ class SignificanceLookup {
         if (termsEnum != null) {
             return termsEnum;
         }
-        IndexReader reader = context.getIndexReader();
+        IndexReader reader = context.searcher().getIndexReader();
         termsEnum = new FilterableTermsEnum(reader, fieldType.name(), PostingsEnum.NONE, backgroundFilter);
         return termsEnum;
     }

@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[api-java-activate-watch]]
 === Activate watch API
 

@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -46,9 +48,15 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        request.setAllowNoMatch(restRequest.paramAsBoolean(GetDataFrameAnalyticsStatsAction.Request.ALLOW_NO_MATCH.getPreferredName(),
-            request.isAllowNoMatch()));
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                GetDataFrameAnalyticsStatsAction.Request.ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoMatch()));
 
         return channel -> client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(GetDataFrameAnalyticsStatsAction.Response.VERBOSE);
     }
 }

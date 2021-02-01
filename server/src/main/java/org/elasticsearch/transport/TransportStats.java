@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -32,13 +31,15 @@ import java.io.IOException;
 public class TransportStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;
+    private final long totalOutboundConnections;
     private final long rxCount;
     private final long rxSize;
     private final long txCount;
     private final long txSize;
 
-    public TransportStats(long serverOpen, long rxCount, long rxSize, long txCount, long txSize) {
+    public TransportStats(long serverOpen, long totalOutboundConnections, long rxCount, long rxSize, long txCount, long txSize) {
         this.serverOpen = serverOpen;
+        this.totalOutboundConnections = totalOutboundConnections;
         this.rxCount = rxCount;
         this.rxSize = rxSize;
         this.txCount = txCount;
@@ -47,6 +48,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
 
     public TransportStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
+        totalOutboundConnections = in.readVLong();
         rxCount = in.readVLong();
         rxSize = in.readVLong();
         txCount = in.readVLong();
@@ -56,6 +58,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
+        out.writeVLong(totalOutboundConnections);
         out.writeVLong(rxCount);
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
@@ -106,6 +109,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
         builder.field(Fields.SERVER_OPEN, serverOpen);
+        builder.field(Fields.TOTAL_OUTBOUND_CONNECTIONS, totalOutboundConnections);
         builder.field(Fields.RX_COUNT, rxCount);
         builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, new ByteSizeValue(rxSize));
         builder.field(Fields.TX_COUNT, txCount);
@@ -117,6 +121,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     static final class Fields {
         static final String TRANSPORT = "transport";
         static final String SERVER_OPEN = "server_open";
+        static final String TOTAL_OUTBOUND_CONNECTIONS = "total_outbound_connections";
         static final String RX_COUNT = "rx_count";
         static final String RX_SIZE = "rx_size";
         static final String RX_SIZE_IN_BYTES = "rx_size_in_bytes";

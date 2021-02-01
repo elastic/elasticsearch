@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
@@ -39,17 +37,8 @@ public class TransportGetAutoFollowPatternAction
                                                ActionFilters actionFilters,
                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetAutoFollowPatternAction.Response read(StreamInput in) throws IOException {
-        return new GetAutoFollowPatternAction.Response(in);
+                GetAutoFollowPatternAction.Request::new, indexNameExpressionResolver, GetAutoFollowPatternAction.Response::new,
+                ThreadPool.Names.SAME);
     }
 
     @Override

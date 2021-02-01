@@ -75,15 +75,15 @@ The following <<indices-create-index,create index API>> request uses the
 --------------------------------------------------
 PUT /decimal_digit_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "whitespace_decimal_digit" : {
-                    "tokenizer" : "whitespace",
-                    "filter" : ["decimal_digit"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "whitespace_decimal_digit": {
+          "tokenizer": "whitespace",
+          "filter": [ "decimal_digit" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------

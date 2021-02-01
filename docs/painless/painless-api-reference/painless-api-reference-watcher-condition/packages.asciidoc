@@ -1,0 +1,62 @@
+// This file is auto-generated. Do not edit.
+
+
+[role="exclude",id="painless-api-reference-watcher-condition-java-lang"]
+=== Watcher Condition API for package java.lang
+See the <<painless-api-reference-watcher-condition, Watcher Condition API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-watcher-condition-String]]
+==== String
+* static String {java11-javadoc}/java.base/java/lang/String.html#copyValueOf(char%5B%5D)[copyValueOf](char[])
+* static String {java11-javadoc}/java.base/java/lang/String.html#copyValueOf(char%5B%5D,int,int)[copyValueOf](char[], int, int)
+* static String {java11-javadoc}/java.base/java/lang/String.html#format(java.lang.String,java.lang.Object%5B%5D)[format](String, def[])
+* static String {java11-javadoc}/java.base/java/lang/String.html#format(java.util.Locale,java.lang.String,java.lang.Object%5B%5D)[format](Locale, String, def[])
+* static String {java11-javadoc}/java.base/java/lang/String.html#join(java.lang.CharSequence,java.lang.Iterable)[join](CharSequence, Iterable)
+* static String {java11-javadoc}/java.base/java/lang/String.html#valueOf(java.lang.Object)[valueOf](def)
+* {java11-javadoc}/java.base/java/lang/String.html#<init>()[String]()
+* char {java11-javadoc}/java.base/java/lang/CharSequence.html#charAt(int)[charAt](int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#chars()[chars]()
+* int {java11-javadoc}/java.base/java/lang/String.html#codePointAt(int)[codePointAt](int)
+* int {java11-javadoc}/java.base/java/lang/String.html#codePointBefore(int)[codePointBefore](int)
+* int {java11-javadoc}/java.base/java/lang/String.html#codePointCount(int,int)[codePointCount](int, int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#codePoints()[codePoints]()
+* int {java11-javadoc}/java.base/java/lang/String.html#compareTo(java.lang.String)[compareTo](String)
+* int {java11-javadoc}/java.base/java/lang/String.html#compareToIgnoreCase(java.lang.String)[compareToIgnoreCase](String)
+* String {java11-javadoc}/java.base/java/lang/String.html#concat(java.lang.String)[concat](String)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#contains(java.lang.CharSequence)[contains](CharSequence)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#contentEquals(java.lang.CharSequence)[contentEquals](CharSequence)
+* String decodeBase64()
+* String encodeBase64()
+* boolean {java11-javadoc}/java.base/java/lang/String.html#endsWith(java.lang.String)[endsWith](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#equalsIgnoreCase(java.lang.String)[equalsIgnoreCase](String)
+* void {java11-javadoc}/java.base/java/lang/String.html#getChars(int,int,char%5B%5D,int)[getChars](int, int, char[], int)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/String.html#indexOf(java.lang.String)[indexOf](String)
+* int {java11-javadoc}/java.base/java/lang/String.html#indexOf(java.lang.String,int)[indexOf](String, int)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#isEmpty()[isEmpty]()
+* int {java11-javadoc}/java.base/java/lang/String.html#lastIndexOf(java.lang.String)[lastIndexOf](String)
+* int {java11-javadoc}/java.base/java/lang/String.html#lastIndexOf(java.lang.String,int)[lastIndexOf](String, int)
+* int {java11-javadoc}/java.base/java/lang/CharSequence.html#length()[length]()
+* int {java11-javadoc}/java.base/java/lang/String.html#offsetByCodePoints(int,int)[offsetByCodePoints](int, int)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#regionMatches(int,java.lang.String,int,int)[regionMatches](int, String, int, int)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#regionMatches(boolean,int,java.lang.String,int,int)[regionMatches](boolean, int, String, int, int)
+* String {java11-javadoc}/java.base/java/lang/String.html#replace(java.lang.CharSequence,java.lang.CharSequence)[replace](CharSequence, CharSequence)
+* String replaceAll(Pattern, Function)
+* String replaceFirst(Pattern, Function)
+* String[] splitOnToken(String)
+* String[] splitOnToken(String, int)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String)[startsWith](String)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String,int)[startsWith](String, int)
+* CharSequence {java11-javadoc}/java.base/java/lang/CharSequence.html#subSequence(int,int)[subSequence](int, int)
+* String {java11-javadoc}/java.base/java/lang/String.html#substring(int)[substring](int)
+* String {java11-javadoc}/java.base/java/lang/String.html#substring(int,int)[substring](int, int)
+* char[] {java11-javadoc}/java.base/java/lang/String.html#toCharArray()[toCharArray]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toLowerCase()[toLowerCase]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toLowerCase(java.util.Locale)[toLowerCase](Locale)
+* String {java11-javadoc}/java.base/java/lang/CharSequence.html#toString()[toString]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toUpperCase()[toUpperCase]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toUpperCase(java.util.Locale)[toUpperCase](Locale)
+* String {java11-javadoc}/java.base/java/lang/String.html#trim()[trim]()
+
+

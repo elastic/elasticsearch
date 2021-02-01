@@ -43,6 +43,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
 
+    // Flag set for disallowing index auto creation for an individual write request.
+    String REQUIRE_ALIAS = "require_alias";
+
     /**
      * Set the index for this request
      * @return the Request
@@ -143,6 +146,11 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     OpType opType();
 
     /**
+     * Should this request override specifically require the destination to be an alias?
+     * @return boolean flag, when true specifically requires an alias
+     */
+    boolean isRequireAlias();
+    /**
      * Requested operation type to perform on the document
      */
     enum OpType {
@@ -202,8 +210,7 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * Read a document write (index/delete/update) request
      *
      * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.elasticsearch.action.bulk.BulkRequest}
-     *                that does not have a unique shard id or when reading from a stream of version older than
-     *                {@link org.elasticsearch.action.bulk.BulkShardRequest#COMPACT_SHARD_ID_VERSION}
+     *                that does not have a unique shard id.
      */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         byte type = in.readByte();

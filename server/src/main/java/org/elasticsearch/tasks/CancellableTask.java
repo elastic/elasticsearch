@@ -25,9 +25,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * A task that can be canceled
+ * A task that can be cancelled
  */
-public abstract class CancellableTask extends Task {
+public class CancellableTask extends Task {
 
     private volatile String reason;
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
@@ -48,17 +48,13 @@ public abstract class CancellableTask extends Task {
     }
 
     /**
-     * Returns true if this task should be automatically cancelled if the coordinating node that
-     * requested this task left the cluster.
+     * Returns whether this task's children need to be cancelled too. {@code true} is a reasonable response even for tasks that have no
+     * children, since child tasks might be added in future and it'd be easy to forget to update this, but returning {@code false} saves
+     * a bit of computation in the task manager.
      */
-    public boolean cancelOnParentLeaving() {
+    public boolean shouldCancelChildrenOnCancellation() {
         return true;
     }
-
-    /**
-     * Returns true if this task can potentially have children that need to be cancelled when it parent is cancelled.
-     */
-    public abstract boolean shouldCancelChildrenOnCancellation();
 
     public boolean isCancelled() {
         return cancelled.get();

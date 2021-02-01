@@ -1,0 +1,57 @@
+[[dangling-indices-list]]
+=== List dangling indices API
+++++
+<titleabbrev>List dangling indices</titleabbrev>
+++++
+
+Lists dangling indices.
+
+[[dangling-indices-list-api-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+GET /_dangling
+--------------------------------------------------
+// TEST[skip:TBD]
+
+[[dangling-indices-list-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[dangling-indices-list-api-desc]]
+==== {api-description-title}
+
+// tag::dangling-index-description[]
+If {es} encounters index data that is absent from the current cluster
+state, those indices are considered to be dangling. For example,
+this can happen if you delete more than
+`cluster.indices.tombstones.size` indices while an {es} node is offline.
+// end::dangling-index-description[]
+
+Use this API to list dangling indices, which you can then
+<<dangling-index-import,import>> or <<dangling-index-delete,delete>>.
+
+
+[[dangling-indices-list-api-example]]
+==== {api-examples-title}
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "dangling_indices": [
+   {
+    "index_name": "my-index-000001",
+    "index_uuid": "zmM4e0JtBkeUjiHD-MihPQ",
+    "creation_date_millis": 1589414451372,
+    "node_ids": [
+      "pL47UN3dAb2d5RCWP6lQ3e"
+    ]
+   }
+  ]
+}
+--------------------------------------------------

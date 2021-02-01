@@ -139,8 +139,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         if (ids.isEmpty()) {
             return new MatchNoneQueryBuilder();
         }
-        QueryShardContext context = queryRewriteContext.convertToShardContext();
-        if (context != null && context.fieldMapper(IdFieldMapper.NAME) == null) {
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
+        if (context != null && context.getFieldType(IdFieldMapper.NAME) == null) {
             // no mappings yet
             return new MatchNoneQueryBuilder();
         }
@@ -148,8 +148,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");
         }

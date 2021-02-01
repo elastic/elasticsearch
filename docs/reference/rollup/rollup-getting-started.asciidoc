@@ -25,7 +25,7 @@ look like this:
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 ==== Creating a rollup job
 
 We'd like to rollup these documents into hourly summaries, which will allow us to generate reports and dashboards with any time interval
@@ -35,29 +35,29 @@ one hour or greater.  A rollup job might look like this:
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "60m"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "60m"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
@@ -127,7 +127,7 @@ After you execute the above command and create the job, you'll receive the follo
 }
 ----
 
-[float]
+[discrete]
 ==== Starting the job
 
 After the job is created, it will be sitting in an inactive state.  Jobs need to be started before they begin processing data (this allows
@@ -141,7 +141,7 @@ POST _rollup/job/sensor/_start
 --------------------------------------------------
 // TEST[setup:sensor_rollup_job]
 
-[float]
+[discrete]
 ==== Searching the rolled results
 
 After the job has run and processed some data, we can use the <<rollup-search>> endpoint to do some searching.  The Rollup feature is designed
@@ -153,14 +153,14 @@ For example, take this query:
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]
@@ -210,34 +210,34 @@ Finally, we can use those grouping fields we defined to construct a more complic
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "timeline": {
-            "date_histogram": {
-                "field": "timestamp",
-                "fixed_interval": "7d"
+  "size": 0,
+  "aggregations": {
+    "timeline": {
+      "date_histogram": {
+        "field": "timestamp",
+        "fixed_interval": "7d"
+      },
+      "aggs": {
+        "nodes": {
+          "terms": {
+            "field": "node"
+          },
+          "aggs": {
+            "max_temperature": {
+              "max": {
+                "field": "temperature"
+              }
             },
-            "aggs": {
-                "nodes": {
-                    "terms": {
-                        "field": "node"
-                    },
-                    "aggs": {
-                        "max_temperature": {
-                            "max": {
-                                "field": "temperature"
-                            }
-                        },
-                        "avg_voltage": {
-                            "avg": {
-                                "field": "voltage"
-                            }
-                        }
-                    }
-                }
+            "avg_voltage": {
+              "avg": {
+                "field": "voltage"
+              }
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]
@@ -316,7 +316,7 @@ Which returns a corresponding response:
 In addition to being more complicated (date histogram and a terms aggregation, plus an additional average metric), you'll notice
 the date_histogram uses a `7d` interval instead of `60m`.
 
-[float]
+[discrete]
 ==== Conclusion
 
 This quickstart should have provided a concise overview of the core functionality that Rollup exposes.  There are more tips and things

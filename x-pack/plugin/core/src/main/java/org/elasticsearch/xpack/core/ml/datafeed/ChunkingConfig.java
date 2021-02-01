@@ -12,10 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -38,18 +36,11 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         ConstructingObjectParser<ChunkingConfig, Void> parser = new ConstructingObjectParser<>(
             "chunking_config", ignoreUnknownFields, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
 
-        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Mode.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, MODE_FIELD, ValueType.STRING);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return TimeValue.parseTimeValue(p.text(), TIME_SPAN_FIELD.getPreferredName());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, TIME_SPAN_FIELD, ValueType.STRING);
+        parser.declareString(ConstructingObjectParser.constructorArg(), Mode::fromString, MODE_FIELD);
+        parser.declareString(
+            ConstructingObjectParser.optionalConstructorArg(),
+            text -> TimeValue.parseTimeValue(text, TIME_SPAN_FIELD.getPreferredName()),
+            TIME_SPAN_FIELD);
 
         return parser;
     }

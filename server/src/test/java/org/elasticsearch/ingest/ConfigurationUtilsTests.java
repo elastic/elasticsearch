@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -32,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -114,6 +116,38 @@ public class ConfigurationUtilsTests extends ESTestCase {
         }
     }
 
+    public void testReadMediaProperty() {
+        // valid media type
+        String expectedMediaType = randomFrom(ConfigurationUtils.VALID_MEDIA_TYPES);
+        config.put("media_type", expectedMediaType);
+        String readMediaType = ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", "");
+        assertThat(readMediaType, equalTo(expectedMediaType));
+
+        // missing media type with valid default
+        expectedMediaType = randomFrom(ConfigurationUtils.VALID_MEDIA_TYPES);
+        config.remove("media_type");
+        readMediaType = ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", expectedMediaType);
+        assertThat(readMediaType, equalTo(expectedMediaType));
+
+        // invalid media type
+        expectedMediaType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9));
+        config.put("media_type", expectedMediaType);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", ""));
+        assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
+
+        // missing media type with invalid default
+        final String invalidDefaultMediaType = randomValueOtherThanMany(
+            m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9)
+        );
+        config.remove("media_type");
+        e = expectThrows(ElasticsearchException.class,
+            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", invalidDefaultMediaType));
+        assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + invalidDefaultMediaType + "]"));
+    }
+
     public void testReadProcessors() throws Exception {
         Processor processor = mock(Processor.class);
         Map<String, Processor.Factory> registry =
@@ -166,6 +200,13 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(e2.getMetadata("es.processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
         assertThat(e2.getMetadata("es.processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
         assertThat(e2.getMetadata("es.property_name"), is(nullValue()));
+
+        List<Map<String, Object>> config3 = new ArrayList<>();
+        config3.add(Collections.singletonMap("test_processor", null));
+        ElasticsearchParseException e3 = expectThrows(ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config3, scriptService, registry));
+        assertThat(e3.getMetadata("es.processor_type"), equalTo(Collections.singletonList("test_processor")));
+        assertThat(e3.getMessage(), equalTo("processor config cannot be [null]"));
     }
 
     public void testReadProcessorNullDescription() throws Exception {

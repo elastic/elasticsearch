@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,11 +42,7 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         timestamp = in.readLong();
         sinceTime = in.readLong();
         restUsage = (Map<String, Long>) in.readGenericValue();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            aggregationUsage = (Map<String, Object>) in.readGenericValue();
-        } else {
-            aggregationUsage = null;
-        }
+        aggregationUsage = (Map<String, Object>) in.readGenericValue();
     }
 
     /**
@@ -121,9 +116,7 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         out.writeLong(timestamp);
         out.writeLong(sinceTime);
         out.writeGenericValue(restUsage);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeGenericValue(aggregationUsage);
-        }
+        out.writeGenericValue(aggregationUsage);
     }
 
 }

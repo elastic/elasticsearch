@@ -34,6 +34,7 @@ public class MlStringsTests extends ESTestCase {
         assertThat(MlStrings.isValidId("b.-_3"), is(true));
         assertThat(MlStrings.isValidId("a-b.c_d"), is(true));
 
+        assertThat(MlStrings.isValidId("1_-.a#"), is(false));
         assertThat(MlStrings.isValidId("a1_-."), is(false));
         assertThat(MlStrings.isValidId("-.a1_"), is(false));
         assertThat(MlStrings.isValidId(".a1_-"), is(false));

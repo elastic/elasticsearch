@@ -14,6 +14,6 @@ public class StopILMAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/ilm/stop";
 
     protected StopILMAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 }

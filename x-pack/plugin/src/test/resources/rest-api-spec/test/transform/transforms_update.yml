@@ -45,6 +45,16 @@ setup:
             "description": "new description"
           }
 ---
+"Test update transform with missing pipeline":
+  - do:
+      catch: /Pipeline with id \[missing-transform-pipeline\] could not be found/
+      transform.update_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "dest": { "index": "airline-data-by-airline", "pipeline": "missing-transform-pipeline" }
+          }
+---
 "Test update transform with frequency too low":
   - do:
       catch: /minimum permitted \[frequency\] is \[1s\]/

@@ -40,7 +40,7 @@ public final class TransformInputFactory extends InputFactory<TransformInput, Tr
 
     @Override
     public TransformInput parseInput(String watchId, XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Transform transform = transformRegistry.parse(watchId, parser).transform();
         return new TransformInput(transform);
     }

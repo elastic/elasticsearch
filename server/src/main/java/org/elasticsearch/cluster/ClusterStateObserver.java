@@ -170,7 +170,7 @@ public class ClusterStateObserver {
         } else {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
             final ObservingContext context = new ObservingContext(listener, statePredicate);
-            if (!observingContext.compareAndSet(null, context)) {
+            if (observingContext.compareAndSet(null, context) == false) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
             clusterApplierService.addTimeoutListener(timeoutTimeLeftMS == null ?
@@ -252,6 +252,11 @@ public class ClusterStateObserver {
                 context.listener.onTimeout(timeOutValue);
             }
         }
+
+        @Override
+        public String toString() {
+            return "ClusterStateObserver[" + observingContext.get() + "]";
+        }
     }
 
     /**
@@ -293,6 +298,11 @@ public class ClusterStateObserver {
             this.listener = listener;
             this.statePredicate = statePredicate;
         }
+
+        @Override
+        public String toString() {
+            return "ObservingContext[" + listener + "]";
+        }
     }
 
     private static final class ContextPreservingListener implements Listener {
@@ -324,6 +334,11 @@ public class ClusterStateObserver {
             try (ThreadContext.StoredContext context  = contextSupplier.get()) {
                 delegate.onTimeout(timeout);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "ContextPreservingListener[" + delegate + "]";
         }
     }
 }

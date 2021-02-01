@@ -24,8 +24,8 @@ group = 'org.elasticsearch.plugin'
 archivesBaseName = 'elasticsearch-scripting-painless-spi'
 
 dependencies {
-  compile project(":server")
+  api project(":server")
 }
 
 // no tests...yet?
-test.enabled = false
+tasks.named("test").configure { enabled = false }

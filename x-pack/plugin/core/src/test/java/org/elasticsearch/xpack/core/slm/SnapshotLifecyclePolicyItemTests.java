@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStatsTests;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.createRandomPolicyMetadata;

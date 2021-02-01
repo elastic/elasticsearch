@@ -32,7 +32,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -208,7 +207,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
@@ -246,11 +245,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             tokenMetadata);
 
 
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
-        final String accessToken = future.actionGet().v1();
+        final String accessToken = future.actionGet().getAccessToken();
         mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();

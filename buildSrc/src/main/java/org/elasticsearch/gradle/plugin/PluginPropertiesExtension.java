@@ -43,6 +43,13 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
+    private PluginType type = PluginType.ISOLATED;
+
+    private String javaOpts = "";
+
+    /** Whether a license agreement must be accepted before this plugin can be installed. */
+    private boolean isLicensed = false;
+
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     private boolean requiresKeystore;
 
@@ -103,6 +110,30 @@ public class PluginPropertiesExtension {
 
     public void setHasNativeController(boolean hasNativeController) {
         this.hasNativeController = hasNativeController;
+    }
+
+    public PluginType getType() {
+        return type;
+    }
+
+    public void setType(PluginType type) {
+        this.type = type;
+    }
+
+    public String getJavaOpts() {
+        return javaOpts;
+    }
+
+    public void setJavaOpts(String javaOpts) {
+        this.javaOpts = javaOpts;
+    }
+
+    public boolean isLicensed() {
+        return isLicensed;
+    }
+
+    public void setLicensed(boolean licensed) {
+        isLicensed = licensed;
     }
 
     public boolean isRequiresKeystore() {

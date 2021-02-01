@@ -44,7 +44,8 @@ setup:
           title: "contains some words too"
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: ["foobar", "unauthorized_index"]
 
 ---
 teardown:

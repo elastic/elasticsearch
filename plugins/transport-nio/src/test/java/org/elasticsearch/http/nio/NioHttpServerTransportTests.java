@@ -113,7 +113,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
-        final Settings settings = Settings.EMPTY;
+        final Settings settings = createSettings();
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
         runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
     }
@@ -127,7 +127,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
         final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
         final int maxContentLength = randomIntBetween(1, 104857600);
-        final Settings settings = Settings.builder().put(key, maxContentLength + "b").build();
+        final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
         runExpectHeaderTest(
             settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
@@ -138,7 +138,8 @@ public class NioHttpServerTransportTests extends ESTestCase {
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
-        runExpectHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
+        final Settings settings = createSettings();
+        runExpectHeaderTest(settings, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }
 
     private void runExpectHeaderTest(
@@ -193,7 +194,8 @@ public class NioHttpServerTransportTests extends ESTestCase {
     }
 
     public void testBindUnavailableAddress() {
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, pageRecycler,
+        final Settings initialSettings = createSettings();
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(initialSettings, networkService, bigArrays, pageRecycler,
             threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             transport.start();
@@ -234,9 +236,10 @@ public class NioHttpServerTransportTests extends ESTestCase {
 
         };
 
-        final Settings settings = Settings.builder()
+        final Settings settings = createBuilderWithPort()
             .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co").build();
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co")
+            .build();
 
         try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
             threadPool, xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger),
@@ -276,6 +279,52 @@ public class NioHttpServerTransportTests extends ESTestCase {
         }
     }
 
+    public void testLargeCompressedResponse() throws InterruptedException {
+        final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
+        final String url = "/thing";
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                if (url.equals(request.uri())) {
+                    channel.sendResponse(new BytesRestResponse(OK, responseString));
+                } else {
+                    logger.error("--> Unexpected successful uri [{}]", request.uri());
+                    throw new AssertionError();
+                }
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
+                    FakeRestRequest.requestToString(channel.request())), cause);
+                throw new AssertionError();
+            }
+
+        };
+
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(
+            Settings.EMPTY, networkService, bigArrays, pageRecycler, threadPool, xContentRegistry(), dispatcher,
+            new NioGroupFactory(Settings.EMPTY, logger), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            try (NioHttpClient client = new NioHttpClient()) {
+                DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
+                request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
+                final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
+                    byte[] bytes = new byte[response.content().readableBytes()];
+                    response.content().readBytes(bytes);
+                    assertThat(new String(bytes, StandardCharsets.UTF_8), equalTo(responseString));
+                } finally {
+                    response.release();
+                }
+            }
+        }
+    }
+
     public void testBadRequest() throws InterruptedException {
         final AtomicReference<Throwable> causeReference = new AtomicReference<>();
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
@@ -304,10 +353,10 @@ public class NioHttpServerTransportTests extends ESTestCase {
         final Setting<ByteSizeValue> httpMaxInitialLineLengthSetting = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
         if (randomBoolean()) {
             maxInitialLineLength = httpMaxInitialLineLengthSetting.getDefault(Settings.EMPTY).bytesAsInt();
-            settings = Settings.EMPTY;
+            settings = createSettings();
         } else {
             maxInitialLineLength = randomIntBetween(1, 8192);
-            settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
+            settings = createBuilderWithPort().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
         try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
@@ -356,7 +405,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
 
         };
 
-        Settings settings = Settings.builder()
+        Settings settings = createBuilderWithPort()
             .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
             .build();
 
@@ -382,4 +431,11 @@ public class NioHttpServerTransportTests extends ESTestCase {
         }
     }
 
+    private Settings createSettings() {
+        return createBuilderWithPort().build();
+    }
+
+    private Settings.Builder createBuilderWithPort() {
+        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
+    }
 }

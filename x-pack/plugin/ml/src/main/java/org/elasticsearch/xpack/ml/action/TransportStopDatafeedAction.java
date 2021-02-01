@@ -132,7 +132,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         } else {
             PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(),
-                request.allowNoDatafeeds(),
+                request.allowNoMatch(),
                 tasks,
                 request.isForce(),
                 ActionListener.wrap(

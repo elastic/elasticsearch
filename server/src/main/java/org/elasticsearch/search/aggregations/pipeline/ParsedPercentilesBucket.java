@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
 import java.io.IOException;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 public class ParsedPercentilesBucket extends ParsedPercentiles implements Percentiles {
 
@@ -54,6 +55,16 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
         } else {
             return Double.toString(value);
         }
+    }
+
+    @Override
+    public double value(String name) {
+        return percentile(Double.parseDouble(name));
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
     }
 
     @Override

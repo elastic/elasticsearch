@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,34 +77,56 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
             maxBucketCardinality), is((200 + 300) * TransportEstimateModelMemoryAction.BYTES_PER_INFLUENCER_VALUE));
     }
 
-    public void testCalculateCategorizationRequirementBytes() {
+    public void testCalculateCategorizationRequirementBytesNoCategorization() {
 
-        AnalysisConfig analysisConfigWithoutCategorization = createCountAnalysisConfig(null, null);
-        assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfigWithoutCategorization), is(0L));
+        Map<String, Long> overallCardinality = new HashMap<>();
+        overallCardinality.put("part", randomLongBetween(10, 1000));
 
-        AnalysisConfig analysisConfigWithCategorization = createCountAnalysisConfig(randomAlphaOfLength(10), null);
-        assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfigWithCategorization),
+        AnalysisConfig analysisConfig = createCountAnalysisConfig(null, randomBoolean() ? "part" : null);
+        assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfig, overallCardinality), is(0L));
+    }
+
+    public void testCalculateCategorizationRequirementBytesSimpleCategorization() {
+
+        Map<String, Long> overallCardinality = new HashMap<>();
+        overallCardinality.put("part", randomLongBetween(10, 1000));
+
+        AnalysisConfig analysisConfig =
+            createCountAnalysisConfig(randomAlphaOfLength(10), randomBoolean() ? "part" : null);
+        assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfig, overallCardinality),
             is(5L * 1024 * 1024));
+    }
+
+    public void testCalculateCategorizationRequirementBytesPerPartitionCategorization() {
+
+        long partitionCardinality = randomLongBetween(10, 1000);
+        Map<String, Long> overallCardinality = new HashMap<>();
+        overallCardinality.put("part", partitionCardinality);
+
+        AnalysisConfig analysisConfig = createCountAnalysisConfigBuilder(randomAlphaOfLength(10), "part")
+            .setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean())).build();
+        assertThat(TransportEstimateModelMemoryAction.calculateCategorizationRequirementBytes(analysisConfig, overallCardinality),
+            is(partitionCardinality * 5L * 1024 * 1024));
     }
 
     public void testRoundUpToNextMb() {
 
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(0),
-            equalTo(new ByteSizeValue(0, ByteSizeUnit.BYTES)));
+            equalTo(ByteSizeValue.ofBytes(0)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(1),
-            equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(1)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(randomIntBetween(1, 1024 * 1024)),
-            equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(1)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(1024 * 1024),
-            equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(1)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(1024 * 1024 + 1),
-            equalTo(new ByteSizeValue(2, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(2)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(2 * 1024 * 1024),
-            equalTo(new ByteSizeValue(2, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(2)));
         // We don't round up at the extremes, to ensure that the resulting value can be represented as bytes in a long
         // (At such extreme scale it won't be possible to actually run the analysis, so ease of use trumps precision)
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(Long.MAX_VALUE - randomIntBetween(0, 1000000)),
-            equalTo(new ByteSizeValue(Long.MAX_VALUE / new ByteSizeValue(1, ByteSizeUnit.MB).getBytes() , ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(Long.MAX_VALUE / ByteSizeValue.ofMb(1).getBytes() )));
     }
 
     public void testReducedCardinality() {
@@ -168,9 +190,15 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
 
     public static AnalysisConfig createCountAnalysisConfig(String categorizationFieldName, String partitionFieldName,
                                                            String... influencerFieldNames) {
+        return createCountAnalysisConfigBuilder(categorizationFieldName, partitionFieldName, influencerFieldNames).build();
+    }
+
+    public static AnalysisConfig.Builder createCountAnalysisConfigBuilder(String categorizationFieldName, String partitionFieldName,
+                                                                          String... influencerFieldNames) {
 
         Detector.Builder detectorBuilder = new Detector.Builder("count", null);
-        detectorBuilder.setPartitionFieldName((categorizationFieldName != null) ? AnalysisConfig.ML_CATEGORY_FIELD : partitionFieldName);
+        detectorBuilder.setByFieldName((categorizationFieldName != null) ? AnalysisConfig.ML_CATEGORY_FIELD : null);
+        detectorBuilder.setPartitionFieldName(partitionFieldName);
 
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
 
@@ -182,6 +210,6 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
             builder.setInfluencers(Arrays.asList(influencerFieldNames));
         }
 
-        return builder.build();
+        return builder;
     }
 }

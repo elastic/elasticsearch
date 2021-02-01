@@ -92,7 +92,7 @@ public class OsProbe {
         try {
             final long freeMem = (long) getFreePhysicalMemorySize.invoke(osMxBean);
             if (freeMem < 0) {
-                logger.warn("OS reported a negative free memory value [{}]", freeMem);
+                logger.debug("OS reported a negative free memory value [{}]", freeMem);
                 return 0;
             }
             return freeMem;
@@ -113,7 +113,7 @@ public class OsProbe {
         try {
             final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
             if (totalMem < 0) {
-                logger.warn("OS reported a negative total memory value [{}]", totalMem);
+                logger.debug("OS reported a negative total memory value [{}]", totalMem);
                 return 0;
             }
             return totalMem;
@@ -134,7 +134,7 @@ public class OsProbe {
         try {
             final long mem = (long) getFreeSwapSpaceSize.invoke(osMxBean);
             if (mem < 0) {
-                logger.warn("OS reported a negative free swap space size [{}]", mem);
+                logger.debug("OS reported a negative free swap space size [{}]", mem);
                 return 0;
             }
             return mem;
@@ -155,7 +155,7 @@ public class OsProbe {
         try {
             final long mem = (long) getTotalSwapSpaceSize.invoke(osMxBean);
             if (mem < 0) {
-                logger.warn("OS reported a negative total swap space size [{}]", mem);
+                logger.debug("OS reported a negative total swap space size [{}]", mem);
                 return 0;
             }
             return mem;
@@ -233,7 +233,7 @@ public class OsProbe {
      */
     private String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
-        assert lines != null && lines.size() == 1;
+        assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
     }
 
@@ -497,16 +497,16 @@ public class OsProbe {
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, /sys/fs/cgroup/cpuacct and /sys/fs/cgroup/memory")
     boolean areCgroupStatsAvailable() {
-        if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
+        if (Files.exists(PathUtils.get("/proc/self/cgroup")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpu"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/cpu")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/memory"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/memory")) == false) {
             return false;
         }
         return true;
@@ -519,7 +519,7 @@ public class OsProbe {
      */
     private OsStats.Cgroup getCgroup() {
         try {
-            if (!areCgroupStatsAvailable()) {
+            if (areCgroupStatsAvailable() == false) {
                 return null;
             } else {
                 final Map<String, String> controllerMap = getControlGroups();

@@ -33,7 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ public class MultiMatchQuery extends MatchQuery {
 
     private Float groupTieBreaker = null;
 
-    public MultiMatchQuery(QueryShardContext context) {
+    public MultiMatchQuery(SearchExecutionContext context) {
         super(context);
     }
 
@@ -60,7 +60,7 @@ public class MultiMatchQuery extends MatchQuery {
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
                        Object value, String minimumShouldMatch) throws IOException {
         boolean hasMappedField = fieldNames.keySet().stream()
-            .anyMatch(k -> context.fieldMapper(k) != null);
+            .anyMatch(k -> context.getFieldType(k) != null);
         if (hasMappedField == false) {
             // all query fields are unmapped
             return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
@@ -100,7 +100,7 @@ public class MultiMatchQuery extends MatchQuery {
                                           Object value, String minimumShouldMatch) throws IOException {
         List<Query> queries = new ArrayList<>();
         for (String fieldName : fieldNames.keySet()) {
-            if (context.fieldMapper(fieldName) == null) {
+            if (context.getFieldType(fieldName) == null) {
                 // ignore unmapped fields
                 continue;
             }
@@ -125,10 +125,10 @@ public class MultiMatchQuery extends MatchQuery {
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
             String name = entry.getKey();
-            MappedFieldType fieldType = context.fieldMapper(name);
+            MappedFieldType fieldType = context.getFieldType(name);
             if (fieldType != null) {
                 Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
-                if (!groups.containsKey(actualAnalyzer)) {
+                if (groups.containsKey(actualAnalyzer) == false) {
                     groups.put(actualAnalyzer, new ArrayList<>());
                 }
                 float boost = entry.getValue() == null ? 1.0f : entry.getValue();
@@ -233,13 +233,13 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
-    static Query blendTerm(QueryShardContext context, BytesRef value, float tieBreaker,
+    static Query blendTerm(SearchExecutionContext context, BytesRef value, float tieBreaker,
                            boolean lenient, List<FieldAndBoost> blendedFields) {
 
         return blendTerms(context, new BytesRef[] {value}, tieBreaker, lenient, blendedFields);
     }
 
-    static Query blendTerms(QueryShardContext context, BytesRef[] values, float tieBreaker,
+    static Query blendTerms(SearchExecutionContext context, BytesRef[] values, float tieBreaker,
                             boolean lenient, List<FieldAndBoost> blendedFields) {
 
         List<Query> queries = new ArrayList<>();

@@ -80,4 +80,9 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
 }

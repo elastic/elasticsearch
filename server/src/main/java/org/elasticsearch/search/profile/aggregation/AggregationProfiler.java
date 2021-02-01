@@ -29,7 +29,7 @@ import java.util.Map;
 
 public class AggregationProfiler extends AbstractProfiler<AggregationProfileBreakdown, Aggregator> {
 
-    private final Map<List<String>, AggregationProfileBreakdown> profileBrakdownLookup = new HashMap<>();
+    private final Map<List<String>, AggregationProfileBreakdown> profileBreakdownLookup = new HashMap<>();
 
     public AggregationProfiler() {
         super(new InternalAggregationProfileTree());
@@ -38,10 +38,10 @@ public class AggregationProfiler extends AbstractProfiler<AggregationProfileBrea
     @Override
     public AggregationProfileBreakdown getQueryBreakdown(Aggregator agg) {
         List<String> path = getAggregatorPath(agg);
-        AggregationProfileBreakdown aggregationProfileBreakdown = profileBrakdownLookup.get(path);
+        AggregationProfileBreakdown aggregationProfileBreakdown = profileBreakdownLookup.get(path);
         if (aggregationProfileBreakdown == null) {
             aggregationProfileBreakdown = super.getQueryBreakdown(agg);
-            profileBrakdownLookup.put(path, aggregationProfileBreakdown);
+            profileBreakdownLookup.put(path, aggregationProfileBreakdown);
         }
         return aggregationProfileBreakdown;
     }

@@ -400,7 +400,7 @@ public final class AnalyzerCaster {
         }
 
         if (
-                actual == def.class                             ||
+                (actual == def.class && expected != void.class) ||
                 (actual != void.class && expected == def.class) ||
                 expected.isAssignableFrom(actual)               ||
                 (actual.isAssignableFrom(expected) && explicit)
@@ -505,6 +505,10 @@ public final class AnalyzerCaster {
     }
 
     public static Class<?> promoteEquality(Class<?> from0, Class<?> from1) {
+        if (from0 == String.class && from1 == String.class) {
+            return String.class;
+        }
+
         if (from0 == def.class || from1 == def.class) {
             return def.class;
         }

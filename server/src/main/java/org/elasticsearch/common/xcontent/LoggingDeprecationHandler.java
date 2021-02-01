@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.util.function.Supplier;
@@ -44,7 +44,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
      * Changing that will require some research to make super duper
      * sure it is safe.
      */
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ParseField.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
 
     private LoggingDeprecationHandler() {
         // Singleton
@@ -53,21 +53,21 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     @Override
     public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate("deprecated_field",
+        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field",
             "{}Deprecated field [{}] used, expected [{}] instead", prefix, usedName, modernName);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate("deprecated_field",
+        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field",
             "{}Deprecated field [{}] used, replaced by [{}]", prefix, usedName, replacedWith);
     }
 
     @Override
     public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
         String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-        deprecationLogger.deprecate("deprecated_field",
+        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_field",
             "{}Deprecated field [{}] used, this field is unused and will be removed entirely", prefix, usedName);
     }
 }

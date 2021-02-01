@@ -15,7 +15,7 @@ public class PutTransformActionDeprecated extends ActionType<AcknowledgedRespons
     public static final String NAME = "cluster:admin/data_frame/put";
 
     private PutTransformActionDeprecated() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

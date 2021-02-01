@@ -23,10 +23,14 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
@@ -40,7 +44,7 @@ import java.util.Map;
  */
 public class ShardFetchRequest extends TransportRequest {
 
-    private SearchContextId contextId;
+    private ShardSearchContextId contextId;
 
     private int[] docIds;
 
@@ -48,10 +52,7 @@ public class ShardFetchRequest extends TransportRequest {
 
     private ScoreDoc lastEmittedDoc;
 
-    public ShardFetchRequest() {
-    }
-
-    public ShardFetchRequest(SearchContextId contextId, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public ShardFetchRequest(ShardSearchContextId contextId, IntArrayList list, ScoreDoc lastEmittedDoc) {
         this.contextId = contextId;
         this.docIds = list.buffer;
         this.size = list.size();
@@ -60,7 +61,7 @@ public class ShardFetchRequest extends TransportRequest {
 
     public ShardFetchRequest(StreamInput in) throws IOException {
         super(in);
-        contextId = new SearchContextId(in);
+        contextId = new ShardSearchContextId(in);
         size = in.readVInt();
         docIds = new int[size];
         for (int i = 0; i < size; i++) {
@@ -95,7 +96,7 @@ public class ShardFetchRequest extends TransportRequest {
         }
     }
 
-    public SearchContextId contextId() {
+    public ShardSearchContextId contextId() {
         return contextId;
     }
 
@@ -121,4 +122,18 @@ public class ShardFetchRequest extends TransportRequest {
         return "id[" + contextId + "], size[" + size + "], lastEmittedDoc[" + lastEmittedDoc + "]";
     }
 
+    @Nullable
+    public ShardSearchRequest getShardSearchRequest() {
+        return null;
+    }
+
+    @Nullable
+    public RescoreDocIds getRescoreDocIds() {
+        return null;
+    }
+
+    @Nullable
+    public AggregatedDfs getAggregatedDfs() {
+        return null;
+    }
 }

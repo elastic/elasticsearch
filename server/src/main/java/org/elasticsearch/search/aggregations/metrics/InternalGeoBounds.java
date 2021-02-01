@@ -117,6 +117,11 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return false;
+    }
+
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;

@@ -162,7 +162,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     }
 
     public void testReadRangeBlobWithRetries() throws Exception {
-        final int maxRetries = randomInt(5);
+        final int maxRetries = rarely() ? randomInt(5) : 1;
         final CountDown countDown = new CountDown(maxRetries + 1);
 
         final byte[] bytes = randomBlobContent();
@@ -194,7 +194,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             }
         });
 
-        final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 500));
+        final TimeValue readTimeout = TimeValue.timeValueSeconds(between(5, 10));
         final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);

@@ -28,28 +28,26 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -58,7 +56,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveV2Mappings;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
@@ -70,7 +68,7 @@ public class TransportSimulateIndexTemplateAction
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private AliasValidator aliasValidator;
+    private final AliasValidator aliasValidator;
 
     @Inject
     public TransportSimulateIndexTemplateAction(TransportService transportService, ClusterService clusterService,
@@ -78,21 +76,11 @@ public class TransportSimulateIndexTemplateAction
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 NamedXContentRegistry xContentRegistry, IndicesService indicesService) {
         super(SimulateIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            SimulateIndexTemplateRequest::new, indexNameExpressionResolver);
+            SimulateIndexTemplateRequest::new, indexNameExpressionResolver, SimulateIndexTemplateResponse::new, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected SimulateIndexTemplateResponse read(StreamInput in) throws IOException {
-        return new SimulateIndexTemplateResponse(in);
     }
 
     @Override
@@ -172,10 +160,6 @@ public class TransportSimulateIndexTemplateAction
                                            final AliasValidator aliasValidator) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
-        // empty request mapping as the user can't specify any explicit mappings via the simulate api
-        Map<String, Object> mappings = resolveV2Mappings("{}", simulatedState, matchingTemplate, xContentRegistry);
-        String mappingsJson = Strings.toString(XContentFactory.jsonBuilder().map(mappings));
-
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulatedState.metadata(),
             matchingTemplate);
 
@@ -199,9 +183,27 @@ public class TransportSimulateIndexTemplateAction
                 resolvedAliases, tempClusterState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                tempIndexService.newQueryShardContext(0, null, () -> 0L, null)));
+                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())));
+        Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(
+            Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
-        return new Template(settings, mappingsJson == null ? null : new CompressedXContent(mappingsJson),
-            aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity())));
+        // empty request mapping as the user can't specify any explicit mappings via the simulate api
+        List<Map<String, Object>> mappings = MetadataCreateIndexService.collectV2Mappings(
+            "{}", simulatedState, matchingTemplate, xContentRegistry, indexName);
+
+        CompressedXContent mergedMapping = indicesService.<CompressedXContent, Exception>withTempIndexService(indexMetadata,
+            tempIndexService -> {
+                MapperService mapperService = tempIndexService.mapperService();
+                for (Map<String, Object> mapping : mappings) {
+                    if (!mapping.isEmpty()) {
+                        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
+                    }
+                }
+
+                DocumentMapper documentMapper = mapperService.documentMapper();
+                return documentMapper != null ? documentMapper.mappingSource() : null;
+            });
+
+        return new Template(settings, mergedMapping, aliasesByName);
     }
 }

@@ -134,6 +134,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                         }
                         targetStore.directory().copyFrom(sourceStore.directory(), file, file, IOContext.DEFAULT);
                     }
+                    recoveryState.getIndex().setFileDetailsComplete();
                     return null;
                 });
             }

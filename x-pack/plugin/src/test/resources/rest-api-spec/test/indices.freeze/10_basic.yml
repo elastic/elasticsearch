@@ -79,6 +79,10 @@
 
 ---
 "Test index options":
+
+- skip:
+    features: ["allowed_warnings"]
+
 - do:
     index:
       index: test
@@ -94,6 +98,8 @@
 - do:
     indices.close:
       index: test-close
+    allowed_warnings:
+      - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
 - do:
     indices.freeze:
@@ -126,8 +132,8 @@
 ---
 "Cannot freeze write index for data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -142,8 +148,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -153,7 +158,7 @@
   - do:
       catch: bad_request
       indices.freeze:
-        index: ".ds-simple-data-stream1-000001"
+        index: ".ds-simple-data-stream1-*000001"
 
   - do:
       indices.delete_data_stream:

@@ -20,13 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.CatchNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.TryNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -37,72 +32,36 @@ import java.util.Objects;
 public class STry extends AStatement {
 
     private final SBlock blockNode;
-    private final List<SCatch> catcheNodes;
+    private final List<SCatch> catchNodes;
 
-    public STry(int identifier, Location location, SBlock blockNode, List<SCatch> catcheNodes) {
+    public STry(int identifier, Location location, SBlock blockNode, List<SCatch> catchNodes) {
         super(identifier, location);
 
         this.blockNode = blockNode;
-        this.catcheNodes = Collections.unmodifiableList(Objects.requireNonNull(catcheNodes));
+        this.catchNodes = Collections.unmodifiableList(Objects.requireNonNull(catchNodes));
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
+    }
+
+    public List<SCatch> getCatchNodes() {
+        return catchNodes;
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitTry(this, scope);
+    }
 
-        if (blockNode == null) {
-            throw createError(new IllegalArgumentException("Extraneous try statement."));
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
         }
 
-        Input blockInput = new Input();
-        blockInput.lastSource = input.lastSource;
-        blockInput.inLoop = input.inLoop;
-        blockInput.lastLoop = input.lastLoop;
-
-        Output blockOutput = blockNode.analyze(classNode, semanticScope.newLocalScope(), blockInput);
-
-        output.methodEscape = blockOutput.methodEscape;
-        output.loopEscape = blockOutput.loopEscape;
-        output.allEscape = blockOutput.allEscape;
-        output.anyContinue = blockOutput.anyContinue;
-        output.anyBreak = blockOutput.anyBreak;
-
-        int statementCount = 0;
-
-        List<Output> catchOutputs = new ArrayList<>();
-
-        for (SCatch catc : catcheNodes) {
-            Input catchInput = new Input();
-            catchInput.lastSource = input.lastSource;
-            catchInput.inLoop = input.inLoop;
-            catchInput.lastLoop = input.lastLoop;
-
-            Output catchOutput = catc.analyze(classNode, semanticScope.newLocalScope(), catchInput);
-
-            output.methodEscape &= catchOutput.methodEscape;
-            output.loopEscape &= catchOutput.loopEscape;
-            output.allEscape &= catchOutput.allEscape;
-            output.anyContinue |= catchOutput.anyContinue;
-            output.anyBreak |= catchOutput.anyBreak;
-
-            catchOutputs.add(catchOutput);
-
-            statementCount = Math.max(statementCount, catchOutput.statementCount);
+        for (SCatch catchNode : catchNodes) {
+            catchNode.visit(userTreeVisitor, scope);
         }
-
-        output.statementCount = blockOutput.statementCount + statementCount;
-
-        TryNode tryNode = new TryNode();
-
-        for (Output catchOutput : catchOutputs) {
-            tryNode.addCatchNode((CatchNode)catchOutput.statementNode);
-        }
-
-        tryNode.setBlockNode((BlockNode)blockOutput.statementNode);
-        tryNode.setLocation(getLocation());
-
-        output.statementNode = tryNode;
-
-        return output;
     }
 }

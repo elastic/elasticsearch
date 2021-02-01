@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -39,11 +38,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
     public GetIndexTemplatesResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        indexTemplates = new ArrayList<>();
-        for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(IndexTemplateMetadata.readFrom(in));
-        }
+        indexTemplates = in.readList(IndexTemplateMetadata::readFrom);
     }
 
     public GetIndexTemplatesResponse(List<IndexTemplateMetadata> indexTemplates) {

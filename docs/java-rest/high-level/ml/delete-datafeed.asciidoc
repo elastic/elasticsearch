@@ -5,12 +5,12 @@
 --
 [role="xpack"]
 [id="{upid}-delete-datafeed"]
-=== Delete datafeed API
+=== Delete datafeeds API
 
 Deletes an existing datafeed.
 
 [id="{upid}-{api}-request"]
-==== Delete datafeed request
+==== Delete datafeeds request
 
 A +{request}+ object requires a non-null `datafeedId` and can optionally set `force`.
 
@@ -24,7 +24,7 @@ stopping and deleting the datafeed. Defaults to `false`.
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Delete datafeed response
+==== Delete datafeeds response
 
 The returned +{response}+ object indicates the acknowledgement of the request:
 ["source","java",subs="attributes,callouts,macros"]

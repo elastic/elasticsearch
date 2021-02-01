@@ -21,6 +21,8 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 
+import java.nio.ByteBuffer;
+
 /**
  * Abstraction of an array of byte values.
  */
@@ -53,4 +55,13 @@ public interface ByteArray extends BigArray {
      */
     void fill(long fromIndex, long toIndex, byte value);
 
+    /**
+     * Checks if this instance is backed by a single byte array analogous to {@link ByteBuffer#hasArray()}.
+     */
+    boolean hasArray();
+
+    /**
+     * Get backing byte array analogous to {@link ByteBuffer#array()}.
+     */
+    byte[] array();
 }

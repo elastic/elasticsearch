@@ -29,12 +29,14 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
+import org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -80,7 +82,7 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -90,6 +92,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -354,14 +357,14 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchContextMissingException() throws IOException {
-        SearchContextId contextId = new SearchContextId(UUIDs.randomBase64UUID(), randomLong());
+        ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
         Version version = VersionUtils.randomVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
         if (version.onOrAfter(Version.V_7_7_0)) {
-            assertThat(ex.contextId().getReaderId(), equalTo(contextId.getReaderId()));
+            assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
         } else {
-            assertThat(ex.contextId().getReaderId(), equalTo(""));
+            assertThat(ex.contextId().getSessionId(), equalTo(""));
         }
     }
 
@@ -827,6 +830,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(156, RetentionLeaseInvalidRetainingSeqNoException.class);
         ids.put(157, IngestProcessorException.class);
         ids.put(158, PeerRecoveryNotFound.class);
+        ids.put(159, NodeHealthCheckFailureException.class);
+        ids.put(160, NoSeedNodeLeftException.class);
+        ids.put(161, VersionMismatchException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

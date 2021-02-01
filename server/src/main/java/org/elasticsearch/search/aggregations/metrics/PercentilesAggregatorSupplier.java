@@ -20,17 +20,16 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-public interface PercentilesAggregatorSupplier extends AggregatorSupplier {
+public interface PercentilesAggregatorSupplier {
     Aggregator build(String name,
                      ValuesSource valuesSource,
-                     SearchContext context,
+                     AggregationContext context,
                      Aggregator parent,
                      double[] percents,
                      PercentilesConfig percentilesConfig,

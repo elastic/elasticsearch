@@ -87,9 +87,9 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
             // also there can be inner search hits fields inside this option, we need to exclude another couple of paths
             // where we cannot add random stuff. We also exclude the root level, this is done for SearchHits as all unknown fields
             // for SearchHit on a root level are interpreted as meta-fields and will be kept
-            Predicate<String> excludeFilter = (path) -> (path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits")
-                    || path.isEmpty());
+            Predicate<String> excludeFilter = (path) -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                    || path.endsWith("highlight") || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
+                    || path.isEmpty();
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;

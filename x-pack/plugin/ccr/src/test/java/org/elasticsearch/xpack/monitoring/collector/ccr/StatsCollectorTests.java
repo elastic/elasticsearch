@@ -39,30 +39,11 @@ import static org.mockito.Mockito.when;
 
 public class StatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        final Settings settings = randomFrom(ccrEnabledSettings(), ccrDisabledSettings());
-        final boolean ccrAllowed = randomBoolean();
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        // this controls the blockage
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(false);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(ccrAllowed);
-
-        final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
         // regardless of CCR being enabled
         final Settings settings = randomFrom(ccrEnabledSettings(), ccrDisabledSettings());
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(randomBoolean());
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
 
@@ -75,8 +56,7 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = ccrDisabledSettings();
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(randomBoolean());
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
@@ -84,42 +64,30 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
-        }
     }
 
     public void testShouldCollectReturnsFalseIfCCRIsNotAllowed() {
         final Settings settings = randomFrom(ccrEnabledSettings(), ccrDisabledSettings());
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(randomBoolean());
         // this is controls the blockage
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
         final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
-        }
     }
 
     public void testShouldCollectReturnsTrue() {
         final Settings settings = ccrEnabledSettings();
 
-        when(licenseState.isAllowed(XPackLicenseState.Feature.MONITORING)).thenReturn(true);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.CCR)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final StatsCollector collector = createCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
-
-        verify(licenseState).isAllowed(XPackLicenseState.Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {

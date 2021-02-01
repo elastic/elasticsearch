@@ -134,7 +134,6 @@ public final class TermVectorsFields extends Fields {
      */
     public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
         try (StreamInput header = headerRef.streamInput()) {
-            fieldMap = new ObjectLongHashMap<>();
             // here we read the header to fill the field offset map
             String headerString = header.readString();
             assert headerString.equals("TV");
@@ -144,6 +143,7 @@ public final class TermVectorsFields extends Fields {
             hasFieldStatistic = header.readBoolean();
             hasScores = header.readBoolean();
             final int numFields = header.readVInt();
+            fieldMap = new ObjectLongHashMap<>(numFields);
             for (int i = 0; i < numFields; i++) {
                 fieldMap.put((header.readString()), header.readVLong());
             }

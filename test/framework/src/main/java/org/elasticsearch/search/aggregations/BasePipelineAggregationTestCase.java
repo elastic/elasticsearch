@@ -82,8 +82,11 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
+        entries.addAll(additionalNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> xContentEntries = searchModule.getNamedXContents();
+        xContentEntries.addAll(additionalNamedContents());
+        xContentRegistry = new NamedXContentRegistry(xContentEntries);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
@@ -96,6 +99,20 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
      * Plugins to add to the test.
      */
     protected List<SearchPlugin> plugins() {
+        return emptyList();
+    }
+
+    /**
+     * Any extra named writeables required not registered by {@link SearchModule}
+     */
+    protected List<NamedWriteableRegistry.Entry> additionalNamedWriteables() {
+        return emptyList();
+    }
+
+    /**
+     * Any extra named xcontents required not registered by {@link SearchModule}
+     */
+    protected List<NamedXContentRegistry.Entry> additionalNamedContents() {
         return emptyList();
     }
 

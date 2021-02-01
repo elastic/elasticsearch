@@ -7,6 +7,9 @@
 Filters documents based on a provided <<modules-scripting-using,script>>. The
 `script` query is typically used in a <<query-filter-context,filter context>>.
 
+WARNING: Using scripts can result in slower search speeds. See
+<<scripts-and-search-speed>>.
+
 
 [[script-query-ex-request]]
 ==== Example request
@@ -15,18 +18,18 @@ Filters documents based on a provided <<modules-scripting-using,script>>. The
 ----
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "filter" : {
-                "script" : {
-                    "script" : {
-                        "source": "doc['num1'].value > 1",
-                        "lang": "painless"
-                     }
-                }
-            }
+  "query": {
+    "bool": {
+      "filter": {
+        "script": {
+          "script": {
+            "source": "doc['num1'].value > 1",
+            "lang": "painless"
+          }
         }
+      }
     }
+  }
 }
 ----
 
@@ -52,21 +55,21 @@ in the script's `params` parameter. For example:
 ----
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "filter" : {
-                "script" : {
-                    "script" : {
-                        "source" : "doc['num1'].value > params.param1",
-                        "lang"   : "painless",
-                        "params" : {
-                            "param1" : 5
-                        }
-                    }
-                }
+  "query": {
+    "bool": {
+      "filter": {
+        "script": {
+          "script": {
+            "source": "doc['num1'].value > params.param1",
+            "lang": "painless",
+            "params": {
+              "param1": 5
             }
+          }
         }
+      }
     }
+  }
 }
 ----
 

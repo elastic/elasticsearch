@@ -47,18 +47,19 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
-    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
+    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService,
+                                          ThreadPool threadPool, NodeClient client) {
         super(settings, clusterService, threadPool, client);
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
         this.diskUsageFunction = diskUsageFunction;
-        refresh();
+        ClusterInfoServiceUtils.refresh(this);
     }
 
     public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFunction) {
         this.shardSizeFunction = shardSizeFunction;
-        refresh();
+        ClusterInfoServiceUtils.refresh(this);
     }
 
     @Override
@@ -84,14 +85,14 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                     .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
                     .toArray(FsInfo.Path[]::new)), nodeStats.getTransport(),
                 nodeStats.getHttp(), nodeStats.getBreaker(), nodeStats.getScriptStats(), nodeStats.getDiscoveryStats(),
-                nodeStats.getIngestStats(), nodeStats.getAdaptiveSelectionStats(), nodeStats.getScriptCacheStats());
+                nodeStats.getIngestStats(), nodeStats.getAdaptiveSelectionStats(), nodeStats.getIndexingPressureStats());
         }).collect(Collectors.toList());
     }
 
     class SizeFakingClusterInfo extends ClusterInfo {
         SizeFakingClusterInfo(ClusterInfo delegate) {
             super(delegate.getNodeLeastAvailableDiskUsages(), delegate.getNodeMostAvailableDiskUsages(),
-                delegate.shardSizes, delegate.routingToDataPath);
+                delegate.shardSizes, delegate.routingToDataPath, delegate.reservedSpace);
         }
 
         @Override

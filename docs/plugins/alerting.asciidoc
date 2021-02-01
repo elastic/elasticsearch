@@ -3,7 +3,7 @@
 
 Alerting plugins allow Elasticsearch to monitor indices and to trigger alerts when thresholds are breached.
 
-[float]
+[discrete]
 === Core alerting plugins
 
 The core alerting plugins are:

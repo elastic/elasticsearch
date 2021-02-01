@@ -35,8 +35,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry> {
 
-    public static final int TYPE = 999;
-
     public static final ParseField DUMMY = new ParseField("dummy");
 
     private String dummy;
@@ -60,11 +58,6 @@ public class CustomSuggestion extends Suggest.Suggestion<CustomSuggestion.Entry>
     @Override
     public String getWriteableName() {
         return CustomSuggestionBuilder.SUGGESTION_NAME;
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     /**

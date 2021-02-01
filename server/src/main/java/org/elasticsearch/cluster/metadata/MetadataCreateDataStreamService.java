@@ -20,7 +20,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -29,30 +30,30 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
-import java.util.LinkedHashSet;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
-    public static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
-        new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -69,7 +70,7 @@ public class MetadataCreateDataStreamService {
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request,
                                  ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
-        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
             response -> {
                 if (response.isAcknowledged()) {
                     String firstBackingIndexName = firstBackingIndexRef.get();
@@ -78,29 +79,21 @@ public class MetadataCreateDataStreamService {
                         new String[]{firstBackingIndexName},
                         ActiveShardCount.DEFAULT,
                         request.masterNodeTimeout(),
-                        shardsAcked -> {
-                            finalListener.onResponse(new AcknowledgedResponse(true));
-                        },
+                        shardsAcked -> finalListener.onResponse(AcknowledgedResponse.TRUE),
                         finalListener::onFailure);
                 } else {
-                    finalListener.onResponse(new AcknowledgedResponse(false));
+                    finalListener.onResponse(AcknowledgedResponse.FALSE);
                 }
             },
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
-
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
-                }
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
                 }
             });
     }
@@ -124,48 +117,80 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request)
-        throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_9_0)) {
-            throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
+                                         CreateDataStreamClusterStateUpdateRequest request) throws Exception {
+        return createDataStream(metadataCreateIndexService, currentState, request.name, List.of(), null);
+    }
+
+    /**
+     * Creates a data stream with the specified properties.
+     *
+     * @param metadataCreateIndexService Used if a new write index must be created
+     * @param currentState               Cluster state
+     * @param dataStreamName             Name of the data stream
+     * @param backingIndices             List of backing indices. May be empty
+     * @param writeIndex                 Write index for the data stream. If null, a new write index will be created.
+     * @return                           Cluster state containing the new data stream
+     */
+    static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
+                                         ClusterState currentState,
+                                         String dataStreamName,
+                                         List<IndexMetadata> backingIndices,
+                                         IndexMetadata writeIndex) throws Exception
+    {
+        if (writeIndex == null) {
+            Objects.requireNonNull(metadataCreateIndexService);
         }
-        if (currentState.metadata().dataStreams().containsKey(request.name)) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
+        Objects.requireNonNull(currentState);
+        Objects.requireNonNull(backingIndices);
+        if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
         }
 
-        MetadataCreateIndexService.validateIndexOrAliasName(request.name,
+        MetadataCreateIndexService.validateIndexOrAliasName(dataStreamName,
             (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
 
-        if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
+        if (dataStreamName.toLowerCase(Locale.ROOT).equals(dataStreamName) == false) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
         }
-        if (request.name.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
+        if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '"
+                + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
-        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
+        ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
-        String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
-        CreateIndexClusterStateUpdateRequest createIndexRequest =
-            new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
-                .dataStreamName(request.name)
-                .settings(Settings.builder().put("index.hidden", true).build());
-        currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
-        IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
-        assert firstBackingIndex != null;
-        assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
+        if (writeIndex == null) {
+            String firstBackingIndexName =
+                DataStream.getDefaultBackingIndexName(dataStreamName, 1, currentState.nodes().getMinNodeVersion());
+            CreateIndexClusterStateUpdateRequest createIndexRequest =
+                new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
+                    .dataStreamName(dataStreamName)
+                    .settings(Settings.builder().put("index.hidden", true).build());
+            try {
+                currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+            } catch (ResourceAlreadyExistsException e) {
+                // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
+                // auto index/data stream creation.
+                // (otherwise bulk execution fails later, because data stream will also not have been created)
+                throw new ElasticsearchStatusException("data stream could not be created because backing index [{}] already exists",
+                    RestStatus.BAD_REQUEST, e, firstBackingIndexName);
+            }
+            writeIndex = currentState.metadata().index(firstBackingIndexName);
+        }
+        assert writeIndex != null;
+        assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
-        Map<String, Object> mapping = firstBackingIndex.mapping().getSourceAsMap();
-        Map<String, Object> timeStampFieldMapping = ObjectPath.eval(convertFieldPathToMappingPath(fieldName), mapping);
-
-        DataStream.TimestampField timestampField = new DataStream.TimestampField(
-            fieldName,
-            timeStampFieldMapping
-        );
-        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
+        DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
+        List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
+        dsBackingIndices.add(writeIndex.getIndex());
+        boolean hidden = template.getDataStreamTemplate().isHidden();
+        DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
+            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}]", request.name);
+        logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
+            writeIndex.getIndex().getName(),
+            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
@@ -182,32 +207,22 @@ public class MetadataCreateDataStreamService {
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) {
-        MappedFieldType timestampFieldMapper = mapperService.fieldType(timestampFieldName);
-        if (timestampFieldMapper == null) {
-            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "], but found no timestamp field");
-        }
-        String type = timestampFieldMapper.typeName();
-        if (ALLOWED_TIMESTAMPFIELD_TYPES.contains(type) == false) {
-            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types " +
-                ALLOWED_TIMESTAMPFIELD_TYPES + ", but instead found type [" + type  + "]");
-        }
-    }
+    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
+        MetadataFieldMapper fieldMapper =
+            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
+        assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";
 
-    public static String convertFieldPathToMappingPath(String fieldPath) {
-        // The mapping won't allow such fields, so this is a sanity check:
-        assert Arrays.stream(fieldPath.split("\\.")).filter(String::isEmpty).count() == 0L ||
-            fieldPath.startsWith(".") ||
-            fieldPath.endsWith(".") : "illegal field path [" + fieldPath + "]";
-
-        String mappingPath;
-        if (fieldPath.indexOf('.') == -1) {
-            mappingPath = "properties." + fieldPath;
-        } else {
-            mappingPath = "properties." + fieldPath.replace(".", ".properties.");
+        Map<String, Object> parsedTemplateMapping =
+            MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
+        Boolean enabled = ObjectPath.eval("_doc._data_stream_timestamp.enabled", parsedTemplateMapping);
+        // Sanity check: if this fails then somehow the mapping for _data_stream_timestamp has been overwritten and
+        // that would be a bug.
+        if (enabled == null || enabled == false) {
+            throw new IllegalStateException("[_data_stream_timestamp] meta field has been disabled");
         }
 
-        return mappingPath;
+        // Sanity check (this validation logic should already have been executed when merging mappings):
+        fieldMapper.validate(mapperService.documentMapper().mappers());
     }
 
 }

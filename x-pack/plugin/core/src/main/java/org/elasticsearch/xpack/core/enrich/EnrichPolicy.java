@@ -258,7 +258,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBytesReference(query);
-            out.writeEnum(contentType);
+            XContentHelper.writeTo(out, contentType);
         }
 
         @Override

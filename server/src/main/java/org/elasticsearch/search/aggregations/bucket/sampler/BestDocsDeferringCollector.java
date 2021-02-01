@@ -125,14 +125,8 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
-    public void postCollection() throws IOException {
-        runDeferredAggs();
-    }
-
-
-    @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        // no-op - deferred aggs processed in postCollection call
+        runDeferredAggs();  // TODO should we only prepare the selected buckets?!
     }
 
     private void runDeferredAggs() throws IOException {
@@ -166,7 +160,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             // done with allDocs now, reclaim some memory
             circuitBreakerConsumer.accept(-12L * shardSize);
         }
-        deferred.postCollection();
     }
 
     class PerParentBucketSamples {
@@ -306,6 +299,9 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     public int getDocCount(long parentBucket) {
+        if (perBucketSamples.size() <= parentBucket) {
+            return 0;
+        }
         PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
         if (sampler == null) {
             // There are conditions where no docs are collected and the aggs

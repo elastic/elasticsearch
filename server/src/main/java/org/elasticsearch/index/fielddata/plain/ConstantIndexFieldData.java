@@ -29,17 +29,13 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -47,29 +43,27 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Function;
 
 public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
 
-        private final Function<MapperService, String> valueFunction;
+        private final String constantValue;
+        private final String name;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(Function<MapperService, String> valueFunction, ValuesSourceType valuesSourceType) {
-            this.valueFunction = valueFunction;
+        public Builder(String constantValue, String name, ValuesSourceType valuesSourceType) {
+            this.constantValue = constantValue;
+            this.name = name;
             this.valuesSourceType = valuesSourceType;
         }
 
         @Override
-        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService), valuesSourceType);
+        public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new ConstantIndexFieldData(name, constantValue, valuesSourceType);
         }
-
     }
 
     private static class ConstantLeafFieldData extends AbstractLeafOrdinalsFieldData {
@@ -118,7 +112,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 }
 
                 @Override
-                public boolean advanceExact(int target) throws IOException {
+                public boolean advanceExact(int target) {
                     docID = target;
                     return true;
                 }
@@ -128,7 +122,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
                     return docID;
                 }
             };
-            return (SortedSetDocValues) DocValues.singleton(sortedValues);
+            return DocValues.singleton(sortedValues);
         }
 
         @Override
@@ -139,16 +133,9 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final ConstantLeafFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value, ValuesSourceType valuesSourceType) {
-        super(indexSettings, name, valuesSourceType, null, null,
-                TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+    private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType) {
+        super(name, valuesSourceType, null, null, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
         atomicFieldData = new ConstantLeafFieldData(value);
-    }
-
-    @Override
-    public void clear() {
     }
 
     @Override
@@ -157,8 +144,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context)
-            throws Exception {
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
         return atomicFieldData;
     }
 
@@ -181,7 +167,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) {
         return loadGlobal(indexReader);
     }
 

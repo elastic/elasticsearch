@@ -35,7 +35,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
     private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

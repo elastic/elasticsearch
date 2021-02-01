@@ -94,7 +94,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(new AcknowledgedResponse(true));
+            listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 

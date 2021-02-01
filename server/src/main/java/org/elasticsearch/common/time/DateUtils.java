@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.time;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
@@ -52,7 +52,7 @@ public class DateUtils {
         return DateTimeZone.forID(zoneId.getId());
     }
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DateUtils.class);
     // pkg private for tests
     static final Map<String, String> DEPRECATED_SHORT_TIMEZONES;
     public static final Set<String> DEPRECATED_SHORT_TZ_IDS;
@@ -198,7 +198,7 @@ public class DateUtils {
     public static ZoneId of(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
-            deprecationLogger.deprecate("timezone",
+            deprecationLogger.deprecate(DeprecationCategory.PARSING, "timezone",
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }

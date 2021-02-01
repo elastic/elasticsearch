@@ -19,9 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class StatementExpressionNode extends StatementNode {
 
@@ -37,12 +36,22 @@ public class StatementExpressionNode extends StatementNode {
         return expressionNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeStatementOffset(location);
-        expressionNode.write(classWriter, methodWriter, scopeTable);
-        methodWriter.writePop(MethodWriter.getType(expressionNode.getExpressionType()).getSize());
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitStatementExpression(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        expressionNode.visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    public StatementExpressionNode(Location location) {
+        super(location);
+    }
+
 }

@@ -32,5 +32,24 @@ public interface NumericMetricsAggregation extends Aggregation {
     }
 
     interface MultiValue extends NumericMetricsAggregation {
+
+        /**
+         * Return an iterable over all value names this multi value aggregation provides.
+         *
+         * The iterable might be created on the fly, if you need to call this multiple times, please
+         * cache the result in a variable on caller side..
+         *
+         * @return iterable over all value names
+         */
+        Iterable<String> valueNames();
+
+        /**
+         * Return the result of 1 value by name
+         *
+         * @param name of the value
+         * @return the value
+         */
+        double value(String name);
+
     }
 }

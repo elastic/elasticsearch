@@ -38,6 +38,6 @@ public class NodeDisconnectedException extends ConnectTransportException {
 
     @Override
     public Throwable fillInStackTrace() {
-        return null;
+        return this;
     }
 }

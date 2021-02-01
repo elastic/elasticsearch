@@ -40,11 +40,13 @@ public final class AppendProcessor extends AbstractProcessor {
 
     private final TemplateScript.Factory field;
     private final ValueSource value;
+    private final boolean allowDuplicates;
 
-    AppendProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value) {
+    AppendProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value, boolean allowDuplicates) {
         super(tag, description);
         this.field = field;
         this.value = value;
+        this.allowDuplicates = allowDuplicates;
     }
 
     public TemplateScript.Factory getField() {
@@ -57,7 +59,7 @@ public final class AppendProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        ingestDocument.appendFieldValue(field, value);
+        ingestDocument.appendFieldValue(field, value, allowDuplicates);
         return ingestDocument;
     }
 
@@ -79,9 +81,11 @@ public final class AppendProcessor extends AbstractProcessor {
                                       String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
+            boolean allowDuplicates = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicates", true);
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
                 "field", field, scriptService);
-            return new AppendProcessor(processorTag, description, compiledTemplate, ValueSource.wrap(value, scriptService));
+            return new AppendProcessor(processorTag, description, compiledTemplate, ValueSource.wrap(value, scriptService),
+                allowDuplicates);
         }
     }
 }

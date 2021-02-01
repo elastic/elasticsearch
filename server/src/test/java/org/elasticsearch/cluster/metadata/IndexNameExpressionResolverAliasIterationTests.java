@@ -19,10 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+
 public class IndexNameExpressionResolverAliasIterationTests extends IndexNameExpressionResolverTests {
 
-    protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
-        return new IndexNameExpressionResolver() {
+    protected IndexNameExpressionResolver createIndexNameExpressionResolver() {
+        return new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)) {
             @Override
             boolean iterateIndexAliases(int indexAliasesSize, int resolvedExpressionsSize) {
                 return true;

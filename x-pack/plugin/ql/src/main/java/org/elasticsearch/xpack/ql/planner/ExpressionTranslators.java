@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredi
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -30,10 +32,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
@@ -61,26 +63,26 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-
 public final class ExpressionTranslators {
 
-    public static final String DATE_FORMAT = "strict_date_time";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
-            new BinaryComparisons(),
-            new Ranges(),
-            new BinaryLogic(),
-            new Nots(),
-            new Likes(),
-            new InComparisons(),
-            new StringQueries(),
-            new Matches(),
-            new MultiMatches(),
-            new Scalars()
-            );
+        new BinaryComparisons(),
+        new Ranges(),
+        new BinaryLogic(),
+        new IsNulls(),
+        new IsNotNulls(),
+        new Nots(),
+        new Likes(),
+        new InComparisons(),
+        new StringQueries(),
+        new Matches(),
+        new MultiMatches(),
+        new Scalars()
+    );
 
     public static Query toQuery(Expression e) {
         return toQuery(e, new QlTranslatorHandler());
@@ -121,8 +123,8 @@ public final class ExpressionTranslators {
             if (e.field() instanceof FieldAttribute) {
                 targetFieldName = handler.nameOf(((FieldAttribute) e.field()).exactAttribute());
                 if (e instanceof Like) {
-                    LikePattern p = ((Like) e).pattern();
-                    q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
+                    Like l = (Like) e;
+                    q = new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
                 }
 
                 if (e instanceof RLike) {
@@ -206,6 +208,46 @@ public final class ExpressionTranslators {
         }
     }
 
+    public static class IsNotNulls extends ExpressionTranslator<IsNotNull> {
+
+        @Override
+        protected Query asQuery(IsNotNull isNotNull, TranslatorHandler handler) {
+            return doTranslate(isNotNull, handler);
+        }
+
+        public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
+            Query query = null;
+
+            if (isNotNull.field() instanceof FieldAttribute) {
+                query = new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
+            } else {
+                query = new ScriptQuery(isNotNull.source(), isNotNull.asScript());
+            }
+
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), query);
+        }
+    }
+
+    public static class IsNulls extends ExpressionTranslator<IsNull> {
+
+        @Override
+        protected Query asQuery(IsNull isNull, TranslatorHandler handler) {
+            return doTranslate(isNull, handler);
+        }
+
+        public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
+            Query query = null;
+
+            if (isNull.field() instanceof FieldAttribute) {
+                query = new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
+            } else {
+                query = new ScriptQuery(isNull.source(), isNull.asScript());
+            }
+
+            return handler.wrapFunctionQuery(isNull, isNull.field(), query);
+        }
+    }
+
     // assume the Optimizer properly orders the predicates to ease the translation
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
 
@@ -252,7 +294,7 @@ public final class ExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (bc.left().dataType() == DATETIME) {
+            if (DataTypes.isDateTime(bc.left().dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -338,6 +380,7 @@ public final class ExpressionTranslators {
 
     public static class InComparisons extends ExpressionTranslator<In> {
 
+        @Override
         protected Query asQuery(In in, TranslatorHandler handler) {
             return doTranslate(in, handler);
         }
@@ -347,18 +390,32 @@ public final class ExpressionTranslators {
             if (in.value() instanceof FieldAttribute) {
                 // equality should always be against an exact match (which is important for strings)
                 FieldAttribute fa = (FieldAttribute) in.value();
+                DataType dt = fa.dataType();
+
                 List<Expression> list = in.list();
-
-                // TODO: this needs to be handled inside the optimizer
-                list.removeIf(e -> DataTypes.isNull(e.dataType()));
-                DataType dt = list.get(0).dataType();
                 Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
+                list.forEach(e -> {
+                    // TODO: this needs to be handled inside the optimizer
+                    if (DataTypes.isNull(e.dataType()) == false) {
+                        set.add(handler.convert(valueOf(e), dt));
+                    }
+                });
 
-                for (Expression e : list) {
-                    set.add(handler.convert(valueOf(e), dt));
+                if (DataTypes.isDateTime(dt)) {
+                    DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);
+
+                    q = null;
+                    for (Object o : set) {
+                        assert o instanceof ZonedDateTime : "expected a ZonedDateTime, but got: " + o.getClass().getName();
+                        // see comment in Ranges#doTranslate() as to why formatting as String is required
+                        String zdt = formatter.format((ZonedDateTime) o);
+                        RangeQuery right = new RangeQuery(in.source(), fa.exactAttribute().name(),
+                                zdt, true, zdt, true, formatter.pattern(), in.zoneId());
+                        q = q == null ? right : new BoolQuery(in.source(), false, q, right);
+                    }
+                } else {
+                    q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
                 }
-
-                q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
             } else {
                 q = new ScriptQuery(in.source(), in.asScript());
             }
@@ -384,11 +441,11 @@ public final class ExpressionTranslators {
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
             if (f instanceof StartsWith) {
                 StartsWith sw = (StartsWith) f;
-                if (sw.isCaseSensitive() && sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
+                if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
                     String pattern = (String) sw.pattern().fold();
 
-                    return new PrefixQuery(f.source(), targetFieldName, pattern);
+                    return new PrefixQuery(f.source(), targetFieldName, pattern, sw.isCaseInsensitive());
                 }
             }
             return null;

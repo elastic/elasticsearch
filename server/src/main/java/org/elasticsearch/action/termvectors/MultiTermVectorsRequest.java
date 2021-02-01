@@ -118,7 +118,7 @@ public class MultiTermVectorsRequest extends ActionRequest
                         }
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (!token.isValue()) {
+                            if (token.isValue() == false) {
                                 throw new IllegalArgumentException("ids array element should only contain ids");
                             }
                             ids.add(parser.text());
@@ -148,10 +148,7 @@ public class MultiTermVectorsRequest extends ActionRequest
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(preference);
-        out.writeVInt(requests.size());
-        for (TermVectorsRequest termVectorsRequest : requests) {
-            termVectorsRequest.writeTo(out);
-        }
+        out.writeCollection(requests);
     }
 
     public void ids(String[] ids) {

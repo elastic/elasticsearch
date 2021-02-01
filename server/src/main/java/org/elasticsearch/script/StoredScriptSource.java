@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -59,7 +59,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
      */
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(StoredScriptSource.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(StoredScriptSource.class);
 
     /**
      * Standard {@link ParseField} for outer level of stored script source.
@@ -145,9 +145,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             if (source == null) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecate("empty_templates", "empty templates should no longer be used");
+                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_templates",
+                            "empty templates should no longer be used");
                     } else {
-                        deprecationLogger.deprecate("empty_scripts", "empty scripts should no longer be used");
+                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_scripts",
+                            "empty scripts should no longer be used");
                     }
                 } else {
                     throw new IllegalArgumentException("must specify source for stored script");
@@ -155,9 +157,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             } else if (source.isEmpty()) {
                 if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
-                        deprecationLogger.deprecate("empty_templates", "empty templates should no longer be used");
+                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_templates",
+                            "empty templates should no longer be used");
                     } else {
-                        deprecationLogger.deprecate("empty_scripts", "empty scripts should no longer be used");
+                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_scripts",
+                            "empty scripts should no longer be used");
                     }
                 } else {
                     throw new IllegalArgumentException("source cannot be empty");
@@ -257,7 +261,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             token = parser.nextToken();
 
             if (token == Token.END_OBJECT) {
-                deprecationLogger.deprecate("empty_templates", "empty templates should no longer be used");
+                deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "empty_templates", "empty templates should no longer be used");
 
                 return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, "", Collections.emptyMap());
             }

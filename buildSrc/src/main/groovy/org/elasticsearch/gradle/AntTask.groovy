@@ -25,9 +25,11 @@ import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.Project
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskAction
 
+import javax.inject.Inject
 import java.nio.charset.Charset
 
 /**
@@ -42,6 +44,11 @@ public abstract class AntTask extends DefaultTask {
      * if the output was not already written directly to stdout.
      */
     public final ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()
+
+    @Inject
+    protected FileSystemOperations getFileSystemOperations() {
+        throw new UnsupportedOperationException();
+    }
 
     @TaskAction
     final void executeTask() {

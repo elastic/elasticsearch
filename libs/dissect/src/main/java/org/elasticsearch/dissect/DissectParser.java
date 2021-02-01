@@ -211,7 +211,7 @@ public final class DissectParser {
             int lookAheadMatches;
             //start walking the input string byte by byte, look ahead for matches where needed
             //if a match is found jump forward to the end of the match
-            for (; i < input.length; i++) {
+            while (i < input.length) {
                 lookAheadMatches = 0;
                 //potential match between delimiter and input string
                 if (delimiter.length > 0 && input[i] == delimiter[0]) {
@@ -240,9 +240,9 @@ public final class DissectParser {
                             if (lookAheadMatches == delimiter.length) {
                                 //jump to the end of the match
                                 i += lookAheadMatches;
-                                if (!key.skipRightPadding()) {
+                                if (key.skipRightPadding() == false) {
                                     //progress the keys/delimiter if possible
-                                    if (!it.hasNext()) {
+                                    if (it.hasNext() == false) {
                                         break; //the while loop
                                     }
                                     dissectPair = it.next();
@@ -255,7 +255,7 @@ public final class DissectParser {
                             }
                         }
                         //progress the keys/delimiter if possible
-                        if (!it.hasNext()) {
+                        if (it.hasNext() == false) {
                             break; //the for loop
                         }
                         dissectPair = it.next();
@@ -263,12 +263,16 @@ public final class DissectParser {
                         delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
                         //i is always one byte after the last found delimiter, aka the start of the next value
                         valueStart = i;
+                    } else {
+                        i++;
                     }
+                } else {
+                    i++;
                 }
             }
             //the last key, grab the rest of the input (unless consecutive delimiters already grabbed the last key)
             //and there is no trailing delimiter
-            if (!dissectMatch.fullyMatched() && delimiter.length == 0 ) {
+            if (dissectMatch.fullyMatched() == false && delimiter.length == 0 ) {
                 byte[] value = Arrays.copyOfRange(input, valueStart, input.length);
                 String valueString = new String(value, StandardCharsets.UTF_8);
                 dissectMatch.add(key, valueString);
@@ -276,7 +280,7 @@ public final class DissectParser {
         }
         Map<String, String> results = dissectMatch.getResults();
 
-        if (!dissectMatch.isValid(results)) {
+        if (dissectMatch.isValid(results) == false) {
             throw new DissectException.FindMatch(pattern, inputString);
         }
         return results;

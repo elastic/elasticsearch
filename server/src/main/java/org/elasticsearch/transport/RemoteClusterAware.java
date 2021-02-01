@@ -20,9 +20,11 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +43,8 @@ public abstract class RemoteClusterAware {
 
     protected final Settings settings;
     private final ClusterNameExpressionResolver clusterNameResolver;
+    private final String nodeName;
+    private final boolean isRemoteClusterClientEnabled;
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
@@ -49,6 +53,8 @@ public abstract class RemoteClusterAware {
     protected RemoteClusterAware(Settings settings) {
         this.settings = settings;
         this.clusterNameResolver = new ClusterNameExpressionResolver();
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
     /**
@@ -73,6 +79,10 @@ public abstract class RemoteClusterAware {
         for (String index : requestIndices) {
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
+                if (isRemoteClusterClientEnabled == false) {
+                    assert remoteClusterNames.isEmpty() : remoteClusterNames;
+                    throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
+                }
                 String remoteClusterName = index.substring(0, i);
                 List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
                 String indexName = index.substring(i + 1);

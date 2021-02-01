@@ -49,7 +49,6 @@ import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +59,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -86,7 +86,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
                 assertFalse(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
     }
 
@@ -117,7 +117,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
     }
 
@@ -139,7 +139,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
     public void testSummationAccuracy() throws IOException {
         // Summing up a normal array and expect an accurate value
         double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
-        verifySummationOfDoubles(values, 15.3, 0.9, 0d);
+        verifySummationOfDoubles(values, 15.3, 0.9, 0d, values.length * TOLERANCE);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
         int n = randomIntBetween(5, 10);
@@ -151,7 +151,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
             sum += values[i];
         }
-        verifySummationOfDoubles(values, sum, sum / n, TOLERANCE);
+        verifySummationOfDoubles(values, sum, sum / n, TOLERANCE, n * TOLERANCE);
 
         // Summing up some big double values and expect infinity result
         n = randomIntBetween(5, 10);
@@ -159,16 +159,21 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < n; i++) {
             largeValues[i] = Double.MAX_VALUE;
         }
-        verifySummationOfDoubles(largeValues, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 0d);
+        verifySummationOfDoubles(largeValues, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 0d, 0d);
 
         for (int i = 0; i < n; i++) {
             largeValues[i] = -Double.MAX_VALUE;
         }
-        verifySummationOfDoubles(largeValues, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d);
+        verifySummationOfDoubles(largeValues, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d);
     }
 
-    private void verifySummationOfDoubles(double[] values, double expectedSum,
-                                          double expectedAvg, double delta) throws IOException {
+    private void verifySummationOfDoubles(
+        double[] values,
+        double expectedSum,
+        double expectedAvg,
+        double singleSegmentDelta,
+        double manySegmentDelta
+    ) throws IOException {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE);
 
         double max = Double.NEGATIVE_INFINITY;
@@ -182,19 +187,38 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         testCase(
             stats("_name").field(ft.name()),
             iw -> {
+                List<List<NumericDocValuesField>> docs = new ArrayList<>();
                 for (double value : values) {
-                    iw.addDocument(singleton(new NumericDocValuesField(ft.name(), NumericUtils.doubleToSortableLong(value))));
+                    docs.add(singletonList(new NumericDocValuesField(ft.name(), NumericUtils.doubleToSortableLong(value))));
                 }
+                iw.addDocuments(docs);
             },
             stats -> {
                 assertEquals(values.length, stats.getCount());
-                assertEquals(expectedAvg, stats.getAvg(), delta);
-                assertEquals(expectedSum, stats.getSum(), delta);
+                assertEquals(expectedAvg, stats.getAvg(), singleSegmentDelta);
+                assertEquals(expectedSum, stats.getSum(), singleSegmentDelta);
                 assertEquals(expectedMax, stats.getMax(), 0d);
                 assertEquals(expectedMin, stats.getMin(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
+        );
+        testCase(
+            stats("_name").field(ft.name()),
+            iw -> {
+                for (double value : values) {
+                    iw.addDocument(singletonList(new NumericDocValuesField(ft.name(), NumericUtils.doubleToSortableLong(value))));
+                }
+            },
+            stats -> {
+                assertEquals(values.length, stats.getCount());
+                assertEquals(expectedAvg, stats.getAvg(), manySegmentDelta);
+                assertEquals(expectedSum, stats.getSum(), manySegmentDelta);
+                assertEquals(expectedMax, stats.getMax(), 0d);
+                assertEquals(expectedMin, stats.getMin(), 0d);
+                assertTrue(AggregationInspectionHelper.hasValue(stats));
+            },
+            ft
         );
     }
 
@@ -234,7 +258,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                  MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)) {
 
                 final IndexSearcher searcher = new IndexSearcher(multiReader);
-                final InternalStats stats = search(searcher, new MatchAllDocsQuery(), builder, ft);
+                final InternalStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, ft);
 
                 assertEquals(expected.count, stats.getCount(), 0);
                 assertEquals(expected.sum, stats.getSum(), TOLERANCE);
@@ -374,7 +398,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
     }
 
@@ -419,24 +443,15 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             builder,
             iw -> iw.addDocuments(docs),
             stats -> verify.accept(expected, stats),
-            singleton(ft)
+            ft
         );
     }
 
     private void testCase(StatsAggregationBuilder builder,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalStats> verify,
-                          Collection<MappedFieldType> fieldTypes) throws IOException {
-        try (Directory directory = newDirectory();
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            buildIndex.accept(indexWriter);
-            try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalStats stats = search(searcher, new MatchAllDocsQuery(), builder, fieldTypesArray);
-                verify.accept(stats);
-            }
-        }
+                          MappedFieldType... fieldTypes) throws IOException {
+        testCase(builder, new MatchAllDocsQuery(), buildIndex, verify, fieldTypes);
     }
 
     static class SimpleStatsAggregator {

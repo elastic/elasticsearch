@@ -61,8 +61,8 @@ public class IPFilterTests extends ESTestCase {
     public void init() {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
@@ -252,7 +252,7 @@ public class IPFilterTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.deny", "_all")
                 .build();
-        when(licenseState.isAllowed(Feature.SECURITY_IP_FILTERING)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING)).thenReturn(false);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
@@ -263,13 +263,14 @@ public class IPFilterTests extends ESTestCase {
         verifyZeroInteractions(auditTrail);
 
         // for sanity enable license and check that it is denied
-        when(licenseState.isAllowed(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
         assertAddressIsDeniedForProfile("default", "8.8.8.8");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/62298")
     public void testThatNodeStartsWithIPFilterDisabled() throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())

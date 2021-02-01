@@ -19,12 +19,17 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -49,6 +54,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -84,7 +90,12 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest;
+        if (request.hasParam("min_compatible_shard_node")) {
+            searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));
+        } else {
+            searchRequest = new SearchRequest();
+        }
         /*
          * We have to pull out the call to `source().size(size)` because
          * _update_by_query and _delete_by_query uses this same parsing
@@ -99,7 +110,7 @@ public class RestSearchAction extends BaseRestHandler {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(searchRequest, request, parser, setSize));
+            parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize));
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
@@ -116,6 +127,7 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
                                           XContentParser requestContentParser,
+                                          NamedWriteableRegistry namedWriteableRegistry,
                                           IntConsumer setSize) throws IOException {
 
         if (searchRequest.source() == null) {
@@ -162,13 +174,18 @@ public class RestSearchAction extends BaseRestHandler {
         if (scroll != null) {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
-
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
 
         checkRestTotalHits(request, searchRequest);
+
+        if (searchRequest.pointInTimeBuilder() != null) {
+            preparePointInTime(searchRequest, request, namedWriteableRegistry);
+        } else {
+            searchRequest.setCcsMinimizeRoundtrips(
+                request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
+        }
     }
 
     /**
@@ -281,6 +298,37 @@ public class RestSearchAction extends BaseRestHandler {
                         .text(suggestText).size(suggestSize)
                         .suggestMode(SuggestMode.resolve(suggestMode))));
         }
+    }
+
+    static void preparePointInTime(SearchRequest request, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry) {
+        assert request.pointInTimeBuilder() != null;
+        ActionRequestValidationException validationException = null;
+        if (request.indices().length > 0) {
+            validationException = addValidationError("[indices] cannot be used with point in time", validationException);
+        }
+        if (request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
+            validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
+        }
+        if (request.routing() != null) {
+            validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+        }
+        if (request.preference() != null) {
+            validationException = addValidationError("[preference] cannot be used with point in time", validationException);
+        }
+        if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", false)) {
+            validationException =
+                addValidationError("[ccs_minimize_roundtrips] cannot be used with point in time", validationException);
+            request.setCcsMinimizeRoundtrips(false);
+        }
+        ExceptionsHelper.reThrowIfNotNull(validationException);
+
+        final IndicesOptions indicesOptions = request.indicesOptions();
+        final IndicesOptions stricterIndicesOptions = IndicesOptions.fromOptions(
+            indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(), false, false, false,
+            true, true, indicesOptions.ignoreThrottled());
+        request.indicesOptions(stricterIndicesOptions);
+        final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
+        request.indices(searchContextId.getActualIndices());
     }
 
     /**

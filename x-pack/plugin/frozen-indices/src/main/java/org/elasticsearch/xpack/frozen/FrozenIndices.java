@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.FrozenEngine;
@@ -53,14 +52,6 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(FrozenEngine.INDEX_FROZEN);
-    }
-
-    @Override
-    public void onIndexModule(IndexModule indexModule) {
-        if (FrozenEngine.INDEX_FROZEN.get(indexModule.getSettings())) {
-            indexModule.addSearchOperationListener(new FrozenEngine.ReacquireEngineSearcherListener());
-        }
-        super.onIndexModule(indexModule);
     }
 
     @Override

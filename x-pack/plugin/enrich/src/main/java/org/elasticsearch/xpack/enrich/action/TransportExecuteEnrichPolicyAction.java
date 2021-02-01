@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -26,8 +25,6 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
-
-import java.io.IOException;
 
 public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeAction<
     ExecuteEnrichPolicyAction.Request,
@@ -53,7 +50,9 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
             threadPool,
             actionFilters,
             ExecuteEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ExecuteEnrichPolicyAction.Response::new,
+            ThreadPool.Names.SAME
         );
         this.executor = new EnrichPolicyExecutor(
             settings,
@@ -65,16 +64,6 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
             enrichPolicyLocks,
             System::currentTimeMillis
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ExecuteEnrichPolicyAction.Response read(StreamInput in) throws IOException {
-        return new ExecuteEnrichPolicyAction.Response(in);
     }
 
     @Override

@@ -91,7 +91,22 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
                 SuggestBuilderTests::randomSuggestBuilder,
                 QueryRescorerBuilderTests::randomRescoreBuilder,
                 randomExtBuilders,
-                CollapseBuilderTests::randomCollapseBuilder);
+                CollapseBuilderTests::randomCollapseBuilder,
+                AbstractSearchTestCase::randomRuntimeMappings);
+    }
+
+    public static Map<String, Object> randomRuntimeMappings() {
+        int count = between(1, 100);
+        Map<String, Object> runtimeFields = new HashMap<>(count);
+        while (runtimeFields.size() < count) {
+            int size = between(1, 10);
+            Map<String, Object> config = new HashMap<>(size);
+            while (config.size() < size) {
+                config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            }
+            runtimeFields.put(randomAlphaOfLength(5), config);
+        }
+        return runtimeFields;
     }
 
     protected SearchRequest createSearchRequest() throws IOException {

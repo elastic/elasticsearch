@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -349,7 +349,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         } else {
             writeStartRaw(name);
             flush();
-            copyStream(content, os);
+            Streams.copy(content, os);
             writeEndRaw();
         }
     }
@@ -364,22 +364,9 @@ public class JsonXContentGenerator implements XContentGenerator {
                 generator.writeRaw(':');
             }
             flush();
-            transfer(stream, os);
+            Streams.copy(stream, os, false);
             writeEndRaw();
         }
-    }
-
-    // A basic copy of Java 9's InputStream#transferTo
-    private static long transfer(InputStream in, OutputStream out) throws IOException {
-        Objects.requireNonNull(out, "out");
-        long transferred = 0;
-        byte[] buffer = new byte[8192];
-        int read;
-        while ((read = in.read(buffer, 0, 8192)) >= 0) {
-            out.write(buffer, 0, read);
-            transferred += read;
-        }
-        return transferred;
     }
 
     private boolean mayWriteRawData(XContentType contentType) {
@@ -479,38 +466,5 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public boolean isClosed() {
         return generator.isClosed();
-    }
-
-    /**
-     * Copy the contents of the given InputStream to the given OutputStream.
-     * Closes both streams when done.
-     *
-     * @param in  the stream to copy from
-     * @param out the stream to copy to
-     * @return the number of bytes copied
-     * @throws IOException in case of I/O errors
-     */
-    private static long copyStream(InputStream in, OutputStream out) throws IOException {
-        Objects.requireNonNull(in, "No InputStream specified");
-        Objects.requireNonNull(out, "No OutputStream specified");
-        final byte[] buffer = new byte[8192];
-        boolean success = false;
-        try {
-            long byteCount = 0;
-            int bytesRead;
-            while ((bytesRead = in.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-                byteCount += bytesRead;
-            }
-            out.flush();
-            success = true;
-            return byteCount;
-        } finally {
-            if (success) {
-                IOUtils.close(in, out);
-            } else {
-                IOUtils.closeWhileHandlingException(in, out);
-            }
-        }
     }
 }

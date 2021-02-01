@@ -217,6 +217,7 @@ public class TransportStopDataFrameAnalyticsAction
             if (analyticsTask != null) {
                 persistentTasksService.sendRemoveRequest(analyticsTask.getId(), ActionListener.wrap(
                     removedTask -> {
+                        auditor.info(analyticsId, Messages.DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED);
                         if (counter.incrementAndGet() == nonStoppedAnalytics.size()) {
                             sendResponseOrFailure(request.getId(), listener, failures);
                         }

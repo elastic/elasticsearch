@@ -6,15 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerializingTestCase<StartDataFrameAnalyticsAction.TaskParams> {
 
@@ -25,12 +23,10 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerial
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
-        int phaseCount = randomIntBetween(0, 5);
-        List<PhaseProgress> progressOnStart = new ArrayList<>(phaseCount);
-        for (int i = 0; i < phaseCount; i++) {
-            progressOnStart.add(new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100)));
-        }
-        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), Version.CURRENT, progressOnStart, randomBoolean());
+        return new StartDataFrameAnalyticsAction.TaskParams(
+            randomAlphaOfLength(10),
+            randomVersion(random()),
+            randomBoolean());
     }
 
     @Override

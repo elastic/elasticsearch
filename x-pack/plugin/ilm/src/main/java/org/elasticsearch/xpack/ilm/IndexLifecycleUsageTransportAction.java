@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,21 +30,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
 
     @Inject
     public IndexLifecycleUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              Settings settings, XPackLicenseState licenseState) {
+                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.licenseState = licenseState;
     }
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ILM);
         Metadata metadata = state.metadata();
         IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
@@ -69,9 +63,9 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
-            usage = new IndexLifecycleFeatureSetUsage(available, policyStats);
+            usage = new IndexLifecycleFeatureSetUsage(policyStats);
         } else {
-            usage = new IndexLifecycleFeatureSetUsage(available);
+            usage = new IndexLifecycleFeatureSetUsage();
         }
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[transform-checkpoints]]
-=== How {transform} checkpoints work
+= How {transform} checkpoints work
 ++++
 <titleabbrev>How checkpoints work</titleabbrev>
 ++++
@@ -53,7 +53,7 @@ TIP: If the cluster experiences unsuitable performance degradation due to the
 
 [discrete]
 [[ml-transform-checkpoint-errors]]
-==== Error handling
+== Error handling
 
 Failures in {transforms} tend to be related to searching or indexing.
 To increase the resiliency of {transforms}, the cursor positions of

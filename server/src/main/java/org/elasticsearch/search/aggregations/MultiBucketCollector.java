@@ -127,13 +127,6 @@ public class MultiBucketCollector extends BucketCollector {
     }
 
     @Override
-    public void postCollection() throws IOException {
-        for (BucketCollector collector : collectors) {
-            collector.postCollection();
-        }
-    }
-
-    @Override
     public String toString() {
         return Arrays.toString(collectors);
     }

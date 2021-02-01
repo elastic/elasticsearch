@@ -19,27 +19,28 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class IfNode extends ConditionNode {
 
+    /* ---- begin visitor ---- */
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeStatementOffset(location);
-
-        Label fals = new Label();
-
-        getConditionNode().write(classWriter, methodWriter, scopeTable);
-        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-        getBlockNode().continueLabel = continueLabel;
-        getBlockNode().breakLabel = breakLabel;
-        getBlockNode().write(classWriter, methodWriter, scopeTable.newScope());
-
-        methodWriter.mark(fals);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitIf(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        getConditionNode().visit(irTreeVisitor, scope);
+        getBlockNode().visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    public IfNode(Location location) {
+        super(location);
+    }
+
 }

@@ -162,7 +162,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
 
     public static CollectorResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
         String name = null, reason = null;
         long time = -1;

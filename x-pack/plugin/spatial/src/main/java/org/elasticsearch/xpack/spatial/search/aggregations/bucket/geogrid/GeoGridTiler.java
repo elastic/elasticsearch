@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
@@ -29,6 +29,6 @@ public interface GeoGridTiler {
      *
      * @return the number of tiles the geoValue intersects
      */
-    int setValues(GeoShapeCellValues docValues, MultiGeoShapeValues.GeoShapeValue geoValue, int precision);
+    int setValues(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, int precision);
 }
 

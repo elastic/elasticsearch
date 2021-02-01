@@ -172,7 +172,7 @@ public class CloseIndexResponseTests extends
     public final void testBwcFromXContent() throws IOException {
         {
             final boolean acknowledged = randomBoolean();
-            final AcknowledgedResponse expected = new AcknowledgedResponse(acknowledged);
+            final AcknowledgedResponse expected = AcknowledgedResponse.of(acknowledged);
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(expected, xContentType, getParams(), randomBoolean());
@@ -191,7 +191,7 @@ public class CloseIndexResponseTests extends
         {
             final boolean acknowledged = randomBoolean();
             final boolean shardsAcknowledged = acknowledged ? randomBoolean() : false;
-            final ShardsAcknowledgedResponse expected = new ShardsAcknowledgedResponse(acknowledged, shardsAcknowledged){};
+            final ShardsAcknowledgedResponse expected = ShardsAcknowledgedResponse.of(acknowledged, shardsAcknowledged);
 
             final XContentType xContentType = randomFrom(XContentType.values());
             final BytesReference bytes = toShuffledXContent(expected, xContentType, getParams(), randomBoolean());

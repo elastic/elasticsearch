@@ -32,6 +32,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static java.util.Collections.emptyMap;
 
 public class InternalStatsTests extends InternalAggregationTestCase<InternalStats> {
 
@@ -247,6 +251,18 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             "  \"avg\" : null,\n" +
             "  \"sum\" : 0.0\n" +
             "}", Strings.toString(builder));
+    }
+
+    public void testIterator() {
+        InternalStats aggregation = createTestInstance("test", emptyMap());
+        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).collect(Collectors.toList());
+
+        assertEquals(5, names.size());
+        assertTrue(names.contains("min"));
+        assertTrue(names.contains("max"));
+        assertTrue(names.contains("count"));
+        assertTrue(names.contains("avg"));
+        assertTrue(names.contains("sum"));
     }
 }
 

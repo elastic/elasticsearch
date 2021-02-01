@@ -392,7 +392,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver()
+        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), flushRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
@@ -417,7 +417,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         internalCluster().coordOnlyNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
-        String[] indices = new IndexNameExpressionResolver()
+        String[] indices = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
                 .concreteIndexNames(client().admin().cluster().prepareState().get().getState(), refreshRequest);
         assertIndicesSubset(Arrays.asList(indices), indexShardActions);
     }
@@ -604,7 +604,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     private static void assertSameIndices(IndicesRequest originalRequest, boolean optional, String... actions) {
         for (String action : actions) {
             List<TransportRequest> requests = consumeTransportRequests(action);
-            if (!optional) {
+            if (optional == false) {
                 assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
             }
             for (TransportRequest internalRequest : requests) {

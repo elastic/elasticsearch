@@ -89,14 +89,14 @@ public final class DateUtils {
     /**
      * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
      */
-    public static ZonedDateTime asDateTime(long millis) {
+    public static ZonedDateTime asDateTimeWithMillis(long millis) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
     }
 
     /**
      * Creates a datetime from the millis since epoch then translates the date into the given timezone.
      */
-    public static ZonedDateTime asDateTime(long millis, ZoneId id) {
+    public static ZonedDateTime asDateTimeWithMillis(long millis, ZoneId id) {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), id);
     }
 
@@ -124,7 +124,7 @@ public final class DateUtils {
     /**
      * Parses the given string into a DateTime using UTC as a default timezone.
      */
-    public static ZonedDateTime asDateTime(String dateFormat) {
+    public static ZonedDateTime asDateTimeWithNanos(String dateFormat) {
         return DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(dateFormat)).withZoneSameInstant(UTC);
     }
 
@@ -177,7 +177,11 @@ public final class DateUtils {
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
     }
-
+    
+    public static ZonedDateTime atTimeZone(LocalDate ld, ZoneId zoneId) {
+        return ld.atStartOfDay(zoneId);
+    }
+    
     public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
         return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
     }
@@ -205,6 +209,8 @@ public final class DateUtils {
             return atTimeZone((OffsetTime) ta, zoneId);
         } else if (ta instanceof LocalTime) {
             return atTimeZone((LocalTime) ta, zoneId);
+        } else if (ta instanceof LocalDate) {
+            return atTimeZone((LocalDate) ta, zoneId);
         } else {
             return ta;
         }

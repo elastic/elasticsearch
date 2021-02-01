@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -153,7 +154,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      */
     private static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
-        settings -> Boolean.toString(DiscoveryNode.isDataNode(settings)),
+        settings ->
+            // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+            Boolean.toString(DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings)),
         Property.Deprecated,
         Property.NodeScope
     );
@@ -167,7 +170,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return super.isEnabledByDefault(settings) && DiscoveryNode.isDataNode(settings);
+            return super.isEnabledByDefault(settings) &&
+                // Don't use DiscoveryNode#isDataNode(Settings) here, as it is called before all plugins are initialized
+                (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) || DataTier.isExplicitDataTier(settings));
         }
 
     };
@@ -272,7 +277,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
-        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
         TransformCheckpointService checkpointService = new TransformCheckpointService(settings, clusterService, configManager, auditor);
         SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
 

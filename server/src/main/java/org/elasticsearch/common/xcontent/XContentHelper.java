@@ -19,19 +19,21 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,7 +53,7 @@ public class XContentHelper {
                                               BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
@@ -70,12 +72,17 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.streamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
             return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
+            if (bytes instanceof BytesArray) {
+                final BytesArray array = (BytesArray) bytes;
+                return xContentType.xContent().createParser(
+                        xContentRegistry, deprecationHandler, array.array(), array.offset(), array.length());
+            }
             return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
@@ -101,15 +108,24 @@ public class XContentHelper {
             InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
-                InputStream compressedStreamInput = compressor.streamInput(bytes.streamInput());
+                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
                 input = compressedStreamInput;
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+            } else if (bytes instanceof BytesArray) {
+                final BytesArray arr = (BytesArray) bytes;
+                final byte[] raw = arr.array();
+                final int offset = arr.offset();
+                final int length = arr.length();
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
+                return new Tuple<>(Objects.requireNonNull(contentType),
+                        convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered));
             } else {
                 input = bytes.streamInput();
+                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             }
-            contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             try (InputStream stream = input) {
                 return new Tuple<>(Objects.requireNonNull(contentType),
                     convertToMap(XContentFactory.xContent(contentType), stream, ordered));
@@ -148,6 +164,21 @@ public class XContentHelper {
         }
     }
 
+    /**
+     * Convert a byte array in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     */
+    public static Map<String, Object> convertToMap(XContent xContent, byte[] bytes, int offset, int length, boolean ordered)
+            throws ElasticsearchParseException {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes, offset, length)) {
+            return ordered ? parser.mapOrdered() : parser.map();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson) throws IOException {
         return convertToJson(bytes, reformatJson, false);
@@ -178,22 +209,34 @@ public class XContentHelper {
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        if (xContentType == XContentType.JSON && !reformatJson) {
+        if (xContentType.canonical() == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
         }
 
         // It is safe to use EMPTY here because this never uses namedObject
-        try (InputStream stream = bytes.streamInput();
-             XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
-            parser.nextToken();
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            if (prettyPrint) {
-                builder.prettyPrint();
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, array.array(), array.offset(), array.length())) {
+                return toJsonString(prettyPrint, parser);
             }
-            builder.copyCurrentStructure(parser);
-            return Strings.toString(builder);
+        } else {
+            try (InputStream stream = bytes.streamInput();
+                 XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
+                return toJsonString(prettyPrint, parser);
+            }
         }
+    }
+
+    private static String toJsonString(boolean prettyPrint, XContentParser parser) throws IOException {
+        parser.nextToken();
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        if (prettyPrint) {
+            builder.prettyPrint();
+        }
+        builder.copyCurrentStructure(parser);
+        return Strings.toString(builder);
     }
 
     /**
@@ -209,7 +252,7 @@ public class XContentHelper {
     public static boolean update(Map<String, Object> source, Map<String, Object> changes, boolean checkUpdatesAreUnequal) {
         boolean modified = false;
         for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
-            if (!source.containsKey(changesEntry.getKey())) {
+            if (source.containsKey(changesEntry.getKey()) == false) {
                 // safe to copy, change does not exist in source
                 source.put(changesEntry.getKey(), changesEntry.getValue());
                 modified = true;
@@ -227,7 +270,7 @@ public class XContentHelper {
             if (modified) {
                 continue;
             }
-            if (!checkUpdatesAreUnequal) {
+            if (checkUpdatesAreUnequal == false) {
                 modified = true;
                 continue;
             }
@@ -242,7 +285,7 @@ public class XContentHelper {
      */
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
         for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
-            if (!content.containsKey(defaultEntry.getKey())) {
+            if (content.containsKey(defaultEntry.getKey()) == false) {
                 // copy it over, it does not exists in the content
                 content.put(defaultEntry.getKey(), defaultEntry.getValue());
             } else {
@@ -279,7 +322,7 @@ public class XContentHelper {
                         List<Object> mergedList = new ArrayList<>(defaultList);
 
                         for (Object o : contentList) {
-                            if (!mergedList.contains(o)) {
+                            if (mergedList.contains(o) == false) {
                                 mergedList.add(o);
                             }
                         }
@@ -292,7 +335,7 @@ public class XContentHelper {
 
     private static boolean allListValuesAreMapsOfOne(List<Object> list) {
         for (Object o : list) {
-            if (!(o instanceof Map)) {
+            if ((o instanceof Map) == false) {
                 return false;
             }
             if (((Map) o).size() != 1) {
@@ -313,7 +356,7 @@ public class XContentHelper {
                                      ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
             }
         } else {
@@ -332,7 +375,7 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);
             }
         } else {
@@ -380,8 +423,18 @@ public class XContentHelper {
      */
     @Deprecated
     public static XContentType xContentType(BytesReference bytes) {
-        BytesRef br = bytes.toBytesRef();
-        return XContentFactory.xContentType(br.bytes, br.offset, br.length);
+        if (bytes instanceof BytesArray) {
+            final BytesArray array = (BytesArray) bytes;
+            return XContentFactory.xContentType(array.array(), array.offset(), array.length());
+        }
+        try {
+            final InputStream inputStream = bytes.streamInput();
+            assert inputStream.markSupported();
+            return XContentFactory.xContentType(inputStream);
+        } catch (IOException e) {
+            assert false : "Should not happen, we're just reading bytes from memory";
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -401,5 +454,20 @@ public class XContentHelper {
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
         return BytesReference.bytes(builder);
+    }
+
+    /**
+     * Serialises new XContentType VND_ values in a bwc manner
+     * TODO remove in ES v9
+     * @param out stream output of the destination node
+     * @param xContentType an instance to serialize
+     */
+    public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
+            out.writeVInt(xContentType.canonical().ordinal());
+        } else {
+            out.writeVInt(xContentType.ordinal());
+        }
     }
 }

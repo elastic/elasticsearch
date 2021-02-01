@@ -38,6 +38,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
 
+    public static final AcknowledgedResponse TRUE = new AcknowledgedResponse(true);
+
+    public static final AcknowledgedResponse FALSE = new AcknowledgedResponse(false);
+
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
     protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
@@ -47,12 +51,20 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
 
     protected final boolean acknowledged;
 
-    public AcknowledgedResponse(StreamInput in) throws IOException {
+    public static AcknowledgedResponse readFrom(StreamInput in) throws IOException {
+        return in.readBoolean() ? TRUE : FALSE;
+    }
+
+    protected AcknowledgedResponse(StreamInput in) throws IOException {
         super(in);
         acknowledged = in.readBoolean();
     }
 
-    public AcknowledgedResponse(boolean acknowledged) {
+    public static AcknowledgedResponse of(boolean acknowledged) {
+        return acknowledged ? TRUE : FALSE;
+    }
+
+    protected AcknowledgedResponse(boolean acknowledged) {
         this.acknowledged = acknowledged;
     }
 
@@ -94,7 +106,7 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
     }
 
     public static AcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
-        return new AcknowledgedResponse(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
+        return AcknowledgedResponse.of(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
     }
 
     @Override

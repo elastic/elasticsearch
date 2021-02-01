@@ -21,7 +21,7 @@ public class DeleteEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/enrich/delete";
 
     private DeleteEnrichPolicyAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<DeleteEnrichPolicyAction.Request> {

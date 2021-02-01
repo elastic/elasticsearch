@@ -451,8 +451,9 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return customSecuritySettingsSource.isSslEnabled();
     }
 
-    protected static Hasher getFastStoredHashAlgoForTests() {
-        return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+    public static Hasher getFastStoredHashAlgoForTests() {
+        return inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
+            : Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch", "bcrypt", "bcrypt9"));
     }
 
     protected class TestRestHighLevelClient extends RestHighLevelClient {

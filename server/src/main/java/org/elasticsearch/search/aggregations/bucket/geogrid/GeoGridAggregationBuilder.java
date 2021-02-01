@@ -29,10 +29,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -128,9 +128,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
      */
     protected abstract ValuesSourceAggregatorFactory createFactory(
         String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
-        GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext, AggregatorFactory parent,
-        Builder subFactoriesBuilder, Map<String, Object> metadata
-    ) throws IOException;
+        GeoBoundingBox geoBoundingBox, AggregationContext context, AggregatorFactory parent,
+        Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException;
 
     public int precision() {
         return precision;
@@ -178,9 +177,10 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
-                                                       AggregatorFactory parent, Builder subFactoriesBuilder)
+                                                       AggregatorFactory parent,
+                                                       Builder subFactoriesBuilder)
                     throws IOException {
         int shardSize = this.shardSize;
 
@@ -200,7 +200,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return createFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox, queryShardContext, parent,
+        return createFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox, context, parent,
                 subFactoriesBuilder, metadata);
     }
 

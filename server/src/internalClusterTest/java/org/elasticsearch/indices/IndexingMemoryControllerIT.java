@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
@@ -33,9 +34,7 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -52,9 +51,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(TestEnginePlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.getPlugins(), TestEnginePlugin.class);
     }
 
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {
@@ -64,14 +61,14 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             Settings settings = Settings.builder().put(config.getIndexSettings().getSettings())
                 .put("indices.memory.index_buffer_size", "10mb").build();
             IndexSettings indexSettings = new IndexSettings(config.getIndexSettings().getIndexMetadata(), settings);
-            return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            return new EngineConfig(config.getShardId(), config.getThreadPool(),
                 indexSettings, config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
                 config.getSimilarity(), new CodecService(null, LogManager.getLogger(IndexingMemoryControllerIT.class)),
                 config.getEventListener(), config.getQueryCache(),
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
         }
 
         @Override

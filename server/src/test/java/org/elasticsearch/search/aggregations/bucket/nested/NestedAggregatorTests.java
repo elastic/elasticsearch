@@ -37,15 +37,18 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -87,7 +90,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.LongStream;
 
@@ -107,16 +109,6 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     private static final String INVERSE_SCRIPT = "inverse";
 
     private static final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-
-    /**
-     * For each provided field type, we also register an alias with name {@code <field>-alias}.
-     */
-    @Override
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
-            ft -> ft.name() + "-alias",
-            Function.identity()));
-    }
 
     /**
      * Nested aggregations need the {@linkplain DirectoryReader} wrapped.
@@ -151,7 +143,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -196,7 +188,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -248,7 +240,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -303,7 +295,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(sumAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -386,7 +378,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
-                InternalNested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true),
                     new ConstantScoreQuery(bq.build()), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -424,7 +416,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                Terms terms = search(newSearcher(indexReader, false, true),
+                Terms terms = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), termsBuilder, fieldType1, fieldType2);
 
                 assertEquals(7, terms.getBuckets().size());
@@ -473,7 +465,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                terms = search(newSearcher(indexReader, false, true), new MatchAllDocsQuery(), termsBuilder, fieldType1, fieldType2);
+                terms = searchAndReduce(newSearcher(indexReader, false, true),
+                    new MatchAllDocsQuery(), termsBuilder, fieldType1, fieldType2);
 
                 assertEquals(7, terms.getBuckets().size());
                 assertEquals("authors", terms.getName());
@@ -561,7 +554,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(minAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                Terms terms = search(newSearcher(indexReader, false, true),
+                Terms terms = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), termsBuilder, fieldType1, fieldType2);
 
                 assertEquals(books.size(), terms.getBuckets().size());
@@ -658,7 +651,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("key");
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("value");
 
-                Filter filter = search(newSearcher(indexReader, false, true),
+                Filter filter = searchAndReduce(newSearcher(indexReader, false, true),
                     Queries.newNonNestedFilter(), filterAggregationBuilder, fieldType1, fieldType2);
 
                 assertEquals("filterAgg", filter.getName());
@@ -719,9 +712,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias"));
 
-                InternalNested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), agg, fieldType);
-                Nested aliasNested = search(newSearcher(indexReader, false, true),
+                Nested aliasNested = searchAndReduce(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), aliasAgg, fieldType);
 
                 assertEquals(nested, aliasNested);
@@ -865,7 +858,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         return values;
     }
 
-    private List<Document> generateBook(String id, String[] authors, int[] numPages) {
+    public static List<Document> generateBook(String id, String[] authors, int[] numPages) {
         List<Document> documents = new ArrayList<>();
 
         for (int numPage : numPages) {
@@ -881,6 +874,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         document.add(new Field(NestedPathFieldMapper.NAME, "book", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(sequenceIDFields.primaryTerm);
         for (String author : authors) {
+            document.add(new Field("author", author, KeywordFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedSetDocValuesField("author", new BytesRef(author)));
         }
         documents.add(document);
@@ -888,4 +882,20 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         return documents;
     }
 
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return MOCK_OBJECT_MAPPERS;
+    }
+
+    static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = List.of(
+        nestedObject(NESTED_OBJECT),
+        nestedObject(NESTED_OBJECT + "." + NESTED_OBJECT2),
+        nestedObject("nested_reseller"),
+        nestedObject("nested_chapters"),
+        nestedObject("nested_field")
+    );
+
+    public static ObjectMapper nestedObject(String path) {
+        return new ObjectMapper.Builder(path, Version.CURRENT).nested(ObjectMapper.Nested.newNested()).build(new ContentPath());
+    }
 }

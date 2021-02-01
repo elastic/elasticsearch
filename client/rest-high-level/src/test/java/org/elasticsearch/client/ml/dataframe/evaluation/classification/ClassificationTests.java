@@ -36,15 +36,20 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    static Classification createRandom() {
+    public static Classification createRandom() {
         List<EvaluationMetric> metrics =
             randomSubsetOf(
                 Arrays.asList(
+                    AucRocMetricTests.createRandom(),
                     AccuracyMetricTests.createRandom(),
                     PrecisionMetricTests.createRandom(),
                     RecallMetricTests.createRandom(),
                     MulticlassConfusionMatrixMetricTests.createRandom()));
-        return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+        return new Classification(
+            randomAlphaOfLength(10),
+            randomBoolean() ? randomAlphaOfLength(10) : null,
+            randomBoolean() ? randomAlphaOfLength(10) : null,
+            metrics.isEmpty() ? null : metrics);
     }
 
     @Override

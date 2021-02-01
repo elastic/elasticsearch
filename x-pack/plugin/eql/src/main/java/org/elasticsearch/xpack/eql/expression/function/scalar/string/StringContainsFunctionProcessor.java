@@ -19,29 +19,33 @@ public class StringContainsFunctionProcessor implements Processor {
     public static final String NAME = "sstc";
 
     private final Processor string, substring;
+    private final boolean caseInsensitive;
 
-    public StringContainsFunctionProcessor(Processor string, Processor substring) {
+    public StringContainsFunctionProcessor(Processor string, Processor substring, boolean caseInsensitive) {
         this.string = string;
         this.substring = substring;
+        this.caseInsensitive = caseInsensitive;
     }
 
     public StringContainsFunctionProcessor(StreamInput in) throws IOException {
         string = in.readNamedWriteable(Processor.class);
         substring = in.readNamedWriteable(Processor.class);
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(string);
         out.writeNamedWriteable(substring);
+        out.writeBoolean(caseInsensitive);
     }
 
     @Override
     public Object process(Object input) {
-        return doProcess(string.process(input), substring.process(input));
+        return doProcess(string.process(input), substring.process(input), caseInsensitive);
     }
 
-    public static Object doProcess(Object string, Object substring) {
+    public static Object doProcess(Object string, Object substring, boolean caseInsensitive) {
         if (string == null) {
             return null;
         }
@@ -51,7 +55,8 @@ public class StringContainsFunctionProcessor implements Processor {
 
         String strString = string.toString();
         String strSubstring = substring.toString();
-        return StringUtils.stringContains(strString, strSubstring);
+
+        return StringUtils.stringContains(strString, strSubstring, caseInsensitive);
     }
 
     private static void throwIfNotString(Object obj) {

@@ -23,7 +23,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -37,12 +36,10 @@ import java.io.IOException;
 
 public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDVLeafFieldData> {
 
-    protected final Index index;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
-    public StringBinaryIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
-        this.index = index;
+    public StringBinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
     }
@@ -58,22 +55,12 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public final void clear() {
-        // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
-    }
-    
-    @Override
     public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
                 sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
-    
+
     @Override
     public StringBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
@@ -81,7 +68,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
-    } 
+    }
     @Override
     public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
             SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {

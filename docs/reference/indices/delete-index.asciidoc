@@ -8,9 +8,9 @@ Deletes an existing index.
 
 [source,console]
 --------------------------------------------------
-DELETE /twitter
+DELETE /my-index-000001
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 
 [[delete-index-api-request]]
@@ -18,6 +18,11 @@ DELETE /twitter
 
 `DELETE /<index>`
 
+[[delete-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete_index`
+or `manage` <<privileges-list-indices,index privilege>> for the target index.
 
 [[delete-index-api-path-params]]
 ==== {api-path-parms-title}

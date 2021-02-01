@@ -25,7 +25,7 @@ grant codeBase "${codebase.netty-common}" {
    permission java.net.SocketPermission "*", "accept,connect";
 
    // Netty sets custom classloader for some of its internal threads
-   permission java.lang.RuntimePermission "*", "setContextClassLoader";
+   permission java.lang.RuntimePermission "setContextClassLoader";
 };
 
 grant codeBase "${codebase.netty-transport}" {

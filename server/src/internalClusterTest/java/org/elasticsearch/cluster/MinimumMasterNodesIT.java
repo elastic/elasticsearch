@@ -40,7 +40,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -297,9 +296,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         final String master = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         otherNodes.remove(master);
-        NetworkDisruption partition = new NetworkDisruption(
-                new TwoPartitions(Collections.singleton(master), otherNodes),
-                new NetworkDisruption.NetworkDisconnect());
+        NetworkDisruption partition = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
 
         final CountDownLatch latch = new CountDownLatch(1);

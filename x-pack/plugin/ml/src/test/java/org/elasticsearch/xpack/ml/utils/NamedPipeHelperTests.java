@@ -46,7 +46,8 @@ public class NamedPipeHelperTests extends ESTestCase {
                 NAMED_PIPE_HELPER.getDefaultPipeDirectoryPrefix(env) + "this pipe does not exist",
                 Duration.ofSeconds(1)));
 
-        assertTrue(ioe.getMessage(), ioe.getMessage().contains("No such file or directory") ||
+        assertTrue(ioe.getMessage(), ioe.getMessage().contains("this pipe does not exist") ||
+                ioe.getMessage().contains("No such file or directory") ||
                 ioe.getMessage().contains("The system cannot find the file specified"));
     }
 

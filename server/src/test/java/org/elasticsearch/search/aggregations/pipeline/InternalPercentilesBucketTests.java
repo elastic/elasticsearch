@@ -97,12 +97,21 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         final double[] percents =  new double[]{ 0.50, 0.25, 0.01, 0.99, 0.60 };
         InternalPercentilesBucket aggregation = createTestInstance("test", Collections.emptyMap(), percents, randomBoolean());
         Iterator<Percentile> iterator = aggregation.iterator();
+        Iterator<String> nameIterator = aggregation.valueNames().iterator();
         for (double percent : percents) {
             assertTrue(iterator.hasNext());
+            assertTrue(nameIterator.hasNext());
+
             Percentile percentile = iterator.next();
+            String percentileName = nameIterator.next();
+
             assertEquals(percent, percentile.getPercent(), 0.0d);
+            assertEquals(percent, Double.valueOf(percentileName), 0.0d);
+
             assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
         }
+        assertFalse(iterator.hasNext());
+        assertFalse(nameIterator.hasNext());
     }
 
     public void testErrorOnDifferentArgumentSize() {

@@ -158,7 +158,7 @@ public class HttpClient {
 
     private Tuple<XContentType, byte[]> readFrom(InputStream inputStream, Function<String, String> headers) {
         String contentType = headers.apply("Content-Type");
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
+        XContentType xContentType = XContentType.fromMediaType(contentType);
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + contentType);
         }

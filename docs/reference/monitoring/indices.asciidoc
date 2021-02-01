@@ -3,7 +3,7 @@
 [[config-monitoring-indices]]
 == Configuring indices for monitoring
 
-<<indices-templates,Index templates>> are used to configure the indices
+<<indices-templates-v1,Index templates>> are used to configure the indices
 that store the monitoring data collected from a cluster.
 
 You can retrieve the templates through the `_template` API:
@@ -29,12 +29,12 @@ and the number of replicas to two.
 ----------------------------------
 PUT /_template/custom_monitoring
 {
-    "index_patterns": ".monitoring-*",
-    "order": 1,
-    "settings": {
-        "number_of_shards": 5,
-        "number_of_replicas": 2
-    }
+  "index_patterns": ".monitoring-*",
+  "order": 1,
+  "settings": {
+    "number_of_shards": 5,
+    "number_of_replicas": 2
+  }
 }
 ----------------------------------
 

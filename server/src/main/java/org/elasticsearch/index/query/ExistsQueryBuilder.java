@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -78,15 +78,15 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryShardContext context = queryShardContext.convertToShardContext();
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
             Collection<String> fields = getMappedField(context, fieldName);
             if (fields.isEmpty()) {
                 return new MatchNoneQueryBuilder();
             }
         }
-        return super.doRewrite(queryShardContext);
+        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -135,16 +135,20 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        return newFilter(context, fieldName);
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        return newFilter(context, fieldName, true);
     }
 
-    public static Query newFilter(QueryShardContext context, String fieldPattern) {
+    public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
 
        Collection<String> fields = getMappedField(context, fieldPattern);
 
         if (fields.isEmpty()) {
-            throw new IllegalStateException("Rewrite first");
+            if (checkRewrite) {
+                throw new IllegalStateException("Rewrite first");
+            } else {
+                return new MatchNoDocsQuery("unmapped field:" + fieldPattern);
+            }
         }
 
         if (fields.size() == 1) {
@@ -159,9 +163,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Query newFieldExistsQuery(QueryShardContext context, String field) {
-        MappedFieldType fieldType = context.getMapperService().fieldType(field);
-        if (fieldType == null) {
+    private static Query newFieldExistsQuery(SearchExecutionContext context, String field) {
+        if (context.isFieldMapped(field)) {
+            Query filter = context.getFieldType(field).existsQuery(context);
+            return new ConstantScoreQuery(filter);
+        } else {
             // The field does not exist as a leaf but could be an object so
             // check for an object mapper
             if (context.getObjectMapper(field) != null) {
@@ -169,15 +175,13 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             }
             return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
         }
-        Query filter = fieldType.existsQuery(context);
-        return new ConstantScoreQuery(filter);
     }
 
-    private static Query newObjectFieldExistsQuery(QueryShardContext context, String objField) {
+    private static Query newObjectFieldExistsQuery(SearchExecutionContext context, String objField) {
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
-            Query existsQuery = context.getMapperService().fieldType(field).existsQuery(context);
+            Query existsQuery = context.getFieldType(field).existsQuery(context);
             booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());
@@ -187,11 +191,8 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
      * Helper method to get field mapped to this fieldPattern
      * @return return collection of fields if exists else return empty.
      */
-    private static Collection<String> getMappedField(QueryShardContext context, String fieldPattern) {
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
-            .getMapperService().fieldType(FieldNamesFieldMapper.NAME);
-
-        if (fieldNamesFieldType == null) {
+    private static Collection<String> getMappedField(SearchExecutionContext context, String fieldPattern) {
+        if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             // can only happen when no types exist, so no docs exist either
             return Collections.emptySet();
         }
@@ -207,8 +208,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
         if (fields.size() == 1) {
             String field = fields.iterator().next();
-            MappedFieldType fieldType = context.getMapperService().fieldType(field);
-            if (fieldType == null) {
+            if (context.isFieldMapped(field) == false) {
                 // The field does not exist as a leaf but could be an object so
                 // check for an object mapper
                 if (context.getObjectMapper(field) == null) {

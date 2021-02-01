@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.ArrayList;
@@ -63,6 +64,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -104,21 +106,29 @@ public class TransportGetDataFrameAnalyticsStatsAction
                                  ActionListener<QueryPage<Stats>> listener) {
         logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
+        ActionListener<Void> updateProgressListener = ActionListener.wrap(
             aVoid -> {
+                StatsHolder statsHolder = task.getStatsHolder();
+                if (statsHolder == null) {
+                    // The task has just been assigned and has not been initialized with its stats holder yet.
+                    // We return empty result here so that we treat it as a stopped task and return its stored stats.
+                    listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+                    return;
+                }
                 Stats stats = buildStats(
                     task.getParams().getId(),
-                    task.getStatsHolder().getProgressTracker().report(),
-                    task.getStatsHolder().getDataCountsTracker().report(task.getParams().getId()),
-                    task.getStatsHolder().getMemoryUsage(),
-                    task.getStatsHolder().getAnalysisStats()
+                    statsHolder.getProgressTracker().report(),
+                    statsHolder.getDataCountsTracker().report(),
+                    statsHolder.getMemoryUsage(),
+                    statsHolder.getAnalysisStats()
                 );
                 listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1,
                     GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
             }, listener::onFailure
         );
 
-        task.updateReindexTaskProgress(reindexingProgressListener);
+        // We must update the progress of the reindexing task as it might be stale
+        task.updateTaskProgress(updateProgressListener);
     }
 
     @Override
@@ -167,6 +177,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         AtomicInteger counter = new AtomicInteger(stoppedConfigs.size());
         AtomicArray<Stats> jobStats = new AtomicArray<>(stoppedConfigs.size());
+        AtomicReference<Exception> searchException = new AtomicReference<>();
         for (int i = 0; i < stoppedConfigs.size(); i++) {
             final int slot = i;
             DataFrameAnalyticsConfig config = stoppedConfigs.get(i);
@@ -174,6 +185,10 @@ public class TransportGetDataFrameAnalyticsStatsAction
                 stats -> {
                     jobStats.set(slot, stats);
                     if (counter.decrementAndGet() == 0) {
+                        if (searchException.get() != null) {
+                            listener.onFailure(searchException.get());
+                            return;
+                        }
                         List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
                         allTasksStats.addAll(jobStats.asList());
                         Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
@@ -181,7 +196,13 @@ public class TransportGetDataFrameAnalyticsStatsAction
                             allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
                     }
                 },
-                listener::onFailure)
+                e -> {
+                    // take the first error
+                    searchException.compareAndSet(null, e);
+                    if (counter.decrementAndGet() == 0) {
+                        listener.onFailure(e);
+                    }
+                })
             );
         }
     }
@@ -195,7 +216,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
         logger.debug("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
-            ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases()).report());
+            ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report());
 
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.add(buildStoredProgressSearch(config.getId()));

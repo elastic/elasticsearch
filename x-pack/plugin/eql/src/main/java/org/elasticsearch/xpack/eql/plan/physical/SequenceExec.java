@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.execution.assembler.ExecutionManager;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.session.EqlSession;
@@ -33,6 +33,7 @@ public class SequenceExec extends PhysicalPlan {
     private final Attribute tiebreaker;
     private final Limit limit;
     private final OrderDirection direction;
+    private final TimeValue maxSpan;
 
     public SequenceExec(Source source,
                         List<List<Attribute>> keys,
@@ -41,8 +42,9 @@ public class SequenceExec extends PhysicalPlan {
                         PhysicalPlan until,
                         Attribute timestamp,
                         Attribute tiebreaker,
-                        OrderDirection direction) {
-        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tiebreaker, null, direction);
+                        OrderDirection direction,
+                        TimeValue maxSpan) {
+        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tiebreaker, null, direction, maxSpan);
     }
 
     private SequenceExec(Source source,
@@ -51,28 +53,25 @@ public class SequenceExec extends PhysicalPlan {
                          Attribute ts,
                          Attribute tb,
                          Limit limit,
-                         OrderDirection direction) {
+                         OrderDirection direction,
+                         TimeValue maxSpan) {
         super(source, children);
         this.keys = keys;
         this.timestamp = ts;
         this.tiebreaker = tb;
         this.limit = limit;
         this.direction = direction;
+        this.maxSpan = maxSpan;
     }
 
     @Override
     protected NodeInfo<SequenceExec> info() {
-        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp, tiebreaker, limit, direction);
+        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp, tiebreaker, limit, direction, maxSpan);
     }
 
     @Override
     public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        if (newChildren.size() != children().size()) {
-            throw new EqlIllegalArgumentException("Expected the same number of children [{}] but got [{}]",
-                    children().size(),
-                    newChildren.size());
-        }
-        return new SequenceExec(source(), newChildren, keys, timestamp, tiebreaker, limit, direction);
+        return new SequenceExec(source(), newChildren, keys, timestamp, tiebreaker, limit, direction, maxSpan);
     }
 
     @Override
@@ -109,12 +108,14 @@ public class SequenceExec extends PhysicalPlan {
     }
 
     public SequenceExec with(Limit limit) {
-        return new SequenceExec(source(), children(), keys(), timestamp(), tiebreaker(), limit, direction);
+        return new SequenceExec(source(), children(), keys(), timestamp(), tiebreaker(), limit, direction, maxSpan);
     }
 
     @Override
     public void execute(EqlSession session, ActionListener<Payload> listener) {
-        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tiebreaker(), direction, limit()).execute(listener);
+        new ExecutionManager(session)
+            .assemble(keys(), children(), timestamp(), tiebreaker(), direction, maxSpan, limit())
+            .execute(listener);
     }
 
     @Override

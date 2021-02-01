@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
@@ -94,12 +93,8 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (config.getPivotConfig() != null) {
-                for (String failure : config.getPivotConfig().aggFieldValidation()) {
-                    validationException = addValidationError(failure, validationException);
-                }
-            }
 
+            validationException = config.validate(validationException);
             validationException = SourceDestValidator.validateRequest(
                 validationException,
                 config.getDestination() != null ? config.getDestination().getIndex() : null

@@ -31,7 +31,7 @@ public enum SnapshotIndexShardStage {
      */
     STARTED((byte)1, false),
     /**
-     * Snapshot metadata is being written
+     * Snapshot metadata is being written or this shard's status in the cluster state is being updated
      */
     FINALIZE((byte)2, false),
     /**

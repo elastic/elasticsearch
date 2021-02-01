@@ -27,33 +27,28 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME_PRE_V8 = "_type";
     public static final String NAME = "_nested_path";
 
-    public static String name(Settings settings) {
-        if (Version.indexCreated(settings).before(Version.V_8_0_0)) {
+    public static String name(Version version) {
+        if (version.before(Version.V_8_0_0)) {
             return NAME_PRE_V8;
         }
         return NAME;
     }
 
-    public static Query filter(Settings settings, String path) {
-        return new TermQuery(new Term(name(settings), new BytesRef(path)));
+    public static Query filter(Version version, String path) {
+        return new TermQuery(new Term(name(version), new BytesRef(path)));
     }
 
-    public static Field field(Settings settings, String path) {
-        return new Field(name(settings), path, Defaults.FIELD_TYPE);
+    public static Field field(Version version, String path) {
+        return new Field(name(version), path, Defaults.FIELD_TYPE);
     }
 
     public static class Defaults {
@@ -69,33 +64,12 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                      ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(name(parserContext.mapperService().getIndexSettings().getSettings()) + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new NestedPathFieldMapper(indexSettings.getSettings());
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new NestedPathFieldMapper(c.indexVersionCreated()));
 
     public static final class NestedPathFieldType extends StringFieldType {
 
-        NestedPathFieldType(Settings settings) {
-            super(NestedPathFieldMapper.name(settings), true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-        }
-
-        protected NestedPathFieldType(NestedPathFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new NestedPathFieldType(this);
+        private NestedPathFieldType(Version version) {
+            super(NestedPathFieldMapper.name(version), true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -104,27 +78,18 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }
 
-    private NestedPathFieldMapper(Settings settings) {
-        super(Defaults.FIELD_TYPE, new NestedPathFieldType(settings));
-    }
-
-    @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // we parse in pre parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    private NestedPathFieldMapper(Version version) {
+        super(new NestedPathFieldType(version));
     }
 
     @Override
@@ -132,8 +97,4 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         return NAME;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
 }

@@ -27,7 +27,6 @@ public class TransformMessages {
     public static final String REST_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
     public static final String TRANSFORM_FAILED_TO_PERSIST_STATS = "Failed to persist transform statistics for transform [{0}]";
     public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
-    public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
 
@@ -45,12 +44,12 @@ public class TransformMessages {
         "Failed to parse transform statistics for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CHECKPOINT = "Failed to load transform checkpoint for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_STATE = "Failed to load transform state for transform [{0}]";
-    public static final String TRANSFORM_CONFIGURATION_NO_TRANSFORM = "Transform configuration must specify exactly 1 function";
+    public static final String TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT = "Transform configuration must specify exactly 1 function";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY = "Pivot transform configuration must specify at least 1 group_by";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION =
         "Pivot transform configuration must specify at least 1 aggregation";
-    public static final String TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
-        "Failed to create composite aggregation from pivot function";
+    public static final String TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
+        "Failed to create composite aggregation from {0} function";
     public static final String TRANSFORM_CONFIGURATION_INVALID = "Transform configuration [{0}] has invalid elements";
     public static final String UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
     public static final String TRANSFORM_UPDATE_CANNOT_CHANGE_SYNC_METHOD =

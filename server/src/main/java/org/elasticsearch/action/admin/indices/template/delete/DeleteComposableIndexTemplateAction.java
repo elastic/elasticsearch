@@ -37,7 +37,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
     public static final String NAME = "indices:admin/index_template/delete";
 
     private DeleteComposableIndexTemplateAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 
 import java.io.IOException;
@@ -122,7 +122,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
      * Build the {@linkplain RescoreContext} that will be used to actually
      * execute the rescore against a particular shard.
      */
-    public final RescoreContext buildContext(QueryShardContext context) throws IOException {
+    public final RescoreContext buildContext(SearchExecutionContext context) throws IOException {
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
         RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
         return rescoreContext;
@@ -131,7 +131,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     /**
      * Extensions override this to build the context that they need for rescoring.
      */
-    protected abstract RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException;
+    protected abstract RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException;
 
     @Override
     public int hashCode() {

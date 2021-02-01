@@ -175,7 +175,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         assertThat(error.get(), nullValue());
 
         // save a second one to verify the count below on GET
-        error = saveEnrichPolicy("something-else", randomEnrichPolicy(XContentType.JSON), clusterService);
+        EnrichPolicy policy2 = randomEnrichPolicy(XContentType.JSON);
+        error = saveEnrichPolicy("something-else", policy2, clusterService);
         assertThat(error.get(), nullValue());
 
         final CountDownLatch latch = new CountDownLatch(1);

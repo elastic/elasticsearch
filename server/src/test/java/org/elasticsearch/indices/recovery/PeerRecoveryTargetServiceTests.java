@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -97,7 +98,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     int length = between(1, Math.toIntExact(md.length() - pos));
                     byte[] buffer = new byte[length];
                     in.readBytes(buffer, 0, length);
-                    requests.add(new RecoveryFileChunkRequest(0, seqNo++, sourceShard.shardId(), md, pos, new BytesArray(buffer),
+                    requests.add(new RecoveryFileChunkRequest(0, seqNo++, sourceShard.shardId(), md, pos,
+                        ReleasableBytesReference.wrap(new BytesArray(buffer)),
                         pos + length == md.length(), 1, 1));
                     pos += length;
                 }

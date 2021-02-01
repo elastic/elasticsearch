@@ -42,12 +42,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
@@ -73,6 +73,7 @@ import org.elasticsearch.indices.recovery.AsyncRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryResponse;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -123,7 +124,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
 
         }
 
@@ -367,6 +368,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             storeProvider = is -> createStore(is, shardPath);
         }
         final Store store = storeProvider.apply(indexSettings);
+        if (indexReaderWrapper == null && randomBoolean()) {
+            indexReaderWrapper = EngineTestCase.randomReaderWrapper();
+        }
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
@@ -398,7 +402,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     Arrays.asList(listeners),
                     globalCheckpointSyncer,
                     retentionLeaseSyncer,
-                    breakerService);
+                    breakerService,
+                    IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {
@@ -633,9 +638,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
         final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger, rNode, recoveryTarget, startingSeqNo);
+        int fileChunkSizeInBytes = Math.toIntExact(
+            randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024));
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), threadPool,
-            request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));
+            request, fileChunkSizeInBytes, between(1, 8), between(1, 8));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable);
         try {
@@ -720,7 +727,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         final Engine engine = shard.getEngineOrNull();
         if (engine != null) {
-            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, shard.mapperService());
+            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
         }
     }
 

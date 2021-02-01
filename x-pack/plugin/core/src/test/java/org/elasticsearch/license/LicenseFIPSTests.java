@@ -28,7 +28,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", randomBoolean())
             .build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();
@@ -52,7 +52,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", true)
             .build();
-        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();
@@ -67,7 +67,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.fips_mode.enabled", false)
             .build();
-        licenseState = new XPackLicenseState(settings);
+        licenseState = new XPackLicenseState(settings, () -> 0);
 
         setInitialState(null, licenseState, settings);
         licenseService.start();

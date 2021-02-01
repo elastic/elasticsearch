@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
@@ -86,6 +87,32 @@ public class DiscoveryNodeFilters {
             }
         }
         return false;
+    }
+
+    /**
+     * Removes any filters that should not be considered, returning a new
+     * {@link DiscoveryNodeFilters} object. If the filtered object has no
+     * filters after trimming, {@code null} is returned.
+     */
+    @Nullable
+    public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
+        if (original == null) {
+            return null;
+        }
+
+        Map<String, String[]> newFilters = original.filters.entrySet().stream()
+            // Remove all entries that start with "_tier", as these will be handled elsewhere
+            .filter(entry -> {
+                String attr = entry.getKey();
+                return attr != null && attr.startsWith("_tier") == false;
+            })
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        if (newFilters.size() == 0) {
+            return null;
+        } else {
+            return new DiscoveryNodeFilters(original.opType, newFilters);
+        }
     }
 
     public boolean match(DiscoveryNode node) {

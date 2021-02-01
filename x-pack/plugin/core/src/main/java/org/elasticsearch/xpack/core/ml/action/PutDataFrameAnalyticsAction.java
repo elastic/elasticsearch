@@ -10,8 +10,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,8 +65,6 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         private DataFrameAnalyticsConfig config;
-
-        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -186,12 +182,4 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
             return Objects.hash(config);
         }
     }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, PutDataFrameAnalyticsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

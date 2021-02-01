@@ -303,7 +303,7 @@ The API returns the following response. Note the `jumping` token has a
 ==== Configurable parameters
 
 `ignore_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, matching for the `keywords` and `keywords_path` parameters ignores
 letter case. Defaults to `false`.
 
@@ -317,7 +317,7 @@ You cannot specify this parameter and `keywords_pattern`.
 `keywords_path`::
 +
 --
-(Required*, array of strings)
+(Required*, string)
 Path to a file that contains a list of keywords. Tokens that match these
 keywords are not stemmed.
 
@@ -332,7 +332,7 @@ You cannot specify this parameter and `keywords_pattern`.
 +
 --
 (Required*, string)
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java
 regular expression] used to match tokens. Tokens that match this expression are
 marked as keywords and not stemmed.
 
@@ -363,7 +363,7 @@ not stem these tokens.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -380,7 +380,7 @@ PUT /my_index
       "filter": {
         "my_custom_keyword_marker_filter": {
           "type": "keyword_marker",
-          "keywords": "analysis/example_word_list.txt"
+          "keywords_path": "analysis/example_word_list.txt"
         }
       }
     }

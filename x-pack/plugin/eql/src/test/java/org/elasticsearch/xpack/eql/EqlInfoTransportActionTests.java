@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,12 +41,10 @@ import static org.mockito.Mockito.when;
 
 public class EqlInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
     private Client client;
 
     @Before
     public void init() throws Exception {
-        licenseState = mock(XPackLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -57,20 +54,14 @@ public class EqlInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         EqlInfoTransportAction featureSet = new EqlInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.EQL)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+            mock(TransportService.class), mock(ActionFilters.class));
+        assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.eql.enabled", enabled);
-
         EqlInfoTransportAction featureSet = new EqlInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
+            mock(TransportService.class), mock(ActionFilters.class));
+        assertThat(featureSet.enabled(), is(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -105,7 +96,7 @@ public class EqlInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new EqlUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, Settings.builder().put("xpack.eql.enabled", true).build(), licenseState, client);
+            mock(ActionFilters.class), null, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get().getUsage();

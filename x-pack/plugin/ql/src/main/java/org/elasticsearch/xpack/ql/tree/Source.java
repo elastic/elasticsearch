@@ -55,4 +55,8 @@ public final class Source {
     public String toString() {
         return text + location;
     }
+
+    public static Source synthetic(String text) {
+        return new Source(Location.EMPTY, text);
+    }
 }

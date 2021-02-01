@@ -6,32 +6,29 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /** Sorted numeric doc values for geo shapes */
 class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
-    private final MultiGeoShapeValues geoShapeValues;
-    private final Consumer<Long> circuitBreakerConsumer;
+    private final GeoShapeValues geoShapeValues;
     protected int precision;
     protected GeoGridTiler tiler;
 
-    protected GeoShapeCellValues(MultiGeoShapeValues geoShapeValues, int precision, GeoGridTiler tiler,
-                                 Consumer<Long> circuitBreakerConsumer) {
+    protected GeoShapeCellValues(GeoShapeValues geoShapeValues, int precision, GeoGridTiler tiler,
+                                 LongConsumer circuitBreakerConsumer) {
+        super(circuitBreakerConsumer);
         this.geoShapeValues = geoShapeValues;
         this.precision = precision;
         this.tiler = tiler;
-        this.circuitBreakerConsumer = circuitBreakerConsumer;
-        circuitBreakerConsumer.accept((long) Long.BYTES);
     }
 
     @Override
     public boolean advanceExact(int docId) throws IOException {
         if (geoShapeValues.advanceExact(docId)) {
-            assert geoShapeValues.docValueCount() == 1;
-            int j = advanceValue(geoShapeValues.nextValue());
+            int j = advanceValue(geoShapeValues.value());
             resize(j);
             sort();
             return true;
@@ -45,18 +42,13 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
         return values;
     }
 
-    protected void add(int idx, long value) {
-        values[idx] = value;
+    void resizeCell(int newSize) {
+        resize(newSize);
     }
 
-    void resizeCell(int newSize) {
-        int oldValuesLength = values.length;
-        resize(newSize);
-        int newValuesLength = values.length;
-        if (newValuesLength > oldValuesLength) {
-            long bytesDiff = (newValuesLength - oldValuesLength) * Long.BYTES;
-            circuitBreakerConsumer.accept(bytesDiff);
-        }
+
+    protected void add(int idx, long value) {
+        values[idx] = value;
     }
 
     /**
@@ -66,7 +58,7 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
      * @param target    the geo-shape to encode
      * @return          number of buckets for given shape tiling of <code>target</code>.
      */
-    int advanceValue(MultiGeoShapeValues.GeoShapeValue target) {
+    int advanceValue(GeoShapeValues.GeoShapeValue target) {
         return tiler.setValues(this, target, precision);
     }
 }

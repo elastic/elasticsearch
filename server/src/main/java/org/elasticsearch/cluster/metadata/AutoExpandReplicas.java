@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -106,16 +105,11 @@ public final class AutoExpandReplicas {
     private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (enabled) {
             int numMatchingDataNodes = 0;
-            // Only start using new logic once all nodes are migrated to 7.6.0, avoiding disruption during an upgrade
-            if (allocation.nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0)) {
-                for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
-                    Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor.value, allocation);
-                    if (decision.type() != Decision.Type.NO) {
-                        numMatchingDataNodes ++;
-                    }
+            for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
+                Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor.value, allocation);
+                if (decision.type() != Decision.Type.NO) {
+                    numMatchingDataNodes++;
                 }
-            } else {
-                numMatchingDataNodes = allocation.nodes().getDataNodes().size();
             }
 
             final int min = getMinReplicas();
@@ -140,7 +134,7 @@ public final class AutoExpandReplicas {
     }
 
     /**
-     * Checks if the are replicas with the auto-expand feature that need to be adapted.
+     * Checks if there are replicas with the auto-expand feature that need to be adapted.
      * Returns a map of updates, which maps the indices to be updated to the desired number of replicas.
      * The map has the desired number of replicas as key and the indices to update as value, as this allows the result
      * of this method to be directly applied to RoutingTable.Builder#updateNumberOfReplicas.

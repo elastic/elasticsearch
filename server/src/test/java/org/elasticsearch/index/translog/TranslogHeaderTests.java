@@ -30,7 +30,9 @@ import java.nio.file.StandardOpenOption;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class TranslogHeaderTests extends ESTestCase {
@@ -80,6 +82,25 @@ public class TranslogHeaderTests extends ESTestCase {
             TranslogCorruptedException.class, "translog looks like version 1 or later, but has corrupted header");
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary",
             IllegalStateException.class, "pre-2.0 translog");
+    }
+
+    public void testCorruptTranslogHeader() throws Exception {
+        final String translogUUID = UUIDs.randomBase64UUID();
+        final TranslogHeader outHeader = new TranslogHeader(translogUUID, randomNonNegativeLong());
+        final long generation = randomNonNegativeLong();
+        final Path translogLocation = createTempDir();
+        final Path translogFile = translogLocation.resolve(Translog.getFilename(generation));
+        try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            outHeader.write(channel);
+            assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
+        }
+        TestTranslog.corruptFile(logger, random(), translogFile, false);
+        final Exception error = expectThrows(Exception.class, () -> {
+            try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+                TranslogHeader.read(randomValueOtherThan(translogUUID, UUIDs::randomBase64UUID), translogFile, channel);
+            }
+        });
+        assertThat(error, either(instanceOf(IllegalStateException.class)).or(instanceOf(TranslogCorruptedException.class)));
     }
 
     private <E extends Exception> void checkFailsToOpen(String file, Class<E> expectedErrorType, String expectedMessage) {

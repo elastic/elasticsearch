@@ -19,18 +19,16 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -64,6 +62,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
+    @Nullable // if any snapshot UUID will do
+    private String snapshotUuid;
+
     public RestoreSnapshotRequest() {
     }
 
@@ -90,11 +91,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getVersion().before(Version.V_7_7_0)) {
-            readSettingsFromStream(in); // formerly the unused settings field
-        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
+        snapshotUuid = in.readOptionalString();
     }
 
     @Override
@@ -110,11 +109,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getVersion().before(Version.V_7_7_0)) {
-            writeSettingsToStream(Settings.EMPTY, out); // formerly the unused settings field
-        }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
+        out.writeOptionalString(snapshotUuid);
     }
 
     @Override
@@ -418,13 +415,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            indexSettings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.indexSettings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -433,6 +424,28 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      */
     public Settings indexSettings() {
         return this.indexSettings;
+    }
+
+    /**
+     * Sometimes a client has identified precisely which snapshot is to be restored via a separate mechanism and wishes to guarantee that
+     * this is the snapshot that this request restores. If the client can only identify a snapshot by its name then there is a risk that the
+     * desired snapshot may be deleted and replaced by a new snapshot with the same name which is inconsistent with the original one. This
+     * method lets us fail the restore if the precise snapshot we want is not available.
+     *
+     * This is for internal use only and is not exposed in the REST layer.
+     */
+    public RestoreSnapshotRequest snapshotUuid(String snapshotUuid) {
+        this.snapshotUuid = snapshotUuid;
+        return this;
+    }
+
+    /**
+     * @return the UUID that identifies the specific snapshot in the repository to be restored, or {@code null} if the snapshot name is
+     * a sufficient identifier.
+     */
+    @Nullable
+    public String snapshotUuid() {
+        return snapshotUuid;
     }
 
     /**
@@ -551,13 +564,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(renamePattern, that.renamePattern) &&
             Objects.equals(renameReplacement, that.renameReplacement) &&
             Objects.equals(indexSettings, that.indexSettings) &&
-            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings);
+            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
+            Objects.equals(snapshotUuid, that.snapshotUuid);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, indexSettings);
+            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;

@@ -178,6 +178,11 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
+    }
+
+    @Override
     public void forEachBucket(Consumer<InternalAggregations> consumer) {
         for (B bucket : getBuckets()) {
             consumer.accept((InternalAggregations) bucket.getAggregations());

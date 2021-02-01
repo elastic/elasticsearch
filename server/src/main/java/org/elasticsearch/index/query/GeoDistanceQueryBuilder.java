@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
@@ -30,12 +27,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -226,35 +226,35 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext shardContext) throws IOException {
-        MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+                throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
 
-        if (!(fieldType instanceof GeoPointFieldType)) {
-            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
+        if ((fieldType instanceof GeoShapeQueryable) == false) {
+            throw new QueryShardException(context,
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
 
         QueryValidationException exception = checkLatLon();
         if (exception != null) {
-            throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
+            throw new QueryShardException(context, "couldn't validate latitude/ longitude values", exception);
         }
 
         if (GeoValidationMethod.isCoerce(validationMethod)) {
             GeoUtils.normalizePoint(center, true, true);
         }
 
-        Query query = LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
-        if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
-            query = new IndexOrDocValuesQuery(query, dvQuery);
-        }
-        return query;
+        final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
+        final Circle circle =
+            new Circle(center.lon(), center.lat(), this.distance);
+        return geoShapeQueryable.geoShapeQuery(circle, fieldType.name(),
+            SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
     }
 
     @Override

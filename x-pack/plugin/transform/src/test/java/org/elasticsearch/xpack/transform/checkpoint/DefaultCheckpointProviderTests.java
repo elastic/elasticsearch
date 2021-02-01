@@ -38,10 +38,10 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     private Logger checkpointProviderlogger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     @Before
-    public void setUpMocks() throws IllegalAccessException {
+    public void setUpMocks() {
         client = mock(Client.class);
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
-        transformAuditor = new MockTransformAuditor();
+        transformAuditor = MockTransformAuditor.createMockAuditor();
     }
 
     public void testReportSourceIndexChangesRunsEmpty() throws Exception {

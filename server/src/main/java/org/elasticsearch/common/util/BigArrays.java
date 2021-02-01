@@ -25,6 +25,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
@@ -58,15 +59,10 @@ public class BigArrays {
 
         long newSize;
         if (minTargetSize < pageSize) {
-            newSize = ArrayUtil.oversize((int)minTargetSize, bytesPerElement);
+            newSize = Math.min(ArrayUtil.oversize((int) minTargetSize, bytesPerElement), pageSize);
         } else {
-            newSize = minTargetSize + (minTargetSize >>> 3);
-        }
-
-        if (newSize > pageSize) {
-            // round to a multiple of pageSize
-            newSize = newSize - (newSize % pageSize) + pageSize;
-            assert newSize % pageSize == 0;
+            final long pages = (minTargetSize + pageSize - 1) / pageSize; // ceil(minTargetSize/pageSize)
+            newSize = pages * pageSize;
         }
 
         return newSize;
@@ -149,6 +145,16 @@ public class BigArrays {
             assert indexIsInt(fromIndex);
             assert indexIsInt(toIndex);
             Arrays.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
+        @Override
+        public boolean hasArray() {
+            return true;
+        }
+
+        @Override
+        public byte[] array() {
+            return array;
         }
     }
 
@@ -425,7 +431,15 @@ public class BigArrays {
         return this.circuitBreakingInstance;
     }
 
-    public CircuitBreakerService breakerService() {
+    /**
+     * Creates a new {@link BigArray} pointing at the specified
+     * {@link CircuitBreakerService}. Use with {@link PreallocatedCircuitBreakerService}.
+     */
+    public BigArrays withBreakerService(CircuitBreakerService breakerService) {
+        return new BigArrays(recycler, breakerService, breakerName, checkBreaker);
+    }
+
+    public CircuitBreakerService breakerService() {   // TODO this feels like it is for tests but it has escaped
         return this.circuitBreakingInstance.breakerService;
     }
 
@@ -447,7 +461,7 @@ public class BigArrays {
             adjustBreaker(array.ramBytesUsed(), true);
             success = true;
         } finally {
-            if (!success) {
+            if (success == false) {
                 Releasables.closeWhileHandlingException(array);
             }
         }
@@ -811,4 +825,3 @@ public class BigArrays {
         return resize(array, newSize);
     }
 }
-

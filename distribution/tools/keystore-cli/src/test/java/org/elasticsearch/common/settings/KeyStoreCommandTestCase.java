@@ -19,6 +19,17 @@
 
 package org.elasticsearch.common.settings;
 
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.junit.After;
+import org.junit.Before;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileSystem;
@@ -26,17 +37,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cli.CommandTestCase;
-import org.elasticsearch.common.io.PathUtilsForTesting;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.junit.After;
-import org.junit.Before;
 
 /**
  * Base test case for manipulating the ES keystore.
@@ -123,5 +123,13 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
             }
         }
 
+    }
+
+    String getPossibleKeystorePassword() {
+        if (inFipsJvm()) {
+            // FIPS Mode JVMs require a password for the ES keystore
+            return "keystorepassword";
+        }
+        return randomFrom("", "keystorepassword");
     }
 }

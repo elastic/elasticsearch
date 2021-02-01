@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authentic
  * response headers like 'WWW-Authenticate'
  */
 public class DefaultAuthenticationFailureHandler implements AuthenticationFailureHandler {
-    private final Map<String, List<String>> defaultFailureResponseHeaders;
+    private volatile Map<String, List<String>> defaultFailureResponseHeaders;
 
     /**
      * Constructs default authentication failure handler with provided default
@@ -53,6 +53,15 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
                         }
                     })));
         }
+    }
+
+    /**
+     * This method is called when failureResponseHeaders need to be set (at startup) or updated (if license state changes)
+     *
+     * @param failureResponseHeaders the Map of failure response headers to be set
+     */
+    public void setHeaders(Map<String, List<String>> failureResponseHeaders){
+        defaultFailureResponseHeaders = failureResponseHeaders;
     }
 
     /**

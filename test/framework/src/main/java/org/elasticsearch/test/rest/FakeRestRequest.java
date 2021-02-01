@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -48,7 +49,7 @@ public class FakeRestRequest extends RestRequest {
         super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
-    private static class FakeHttpRequest implements HttpRequest {
+    public static class FakeHttpRequest implements HttpRequest {
 
         private final Method method;
         private final String uri;
@@ -56,7 +57,7 @@ public class FakeRestRequest extends RestRequest {
         private final Map<String, List<String>> headers;
         private final Exception inboundException;
 
-        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
+        public FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
             this(method, uri, content, headers, null);
         }
 
@@ -64,7 +65,7 @@ public class FakeRestRequest extends RestRequest {
                                 Exception inboundException) {
             this.method = method;
             this.uri = uri;
-            this.content = content;
+            this.content = content == null ? BytesArray.EMPTY : content;
             this.headers = headers;
             this.inboundException = inboundException;
         }
@@ -139,6 +140,7 @@ public class FakeRestRequest extends RestRequest {
     private static class FakeHttpChannel implements HttpChannel {
 
         private final InetSocketAddress remoteAddress;
+        private final PlainListenableActionFuture<Void> closeFuture = PlainListenableActionFuture.newListenableFuture();
 
         private FakeHttpChannel(InetSocketAddress remoteAddress) {
             this.remoteAddress = remoteAddress;
@@ -161,7 +163,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
-
+            closeFuture.addListener(listener);
         }
 
         @Override
@@ -171,7 +173,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public void close() {
-
+            closeFuture.onResponse(null);
         }
     }
 

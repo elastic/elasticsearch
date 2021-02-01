@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptException;
 
 import java.nio.CharBuffer;
@@ -30,14 +29,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.singletonMap;
 
 public class RegexTests extends ScriptTestCase {
-    @Override
-    protected Settings scriptEngineSettings() {
-        // Enable regexes just for this test. They are disabled by default.
-        return Settings.builder()
-                .put(CompilerSettings.REGEX_ENABLED.getKey(), true)
-                .build();
-    }
-
     public void testPatternAfterReturn() {
         assertEquals(true, exec("return 'foo' ==~ /foo/"));
         assertEquals(false, exec("return 'bar' ==~ /foo/"));
@@ -152,6 +143,10 @@ public class RegexTests extends ScriptTestCase {
         assertArrayEquals(new String[] {"cat", "dog"}, (String[]) exec("/,/.split('cat,dog')"));
     }
 
+    public void testSplitWithLimit() {
+        assertArrayEquals(new String[] {"cat", "dog,pig"}, (String[]) exec("/,/.split('cat,dog,pig', 2)"));
+    }
+
     public void testSplitAsStream() {
         assertEquals(new HashSet<String>(Arrays.asList("cat", "dog")), exec("/,/.splitAsStream('cat,dog').collect(Collectors.toSet())"));
     }
@@ -259,7 +254,7 @@ public class RegexTests extends ScriptTestCase {
         ScriptException e = expectThrows(ScriptException.class, () -> {
             exec("/\\ujjjj/"); // Invalid unicode
         });
-        assertEquals("Error compiling regex: Illegal Unicode escape sequence", e.getCause().getMessage());
+        assertEquals("invalid regular expression: could not compile regex constant [\\ujjjj] with flags []", e.getCause().getMessage());
 
         // And make sure the location of the error points to the offset inside the pattern
         assertScriptStack(e,

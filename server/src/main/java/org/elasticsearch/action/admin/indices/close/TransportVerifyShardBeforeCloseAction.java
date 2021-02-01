@@ -20,7 +20,6 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -155,11 +154,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                phase1 = in.readBoolean();
-            } else {
-                phase1 = false;
-            }
+            phase1 = in.readBoolean();
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final boolean phase1, final TaskId parentTaskId) {
@@ -178,9 +173,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeBoolean(phase1);
-            }
+            out.writeBoolean(phase1);
         }
 
         public ClusterBlock clusterBlock() {

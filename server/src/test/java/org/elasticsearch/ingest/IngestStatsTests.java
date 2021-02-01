@@ -19,12 +19,10 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,23 +41,6 @@ public class IngestStatsTests extends ESTestCase {
         IngestStats ingestStats = new IngestStats(totalStats, pipelineStats, processorStats);
         IngestStats serializedStats = serialize(ingestStats);
         assertIngestStats(ingestStats, serializedStats, true, true);
-    }
-
-    public void testBWCIngestProcessorTypeStats() throws IOException {
-        IngestStats.Stats totalStats = new IngestStats.Stats(50, 100, 200, 300);
-        List<IngestStats.PipelineStat> pipelineStats = createPipelineStats();
-        Map<String, List<IngestStats.ProcessorStat>> processorStats = createProcessorStats(pipelineStats);
-        IngestStats expectedIngestStats = new IngestStats(totalStats, pipelineStats, processorStats);
-
-        //legacy output logic
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(VersionUtils.getPreviousVersion(Version.V_7_6_0));
-        expectedIngestStats.writeTo(out);
-
-        StreamInput in = out.bytes().streamInput();
-        in.setVersion(VersionUtils.getPreviousVersion(Version.V_7_6_0));
-        IngestStats serializedStats = new IngestStats(in);
-        assertIngestStats(expectedIngestStats, serializedStats, true, false);
     }
 
     private List<IngestStats.PipelineStat> createPipelineStats() {

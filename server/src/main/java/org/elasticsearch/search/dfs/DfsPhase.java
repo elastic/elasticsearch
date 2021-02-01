@@ -27,7 +27,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -40,13 +39,8 @@ import java.util.Map;
  * Dfs phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf)
  */
-public class DfsPhase implements SearchPhase {
+public class DfsPhase {
 
-    @Override
-    public void preProcess(SearchContext context) {
-    }
-
-    @Override
     public void execute(SearchContext context) {
         try {
             ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();

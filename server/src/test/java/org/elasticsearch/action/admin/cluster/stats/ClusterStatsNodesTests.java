@@ -127,6 +127,6 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
         return new NodeInfo(null, null,
                 new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
-                settings.build(), null, null, null, null, null, null, null, null, null);
+                settings.build(), null, null, null, null, null, null, null, null, null, null);
     }
 }

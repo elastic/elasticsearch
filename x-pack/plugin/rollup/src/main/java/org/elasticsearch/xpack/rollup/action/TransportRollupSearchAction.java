@@ -100,7 +100,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
+        String[] indices = resolver.concreteIndexNames(clusterService.state(), request);
         RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
@@ -310,7 +310,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             TermsQueryBuilder terms = (TermsQueryBuilder) builder;
             String fieldName = terms.fieldName();
             String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
-            return new TermsQueryBuilder(rewrittenFieldName, terms.values());
+            return new TermsQueryBuilder(rewrittenFieldName, terms.getValues());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
             return builder;

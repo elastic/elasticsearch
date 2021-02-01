@@ -62,8 +62,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
+
     public static SearchHit createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
-        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+        return createTestItem(randomFrom(XContentType.values()).canonical(), withOptionalInnerHits, withShardTarget);
     }
 
     public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean transportSerialization) {
@@ -151,11 +152,11 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
     @Override
     protected SearchHit createTestInstance() {
-        return createTestItem(randomFrom(XContentType.values()), randomBoolean(), randomBoolean());
+        return createTestItem(randomFrom(XContentType.values()).canonical(), randomBoolean(), randomBoolean());
     }
 
     public void testFromXContent() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
+        XContentType xContentType = randomFrom(XContentType.values()).canonical();
         SearchHit searchHit = createTestItem(xContentType, true, false);
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -183,8 +184,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         XContentType xContentType = randomFrom(XContentType.values());
         SearchHit searchHit = createTestItem(xContentType, true, true);
         BytesReference originalBytes = toXContent(searchHit, xContentType, true);
-        Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
-                || path.contains("inner_hits") || path.isEmpty());
+        Predicate<String> pathsToExclude = path -> path.endsWith("highlight") || path.contains("fields") || path.contains("_source")
+                || path.contains("inner_hits") || path.isEmpty();
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
 
         SearchHit parsed;

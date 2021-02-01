@@ -51,7 +51,7 @@ public class GetJobStatsRequestTests extends AbstractXContentTestCase<GetJobStat
         GetJobStatsRequest request = new GetJobStatsRequest(jobIds);
 
         if (randomBoolean()) {
-            request.setAllowNoJobs(randomBoolean());
+            request.setAllowNoMatch(randomBoolean());
         }
 
         return request;

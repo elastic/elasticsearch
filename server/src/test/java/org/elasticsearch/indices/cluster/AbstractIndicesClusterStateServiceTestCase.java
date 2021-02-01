@@ -22,6 +22,7 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -230,14 +232,16 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public MockIndexShard createShard(
                 final ShardRouting shardRouting,
-                final RecoveryState recoveryState,
                 final PeerRecoveryTargetService recoveryTargetService,
                 final PeerRecoveryTargetService.RecoveryListener recoveryListener,
                 final RepositoriesService repositoriesService,
                 final Consumer<IndexShard.ShardFailure> onShardFailure,
                 final Consumer<ShardId> globalCheckpointSyncer,
-                final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+                final RetentionLeaseSyncer retentionLeaseSyncer,
+                final DiscoveryNode targetNode,
+                final DiscoveryNode sourceNode) throws IOException {
             failRandomly();
+            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
             indexShard.recoveryState = recoveryState;
@@ -404,5 +408,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             }
             this.term = newTerm;
         }
+
+        @Override
+        public ShardLongFieldRange getTimestampRange() {
+            return ShardLongFieldRange.EMPTY;
+        }
+
     }
 }

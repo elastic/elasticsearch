@@ -30,7 +30,6 @@ public class SqlCliTests extends PackagingTestCase {
     @Before
     public void filterDistros() {
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
-        assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
     }
 
     public void test010Install() throws Exception {

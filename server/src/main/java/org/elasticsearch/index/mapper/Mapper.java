@@ -21,46 +21,25 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public static class BuilderContext {
-        private final Settings indexSettings;
-        private final ContentPath contentPath;
-
-        public BuilderContext(Settings indexSettings, ContentPath contentPath) {
-            Objects.requireNonNull(indexSettings, "indexSettings is required");
-            this.contentPath = contentPath;
-            this.indexSettings = indexSettings;
-        }
-
-        public ContentPath path() {
-            return this.contentPath;
-        }
-
-        public Settings indexSettings() {
-            return this.indexSettings;
-        }
-
-        public Version indexCreatedVersion() {
-            return Version.indexCreated(indexSettings);
-        }
-    }
-
-    public abstract static class Builder<T extends Builder> {
+    public abstract static class Builder {
 
         public String name;
-
-        protected T builder;
 
         protected Builder(String name) {
             this.name = name;
@@ -71,7 +50,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         }
 
         /** Returns a newly built mapper. */
-        public abstract Mapper build(BuilderContext context);
+        public abstract Mapper build(ContentPath contentPath);
     }
 
     public interface TypeParser {
@@ -79,72 +58,138 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         class ParserContext {
 
             private final Function<String, SimilarityProvider> similarityLookupService;
-
-            private final MapperService mapperService;
-
             private final Function<String, TypeParser> typeParsers;
-
+            private final Function<String, RuntimeFieldType.Parser> runtimeTypeParsers;
+            private final boolean supportsDynamicRuntimeMappings;
             private final Version indexVersionCreated;
-
-            private final Supplier<QueryShardContext> queryShardContextSupplier;
+            private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
+            private final DateFormatter dateFormatter;
+            private final ScriptService scriptService;
+            private final IndexAnalyzers indexAnalyzers;
+            private final IndexSettings indexSettings;
+            private final BooleanSupplier idFieldDataEnabled;
 
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
+                                 Function<String, TypeParser> typeParsers,
+                                 Function<String, RuntimeFieldType.Parser> runtimeTypeParsers,
+                                 Version indexVersionCreated,
+                                 Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+                                 DateFormatter dateFormatter,
+                                 ScriptService scriptService,
+                                 IndexAnalyzers indexAnalyzers,
+                                 IndexSettings indexSettings,
+                                 BooleanSupplier idFieldDataEnabled,
+                                 boolean supportsDynamicRuntimeMappings) {
                 this.similarityLookupService = similarityLookupService;
-                this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
+                this.runtimeTypeParsers = runtimeTypeParsers;
                 this.indexVersionCreated = indexVersionCreated;
-                this.queryShardContextSupplier = queryShardContextSupplier;
+                this.searchExecutionContextSupplier = searchExecutionContextSupplier;
+                this.dateFormatter = dateFormatter;
+                this.scriptService = scriptService;
+                this.indexAnalyzers = indexAnalyzers;
+                this.indexSettings = indexSettings;
+                this.idFieldDataEnabled = idFieldDataEnabled;
+                this.supportsDynamicRuntimeMappings = supportsDynamicRuntimeMappings;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
-                return mapperService.getIndexAnalyzers();
+                return indexAnalyzers;
+            }
+
+            public IndexSettings getIndexSettings() {
+                return indexSettings;
+            }
+
+            public BooleanSupplier isIdFieldDataEnabled() {
+                return idFieldDataEnabled;
+            }
+
+            public Settings getSettings() {
+                return indexSettings.getSettings();
             }
 
             public SimilarityProvider getSimilarity(String name) {
                 return similarityLookupService.apply(name);
             }
 
-            public MapperService mapperService() {
-                return mapperService;
-            }
-
             public TypeParser typeParser(String type) {
                 return typeParsers.apply(type);
+            }
+
+            public RuntimeFieldType.Parser runtimeFieldTypeParser(String type) {
+                return runtimeTypeParsers.apply(type);
+            }
+
+            public boolean supportsDynamicRuntimeMappings() {
+                return supportsDynamicRuntimeMappings;
             }
 
             public Version indexVersionCreated() {
                 return indexVersionCreated;
             }
 
-            public Supplier<QueryShardContext> queryShardContextSupplier() {
-                return queryShardContextSupplier;
+            public Supplier<SearchExecutionContext> searchExecutionContext() {
+                return searchExecutionContextSupplier;
+            }
+
+            /**
+             * Gets an optional default date format for date fields that do not have an explicit format set
+             *
+             * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
+             */
+            public DateFormatter getDateFormatter() {
+                return dateFormatter;
             }
 
             public boolean isWithinMultiField() { return false; }
 
-            protected Function<String, TypeParser> typeParsers() { return typeParsers; }
+            /**
+             * true if this pars context is coming from parsing dynamic template mappings
+             */
+            public boolean isFromDynamicTemplate() { return false; }
 
             protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
 
-            public ParserContext createMultiFieldContext(ParserContext in) {
+            /**
+             * The {@linkplain ScriptService} to compile scripts needed by the {@linkplain Mapper}.
+             */
+            public ScriptService scriptService() {
+                return scriptService;
+            }
+
+            ParserContext createMultiFieldContext(ParserContext in) {
                 return new MultiFieldParserContext(in);
             }
 
-            static class MultiFieldParserContext extends ParserContext {
+            ParserContext createDynamicTemplateFieldContext(ParserContext in) {
+                return new DynamicTemplateParserContext(in);
+            }
+
+            private static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier());
+                    super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
+                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
+                        in.idFieldDataEnabled, in.supportsDynamicRuntimeMappings);
                 }
 
                 @Override
                 public boolean isWithinMultiField() { return true; }
             }
 
+            private static class DynamicTemplateParserContext extends ParserContext {
+                DynamicTemplateParserContext(ParserContext in) {
+                    super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
+                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
+                        in.idFieldDataEnabled, in.supportsDynamicRuntimeMappings);
+                }
+
+                @Override
+                public boolean isFromDynamicTemplate() { return true; }
+            }
         }
 
-        Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+        Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
     private final String simpleName;
@@ -171,5 +216,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     /** Return the merge of {@code mergeWith} into this.
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
     public abstract Mapper merge(Mapper mergeWith);
+
+    /**
+     * Validate any cross-field references made by this mapper
+     * @param mappers a {@link MappingLookup} that can produce references to other mappers
+     */
+    public abstract void validate(MappingLookup mappers);
 
 }

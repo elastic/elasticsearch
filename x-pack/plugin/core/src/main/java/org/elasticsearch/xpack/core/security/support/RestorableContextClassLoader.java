@@ -22,7 +22,11 @@ public class RestorableContextClassLoader implements AutoCloseable {
     private ClassLoader restore;
 
     public RestorableContextClassLoader(Class<?> fromClass) throws PrivilegedActionException {
-        this(Thread.currentThread(), fromClass.getClassLoader());
+        this(Thread.currentThread(), getClassLoader(fromClass));
+    }
+
+    private static ClassLoader getClassLoader(Class<?> fromClass) throws PrivilegedActionException {
+        return AccessController.doPrivileged((PrivilegedExceptionAction<ClassLoader>) fromClass::getClassLoader);
     }
 
     public RestorableContextClassLoader(Thread thread, ClassLoader setClassLoader) throws PrivilegedActionException {

@@ -20,11 +20,8 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -47,53 +44,14 @@ public class SBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitBlock(this, scope);
+    }
 
-        if (statementNodes.isEmpty()) {
-            throw createError(new IllegalArgumentException("A block must contain at least one statement."));
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AStatement statementNode: statementNodes) {
+            statementNode.visit(userTreeVisitor, scope);
         }
-
-        AStatement last = statementNodes.get(statementNodes.size() - 1);
-
-        List<Output> statementOutputs = new ArrayList<>(statementNodes.size());
-
-        for (AStatement statement : statementNodes) {
-            // Note that we do not need to check after the last statement because
-            // there is no statement that can be unreachable after the last.
-            if (output.allEscape) {
-                throw createError(new IllegalArgumentException("Unreachable statement."));
-            }
-
-            Input statementInput = new Input();
-            statementInput.inLoop = input.inLoop;
-            statementInput.lastSource = input.lastSource && statement == last;
-            statementInput.lastLoop = (input.beginLoop || input.lastLoop) && statement == last;
-
-            Output statementOutput = statement.analyze(classNode, semanticScope, statementInput);
-
-            output.methodEscape = statementOutput.methodEscape;
-            output.loopEscape = statementOutput.loopEscape;
-            output.allEscape = statementOutput.allEscape;
-            output.anyContinue |= statementOutput.anyContinue;
-            output.anyBreak |= statementOutput.anyBreak;
-            output.statementCount += statementOutput.statementCount;
-
-            statementOutputs.add(statementOutput);
-        }
-
-        BlockNode blockNode = new BlockNode();
-
-        for (Output statementOutput : statementOutputs) {
-            blockNode.addStatementNode(statementOutput.statementNode);
-        }
-
-        blockNode.setLocation(getLocation());
-        blockNode.setAllEscape(output.allEscape);
-        blockNode.setStatementCount(output.statementCount);
-
-        output.statementNode = blockNode;
-
-        return output;
     }
 }

@@ -25,10 +25,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -105,9 +105,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic rewrite(QueryShardContext queryShardContext) {
-        SignificantTermsHeuristicScoreScript.Factory compiledScript = queryShardContext.compile(script,
-                SignificantTermsHeuristicScoreScript.CONTEXT);
+    public SignificanceHeuristic rewrite(AggregationContext context) {
+        SignificantTermsHeuristicScoreScript.Factory compiledScript = context.compile(script, SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }
 

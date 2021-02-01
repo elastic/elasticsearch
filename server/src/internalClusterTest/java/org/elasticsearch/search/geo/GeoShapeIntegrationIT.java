@@ -154,7 +154,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices()
             .preparePutMapping("test")
             .setSource(update, XContentType.JSON).get());
-        assertThat(e.getMessage(), containsString("using [BKD] strategy cannot be merged with"));
+        assertThat(e.getMessage(), containsString("mapper [shape] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
     }
 
     /**

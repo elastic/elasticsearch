@@ -125,22 +125,25 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return underCapacity(shardRouting, node, allocation, false);
     }
 
+    private static final Decision YES_NOT_ENABLED = Decision.single(Decision.Type.YES, NAME,
+            "allocation awareness is not enabled, set cluster setting ["
+                    + CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey() + "] to enable it");
+
+    private static final Decision YES_ALL_MET =
+            Decision.single(Decision.Type.YES, NAME, "node meets all awareness attribute requirements");
+
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.isEmpty()) {
-            return allocation.decision(Decision.YES, NAME,
-                "allocation awareness is not enabled, set cluster setting [%s] to enable it",
-                CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
+            return YES_NOT_ENABLED;
         }
 
+        final boolean debug = allocation.debugDecision();
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
-                return allocation.decision(Decision.NO, NAME,
-                    "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
-                    awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
-                    allocation.debugDecision() ? Strings.collectionToCommaDelimitedString(awarenessAttributes) : null);
+                return debug ? debugNoMissingAttribute(awarenessAttribute, awarenessAttributes) : Decision.NO;
             }
 
             // build attr_value -> nodes map
@@ -185,18 +188,31 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
-                return allocation.decision(Decision.NO, NAME,
-                        "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
-                        "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
-                        "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
-                        awarenessAttribute,
-                        shardCount,
-                        numberOfAttributes,
-                        currentNodeCount,
-                        maximumNodeCount);
+                return debug ? debugNoTooManyCopies(shardCount, awarenessAttribute, numberOfAttributes, currentNodeCount, maximumNodeCount)
+                        : Decision.NO;
             }
         }
 
-        return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+        return YES_ALL_MET;
+    }
+
+    private static Decision debugNoTooManyCopies(int shardCount, String awarenessAttribute, int numberOfAttributes, int currentNodeCount,
+                                                 int maximumNodeCount) {
+        return Decision.single(Decision.Type.NO, NAME,
+                "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
+                        "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
+                        "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
+                awarenessAttribute,
+                shardCount,
+                numberOfAttributes,
+                currentNodeCount,
+                maximumNodeCount);
+    }
+
+    private static Decision debugNoMissingAttribute(String awarenessAttribute, List<String> awarenessAttributes) {
+        return Decision.single(Decision.Type.NO, NAME,
+                "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]", awarenessAttribute,
+                CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
+                Strings.collectionToCommaDelimitedString(awarenessAttributes));
     }
 }

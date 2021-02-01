@@ -22,17 +22,19 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -84,7 +86,7 @@ public class AliasValidator {
     public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetadata> indexLookup) {
         validateAliasStandalone(alias, indexRouting);
 
-        if (!Strings.hasText(index)) {
+        if (Strings.hasText(index) == false) {
             throw new IllegalArgumentException("index name is required");
         }
 
@@ -95,7 +97,7 @@ public class AliasValidator {
     }
 
     void validateAliasStandalone(String alias, String indexRouting) {
-        if (!Strings.hasText(alias)) {
+        if (Strings.hasText(alias) == false) {
             throw new IllegalArgumentException("alias name is required");
         }
         MetadataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
@@ -106,15 +108,15 @@ public class AliasValidator {
 
     /**
      * Validates an alias filter by parsing it using the
-     * provided {@link org.elasticsearch.index.query.QueryShardContext}
+     * provided {@link SearchExecutionContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext,
+    public void validateAliasFilter(String alias, String filter, SearchExecutionContext searchExecutionContext,
             NamedXContentRegistry xContentRegistry) {
-        assert queryShardContext != null;
+        assert searchExecutionContext != null;
         try (XContentParser parser = XContentFactory.xContent(filter)
             .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)) {
-            validateAliasFilter(parser, queryShardContext);
+            validateAliasFilter(parser, searchExecutionContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
@@ -122,23 +124,25 @@ public class AliasValidator {
 
     /**
      * Validates an alias filter by parsing it using the
-     * provided {@link org.elasticsearch.index.query.QueryShardContext}
+     * provided {@link SearchExecutionContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(String alias, byte[] filter, QueryShardContext queryShardContext,
-            NamedXContentRegistry xContentRegistry) {
-        assert queryShardContext != null;
-        try (XContentParser parser = XContentFactory.xContent(filter)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter)) {
-            validateAliasFilter(parser, queryShardContext);
+    public void validateAliasFilter(String alias, BytesReference filter, SearchExecutionContext searchExecutionContext,
+                                    NamedXContentRegistry xContentRegistry) {
+        assert searchExecutionContext != null;
+
+        try (InputStream inputStream = filter.streamInput();
+             XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
+                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, filter.streamInput())) {
+            validateAliasFilter(parser, searchExecutionContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
         }
     }
 
-    private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
+    private static void validateAliasFilter(XContentParser parser, SearchExecutionContext searchExecutionContext) throws IOException {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
-        QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext, true);
-        queryBuilder.toQuery(queryShardContext);
+        QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, searchExecutionContext, true);
+        queryBuilder.toQuery(searchExecutionContext);
     }
 }

@@ -165,6 +165,13 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             throw ExceptionsHelper.badRequestException("feature index [{}] is out of bounds for the [{}] array",
                     maxFeatureIndex, FEATURE_NAMES.getPreferredName());
         }
+        if (nodes.size() > 1) {
+            if (featureNames.isEmpty()) {
+                throw ExceptionsHelper.badRequestException("[{}] is empty and the tree has > 1 nodes; num nodes [{}]. " +
+                        "The model Must have features if tree is not a stump",
+                    FEATURE_NAMES.getPreferredName(), nodes.size());
+            }
+        }
         checkTargetType();
         detectMissingNodes();
         detectCycle();

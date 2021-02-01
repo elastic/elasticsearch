@@ -104,13 +104,13 @@ public class EvalQueryQualityTests extends ESTestCase {
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
         EvalQueryQuality parsedItem;
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             String queryId = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             parsedItem = EvalQueryQuality.fromXContent(parser, queryId);
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             assertNull(parser.nextToken());
         }
         assertNotSame(testItem, parsedItem);

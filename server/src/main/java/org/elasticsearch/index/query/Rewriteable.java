@@ -59,7 +59,7 @@ public interface Rewriteable<T> {
      * @param original the original rewriteable to rewrite
      * @param context the rewrite context to use
      * @param assertNoAsyncTasks if <code>true</code> the rewrite will fail if there are any pending async tasks on the context after the
-     *                          rewrite. See {@link QueryRewriteContext#executeAsyncActions(ActionListener)} for detals
+     *                          rewrite. See {@link QueryRewriteContext#executeAsyncActions(ActionListener)} for details
      * @throws IOException if an {@link IOException} occurs
      */
     static <T extends Rewriteable<T>> T rewrite(T original, QueryRewriteContext context, boolean assertNoAsyncTasks) throws IOException {

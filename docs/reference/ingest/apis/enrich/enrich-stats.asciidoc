@@ -101,32 +101,32 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-    "executing_policies": [
-        {
-            "name": "my-policy",
-            "task": {
-                "id" : 124,
-                "type" : "direct",
-                "action" : "cluster:admin/xpack/enrich/execute",
-                "start_time_in_millis" : 1458585884904,
-                "running_time_in_nanos" : 47402,
-                "cancellable" : false,
-                "parent_task_id" : "oTUltX4IQMOUUVeiohTt8A:123",
-                "headers" : {
-                    "X-Opaque-Id" : "123456" 
-                }
-            }
+  "executing_policies": [
+    {
+      "name": "my-policy",
+      "task": {
+        "id": 124,
+        "type": "direct",
+        "action": "cluster:admin/xpack/enrich/execute",
+        "start_time_in_millis": 1458585884904,
+        "running_time_in_nanos": 47402,
+        "cancellable": false,
+        "parent_task_id": "oTUltX4IQMOUUVeiohTt8A:123",
+        "headers": {
+          "X-Opaque-Id": "123456"
         }
-    ],
-    "coordinator_stats": [
-        {
-            "node_id": "1sFM8cmSROZYhPxVsiWew",
-            "queue_size": 0,
-            "remote_requests_current": 0,
-            "remote_requests_total": 0,
-            "executed_searches_total": 0
-        }
-    ]
+      }
+    }
+  ],
+  "coordinator_stats": [
+    {
+      "node_id": "1sFM8cmSROZYhPxVsiWew",
+      "queue_size": 0,
+      "remote_requests_current": 0,
+      "remote_requests_total": 0,
+      "executed_searches_total": 0
+    }
+  ]
 }
 ----
 // TESTRESPONSE[s/"executing_policies": \[[^\]]*\]/"executing_policies": $body.$_path/]

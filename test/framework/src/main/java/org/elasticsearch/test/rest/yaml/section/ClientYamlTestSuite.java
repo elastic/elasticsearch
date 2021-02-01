@@ -47,7 +47,7 @@ import java.util.stream.Stream;
  */
 public class ClientYamlTestSuite {
     public static ClientYamlTestSuite parse(NamedXContentRegistry executeableSectionRegistry, String api, Path file) throws IOException {
-        if (!Files.isRegularFile(file)) {
+        if (Files.isRegularFile(file) == false) {
             throw new IllegalArgumentException(file.toAbsolutePath() + " is not a file");
         }
 
@@ -111,7 +111,7 @@ public class ClientYamlTestSuite {
     private final TeardownSection teardownSection;
     private final List<ClientYamlTestSection> testSections;
 
-    ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
+    public ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
                         List<ClientYamlTestSection> testSections) {
         this.api = api;
         this.name = name;

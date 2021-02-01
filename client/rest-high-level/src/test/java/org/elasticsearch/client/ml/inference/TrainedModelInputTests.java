@@ -54,5 +54,4 @@ public class TrainedModelInputTests extends AbstractXContentTestCase<TrainedMode
     protected TrainedModelInput createTestInstance() {
         return createRandomInput();
     }
-
 }

@@ -19,11 +19,14 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
+import org.elasticsearch.client.ml.inference.preprocessing.Multi;
+import org.elasticsearch.client.ml.inference.preprocessing.NGram;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
@@ -56,6 +59,10 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             FrequencyEncoding::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(CustomWordEmbedding.NAME),
             CustomWordEmbedding::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(NGram.NAME),
+            NGram::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(Multi.NAME),
+            Multi::fromXContent));
 
         // Model
         namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class, new ParseField(Tree.NAME), Tree::fromXContent));
@@ -82,6 +89,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
             new ParseField(LogisticRegression.NAME),
             LogisticRegression::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
+            new ParseField(Exponent.NAME),
+            Exponent::fromXContent));
 
         return namedXContent;
     }

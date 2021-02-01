@@ -27,13 +27,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -49,6 +49,8 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 
 public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
+    public static final ValuesSourceRegistry.RegistryKey<SignificantTermsAggregatorSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, SignificantTermsAggregatorSupplier.class);
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
     static final ParseField HEURISTIC = new ParseField("significance_heuristic");
@@ -127,7 +129,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
@@ -135,16 +137,16 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (filterBuilder != null) {
-            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryShardContext);
+            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryRewriteContext);
             if (rewrittenFilter != filterBuilder) {
                 SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metadata);
                 rewritten.backgroundFilter(rewrittenFilter);
                 return rewritten;
             }
         }
-        return super.doRewrite(queryShardContext);
+        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -290,13 +292,16 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
+        SignificanceHeuristic executionHeuristic = significanceHeuristic.rewrite(context);
+
+        SignificantTermsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder, metadata);
+                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override
@@ -336,5 +341,10 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

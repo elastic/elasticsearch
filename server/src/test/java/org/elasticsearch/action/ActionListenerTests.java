@@ -286,7 +286,7 @@ public class ActionListenerTests extends ESTestCase {
                 }
             }
         };
-        ActionListener<Boolean> mapped = ActionListener.map(listener, b -> {
+        ActionListener<Boolean> mapped = listener.map(b -> {
             if (b == null) {
                 return null;
             } else if (b) {

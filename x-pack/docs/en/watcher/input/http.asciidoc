@@ -1,6 +1,9 @@
 [role="xpack"]
 [[input-http]]
-=== HTTP input
+=== {watcher} HTTP input
+++++
+<titleabbrev>HTTP input</titleabbrev>
+++++
 
 Use the `http` input to submit a request to an HTTP endpoint and load the
 response into the watch execution context when the watch is triggered. See

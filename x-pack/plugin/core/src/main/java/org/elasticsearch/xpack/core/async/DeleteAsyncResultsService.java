@@ -47,13 +47,13 @@ public class DeleteAsyncResultsService {
                 //the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.
                 task.cancelTask(taskManager, () -> store.deleteResponse(searchId,
                     ActionListener.wrap(
-                        r -> listener.onResponse(new AcknowledgedResponse(true)),
+                        r -> listener.onResponse(AcknowledgedResponse.TRUE),
                         exc -> {
                             RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
                             //the index may not be there (no initial async search response stored yet?): we still want to return 200
                             //note that index missing comes back as 200 hence it's handled in the onResponse callback
                             if (status == RestStatus.NOT_FOUND) {
-                                listener.onResponse(new AcknowledgedResponse(true));
+                                listener.onResponse(AcknowledgedResponse.TRUE);
                             } else {
                                 logger.error(() -> new ParameterizedMessage("failed to clean async result [{}]",
                                     searchId.getEncoded()), exc);
@@ -69,7 +69,7 @@ public class DeleteAsyncResultsService {
                         if (resp.status() == RestStatus.NOT_FOUND) {
                             listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                         } else {
-                            listener.onResponse(new AcknowledgedResponse(true));
+                            listener.onResponse(AcknowledgedResponse.TRUE);
                         }
                     },
                     exc -> {

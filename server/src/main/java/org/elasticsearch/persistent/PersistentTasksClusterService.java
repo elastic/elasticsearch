@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -69,7 +70,9 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
         this.threadPool = threadPool;
         this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            clusterService.addListener(this);
+        }
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
             this::setRecheckInterval);
     }

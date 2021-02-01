@@ -149,6 +149,11 @@ public final class FieldExpression implements RoleMapperExpression {
         }
 
         @Override
+        public String toString() {
+            return Objects.toString(value);
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) {
                 return true;

@@ -33,13 +33,13 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 "process where between(process_name, \"s\") == \"yst\"",
                 "process where between(null) == \"yst\"",
                 "process where between(process_name, null) == \"yst\"",
-                "process where between(process_name, \"s\", \"e\", false, false, true) == \"yst\"",
+                "process where between(process_name, \"s\", \"e\", false, false) == \"yst\"",
         };
 
         for (String query : queries) {
             ParsingException e = expectThrows(ParsingException.class,
                     () -> plan(query));
-            assertEquals("line 1:16: error building [between]: expects between three and five arguments", e.getMessage());
+            assertEquals("line 1:16: error building [between]: expects three or four arguments", e.getMessage());
         }
     }
 
@@ -56,10 +56,6 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("1:15: fourth argument of [between(process_name, \"s\", \"e\", \"true\")] must be [boolean], " +
                         "found value [\"true\"] type [keyword]",
                 error("process where between(process_name, \"s\", \"e\", \"true\")"));
-
-        assertEquals("1:15: fifth argument of [between(process_name, \"s\", \"e\", false, 2)] must be [boolean], " +
-                        "found value [2] type [integer]",
-                error("process where between(process_name, \"s\", \"e\", false, 2)"));
     }
 
     public void testCIDRMatchAgainstField() {
@@ -130,16 +126,16 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         assertEquals("Found 1 problem\nline 1:15: [length(plain_text)] cannot operate on field of data type [text]: No keyword/multi-field "
             + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
     public void testMatchWithText() {
         VerificationException e = expectThrows(VerificationException.class,
-            () -> plan("process where match(plain_text, 'foo.*')"));
+            () -> plan("process where match(plain_text, \"foo.*\")"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-            "line 1:15: [match(plain_text, 'foo.*')] cannot operate on first argument field of data type [text]: No keyword/multi-field " +
-            "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+            "line 1:15: [match(plain_text, \"foo.*\")] cannot operate on first argument field of data type [text]: " +
+            "No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
     public void testMatchWithNonString() {
         VerificationException e = expectThrows(VerificationException.class,
             () -> plan("process where match(process_name, parent_process_name)"));
@@ -148,7 +144,7 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
             "line 1:15: second argument of [match(process_name, parent_process_name)] " +
             "must be a constant, received [parent_process_name]", msg);
     }
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
     public void testMatchWithNonRegex() {
         VerificationException e = expectThrows(VerificationException.class,
             () -> plan("process where match(process_name, 1)"));
@@ -253,9 +249,9 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
 
     public void testWildcardWithNumericField() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where wildcard(pid, '*.exe')"));
+                () -> plan("process where wildcard(pid, \"*.exe\")"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-                "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
+                "line 1:15: first argument of [wildcard(pid, \"*.exe\")] must be [string], found value [pid] type [long]", msg);
     }
 }

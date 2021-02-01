@@ -42,7 +42,7 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField FORCE = new ParseField("force");
-    public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<StopDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -55,7 +55,7 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
             DatafeedConfig.ID, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareBoolean(StopDatafeedRequest::setForce, FORCE);
-        PARSER.declareBoolean(StopDatafeedRequest::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+        PARSER.declareBoolean(StopDatafeedRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     private static final String ALL_DATAFEEDS = "_all";
@@ -63,7 +63,7 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
     private final List<String> datafeedIds;
     private TimeValue timeout;
     private Boolean force;
-    private Boolean allowNoDatafeeds;
+    private Boolean allowNoMatch;
 
     /**
      * Explicitly stop all datafeeds
@@ -128,8 +128,8 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
         this.force = force;
     }
 
-    public Boolean getAllowNoDatafeeds() {
-        return this.allowNoDatafeeds;
+    public Boolean getAllowNoMatch() {
+        return this.allowNoMatch;
     }
 
     /**
@@ -137,15 +137,15 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
      *
      * This includes {@code _all} string.
      *
-     * @param allowNoDatafeeds When {@code true} ignore if wildcard or {@code _all} matches no datafeeds. Defaults to {@code true}
+     * @param allowNoMatch When {@code true} ignore if wildcard or {@code _all} matches no datafeeds. Defaults to {@code true}
      */
-    public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-        this.allowNoDatafeeds = allowNoDatafeeds;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedIds, timeout, force, allowNoDatafeeds);
+        return Objects.hash(datafeedIds, timeout, force, allowNoMatch);
     }
 
     @Override
@@ -162,7 +162,7 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
         return Objects.equals(datafeedIds, that.datafeedIds) &&
             Objects.equals(timeout, that.timeout) &&
             Objects.equals(force, that.force) &&
-            Objects.equals(allowNoDatafeeds, that.allowNoDatafeeds);
+            Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override
@@ -175,8 +175,8 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
         if (force != null) {
             builder.field(FORCE.getPreferredName(), force);
         }
-        if (allowNoDatafeeds != null) {
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
         builder.endObject();
         return builder;

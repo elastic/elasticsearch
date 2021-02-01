@@ -28,7 +28,7 @@ public class UpdateSettingsAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/settings/update";
 
     private UpdateSettingsAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

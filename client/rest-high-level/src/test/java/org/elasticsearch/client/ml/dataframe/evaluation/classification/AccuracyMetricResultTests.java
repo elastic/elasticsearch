@@ -19,7 +19,6 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric.PerClassResult;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric.Result;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,10 +40,10 @@ public class AccuracyMetricResultTests extends AbstractXContentTestCase<Result> 
     public static Result randomResult() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
-        List<PerClassResult> classes = new ArrayList<>(numClasses);
+        List<PerClassSingleValue> classes = new ArrayList<>(numClasses);
         for (int i = 0; i < numClasses; i++) {
             double accuracy = randomDoubleBetween(0.0, 1.0, true);
-            classes.add(new PerClassResult(classNames.get(i), accuracy));
+            classes.add(new PerClassSingleValue(classNames.get(i), accuracy));
         }
         double overallAccuracy = randomDoubleBetween(0.0, 1.0, true);
         return new Result(classes, overallAccuracy);

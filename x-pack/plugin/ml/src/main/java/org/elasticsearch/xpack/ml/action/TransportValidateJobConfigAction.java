@@ -24,7 +24,7 @@ public class TransportValidateJobConfigAction extends HandledTransportAction<Val
     @Override
     protected void doExecute(Task task, ValidateJobConfigAction.Request request,
                              ActionListener<AcknowledgedResponse> listener) {
-        listener.onResponse(new AcknowledgedResponse(true));
+        listener.onResponse(AcknowledgedResponse.TRUE);
     }
 
 }

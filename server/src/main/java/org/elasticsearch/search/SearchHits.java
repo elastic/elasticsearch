@@ -215,7 +215,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     public static SearchHits fromXContent(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         }
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;

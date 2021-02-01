@@ -1,5 +1,9 @@
 [[join-processor]]
-=== Join Processor
+=== Join processor
+++++
+<titleabbrev>Join</titleabbrev>
+++++
+
 Joins each element of an array into a single string using a separator character between each element.
 Throws an error when the field is not an array.
 
@@ -8,7 +12,7 @@ Throws an error when the field is not an array.
 [options="header"]
 |======
 | Name              | Required  | Default  | Description
-| `field`           | yes       | -        | The field to be separated
+| `field`           | yes       | -        | Field containing array values to join
 | `separator`       | yes       | -        | The separator character
 | `target_field`    | no        | `field`  | The field to assign the joined value to, by default `field` is updated in-place
 include::common-options.asciidoc[]

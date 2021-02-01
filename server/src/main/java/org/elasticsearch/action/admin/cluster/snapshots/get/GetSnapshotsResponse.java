@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,43 +56,21 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            int successfulSize = in.readVInt();
-            Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>(successfulSize);
-            for (int i = 0; i < successfulSize; i++) {
-                String repository = in.readString();
-                int size = in.readVInt();
-                List<SnapshotInfo> snapshotInfos = new ArrayList<>(size);
-                for (int j = 0; j < size; j++) {
-                    snapshotInfos.add(new SnapshotInfo(in));
-                }
-                successfulResponses.put(repository, snapshotInfos);
-            }
-
-            int failedSize = in.readVInt();
-            Map<String, ElasticsearchException> failedResponses = new HashMap<>(failedSize);
-            for (int i = 0; i < failedSize; i++) {
-                String repository = in.readString();
-                ElasticsearchException error = in.readException();
-                failedResponses.put(repository, error);
-            }
+            Map<String, List<SnapshotInfo>> successfulResponses = in.readMapOfLists(StreamInput::readString, SnapshotInfo::new);
+            Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
             this.successfulResponses = Collections.unmodifiableMap(successfulResponses);
             this.failedResponses = Collections.unmodifiableMap(failedResponses);
         } else {
-            int size = in.readVInt();
-            List<SnapshotInfo> snapshots = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                snapshots.add(new SnapshotInfo(in));
-            }
-            this.successfulResponses = Collections.singletonMap("unknown", snapshots);
+            this.successfulResponses = Collections.singletonMap("unknown", in.readList(SnapshotInfo::new));
             this.failedResponses = Collections.emptyMap();
         }
     }
 
 
     public static class Response {
-        private String repository;
-        private List<SnapshotInfo> snapshots;
-        private ElasticsearchException error;
+        private final String repository;
+        private final List<SnapshotInfo> snapshots;
+        private final ElasticsearchException error;
 
         private static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER =
                 new ConstructingObjectParser<>(Response.class.getName(), true,
@@ -224,19 +201,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            out.writeVInt(successfulResponses.size());
-            for (Map.Entry<String, List<SnapshotInfo>> snapshots : successfulResponses.entrySet()) {
-                out.writeString(snapshots.getKey());
-                out.writeVInt(snapshots.getValue().size());
-                for (SnapshotInfo snapshotInfo : snapshots.getValue()) {
-                    snapshotInfo.writeTo(out);
-                }
-            }
-            out.writeVInt(failedResponses.size());
-            for (Map.Entry<String, ElasticsearchException> error : failedResponses.entrySet()) {
-                out.writeString(error.getKey());
-                out.writeException(error.getValue());
-            }
+            out.writeMapOfLists(successfulResponses, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+            out.writeMap(failedResponses, StreamOutput::writeString, StreamOutput::writeException);
         } else {
             if (successfulResponses.size() + failedResponses.size() != 1) {
                 throw new IllegalArgumentException("Requesting snapshots from multiple repositories is not supported in versions prior " +
@@ -244,11 +210,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             }
 
             if (successfulResponses.size() == 1) {
-                List<SnapshotInfo> snapshotInfos = successfulResponses.values().iterator().next();
-                out.writeVInt(snapshotInfos.size());
-                for (SnapshotInfo snapshotInfo : snapshotInfos) {
-                    snapshotInfo.writeTo(out);
-                }
+                out.writeList(successfulResponses.values().iterator().next());
             }
 
             if (failedResponses.isEmpty() == false) {

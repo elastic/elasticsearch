@@ -82,7 +82,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // if we should be adding, then we need to check for existence
-        if (isWatchDefined() && licenseState.isAllowed(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)) {
+        if (isWatchDefined() && licenseState.checkFeature(XPackLicenseState.Feature.MONITORING_CLUSTER_ALERTS)) {
             final CheckedFunction<Response, Boolean, IOException> watchChecker =
                     (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
 
@@ -103,7 +103,7 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      * Publish the missing {@linkplain #watchId Watch}.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         putResource(client, listener, logger,
                     "/_watcher/watch", watchId.get(), Collections.emptyMap(), this::watchToHttpEntity, "monitoring cluster alert",
                     resourceOwnerName, "monitoring cluster");

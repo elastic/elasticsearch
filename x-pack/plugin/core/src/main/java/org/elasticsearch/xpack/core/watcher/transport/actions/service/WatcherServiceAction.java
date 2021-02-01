@@ -15,6 +15,6 @@ public class WatcherServiceAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/watcher/service";
 
     private WatcherServiceAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 }

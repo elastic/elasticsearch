@@ -19,46 +19,32 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 
 public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetDataStreamAction.Response, GetDataStreamResponse> {
 
-    private static List<Index> randomIndexInstances() {
-        int numIndices = randomIntBetween(0, 128);
-        List<Index> indices = new ArrayList<>(numIndices);
-        for (int i = 0; i < numIndices; i++) {
-            indices.add(new Index(randomAlphaOfLength(10).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())));
-        }
-        return indices;
-    }
-
-    private static DataStream randomInstance() {
-        List<Index> indices = randomIndexInstances();
-        long generation = indices.size() + randomLongBetween(1, 128);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        return new DataStream(dataStreamName, createTimestampField(randomAlphaOfLength(10)), indices, generation);
+    private static DataStreamInfo randomInstance() {
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        return new DataStreamInfo(dataStream, ClusterHealthStatus.YELLOW, randomAlphaOfLengthBetween(2, 10),
+            randomAlphaOfLengthBetween(2, 10));
     }
 
     @Override
     protected GetDataStreamAction.Response createServerTestInstance(XContentType xContentType) {
-        ArrayList<DataStream> dataStreams = new ArrayList<>();
+        ArrayList<DataStreamInfo> dataStreams = new ArrayList<>();
         int count = randomInt(10);
         for (int i = 0; i < count; i++) {
             dataStreams.add(randomInstance());
@@ -74,12 +60,12 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
     @Override
     protected void assertInstances(GetDataStreamAction.Response serverTestInstance, GetDataStreamResponse clientInstance) {
         assertEquals(serverTestInstance.getDataStreams().size(), clientInstance.getDataStreams().size());
-        Iterator<DataStream> serverIt = serverTestInstance.getDataStreams().iterator();
+        Iterator<DataStreamInfo> serverIt = serverTestInstance.getDataStreams().iterator();
 
         Iterator<org.elasticsearch.client.indices.DataStream> clientIt = clientInstance.getDataStreams().iterator();
         while (serverIt.hasNext()) {
             org.elasticsearch.client.indices.DataStream client = clientIt.next();
-            DataStream server = serverIt.next();
+            DataStream server = serverIt.next().getDataStream();
             assertEquals(server.getName(), client.getName());
             assertEquals(server.getIndices().stream().map(Index::getName).collect(Collectors.toList()), client.getIndices());
             assertEquals(server.getTimeStampField().getName(), client.getTimeStampField());

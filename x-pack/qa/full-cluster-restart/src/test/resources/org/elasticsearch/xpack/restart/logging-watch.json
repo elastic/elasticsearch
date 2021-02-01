@@ -1,0 +1,27 @@
+{
+  "trigger" : {
+    "schedule": {
+      "interval": "1s"
+    }
+  },
+  "input" : {
+    "search" : {
+      "timeout": "100s",
+      "request" : {
+        "indices" : [ ".watches" ],
+        "body" : {
+          "query" : { "match_all" : {}},
+          "size": 1
+        }
+      }
+    }
+  },
+  "throttle_period_in_millis": 500,
+  "actions" : {
+    "log" : {
+      "logging" : {
+        "text" : "watcher search result: {{ctx.payload}}"
+      }
+    }
+  }
+}

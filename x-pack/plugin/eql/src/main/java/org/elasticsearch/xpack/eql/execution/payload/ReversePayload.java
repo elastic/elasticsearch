@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.execution.payload;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.session.Payload;
-import org.elasticsearch.xpack.eql.session.Results.Type;
 
 import java.util.Collections;
 import java.util.List;
@@ -38,12 +37,7 @@ public class ReversePayload implements Payload {
     }
 
     @Override
-    public Object[] nextKeys() {
-        return delegate.nextKeys();
-    }
-
-    @Override
-    public <V> List<V> values() {
+    public List<?> values() {
         return delegate.values();
     }
 }

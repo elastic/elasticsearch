@@ -27,6 +27,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -40,7 +41,9 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
     public void testDuplicateRecoveries() throws IOException {
         IndexShard primary = newStartedShard(true);
         final IndicesService indicesService = mock(IndicesService.class);
-        when(indicesService.clusterService()).thenReturn(mock(ClusterService.class));
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(NodeRoles.dataNode());
+        when(indicesService.clusterService()).thenReturn(clusterService);
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
             mock(TransportService.class), indicesService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));

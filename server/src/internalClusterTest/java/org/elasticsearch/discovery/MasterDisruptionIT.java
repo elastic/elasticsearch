@@ -160,7 +160,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Verify that the proper block is applied when nodes lose their master
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        internalCluster().startNodes(3);
+        internalCluster().startNodes(3, Settings.builder()
+            .putNull(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey()).build());
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
@@ -201,10 +202,10 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
             if (nodeState.nodes().getMasterNode() == null) {
                 success = false;
             }
-            if (!nodeState.blocks().global().isEmpty()) {
+            if (nodeState.blocks().global().isEmpty() == false) {
                 success = false;
             }
-            if (!success) {
+            if (success == false) {
                 fail("node [" + node + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
                         + nodeState);
             }

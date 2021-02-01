@@ -24,6 +24,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.Date;
 
+import static org.elasticsearch.client.ml.job.process.ModelSizeStats.AssignmentMemoryBasis;
 import static org.elasticsearch.client.ml.job.process.ModelSizeStats.CategorizationStatus;
 import static org.elasticsearch.client.ml.job.process.ModelSizeStats.MemoryStatus;
 
@@ -32,6 +33,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
         assertEquals(0, stats.getModelBytes());
+        assertNull(stats.getPeakModelBytes());
         assertNull(stats.getModelBytesExceeded());
         assertNull(stats.getModelBytesMemoryLimit());
         assertEquals(0, stats.getTotalByFieldCount());
@@ -39,6 +41,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
         assertEquals(0, stats.getTotalPartitionFieldCount());
         assertEquals(0, stats.getBucketAllocationFailuresCount());
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
+        assertNull(stats.getAssignmentMemoryBasis());
         assertEquals(0, stats.getCategorizedDocCount());
         assertEquals(0, stats.getTotalCategoryCount());
         assertEquals(0, stats.getFrequentCategoryCount());
@@ -78,6 +81,9 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
             stats.setModelBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            stats.setPeakModelBytes(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             stats.setModelBytesExceeded(randomNonNegativeLong());
         }
         if (randomBoolean()) {
@@ -94,6 +100,9 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
         }
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
+        }
+        if (randomBoolean()) {
+            stats.setAssignmentMemoryBasis(randomFrom(AssignmentMemoryBasis.values()));
         }
         if (randomBoolean()) {
             stats.setCategorizedDocCount(randomNonNegativeLong());

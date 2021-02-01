@@ -496,7 +496,7 @@ public class JobConfigProvider {
      * </ul>
      *
      * @param expression the expression to resolve
-     * @param allowNoJobs if {@code false}, an error is thrown when no name matches the {@code expression}.
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param excludeDeleting If true exclude jobs marked as deleting
@@ -506,7 +506,7 @@ public class JobConfigProvider {
      * @param listener The expanded job Ids listener
      */
     public void expandJobsIds(String expression,
-                              boolean allowNoJobs,
+                              boolean allowNoMatch,
                               boolean excludeDeleting,
                               @Nullable PersistentTasksCustomMetadata tasksCustomMetadata,
                               boolean allowMissingConfigs,
@@ -524,7 +524,7 @@ public class JobConfigProvider {
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
         Collection<String> openMatchingJobs = matchingJobIdsWithTasks(tokens, tasksCustomMetadata);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -565,13 +565,13 @@ public class JobConfigProvider {
      * See {@link #expandJobsIds(String, boolean, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
-     * @param allowNoJobs if {@code false}, an error is thrown when no name matches the {@code expression}.
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded jobs listener
      */
-    public void expandJobs(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
+    public void expandJobs(String expression, boolean allowNoMatch, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildJobWildcardQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
@@ -582,7 +582,7 @@ public class JobConfigProvider {
                 .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoJobs);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(

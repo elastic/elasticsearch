@@ -203,6 +203,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
+     * Determine if the given node exists and has the right roles. Supported roles vary by version, and our local cluster state might
+     * have come via an older master, so the roles may differ even if the node is otherwise identical.
+     */
+    public boolean nodeExistsWithSameRoles(DiscoveryNode discoveryNode) {
+        final DiscoveryNode existing = nodes.get(discoveryNode.getId());
+        return existing != null && existing.equals(discoveryNode) && existing.getRoles().equals(discoveryNode.getRoles());
+    }
+
+    /**
      * Get the id of the master node
      *
      * @return id of the master
@@ -325,7 +334,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         } else {
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
             for (String nodeId : nodes) {
-                if (nodeId.equals("_local")) {
+                if (nodeId == null) {
+                    // don't silence the underlying issue, it is a bug, so lets fail if assertions are enabled
+                    assert nodeId != null : "nodeId should not be null";
+                    continue;
+                } else if (nodeId.equals("_local")) {
                     String localNodeId = getLocalNodeId();
                     if (localNodeId != null) {
                         resolvedNodesIds.add(localNodeId);

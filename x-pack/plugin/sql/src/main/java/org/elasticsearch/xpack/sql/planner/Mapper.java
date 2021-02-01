@@ -142,7 +142,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, UnplannedExec.class);
+            return plan.transformUp(UnplannedExec.class, this::rule);
         }
 
         @SuppressWarnings("unchecked")

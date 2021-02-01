@@ -59,13 +59,15 @@ public class MetadataIndexUpgradeService {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
+    private final ScriptService scriptService;
 
     public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings) {
+                                       IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
+        this.scriptService = scriptService;
     }
 
     /**
@@ -76,7 +78,6 @@ public class MetadataIndexUpgradeService {
      * cannot be updated the method throws an exception.
      */
     public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetadata)) {
             /*
              * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
@@ -84,6 +85,7 @@ public class MetadataIndexUpgradeService {
              */
             return archiveBrokenIndexSettings(indexMetadata);
         }
+        // Throws an exception if there are too-old segments:
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
@@ -92,7 +94,6 @@ public class MetadataIndexUpgradeService {
         checkMappingsCompatibility(newMetadata);
         return markAsUpgraded(newMetadata);
     }
-
 
     /**
      * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
@@ -181,7 +182,7 @@ public class MetadataIndexUpgradeService {
             try (IndexAnalyzers fakeIndexAnalzyers =
                      new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null, () -> false);
+                        mapperRegistry, () -> null, () -> false, scriptService);
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {

@@ -75,7 +75,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
         } else {
-            innerExecute(0, values, new ArrayList<>(values.size()), ingestDocument, handler);
+            innerExecute(0, new ArrayList<>(values), new ArrayList<>(values.size()), ingestDocument, handler);
         }
     }
 

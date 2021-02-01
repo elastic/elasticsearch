@@ -53,7 +53,6 @@ import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -160,16 +159,6 @@ public class FunctionScoreTests extends ESTestCase {
                 SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public Index index() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
     }
 
     /**
@@ -254,16 +243,6 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         protected boolean sortRequiresCustomComparator() {
             return false;
-        }
-
-        @Override
-        public void clear() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public Index index() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
         }
     }
 

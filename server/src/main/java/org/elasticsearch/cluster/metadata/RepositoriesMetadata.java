@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 /**
  * Contains metadata about registered snapshot repositories
@@ -46,6 +47,8 @@ import java.util.List;
 public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final String TYPE = "repositories";
+
+    public static final RepositoriesMetadata EMPTY = new RepositoriesMetadata(Collections.emptyList());
 
     /**
      * Serialization parameter used to hide the {@link RepositoryMetadata#generation()} and {@link RepositoryMetadata#pendingGeneration()}
@@ -73,6 +76,21 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * @return new instance with updated generations
      */
     public RepositoriesMetadata withUpdatedGeneration(String repoName, long safeGeneration, long pendingGeneration) {
+        return withUpdate(repoName, repositoryMetadata -> new RepositoryMetadata(repositoryMetadata, safeGeneration, pendingGeneration));
+    }
+
+    /**
+     * Creates a new instance that records the UUID of the given repository.
+     *
+     * @param repoName          repository name
+     * @param uuid              repository uuid
+     * @return new instance with updated uuid
+     */
+    public RepositoriesMetadata withUuid(String repoName, String uuid) {
+        return withUpdate(repoName, repositoryMetadata -> repositoryMetadata.withUuid(uuid));
+    }
+
+    private RepositoriesMetadata withUpdate(String repoName, UnaryOperator<RepositoryMetadata> update) {
         int indexOfRepo = -1;
         for (int i = 0; i < repositories.size(); i++) {
             if (repositories.get(i).name().equals(repoName)) {
@@ -84,7 +102,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
             throw new IllegalArgumentException("Unknown repository [" + repoName + "]");
         }
         final List<RepositoryMetadata> updatedRepos = new ArrayList<>(repositories);
-        updatedRepos.set(indexOfRepo, new RepositoryMetadata(repositories.get(indexOfRepo), safeGeneration, pendingGeneration));
+        updatedRepos.set(indexOfRepo, update.apply(repositories.get(indexOfRepo)));
         return new RepositoriesMetadata(updatedRepos);
     }
 
@@ -164,11 +182,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {
-        RepositoryMetadata[] repository = new RepositoryMetadata[in.readVInt()];
-        for (int i = 0; i < repository.length; i++) {
-            repository[i] = new RepositoryMetadata(in);
-        }
-        this.repositories = List.of(repository);
+        this.repositories = in.readList(RepositoryMetadata::new);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
@@ -180,10 +194,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(repositories.size());
-        for (RepositoryMetadata repository : repositories) {
-            repository.writeTo(out);
-        }
+        out.writeList(repositories);
     }
 
     public static RepositoriesMetadata fromXContent(XContentParser parser) throws IOException {
@@ -195,6 +206,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException("failed to parse repository [{}], expected object", name);
                 }
+                String uuid = RepositoryData.MISSING_UUID;
                 String type = null;
                 Settings settings = Settings.EMPTY;
                 long generation = RepositoryData.UNKNOWN_REPO_GEN;
@@ -202,7 +214,12 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         String currentFieldName = parser.currentName();
-                        if ("type".equals(currentFieldName)) {
+                        if ("uuid".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                                throw new ElasticsearchParseException("failed to parse repository [{}], uuid not a string", name);
+                            }
+                            uuid = parser.text();
+                        } else if ("type".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
                                 throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
                             }
@@ -233,7 +250,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 if (type == null) {
                     throw new ElasticsearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
-                repository.add(new RepositoryMetadata(name, type, settings, generation, pendingGeneration));
+                repository.add(new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration));
             } else {
                 throw new ElasticsearchParseException("failed to parse repositories");
             }
@@ -267,6 +284,9 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     public static void toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(repository.name());
         builder.field("type", repository.type());
+        if (repository.uuid().equals(RepositoryData.MISSING_UUID) == false) {
+            builder.field("uuid", repository.uuid());
+        }
         builder.startObject("settings");
         repository.settings().toXContent(builder, params);
         builder.endObject();

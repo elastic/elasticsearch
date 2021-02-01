@@ -76,7 +76,7 @@ public class DeleteResponse extends DocWriteResponse {
     }
 
     public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
 
         Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {

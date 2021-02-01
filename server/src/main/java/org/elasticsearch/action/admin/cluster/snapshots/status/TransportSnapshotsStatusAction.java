@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -38,8 +37,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -86,24 +85,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                           ThreadPool threadPool, RepositoriesService repositoriesService, NodeClient client,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              SnapshotsStatusRequest::new, indexNameExpressionResolver);
+              SnapshotsStatusRequest::new, indexNameExpressionResolver, SnapshotsStatusResponse::new, ThreadPool.Names.GENERIC);
         this.repositoriesService = repositoriesService;
         this.client = client;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.GENERIC;
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-    }
-
-    @Override
-    protected SnapshotsStatusResponse read(StreamInput in) throws IOException {
-        return new SnapshotsStatusResponse(in);
     }
 
     @Override
@@ -177,6 +166,16 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.key);
                                 if (shardStatus != null) {
                                     // We have full information about this shard
+                                    if (shardStatus.getStage() == SnapshotIndexShardStage.DONE
+                                            && shardEntry.value.state() != SnapshotsInProgress.ShardState.SUCCESS) {
+                                        // Unlikely edge case:
+                                        // Data node has finished snapshotting the shard but the cluster state has not yet been updated
+                                        // to reflect this. We adjust the status to show up as snapshot metadata being written because
+                                        // technically if the data node failed before successfully reporting DONE state to master, then
+                                        // this shards state would jump to a failed state.
+                                        shardStatus = new SnapshotIndexShardStatus(shardEntry.key, SnapshotIndexShardStage.FINALIZE,
+                                                shardStatus.getStats(), shardStatus.getNodeId(), shardStatus.getFailure());
+                                    }
                                     shardStatusBuilder.add(shardStatus);
                                     continue;
                                 }
@@ -196,6 +195,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             break;
                         case INIT:
                         case WAITING:
+                        case QUEUED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;
                         case SUCCESS:
@@ -238,9 +238,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                     List<SnapshotStatus> builder, Set<String> currentSnapshotNames, String repositoryName,
                                     ActionListener<SnapshotsStatusResponse> listener) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
-        repositoryDataListener.whenComplete(repositoryData -> {
+        repositoryDataListener.addListener(ActionListener.wrap(repositoryData -> {
             final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
@@ -295,7 +295,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 }
             }
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
-        }, listener::onFailure);
+        }, listener::onFailure), threadPool.generic());
     }
 
     /**

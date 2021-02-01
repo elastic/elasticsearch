@@ -12,22 +12,22 @@ The `script_score` query is useful if, for example, a scoring function is expens
 
 [[script-score-query-ex-request]]
 ==== Example request
-The following `script_score` query assigns each returned document a score equal to the `likes` field value divided by `10`.
+The following `script_score` query assigns each returned document a score equal to the `my-int` field value divided by `10`.
 
 [source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : "doc['likes'].value / 10 "
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": "doc['my-int'].value / 10 "
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -90,7 +90,7 @@ These functions take advantage of efficiencies from {es}' internal mechanisms.
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "saturation(doc['likes'].value, 1)"
+    "source" : "saturation(doc['my-int'].value, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -102,7 +102,7 @@ These functions take advantage of efficiencies from {es}' internal mechanisms.
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "sigmoid(doc['likes'].value, 2, 1)"
+    "source" : "sigmoid(doc['my-int'].value, 2, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -343,27 +343,27 @@ Using an <<search-explain, explain request>> provides an explanation of how the 
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_explain/0
+GET /my-index-000001/_explain/0
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : """
-                  long likes = doc['likes'].value;
-                  double normalizedLikes = likes / 10;
-                  if (explanation != null) {
-                    explanation.set('normalized likes = likes / 10 = ' + likes + ' / 10 = ' + normalizedLikes);
-                  }
-                  return normalizedLikes;
-                """
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": """
+          long count = doc['count'].value;
+          double normalizedCount = count / 10;
+          if (explanation != null) {
+            explanation.set('normalized count = count / 10 = ' + count + ' / 10 = ' + normalizedCount);
+          }
+          return normalizedCount;
+        """
+      }
+    }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.

@@ -24,9 +24,6 @@ public class Stats extends CompoundNumericAggregate {
 
     @Override
     public Stats replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new Stats(source(), newChildren.get(0));
     }
 

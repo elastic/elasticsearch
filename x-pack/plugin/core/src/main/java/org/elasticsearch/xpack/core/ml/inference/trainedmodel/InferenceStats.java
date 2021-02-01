@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -102,11 +101,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
         this.missingAllFieldsCount = in.readVLong();
         this.inferenceCount = in.readVLong();
         this.failureCount = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-            this.cacheMissCount = in.readVLong();
-        } else {
-            this.cacheMissCount = 0L;
-        }
+        this.cacheMissCount = in.readVLong();
         this.modelId = in.readOptionalString();
         this.nodeId = in.readOptionalString();
         this.timeStamp = in.readInstant();
@@ -208,9 +203,7 @@ public class InferenceStats implements ToXContentObject, Writeable {
         out.writeVLong(this.missingAllFieldsCount);
         out.writeVLong(this.inferenceCount);
         out.writeVLong(this.failureCount);
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeVLong(this.cacheMissCount);
-        }
+        out.writeVLong(this.cacheMissCount);
         out.writeOptionalString(this.modelId);
         out.writeOptionalString(this.nodeId);
         out.writeInstant(timeStamp);

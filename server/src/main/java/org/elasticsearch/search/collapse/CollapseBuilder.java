@@ -29,11 +29,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -187,7 +186,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         CollapseBuilder that = (CollapseBuilder) o;
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
-        if (!field.equals(that.field)) return false;
+        if (field.equals(that.field) == false) return false;
         return Objects.equals(innerHits, that.innerHits);
     }
 
@@ -198,17 +197,15 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return result;
     }
 
-    public CollapseContext build(QueryShardContext queryShardContext) {
-        MappedFieldType fieldType = queryShardContext.fieldMapper(field);
+    public CollapseContext build(SearchExecutionContext searchExecutionContext) {
+        MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &&
-            fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
-            throw new IllegalArgumentException("unknown type for collapse field `" + field +
-                "`, only keywords and numbers are accepted");
+        if (fieldType.collapseType() == CollapseType.NONE) {
+            throw new IllegalArgumentException("collapse is not supported for the field [" + fieldType.name() +
+                "] of the type [" + fieldType.typeName() + "]");
         }
-
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://mock1.http.elastic.local/">
+    <md:SPSSODescriptor AuthnRequestsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <md:KeyDescriptor use="signing">
+            <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                <ds:X509Data>
+                    <ds:X509Certificate>MIIFazCCA1OgAwIBAgIULAHFP2QmBv0Nwq85ggfJa3p1EjMwDQYJKoZIhvcNAQELBQAwRTELMAkG
+                        A1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdpdHMg
+                        UHR5IEx0ZDAeFw0xOTEwMTUxMzI0MzBaFw0xOTExMTQxMzI0MzBaMEUxCzAJBgNVBAYTAkFVMRMw
+                        EQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwggIi
+                        MA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCeNmv5oV+QsORglGd62oSAklrevH8sbiMW6wym
+                        42c5E6Fctq/jLJrY1oLdwOUMynSkaPmh9fAcZHtLUsjx6x4QcMEq/ODqBGvoJNZwomt+uyVbpKDG
+                        jtrXZowGnUXPz7hsM2yofRiDUIjTsujrvFp/HqCRw/9K4Uw2x8EYL5FUvaxxd36mjwbsZCXIjkOs
+                        i+jW/bM9RWQd3KF38Ar0vIP/wYK/5s9U+KSuOP3KsSOUHSH/pnBFiXciU6bVHcZA3IRYnxzaTT2E
+                        QZEXyryfQuk3TWe9YvVusXs6kd9uW4x+Lx/wovx4zy2iUpXhO/MVB1IG1SNM4w5ZE94mrLDtG+yO
+                        kGXqReesodPZYBC4OOaGrZi4rH05FouU6p7QA+iqBCFNNLTrg0f62M/UcAVsANJqQUfFqe7pr1ge
+                        wF6jlhBwHEds19XDPmUHredOjDeGJMeJaH3GS8/M6s+MQpckffdmvF4WHwGAJvRf4AXW+G3a9CTj
+                        q+E5I29+dWSvuMIIY/howKxQ9Q+IQhZYGhTH/Y9vpdfOdwVZYBB18zAI2VqJ18iOCpmd0n/E6ZPy
+                        ugCSlVZzSjSP+i/xz3c9rJnLkZ5dsOVwloNlw9jaVc/InCUNKYyRhoxwkPRa9dzuogdDo41lz95x
+                        wikxDunTSUEU9yNjfofmWpuQMz5kYHWPsFbSPQIDAQABo1MwUTAdBgNVHQ4EFgQUgowa3NlK8Dtl
+                        5KW1vL44+m0LnMAwHwYDVR0jBBgwFoAUgowa3NlK8Dtl5KW1vL44+m0LnMAwDwYDVR0TAQH/BAUw
+                        AwEB/zANBgkqhkiG9w0BAQsFAAOCAgEAZLIRn3HnTkiP6wp0gSbKqWdThM47atKqeU5l0iBcyBte
+                        rNmkxnFD6z+6x6YkKtA1ttFTY4kzQ/lr0m+jRlWpMzNkBXU7bNvcbTA5LfrMq99lQJpPuJ8eFM/B
+                        2PbYm5o0SEiTKVyYyjNXHze/alkflUTtNYQMJtSKYjFPvhx8/mVxCHBC66K+oYydbuUgzR+WGrEh
+                        IkTOREeGmtVZ1M8zru8lbD1+I8T0eqcpBqPcRdmMzSJjJopr+fM0v9LIpi22c50yZtHCLj9iAv8b
+                        QRaYnm6aV3kCb1Qv/Wadqk/7oeieJ16bv6VBSFLKyvez26HlYNNmsauz9cWN/h/LosURqmS6g+28
+                        bM+uH/UOp6CTgODpOYqRpKW6/rmVPVejx7RBp63nNa/NMhbEngsR3QsBT5qcaMv7NZbK8v/tZDik
+                        3z7TM4ld5hyUQw8WawopqhNAmTdu0ShBMQhWItQpZ3n12VNDFXXTbhdWxU/VY1hbesVuC9pRcZXp
+                        VgC+tgxjfiRrruETbQyRM73evfnaBCgIaWXcTcyBuHHKneL4dhyOuBkz4wgyJjVe88Cld/4VhPj2
+                        JqJasunfhgmknB6PmRdOQbFiIcYRIrdlk5ZblJzB+mnKBOe4cVwR3qN0Hi7WqK8loakPVNnnpu7k
+                        GUvBKOeiKrXCBMgslffMbTw2ViTtEJo=</ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </md:KeyDescriptor>
+        <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
+        <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="http://localhost:54321/saml/acs1" index="1" isDefault="true"/>
+        <md:AttributeConsumingService index="1" isDefault="true">
+            <md:ServiceName xml:lang="en-US">elasticsearch</md:ServiceName>
+            <md:RequestedAttribute FriendlyName="name" Name="urn:oid:2.5.4.3" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"/>
+            <md:RequestedAttribute FriendlyName="uid" Name="0.9.2342.19200300.100.1.1" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"/>
+        </md:AttributeConsumingService>
+    </md:SPSSODescriptor>
+</md:EntityDescriptor>

@@ -11,15 +11,15 @@ Matches the union of its span clauses. The span or query maps to Lucene
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "span_or" : {
-            "clauses" : [
-                { "span_term" : { "field" : "value1" } },
-                { "span_term" : { "field" : "value2" } },
-                { "span_term" : { "field" : "value3" } }
-            ]
-        }
+  "query": {
+    "span_or" : {
+      "clauses" : [
+        { "span_term" : { "field" : "value1" } },
+        { "span_term" : { "field" : "value2" } },
+        { "span_term" : { "field" : "value3" } }
+      ]
     }
+  }
 }
 --------------------------------------------------
 

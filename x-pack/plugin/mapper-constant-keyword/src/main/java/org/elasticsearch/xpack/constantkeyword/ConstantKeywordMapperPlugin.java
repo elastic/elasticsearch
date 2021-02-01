@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.constantkeyword;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -17,12 +16,9 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 
 public class ConstantKeywordMapperPlugin extends Plugin implements MapperPlugin {
-
-    public ConstantKeywordMapperPlugin(Settings settings) {}
-
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(ConstantKeywordFieldMapper.CONTENT_TYPE, new ConstantKeywordFieldMapper.TypeParser());
+        return singletonMap(ConstantKeywordFieldMapper.CONTENT_TYPE, ConstantKeywordFieldMapper.PARSER);
     }
 
 }

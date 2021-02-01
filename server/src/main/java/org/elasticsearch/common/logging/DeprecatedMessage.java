@@ -19,32 +19,35 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressLoggerChecks;
 
+import java.util.Locale;
+
 /**
- * A logger message used by {@link DeprecationLogger}.
- * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
+ * A logger message used by {@link DeprecationLogger}, enriched with fields
+ * named following ECS conventions. Carries x-opaque-id field if provided in the headers.
+ * Will populate the x-opaque-id field in JSON logs.
  */
 public class DeprecatedMessage  {
-    private static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    public static final String KEY_FIELD_NAME = "event.code";
+    public static final String X_OPAQUE_ID_FIELD_NAME = "elasticsearch.http.request.x_opaque_id";
+    public static final String ECS_VERSION = "1.7";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    public static ESLogMessage of(String xOpaqueId, String messagePattern, Object... args){
+    public static ESLogMessage of(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object... args) {
+        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args)
+            .field("data_stream.type", "logs")
+            .field("data_stream.dataset", "elasticsearch.deprecation")
+            .field("data_stream.namespace", "default")
+            .field("ecs.version", ECS_VERSION)
+            .field(KEY_FIELD_NAME, key)
+            .field("elasticsearch.event.category", category.name().toLowerCase(Locale.ROOT));
+
         if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return new ESLogMessage(messagePattern, args);
+            return esLogMessage;
         }
 
-        Object value = new Object() {
-            @Override
-            public String toString() {
-                return ParameterizedMessage.format(messagePattern, args);
-
-            }
-        };
-        return new ESLogMessage(messagePattern, args)
-            .field("message", value)
-            .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
+        return esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
     }
 }

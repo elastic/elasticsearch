@@ -65,7 +65,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 
 POST _ilm/stop
 --------------------------------------------------

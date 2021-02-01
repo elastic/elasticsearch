@@ -48,6 +48,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -82,13 +83,29 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
         // Moving Function Pipeline Agg
         List<Whitelist> movFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.aggs.movfn.txt"));
+        Whitelist movFnWhitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.aggs.movfn.txt");
+        movFn.add(movFnWhitelist);
         map.put(MovingFunctionScript.CONTEXT, movFn);
 
         // Functions used for scoring docs
         List<Whitelist> scoreFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
-        scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.score.txt"));
+        Whitelist scoreFnWhitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.score.txt");
+        scoreFn.add(scoreFnWhitelist);
         map.put(ScoreScript.CONTEXT, scoreFn);
+
+        // Functions available to ingest pipelines
+        List<Whitelist> ingest = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        Whitelist ingestWhitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.ingest.txt");
+        ingest.add(ingestWhitelist);
+        map.put(IngestScript.CONTEXT, ingest);
+
+        // Execute context gets everything
+        List<Whitelist> test = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        test.add(movFnWhitelist);
+        test.add(scoreFnWhitelist);
+        test.add(ingestWhitelist);
+        test.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.json.txt"));
+        map.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, test);
 
         whitelists = map;
     }
@@ -124,7 +141,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(CompilerSettings.REGEX_ENABLED);
+        return Arrays.asList(CompilerSettings.REGEX_ENABLED, CompilerSettings.REGEX_LIMIT_FACTOR);
     }
 
     @Override

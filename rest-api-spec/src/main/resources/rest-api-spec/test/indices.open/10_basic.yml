@@ -1,5 +1,8 @@
 ---
 "Basic test for index open/close":
+  - skip:
+      features: ["allowed_warnings"]
+
   - do:
       indices.create:
         index: test_index
@@ -14,6 +17,8 @@
   - do:
       indices.close:
         index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -38,6 +43,8 @@
 
 ---
 "Open index with wait_for_active_shards set to all":
+  - skip:
+      features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -49,6 +56,8 @@
   - do:
       indices.close:
         index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -82,8 +91,7 @@
 ---
 "Close index response with result per index":
   - skip:
-      version: " - 7.2.99"
-      reason: "close index response reports result per index starting version 7.3.0"
+      features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -109,6 +117,8 @@
   - do:
       indices.close:
         index: "index_*"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }
@@ -117,107 +127,24 @@
   - match: { indices.index_3.closed: true }
 
 ---
-"Close write index for data stream fails":
-  - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
-
-  - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template1
-        body:
-          index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
-  - do:
-      catch: bad_request
-      indices.close:
-        index: ".ds-simple-data-stream1-000001"
-
-  - do:
-      indices.delete_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
----
-"Open write index for data stream opens all backing indices":
+"?wait_for_active_shards=index-setting is deprecated":
   - skip:
       version: " - 7.99.99"
-      reason: "change to - 7.8.99 after backport"
-      features: allowed_warnings
+      reason: "required deprecation warning is only emitted in 8.0 and later"
+      features: ["warnings", "node_selector"]
 
   - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template1
+      indices.create:
+        index: index_1
         body:
-          index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
-
-  - do:
-      indices.create_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
-  # rollover data stream twice to create new backing indices
-  - do:
-      indices.rollover:
-        alias: "simple-data-stream1"
-
-  - match: { old_index: .ds-simple-data-stream1-000001 }
-  - match: { new_index: .ds-simple-data-stream1-000002 }
-  - match: { rolled_over: true }
-  - match: { dry_run: false }
-
-  - do:
-      indices.rollover:
-        alias: "simple-data-stream1"
-
-  - match: { old_index: .ds-simple-data-stream1-000002 }
-  - match: { new_index: .ds-simple-data-stream1-000003 }
-  - match: { rolled_over: true }
-  - match: { dry_run: false }
+          settings:
+            number_of_replicas: 0
 
   - do:
       indices.close:
-        index: ".ds-simple-data-stream1-000001,.ds-simple-data-stream1-000002"
-  - is_true: acknowledged
-
-  - do:
-      indices.open:
-        index: simple-data-stream1
-  - is_true: acknowledged
-
-  # all closed backing indices should be re-opened and returned
-  - do:
-      indices.get:
-        index: ".ds-simple-data-stream1-*"
-
-  - is_true: \.ds-simple-data-stream1-000001.settings
-  - is_true: \.ds-simple-data-stream1-000002.settings
-
-  - do:
-      indices.delete_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
+        index: "index_*"
+        wait_for_active_shards: index-setting
+      node_selector:
+        version: "8.0.0 - "
+      warnings:
+        - "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter should no longer be used since it will become unsupported in version 9"

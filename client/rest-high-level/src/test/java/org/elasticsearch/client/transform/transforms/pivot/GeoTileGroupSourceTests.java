@@ -36,11 +36,14 @@ public class GeoTileGroupSourceTests extends AbstractXContentTestCase<GeoTileGro
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
         return new GeoTileGroupSource(
             randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, GeoTileUtils.MAX_ZOOM),
-            randomBoolean() ? null : new GeoBoundingBox(
-                new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
-            )
+            randomBoolean()
+                ? null
+                : new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                )
         );
     }
 

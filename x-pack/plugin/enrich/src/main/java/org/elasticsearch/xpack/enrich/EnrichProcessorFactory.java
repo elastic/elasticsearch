@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
@@ -83,6 +84,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             case EnrichPolicy.GEO_MATCH_TYPE:
                 String relationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "shape_relation", "intersects");
                 ShapeRelation shapeRelation = ShapeRelation.getRelationByName(relationStr);
+                String orientationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "orientation", "CCW");
+                ShapeBuilder.Orientation orientation = ShapeBuilder.Orientation.fromString(orientationStr);
                 return new GeoMatchProcessor(
                     tag,
                     description,
@@ -94,7 +97,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                     ignoreMissing,
                     matchField,
                     maxMatches,
-                    shapeRelation
+                    shapeRelation,
+                    orientation
                 );
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policyType + "]");

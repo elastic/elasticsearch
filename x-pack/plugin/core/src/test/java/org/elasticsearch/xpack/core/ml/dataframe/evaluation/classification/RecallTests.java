@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RecallTests extends AbstractSerializingTestCase<Recall> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
+    private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
 
     @Override
     protected Recall doParseInstance(XContentParser parser) throws IOException {
@@ -63,7 +65,7 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
         Recall recall = new Recall();
         recall.process(aggs);
 
-        assertThat(recall.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
+        assertThat(recall.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS), isTuple(empty(), empty()));
         assertThat(recall.getResult().get(), equalTo(new Recall.Result(List.of(), 0.8123)));
     }
 
@@ -114,7 +116,7 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
             mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME, Collections.emptyList(), 1),
             mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)));
         Recall recall = new Recall();
-        recall.aggs(EVALUATION_PARAMETERS, "foo", "bar");
+        recall.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> recall.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

@@ -4,7 +4,7 @@
 <titleabbrev>Shingle</titleabbrev>
 ++++
 
-Add shingles, or word https://en.wikipedia.org/wiki/N-gram[n-grams], to a token
+Add shingles, or word {wikipedia}/N-gram[n-grams], to a token
 stream by concatenating adjacent tokens. By default, the `shingle` token filter
 outputs two-word shingles and unigrams.
 
@@ -296,7 +296,7 @@ analyzer>>.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -333,7 +333,7 @@ cannot exceed the <<index-max-shingle-diff,`index.max_shingle_diff`>>
 index-level setting, which defaults to `3`.
 
 `output_unigrams`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the output includes the original input tokens. If `false`, the output
 only includes shingles; the original input tokens are removed. Defaults to
 `true`.
@@ -486,7 +486,7 @@ only shingles are included in the output.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

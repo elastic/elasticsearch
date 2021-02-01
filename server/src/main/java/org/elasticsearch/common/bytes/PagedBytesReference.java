@@ -39,11 +39,8 @@ public class PagedBytesReference extends AbstractBytesReference {
     private final int offset;
     private final int length;
 
-    public PagedBytesReference(ByteArray byteArray, int length) {
-        this(byteArray, 0, length);
-    }
-
-    private PagedBytesReference(ByteArray byteArray, int from, int length) {
+    PagedBytesReference(ByteArray byteArray, int from, int length) {
+        assert byteArray.hasArray() == false : "use BytesReference#fromByteArray";
         this.byteArray = byteArray;
         this.offset = from;
         this.length = length;
@@ -61,6 +58,9 @@ public class PagedBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
+        if (from == 0 && this.length == length) {
+            return this;
+        }
         Objects.checkFromIndexSize(from, length, this.length);
         return new PagedBytesReference(byteArray, offset + from, length);
     }
@@ -68,7 +68,6 @@ public class PagedBytesReference extends AbstractBytesReference {
     @Override
     public BytesRef toBytesRef() {
         BytesRef bref = new BytesRef();
-        // if length <= pagesize this will dereference the page, or materialize the byte[]
         byteArray.get(offset, length, bref);
         return bref;
     }

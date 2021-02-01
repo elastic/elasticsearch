@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -24,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
@@ -188,8 +191,9 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     }
 
     private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
+        Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (req, handler) -> {
-            client.execute(
+            originClient.execute(
                 EnrichCoordinatorProxyAction.INSTANCE,
                 req,
                 ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })

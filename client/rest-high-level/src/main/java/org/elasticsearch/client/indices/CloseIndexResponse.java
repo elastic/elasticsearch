@@ -88,10 +88,10 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         static {
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("closed"));
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p::getTokenLocation);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p);
                 Exception e = ElasticsearchException.failureFromXContent(p);
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p);
                 return e;
             }, new ParseField("exception"));
             PARSER.declareNamedObjects(optionalConstructorArg(),

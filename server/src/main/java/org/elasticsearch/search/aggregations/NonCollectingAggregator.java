@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,15 +30,17 @@ import java.util.Map;
  * a mapping.
  */
 public abstract class NonCollectingAggregator extends AggregatorBase {
-
-    protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent, AggregatorFactories subFactories,
-            Map<String, Object> metadata) throws IOException {
-        super(name, subFactories, context, parent, metadata);
-    }
-
-    protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
-        this(name, context, parent, AggregatorFactories.EMPTY, metadata);
+    /**
+     * Build a {@linkplain NonCollectingAggregator} for any aggregator.
+     */
+    protected NonCollectingAggregator(
+        String name,
+        AggregationContext context,
+        Aggregator parent,
+        AggregatorFactories subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, subFactories, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override

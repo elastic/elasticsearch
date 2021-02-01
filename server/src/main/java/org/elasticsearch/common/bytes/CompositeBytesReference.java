@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -118,6 +119,9 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
+        if (from == 0 && this.length == length) {
+            return this;
+        }
         Objects.checkFromIndexSize(from, length, this.length);
 
         if (length == 0) {
@@ -185,6 +189,13 @@ public final class CompositeBytesReference extends AbstractBytesReference {
                 return next;
             }
         };
+    }
+
+    @Override
+    public void writeTo(OutputStream os) throws IOException {
+        for (BytesReference reference : references) {
+            reference.writeTo(os);
+        }
     }
 
     @Override

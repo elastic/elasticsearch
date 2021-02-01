@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -154,7 +153,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         int roundingIndex = reduced.getBucketInfo().roundingIdx;
         RoundingInfo roundingInfo = AutoDateHistogramAggregationBuilder.buildRoundings(null, null)[roundingIndex];
-        Rounding.Prepared prepared = roundingInfo.rounding.prepare(lowest, highest);
+        Rounding.Prepared prepared = totalBucketConut > 0 ? roundingInfo.rounding.prepare(lowest, highest) : null;
 
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
         int innerIntervalIndex = 0;
@@ -260,7 +259,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedAutoDateHistogram> implementationClass() {
         return ParsedAutoDateHistogram.class;
     }
 

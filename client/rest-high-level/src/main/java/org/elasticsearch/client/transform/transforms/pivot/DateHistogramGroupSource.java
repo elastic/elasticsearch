@@ -188,9 +188,10 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         (args) -> {
             String field = (String) args[0];
             Script script = (Script) args[1];
-            String fixedInterval = (String) args[2];
-            String calendarInterval = (String) args[3];
-            ZoneId zoneId = (ZoneId) args[4];
+            boolean missingBucket = args[2] == null ? false : (boolean) args[2];
+            String fixedInterval = (String) args[3];
+            String calendarInterval = (String) args[4];
+            ZoneId zoneId = (ZoneId) args[5];
 
             Interval interval = null;
 
@@ -204,13 +205,14 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
                 throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
             }
 
-            return new DateHistogramGroupSource(field, script, interval, zoneId);
+            return new DateHistogramGroupSource(field, script, missingBucket, interval, zoneId);
         }
     );
 
     static {
         PARSER.declareString(optionalConstructorArg(), FIELD);
         Script.declareScript(PARSER, optionalConstructorArg(), SCRIPT);
+        PARSER.declareBoolean(optionalConstructorArg(), MISSING_BUCKET);
         PARSER.declareString(optionalConstructorArg(), new ParseField(FixedInterval.NAME));
         PARSER.declareString(optionalConstructorArg(), new ParseField(CalendarInterval.NAME));
 
@@ -231,7 +233,11 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
     private final ZoneId timeZone;
 
     DateHistogramGroupSource(String field, Script script, Interval interval, ZoneId timeZone) {
-        super(field, script);
+        this(field, script, false, interval, timeZone);
+    }
+
+    DateHistogramGroupSource(String field, Script script, boolean missingBucket, Interval interval, ZoneId timeZone) {
+        super(field, script, missingBucket);
         this.interval = interval;
         this.timeZone = timeZone;
     }
@@ -273,14 +279,16 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
         final DateHistogramGroupSource that = (DateHistogramGroupSource) other;
 
-        return Objects.equals(this.field, that.field)
+        return this.missingBucket == that.missingBucket
+            && Objects.equals(this.field, that.field)
+            && Objects.equals(this.script, that.script)
             && Objects.equals(this.interval, that.interval)
             && Objects.equals(this.timeZone, that.timeZone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, interval, timeZone);
+        return Objects.hash(field, script, missingBucket, interval, timeZone);
     }
 
     @Override
@@ -298,6 +306,7 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         private Script script;
         private Interval interval;
         private ZoneId timeZone;
+        private boolean missingBucket;
 
         /**
          * The field with which to construct the date histogram grouping
@@ -339,8 +348,18 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
             return this;
         }
 
+        /**
+         * Sets the value of "missing_bucket"
+         * @param missingBucket value of "missing_bucket" to be set
+         * @return The {@link Builder} with "missing_bucket" set.
+         */
+        public Builder setMissingBucket(boolean missingBucket) {
+            this.missingBucket = missingBucket;
+            return this;
+        }
+
         public DateHistogramGroupSource build() {
-            return new DateHistogramGroupSource(field, script, interval, timeZone);
+            return new DateHistogramGroupSource(field, script, missingBucket, interval, timeZone);
         }
     }
 }

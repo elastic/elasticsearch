@@ -58,10 +58,11 @@ public class LifecyclePolicy implements ToXContentObject {
         }, PHASES_FIELD);
 
         ALLOWED_ACTIONS.put("hot", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME));
-        ALLOWED_ACTIONS.put("warm", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME, ForceMergeAction.NAME,
-            ReadOnlyAction.NAME, ShrinkAction.NAME));
-        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME, FreezeAction.NAME));
-        ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME));
+        ALLOWED_ACTIONS.put("warm", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
+            ForceMergeAction.NAME, ReadOnlyAction.NAME, ShrinkAction.NAME));
+        ALLOWED_ACTIONS.put("cold", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, MigrateAction.NAME, AllocateAction.NAME,
+            FreezeAction.NAME, SearchableSnapshotAction.NAME));
+        ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME));
     }
 
     private final String name;
@@ -79,7 +80,10 @@ public class LifecyclePolicy implements ToXContentObject {
             if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
                 throw new IllegalArgumentException("Lifecycle does not support phase [" + phase.getName() + "]");
             }
-            phase.getActions().forEach((actionName, action) -> {
+           if (phase.getName().equals("delete") && phase.getActions().size() == 0) {
+              throw new IllegalArgumentException("phase [" + phase.getName() + "] must define actions");
+           }
+           phase.getActions().forEach((actionName, action) -> {
                 if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
                     throw new IllegalArgumentException("invalid action [" + actionName + "] " +
                         "defined in phase [" + phase.getName() +"]");

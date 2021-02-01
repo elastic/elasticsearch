@@ -35,3 +35,4 @@ teardown:
   - match: { username: "authenticate_user" }
   - match: { roles.0:  "superuser" }
   - match: { full_name: "Authenticate User" }
+  - match: { authentication_type: "realm" }

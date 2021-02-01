@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Netty4Utils {
 
-    private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
+    private static final AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
 
     /**
      * Set the number of available processors that Netty uses for sizing various resources (e.g., thread pools).
@@ -49,7 +49,7 @@ public class Netty4Utils {
     public static void setAvailableProcessors(final int availableProcessors) {
         // we set this to false in tests to avoid tests that randomly set processors from stepping on each other
         final boolean set = Booleans.parseBoolean(System.getProperty("es.set.netty.runtime.available.processors", "true"));
-        if (!set) {
+        if (set == false) {
             return;
         }
 

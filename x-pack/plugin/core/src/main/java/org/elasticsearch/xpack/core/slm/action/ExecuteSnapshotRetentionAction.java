@@ -21,7 +21,7 @@ public class ExecuteSnapshotRetentionAction extends ActionType<AcknowledgedRespo
     public static final String NAME = "cluster:admin/slm/execute-retention";
 
     protected ExecuteSnapshotRetentionAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<ExecuteSnapshotRetentionAction.Request> implements ToXContentObject {

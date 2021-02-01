@@ -21,6 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -120,13 +121,8 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
     }
 
     @Override
-    protected GetPipelineResponse mutateInstance(GetPipelineResponse response) {
-        try {
-            List<PipelineConfiguration> clonePipelines = new ArrayList<>(response.pipelines());
-            clonePipelines.add(createRandomPipeline("pipeline_" + clonePipelines.size() + 1));
-            return new GetPipelineResponse(clonePipelines);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    protected GetPipelineResponse mutateInstance(GetPipelineResponse response) throws IOException {
+        return new GetPipelineResponse(CollectionUtils.appendToCopy(response.pipelines(),
+                createRandomPipeline("pipeline_" + response.pipelines().size() + 1)));
     }
 }

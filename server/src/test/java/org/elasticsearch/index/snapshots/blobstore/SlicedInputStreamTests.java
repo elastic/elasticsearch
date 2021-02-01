@@ -60,10 +60,9 @@ public class SlicedInputStreamTests extends ESTestCase {
         }
 
         SlicedInputStream input = new SlicedInputStream(parts) {
-
             @Override
-            protected InputStream openSlice(long slice) throws IOException {
-                return streams[(int)slice];
+            protected InputStream openSlice(int slice) throws IOException {
+                return streams[slice];
             }
         };
         random = new Random(seed);

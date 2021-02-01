@@ -36,6 +36,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                "  \"ping\": {" +
                "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
                "    \"stability\": \"stable\",\n" +
+               "    \"visibility\": \"public\",\n" +
                "    \"url\": {" +
                "      \"paths\": [{\"path\":\"/\", \"parts\": {}, \"methods\": [\"PUT\", \"PUT\"]}]," +
                "      \"params\": {" +
@@ -53,6 +54,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
                 "    \"stability\": \"stable\",\n" +
+                "    \"visibility\": \"public\",\n" +
                 "    \"url\": {" +
                 "      \"paths\": [" +
                 "         {\"path\":\"/pingtwo\", \"methods\": [\"PUT\"]}, " + "{\"path\":\"/pingtwo\", \"methods\": [\"PUT\"]}]," +
@@ -102,6 +104,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
             "  \"ping\": {" +
             "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
             "    \"stability\": \"stable\",\n" +
+            "    \"visibility\": \"public\",\n" +
             "    \"url\": {" +
             "      \"paths\": [{\"path\": \"path\", \"methods\": [\"HEAD\"]}]" +
             "    }," +
@@ -118,6 +121,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
             "  \"ping\": {" +
             "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
             "    \"stability\": \"stable\",\n" +
+            "    \"visibility\": \"public\",\n" +
             "    \"url\": {" +
             "      \"paths\": [{ \"path\":\"/\", \"parts\": { \"type\":\"boolean\",}}]," +
             "      \"params\": {\n" +

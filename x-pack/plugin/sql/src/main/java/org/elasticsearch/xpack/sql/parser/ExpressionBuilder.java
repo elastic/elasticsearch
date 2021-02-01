@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionResolution;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
@@ -233,7 +234,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (pCtx.query() != null) {
                     throw new ParsingException(source, "IN query not supported yet");
                 }
-                e = new In(source, exp, expressions(pCtx.valueExpression()));
+                e = new In(source, exp, expressions(pCtx.valueExpression()), zoneId);
                 break;
             case SqlBaseParser.LIKE:
                 e = new Like(source, exp, visitPattern(pCtx.pattern()));
@@ -270,12 +271,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (pattern == null) {
             throw new ParsingException(source(ctx.value), "Pattern must not be [null]");
         }
-        int pos = pattern.indexOf('*');
-        if (pos >= 0) {
-            throw new ParsingException(source(ctx.value),
-                    "Invalid char [*] found in pattern [{}] at position {}; use [%] or [_] instead",
-                    pattern, pos);
-        }
 
         char escape = 0;
         PatternEscapeContext escapeCtx = ctx.patternEscape();
@@ -288,8 +283,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             } else if (escapeString.length() == 1) {
                 escape = escapeString.charAt(0);
                 // these chars already have a meaning
-                if (escape == '*' || escape == '%' || escape == '_') {
-                    throw new ParsingException(source(escapeCtx.escape), "Char [{}] cannot be used for escaping", escape);
+                if (escape == '%' || escape == '_') {
+                    throw new ParsingException(source(escapeCtx.escape),
+                            "Char [{}] cannot be used for escaping as it's one of the wildcard chars [%_]", escape);
                 }
                 // lastly validate that escape chars (if present) are followed by special chars
                 for (int i = 0; i < pattern.length(); i++) {
@@ -303,8 +299,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         char next = pattern.charAt(i + 1);
                         if (next != '%' && next != '_') {
                             throw new ParsingException(source(ctx.value),
-                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape wildcard chars; found [{}]",
-                                    pattern, escape, i, next);
+                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape "
+                                    + "wildcard chars [%_]; found [{}]", pattern, escape, i, next);
                         }
                     }
                 }
@@ -433,7 +429,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         ExtractTemplateContext template = ctx.extractTemplate();
         String fieldString = visitIdentifier(template.field);
         return new UnresolvedFunction(source(template), fieldString,
-                UnresolvedFunction.ResolutionType.EXTRACT, singletonList(expression(template.valueExpression())));
+            SqlFunctionResolution.EXTRACT, singletonList(expression(template.valueExpression())));
     }
 
     @Override
@@ -445,11 +441,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         switch (ctx.name.getType()) {
             case SqlBaseLexer.CURRENT_TIMESTAMP:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_DATE:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_TIME:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
+                return new UnresolvedFunction(source, functionName, FunctionResolutionStrategy.DEFAULT, emptyList());
             default:
                 throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
@@ -460,9 +454,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         FunctionTemplateContext template = ctx.functionTemplate();
         String name = template.functionName().getText();
         boolean isDistinct = template.setQuantifier() != null && template.setQuantifier().DISTINCT() != null;
-        UnresolvedFunction.ResolutionType resolutionType =
-                isDistinct ? UnresolvedFunction.ResolutionType.DISTINCT : UnresolvedFunction.ResolutionType.STANDARD;
-        return new UnresolvedFunction(source(ctx), name, resolutionType, expressions(template.expression()));
+        FunctionResolutionStrategy resolutionStrategy = isDistinct ? SqlFunctionResolution.DISTINCT : FunctionResolutionStrategy.DEFAULT;
+        return new UnresolvedFunction(source(ctx), name, resolutionStrategy, expressions(template.expression()));
     }
 
     @Override

@@ -20,12 +20,15 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
+
+    public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
 
     private final User user;
     private final RealmRef authenticatedBy;
@@ -174,6 +177,7 @@ public class Authentication implements ToXContentObject {
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         }
         builder.endObject();
+        builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -259,4 +263,3 @@ public class Authentication implements ToXContentObject {
         INTERNAL
     }
 }
-

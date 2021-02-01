@@ -41,8 +41,6 @@ import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
-import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -121,6 +119,8 @@ import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotResponse;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
@@ -1179,6 +1179,50 @@ public final class MachineLearningClient {
     }
 
     /**
+     * Upgrades a snapshot for a Machine Learning Job to the current major version.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-upgrade-job-model-snapshot.html">
+     * ML Upgrade job snapshots documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public UpgradeJobModelSnapshotResponse upgradeJobSnapshot(UpgradeJobModelSnapshotRequest request,
+                                                              RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::upgradeJobSnapshot,
+            options,
+            UpgradeJobModelSnapshotResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Upgrades a snapshot for a Machine Learning Job to the current major version,
+     * notifies listener once the upgrade has started.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-upgrade-job-model-snapshot.html">
+     * ML Upgrade job snapshots documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable upgradeJobSnapshotAsync(UpgradeJobModelSnapshotRequest request,
+                                               RequestOptions options,
+                                               ActionListener<UpgradeJobModelSnapshotResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::upgradeJobSnapshot,
+            options,
+            UpgradeJobModelSnapshotResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
      * Gets overall buckets for a set of Machine Learning Jobs.
      * <p>
      * For additional info
@@ -1874,48 +1918,6 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Finds the structure of a file
-     * <p>
-     * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
-     *     ML Find File Structure documentation</a>
-     *
-     * @param request The find file structure request
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response containing details of the file structure
-     * @throws IOException when there is a serialization issue sending the request or receiving the response
-     */
-    public FindFileStructureResponse findFileStructure(FindFileStructureRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-            MLRequestConverters::findFileStructure,
-            options,
-            FindFileStructureResponse::fromXContent,
-            Collections.emptySet());
-    }
-
-    /**
-     * Finds the structure of a file asynchronously and notifies the listener on completion
-     * <p>
-     * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
-     *         ML Find File Structure documentation</a>
-     *
-     * @param request The find file structure request
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener Listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable findFileStructureAsync(FindFileStructureRequest request, RequestOptions options,
-                                              ActionListener<FindFileStructureResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            MLRequestConverters::findFileStructure,
-            options,
-            FindFileStructureResponse::fromXContent,
-            listener,
-            Collections.emptySet());
-    }
-
-    /**
      * Sets the ML cluster setting upgrade_mode
      * <p>
      * For additional info
@@ -2395,7 +2397,7 @@ public final class MachineLearningClient {
      * Gets trained model configs
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models.html">
      *     GET Trained Model Configs documentation</a>
      *
      * @param request The {@link GetTrainedModelsRequest}
@@ -2415,7 +2417,7 @@ public final class MachineLearningClient {
      * Gets trained model configs asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models.html">
      *     GET Trained Model Configs documentation</a>
      *
      * @param request The {@link GetTrainedModelsRequest}
@@ -2480,7 +2482,7 @@ public final class MachineLearningClient {
      * Gets trained model stats
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models-stats.html">
      *     GET Trained Model Stats documentation</a>
      *
      * @param request The {@link GetTrainedModelsStatsRequest}
@@ -2500,7 +2502,7 @@ public final class MachineLearningClient {
      * Gets trained model stats asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference-stats.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models-stats.html">
      *     GET Trained Model Stats documentation</a>
      *
      * @param request The {@link GetTrainedModelsStatsRequest}
@@ -2523,7 +2525,7 @@ public final class MachineLearningClient {
      * Deletes the given Trained Model
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-inference.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-trained-models.html">
      *     DELETE Trained  Model documentation</a>
      *
      * @param request The {@link DeleteTrainedModelRequest}
@@ -2543,7 +2545,7 @@ public final class MachineLearningClient {
      * Deletes the given Trained Model asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-inference.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-trained-models.html">
      *     DELETE Trained Model documentation</a>
      *
      * @param request The {@link DeleteTrainedModelRequest}

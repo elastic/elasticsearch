@@ -88,7 +88,7 @@ public class GetFieldMappingsResponse {
 
 
     public static GetFieldMappingsResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         final Map<String, Map<String, FieldMappingMetadata>> mappings = new HashMap<>();
         if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
@@ -157,7 +157,7 @@ public class GetFieldMappingsResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof FieldMappingMetadata)) return false;
+            if ((o instanceof FieldMappingMetadata) == false) return false;
             FieldMappingMetadata that = (FieldMappingMetadata) o;
             return Objects.equals(fullName, that.fullName) && Objects.equals(source, that.source);
         }
@@ -177,7 +177,7 @@ public class GetFieldMappingsResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof GetFieldMappingsResponse)) return false;
+        if ((o instanceof GetFieldMappingsResponse) == false) return false;
         GetFieldMappingsResponse that = (GetFieldMappingsResponse) o;
         return Objects.equals(mappings, that.mappings);
     }

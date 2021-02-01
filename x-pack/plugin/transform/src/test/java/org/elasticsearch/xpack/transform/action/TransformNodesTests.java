@@ -20,14 +20,17 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
 import java.util.Arrays;
 import java.util.Collections;
-
-import static org.hamcrest.Matchers.hasItemInArray;
+import java.util.HashSet;
+import java.util.Set;
 
 public class TransformNodesTests extends ESTestCase {
 
     public void testTransformNodes() {
         String transformIdFoo = "df-id-foo";
         String transformIdBar = "df-id-bar";
+        String transformIdFailed = "df-id-failed";
+        String transformIdBaz = "df-id-baz";
+        String transformIdOther = "df-id-other";
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         tasksBuilder.addTask(
@@ -63,15 +66,40 @@ public class TransformNodesTests extends ESTestCase {
                 return null;
             }
         }, new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment"));
+        tasksBuilder.addTask(
+            transformIdFailed,
+            TransformField.TASK_NAME,
+            new TransformTaskParams(transformIdFailed, Version.CURRENT, null, false),
+            new PersistentTasksCustomMetadata.Assignment(null, "awaiting reassignment after node loss")
+        );
+        tasksBuilder.addTask(
+            transformIdBaz,
+            TransformField.TASK_NAME,
+            new TransformTaskParams(transformIdBaz, Version.CURRENT, null, false),
+            new PersistentTasksCustomMetadata.Assignment("node-2", "test assignment")
+        );
+        tasksBuilder.addTask(
+            transformIdOther,
+            TransformField.TASK_NAME,
+            new TransformTaskParams(transformIdOther, Version.CURRENT, null, false),
+            new PersistentTasksCustomMetadata.Assignment("node-3", "test assignment")
+        );
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
             .build();
 
-        String[] nodes = TransformNodes.transformTaskNodes(Arrays.asList(transformIdFoo, transformIdBar), cs);
+        // don't ask for transformIdOther
+        String[] nodes = TransformNodes.transformTaskNodes(
+            Arrays.asList(transformIdFoo, transformIdBar, transformIdFailed, transformIdBaz),
+            cs
+        );
         assertEquals(2, nodes.length);
-        assertThat(nodes, hasItemInArray("node-1"));
-        assertThat(nodes, hasItemInArray("node-2"));
+        Set<String> nodesSet = new HashSet<>(Arrays.asList(nodes));
+        assertTrue(nodesSet.contains("node-1"));
+        assertTrue(nodesSet.contains("node-2"));
+        assertFalse(nodesSet.contains(null));
+        assertFalse(nodesSet.contains("node-3"));
     }
 
     public void testTransformNodes_NoTasks() {

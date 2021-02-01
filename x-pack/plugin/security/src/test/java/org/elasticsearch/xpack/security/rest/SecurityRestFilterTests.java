@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
-import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
@@ -250,6 +250,11 @@ public class SecurityRestFilterTests extends ESTestCase {
                 authcServiceRequest.get().content().streamInput()).map();
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
+    }
+
+    public void testDelegationForCompatibleWithMethod() throws Exception {
+        filter.compatibleWithVersion();
+        verify(restHandler).compatibleWithVersion();
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {

@@ -131,7 +131,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     public static ShardSearchFailure fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         String currentFieldName = null;
         int shardId = -1;
         String indexName = null;

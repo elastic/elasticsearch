@@ -5,12 +5,12 @@
 These {ccr} settings can be dynamically updated on a live cluster with the
 <<cluster-update-settings,cluster update settings API>>.
 
-[float]
+[discrete]
 [[ccr-recovery-settings]]
 ==== Remote recovery settings
 
 The following setting can be used to rate-limit the data transmitted during
-<<remote-recovery,remote recoveries>>:
+<<ccr-remote-recovery,remote recoveries>>:
 
 `ccr.indices.recovery.max_bytes_per_sec` (<<cluster-update-settings,Dynamic>>)::
 Limits the total inbound and outbound remote recovery traffic on each node.
@@ -23,7 +23,7 @@ leader and follower clusters. For example if it is set to `20mb` on a leader,
 the leader will only send `20mb/s` to the follower even if the follower is
 requesting and can accept `60mb/s`. Defaults to `40mb`.
 
-[float]
+[discrete]
 [[ccr-advanced-recovery-settings]]
 ==== Advanced remote recovery settings
 

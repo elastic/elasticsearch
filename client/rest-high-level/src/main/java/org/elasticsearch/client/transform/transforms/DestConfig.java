@@ -38,9 +38,11 @@ public class DestConfig implements ToXContentObject {
     public static final ParseField INDEX = new ParseField("index");
     public static final ParseField PIPELINE = new ParseField("pipeline");
 
-    public static final ConstructingObjectParser<DestConfig, Void> PARSER = new ConstructingObjectParser<>("transform_config_dest",
+    public static final ConstructingObjectParser<DestConfig, Void> PARSER = new ConstructingObjectParser<>(
+        "transform_config_dest",
         true,
-        args -> new DestConfig((String)args[0], (String)args[1]));
+        args -> new DestConfig((String) args[0], (String) args[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), INDEX);
@@ -50,7 +52,7 @@ public class DestConfig implements ToXContentObject {
     private final String index;
     private final String pipeline;
 
-    DestConfig(String index, String pipeline) {
+    public DestConfig(String index, String pipeline) {
         this.index = Objects.requireNonNull(index, INDEX.getPreferredName());
         this.pipeline = pipeline;
     }
@@ -84,12 +86,11 @@ public class DestConfig implements ToXContentObject {
         }
 
         DestConfig that = (DestConfig) other;
-        return Objects.equals(index, that.index) &&
-            Objects.equals(pipeline, that.pipeline);
+        return Objects.equals(index, that.index) && Objects.equals(pipeline, that.pipeline);
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(index, pipeline);
     }
 

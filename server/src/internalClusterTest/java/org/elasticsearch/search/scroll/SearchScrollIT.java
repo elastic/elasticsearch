@@ -602,7 +602,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         IllegalArgumentException illegalArgumentException =
             (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
         assertNotNull(illegalArgumentException);
-        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (2h) is too large"));
+        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for request (2h) is too large"));
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -619,7 +619,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         illegalArgumentException =
             (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
         assertNotNull(illegalArgumentException);
-        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (3h) is too large"));
+        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for request (3h) is too large"));
     }
 
     /**

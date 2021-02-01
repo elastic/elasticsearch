@@ -438,7 +438,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      */
     public ShardRouting moveUnassignedFromPrimary() {
         assert state == ShardRoutingState.UNASSIGNED : "expected an unassigned shard " + this;
-        if (!primary) {
+        if (primary == false) {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
         return new ShardRouting(shardId, currentNodeId, relocatingNodeId, false, state, PeerRecoverySource.INSTANCE, unassignedInfo,
@@ -570,7 +570,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Cache hash code in same same way as {@link String#hashCode()}) using racy single-check idiom
+     * Cache hash code in the same way as {@link String#hashCode()}) using racy single-check idiom
      * as it is mainly used in single-threaded code ({@link BalancedShardsAllocator}).
      */
     private int hashCode; // default to 0

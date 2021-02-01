@@ -22,22 +22,19 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
-public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction<DeleteStoredScriptRequest, AcknowledgedResponse> {
+public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMasterNodeAction<DeleteStoredScriptRequest> {
 
     private final ScriptService scriptService;
 
@@ -46,18 +43,8 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                              ScriptService scriptService) {
         super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteStoredScriptRequest::new, indexNameExpressionResolver);
+                DeleteStoredScriptRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.scriptService = scriptService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override

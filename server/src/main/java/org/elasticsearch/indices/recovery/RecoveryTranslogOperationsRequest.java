@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -107,11 +106,7 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
         retentionLeases = new RetentionLeases(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            mappingVersionOnPrimary = in.readVLong();
-        } else {
-            mappingVersionOnPrimary = Long.MAX_VALUE;
-        }
+        mappingVersionOnPrimary = in.readVLong();
     }
 
     @Override
@@ -124,9 +119,6 @@ public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest 
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         retentionLeases.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeVLong(mappingVersionOnPrimary);
-        }
+        out.writeVLong(mappingVersionOnPrimary);
     }
-
-    }
+}

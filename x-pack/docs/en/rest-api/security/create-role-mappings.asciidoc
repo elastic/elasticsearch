@@ -79,7 +79,7 @@ The following parameters can be specified in the body of a PUT or POST request
 and pertain to adding a role mapping:
 
 `enabled`::
-(Required, boolean) Mappings that have `enabled` set to `false` are ignored when
+(Required, Boolean) Mappings that have `enabled` set to `false` are ignored when
 role mapping is performed.
 
 `metadata`::

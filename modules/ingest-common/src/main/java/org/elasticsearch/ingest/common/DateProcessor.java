@@ -43,17 +43,24 @@ public final class DateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "date";
     static final String DEFAULT_TARGET_FIELD = "@timestamp";
-    private static final DateFormatter FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+    static final String DEFAULT_OUTPUT_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 
+    private final DateFormatter formatter;
     private final TemplateScript.Factory timezone;
     private final TemplateScript.Factory locale;
     private final String field;
     private final String targetField;
     private final List<String> formats;
     private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
+    private final String outputFormat;
 
     DateProcessor(String tag, String description, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
                   String field, List<String> formats, String targetField) {
+        this(tag, description, timezone, locale, field, formats, targetField, DEFAULT_OUTPUT_FORMAT);
+    }
+
+    DateProcessor(String tag, String description, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
+                  String field, List<String> formats, String targetField, String outputFormat) {
         super(tag, description);
         this.timezone = timezone;
         this.locale = locale;
@@ -65,6 +72,8 @@ public final class DateProcessor extends AbstractProcessor {
             DateFormat dateFormat = DateFormat.fromString(format);
             dateParsers.add((params) -> dateFormat.getFunction(format, newDateTimeZone(params), newLocale(params)));
         }
+        this.outputFormat = outputFormat;
+        formatter = DateFormatter.forPattern(this.outputFormat);
     }
 
     private ZoneId newDateTimeZone(Map<String, Object> params) {
@@ -99,7 +108,7 @@ public final class DateProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        ingestDocument.setFieldValue(targetField, FORMATTER.format(dateTime));
+        ingestDocument.setFieldValue(targetField, formatter.format(dateTime));
         return ingestDocument;
     }
 
@@ -128,6 +137,10 @@ public final class DateProcessor extends AbstractProcessor {
         return formats;
     }
 
+    String getOutputFormat() {
+        return outputFormat;
+    }
+
     public static final class Factory implements Processor.Factory {
 
         private final ScriptService scriptService;
@@ -153,8 +166,16 @@ public final class DateProcessor extends AbstractProcessor {
                     "locale", localeString, scriptService);
             }
             List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
+            String outputFormat =
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "output_format", DEFAULT_OUTPUT_FORMAT);
+            try {
+                DateFormatter.forPattern(outputFormat);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("invalid output format [" + outputFormat + "]", e);
+            }
+
             return new DateProcessor(processorTag, description, compiledTimezoneTemplate, compiledLocaleTemplate, field, formats,
-                targetField);
+                targetField, outputFormat);
         }
     }
 }

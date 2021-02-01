@@ -60,10 +60,10 @@ public class GetLifecyclePolicyResponse implements ToXContentObject {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         parser.nextToken();
 
-        while (!parser.isClosed()) {
+        while (parser.isClosed() == false) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 String policyName = parser.currentName();
                 LifecyclePolicyMetadata policyDefinion = LifecyclePolicyMetadata.parse(parser, policyName);

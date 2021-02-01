@@ -214,88 +214,88 @@ Which responds with:
 [source,console-result]
 --------------------------------------------------
 {
-    "detail": {
-        "custom_analyzer": true,
-        "charfilters": [],
-        "tokenizer": {
-            "name": "nori_tokenizer",
-            "tokens": [
-                {
-                    "token": "뿌리",
-                    "start_offset": 0,
-                    "end_offset": 2,
-                    "type": "word",
-                    "position": 0,
-                    "leftPOS": "NNG(General Noun)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "NNG(General Noun)"
-                },
-                {
-                    "token": "가",
-                    "start_offset": 2,
-                    "end_offset": 3,
-                    "type": "word",
-                    "position": 1,
-                    "leftPOS": "J(Ending Particle)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "J(Ending Particle)"
-                },
-                {
-                    "token": "깊",
-                    "start_offset": 4,
-                    "end_offset": 5,
-                    "type": "word",
-                    "position": 2,
-                    "leftPOS": "VA(Adjective)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "VA(Adjective)"
-                },
-                {
-                    "token": "은",
-                    "start_offset": 5,
-                    "end_offset": 6,
-                    "type": "word",
-                    "position": 3,
-                    "leftPOS": "E(Verbal endings)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "E(Verbal endings)"
-                },
-                {
-                    "token": "나무",
-                    "start_offset": 7,
-                    "end_offset": 9,
-                    "type": "word",
-                    "position": 4,
-                    "leftPOS": "NNG(General Noun)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "NNG(General Noun)"
-                },
-                {
-                    "token": "는",
-                    "start_offset": 9,
-                    "end_offset": 10,
-                    "type": "word",
-                    "position": 5,
-                    "leftPOS": "J(Ending Particle)",
-                    "morphemes": null,
-                    "posType": "MORPHEME",
-                    "reading": null,
-                    "rightPOS": "J(Ending Particle)"
-                }
-            ]
+  "detail": {
+    "custom_analyzer": true,
+    "charfilters": [],
+    "tokenizer": {
+      "name": "nori_tokenizer",
+      "tokens": [
+        {
+          "token": "뿌리",
+          "start_offset": 0,
+          "end_offset": 2,
+          "type": "word",
+          "position": 0,
+          "leftPOS": "NNG(General Noun)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "NNG(General Noun)"
         },
-        "tokenfilters": []
-    }
+        {
+          "token": "가",
+          "start_offset": 2,
+          "end_offset": 3,
+          "type": "word",
+          "position": 1,
+          "leftPOS": "J(Ending Particle)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "J(Ending Particle)"
+        },
+        {
+          "token": "깊",
+          "start_offset": 4,
+          "end_offset": 5,
+          "type": "word",
+          "position": 2,
+          "leftPOS": "VA(Adjective)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "VA(Adjective)"
+        },
+        {
+          "token": "은",
+          "start_offset": 5,
+          "end_offset": 6,
+          "type": "word",
+          "position": 3,
+          "leftPOS": "E(Verbal endings)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "E(Verbal endings)"
+        },
+        {
+          "token": "나무",
+          "start_offset": 7,
+          "end_offset": 9,
+          "type": "word",
+          "position": 4,
+          "leftPOS": "NNG(General Noun)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "NNG(General Noun)"
+        },
+        {
+          "token": "는",
+          "start_offset": 9,
+          "end_offset": 10,
+          "type": "word",
+          "position": 5,
+          "leftPOS": "J(Ending Particle)",
+          "morphemes": null,
+          "posType": "MORPHEME",
+          "reading": null,
+          "rightPOS": "J(Ending Particle)"
+        }
+      ]
+    },
+    "tokenfilters": []
+  }
 }
 --------------------------------------------------
 
@@ -400,18 +400,18 @@ The `nori_readingform` token filter rewrites tokens written in Hanja to their Ha
 --------------------------------------------------
 PUT nori_sample
 {
-    "settings": {
-        "index":{
-            "analysis":{
-                "analyzer" : {
-                    "my_analyzer" : {
-                        "tokenizer" : "nori_tokenizer",
-                        "filter" : ["nori_readingform"]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "nori_tokenizer",
+            "filter": [ "nori_readingform" ]
+          }
         }
+      }
     }
+  }
 }
 
 GET nori_sample/_analyze

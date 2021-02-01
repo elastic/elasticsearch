@@ -201,7 +201,7 @@ these token graphs, making them suitable for indexing.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {

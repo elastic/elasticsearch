@@ -125,7 +125,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         // We do the rewrite in toQuery to not have to deal with the case when a multi-term builder rewrites to a non-multi-term
         // builder.
         QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
@@ -133,7 +133,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
         } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder) {
             PrefixQueryBuilder prefixBuilder = (PrefixQueryBuilder) multiTermQueryBuilder;
-            MappedFieldType fieldType = context.fieldMapper(prefixBuilder.fieldName());
+            MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
             if (fieldType == null) {
                 throw new IllegalStateException("Rewrite first");
             }

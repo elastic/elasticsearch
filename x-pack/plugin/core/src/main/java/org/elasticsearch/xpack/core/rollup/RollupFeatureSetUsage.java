@@ -18,8 +18,8 @@ public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
         super(input);
     }
 
-    public RollupFeatureSetUsage(boolean available) {
-        super(XPackField.ROLLUP, available, true);
+    public RollupFeatureSetUsage() {
+        super(XPackField.ROLLUP, true, true);
     }
 
     @Override

@@ -100,6 +100,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -1376,6 +1377,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         private final Predicate<String> ignoreIndexPrivilegesPredicate;
         private final Predicate<String> ignoreClusterPrivilegesPredicate;
 
+        private final ConcurrentHashMap<String, Collection<String>> indexActions = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Collection<String>> clusterActions = new ConcurrentHashMap<>();
+
         EventFilterPolicy(String name, Settings settings) {
             this(name, parsePredicate(FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)),
                     parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings)),
@@ -1461,13 +1465,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         private boolean ignoreIndexPrivilegesPredicateTest(String action) {
             if (ignoreIndexPrivilegesPredicate.test(action)) return true;
-            Collection<String> privileges = IndexPrivilege.findPrivilegesThatGrant(action);
+            Collection<String> privileges = indexActions.get(action);
+            if (privileges == null) {
+                privileges = IndexPrivilege.findPrivilegesThatGrant(action);
+                indexActions.put(action, privileges);
+            }
             return privileges != null && privileges.stream().anyMatch((s) -> ignoreIndexPrivilegesPredicate.test(s));
         }
 
         private boolean ignoreClusterPrivilegesPredicateTest(String action) {
             if (ignoreClusterPrivilegesPredicate.test(action)) return true;
-            Collection<String> privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action);
+            Collection<String> privileges = clusterActions.get(action);
+            if (privileges == null) {
+                privileges = ClusterPrivilegeResolver.findPrivilegesThatGrant(action);
+                clusterActions.put(action, privileges);
+            }
             return privileges != null && privileges.stream().anyMatch((s) -> ignoreClusterPrivilegesPredicate.test(s));
         }
 

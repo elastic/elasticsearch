@@ -2032,7 +2032,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         for (int i = 0; i < listOfActions.size(); i++) {
             Collection<String> privileges = AuthorizationService.isIndexAction(listOfActions.get(i)) ?
                 IndexPrivilege.findPrivilegesThatGrant(listOfActions.get(i)) :
-                ClusterPrivilegeResolver.findPrivilegesThatGrant(listOfActions.get(i), null, null);
+                ClusterPrivilegeResolver.findPrivilegesThatGrant(listOfActions.get(i));
             assertNotNull(privileges);
             filtered.addAll(privileges);
         }

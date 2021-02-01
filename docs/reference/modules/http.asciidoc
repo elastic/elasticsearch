@@ -1,17 +1,9 @@
 [[http-settings]]
-==== HTTP settings
+==== Advanced HTTP settings
 
-The following settings allow you to configure the HTTP interface independently
-of the <<transport-settings,transport interface>>. You can also configure both
-interfaces together using the <<common-network-settings,network settings>>.
-
-`http.port`::
-(<<static-cluster-setting,Static>>)
-The port to bind for HTTP client communication. Accepts a single value or a
-range. If a range is specified, the node will bind to the first available port
-in the range.
-+
-Defaults to `9200-9300`.
+Use the following advanced settings to configure the HTTP interface
+independently of the <<transport-settings,transport interface>>. You can also
+configure both interfaces together using the <<common-network-settings,network settings>>.
 
 `http.host`::
 (<<static-cluster-setting,Static>>)

@@ -1,19 +1,10 @@
 [[transport-settings]]
-==== Transport settings
+==== Advanced transport settings
 
-Use the following settings to configure the transport interface
+Use the following advanced settings to configure the transport interface
 independently of the <<http-settings,HTTP interface>>. Use the
 <<common-network-settings,network
 settings>> to configure both interfaces together.
-
-`transport.port`::
-(<<static-cluster-setting,Static>>)
-The port to bind for communication between nodes. Accepts a single value or a
-range. If a range is specified, the node will bind to the first available port
-in the range. Set this setting to a single port, not a range, on every
-master-eligible node.
-+
-Defaults to `9300-9400`.
 
 `transport.host`::
 (<<static-cluster-setting,Static>>)

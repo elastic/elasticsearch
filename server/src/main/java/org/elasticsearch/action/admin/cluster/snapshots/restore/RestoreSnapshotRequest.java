@@ -61,7 +61,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
-    private boolean skipOperatorOnly = false;
+    private boolean skipOperatorOnly = false; // this field does not get serialised because it is always set locally by authz
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -574,13 +574,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(renameReplacement, that.renameReplacement) &&
             Objects.equals(indexSettings, that.indexSettings) &&
             Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
-            Objects.equals(snapshotUuid, that.snapshotUuid);
+            Objects.equals(snapshotUuid, that.snapshotUuid) &&
+            skipOperatorOnly == that.skipOperatorOnly;
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid);
+            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid, skipOperatorOnly);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;

@@ -178,7 +178,7 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             }
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
-                throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and dynamic operator");
+                throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);

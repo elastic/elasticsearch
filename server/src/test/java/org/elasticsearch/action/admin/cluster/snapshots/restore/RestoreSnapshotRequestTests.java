@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -133,5 +134,25 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         processed.source(map);
 
         assertEquals(original, processed);
+    }
+
+    public void testSkipOperatorOnlyWillNotBeSerialised() throws IOException {
+        RestoreSnapshotRequest original = createTestInstance();
+        assertFalse(original.skipOperatorOnly()); // default is false
+        if (randomBoolean()) {
+            original.skipOperatorOnly(true);
+        }
+        // It is not serialised as xcontent
+        XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
+        XContentParser parser = XContentType.JSON.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
+        Map<String, Object> map = parser.mapOrdered();
+        assertFalse(map.containsKey("skip_operator_only"));
+
+        // Nor does it serialise to streamInput
+        final BytesStreamOutput streamOutput = new BytesStreamOutput();
+        original.writeTo(streamOutput);
+        final RestoreSnapshotRequest deserialized = new RestoreSnapshotRequest(streamOutput.bytes().streamInput());
+        assertFalse(deserialized.skipOperatorOnly());
     }
 }

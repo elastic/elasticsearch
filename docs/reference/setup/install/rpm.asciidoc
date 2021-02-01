@@ -20,7 +20,7 @@ from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
 [[rpm-key]]
-==== Import the Elasticsearch PGP Key
+==== Import the Elasticsearch GPG Key
 
 include::key.asciidoc[]
 

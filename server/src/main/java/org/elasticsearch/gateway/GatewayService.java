@@ -149,17 +149,17 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             boolean enforceRecoverAfterTime;
             String reason;
             if (expectedDataNodes == -1) {
-                // no expected is set, honor the setting if they are there
+                // no expected is set, honor recover_after_data_nodes
                 enforceRecoverAfterTime = true;
                 reason = "recover_after_time was set to [" + recoverAfterTime + "]";
-            } else {
-                // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
+            } else if (expectedDataNodes <= nodes.getDataNodes().size()) {
+                // expected is set and satisfied so recover immediately
                 enforceRecoverAfterTime = false;
                 reason = "";
-                if (expectedDataNodes != -1 && (nodes.getDataNodes().size() < expectedDataNodes)) { // does not meet the expected...
-                    enforceRecoverAfterTime = true;
-                    reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
-                }
+            } else {
+                // expected is set but not satisfied so wait until it is satisfied or times out
+                enforceRecoverAfterTime = true;
+                reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
             }
             performStateRecovery(enforceRecoverAfterTime, reason);
         }

@@ -11,5 +11,5 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 public interface RetentionPolicyConfig extends ToXContentObject, NamedWriteable {
-    public ActionRequestValidationException validate(ActionRequestValidationException validationException);
+    ActionRequestValidationException validate(ActionRequestValidationException validationException);
 }

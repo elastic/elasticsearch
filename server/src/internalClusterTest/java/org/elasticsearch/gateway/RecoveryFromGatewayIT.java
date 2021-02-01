@@ -340,7 +340,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        List<String> nodes = internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        List<String> nodes = internalCluster().startNodes(2, Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build());
         Settings node1DataPathSettings = internalCluster().dataPathSettings(nodes.get(0));
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
@@ -397,8 +397,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> starting the two nodes back");
 
         internalCluster().startNodes(
-            Settings.builder().put(node1DataPathSettings).put("gateway.recover_after_nodes", 2).build(),
-            Settings.builder().put(node2DataPathSettings).put("gateway.recover_after_nodes", 2).build());
+            Settings.builder().put(node1DataPathSettings).put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build(),
+            Settings.builder().put(node2DataPathSettings).put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();

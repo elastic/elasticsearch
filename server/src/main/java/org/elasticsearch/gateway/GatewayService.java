@@ -72,6 +72,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private final TimeValue recoverAfterTime;
     private final int recoverAfterDataNodes;
     private final int expectedDataNodes;
+
     private final Runnable recoveryRunnable;
 
     private final AtomicBoolean recoveryInProgress = new AtomicBoolean();
@@ -83,7 +84,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        // allow to control a delay of when indices will get created
         this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(settings);
 
         if (RECOVER_AFTER_TIME_SETTING.exists(settings)) {
@@ -160,8 +160,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
                 }
+                performStateRecovery(enforceRecoverAfterTime, reason);
             }
-            performStateRecovery(enforceRecoverAfterTime, reason);
         }
     }
 

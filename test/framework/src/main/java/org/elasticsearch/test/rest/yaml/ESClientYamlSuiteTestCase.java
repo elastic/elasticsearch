@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -58,6 +60,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -132,8 +135,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
             final Version esVersion = versionVersionTuple.v1();
             final Version masterVersion = versionVersionTuple.v2();
-            logger.info("initializing client, minimum es version [{}], master version, [{}], hosts {}", esVersion, masterVersion, hosts);
-            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion);
+            final String os = readOsFromNodesInfo(adminClient());
+
+            logger.info(
+                "initializing client, minimum es version [{}], master version, [{}], hosts {}, os [{}]",
+                esVersion,
+                masterVersion,
+                hosts,
+                os
+            );
+            clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -161,8 +172,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             final RestClient restClient,
             final List<HttpHost> hosts,
             final Version esVersion,
-            final Version masterVersion) {
-        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+            final Version masterVersion,
+            final String os) {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
     }
 
     @AfterClass
@@ -334,6 +346,26 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
+    private String readOsFromNodesInfo(RestClient restClient) throws IOException {
+        final Request request = new Request("GET", "/_nodes/os");
+        Response response = restClient.performRequest(request);
+        ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
+        Set<String> osPrettyNames = new HashSet<>();
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
+
+        for (Entry<String, Object> node : nodes.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+
+            osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
+        }
+
+        assert osPrettyNames.size() == 1 : "mixed os cluster found";
+        return osPrettyNames.iterator().next();
+    }
+
     protected RequestOptions getCatNodesVersionMasterRequestOptions() {
         return RequestOptions.DEFAULT;
     }
@@ -355,6 +387,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         //skip test if test section is disabled
         assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
             testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        //skip test if os is excluded
+        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os()));
 
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {

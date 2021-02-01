@@ -65,7 +65,7 @@ public class FakeRestRequest extends RestRequest {
                                 Exception inboundException) {
             this.method = method;
             this.uri = uri;
-            this.content = content;
+            this.content = content == null ? BytesArray.EMPTY : content;
             this.headers = headers;
             this.inboundException = inboundException;
         }

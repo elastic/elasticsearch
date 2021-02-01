@@ -88,6 +88,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         Long randomizeSeed = randomBoolean() ? null : randomLong();
         Regression.LossFunction lossFunction = randomBoolean() ? null : randomFrom(Regression.LossFunction.values());
         Double lossFunctionParameter = randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, false);
+        Boolean earlyStoppingEnabled = randomBoolean() ? null : randomBoolean();
         return new Regression(dependentVariableName, boostedTreeParams, predictionFieldName, trainingPercent, randomizeSeed, lossFunction,
             lossFunctionParameter,
             randomBoolean() ?
@@ -96,7 +97,8 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
                     OneHotEncodingTests.createRandom(true),
                     TargetMeanEncodingTests.createRandom(true)))
                     .limit(randomIntBetween(0, 5))
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList()),
+            earlyStoppingEnabled);
     }
 
     public static Regression mutateForVersion(Regression instance, Version version) {
@@ -107,7 +109,8 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             instance.getRandomizeSeed(),
             instance.getLossFunction(),
             instance.getLossFunctionParameter(),
-            version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList());
+            version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
+            version.onOrAfter(Version.V_8_0_0) ? instance.getEarlyStoppingEnabled() : null);
     }
 
     @Override
@@ -124,7 +127,8 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             42L,
             bwcSerializedObject.getLossFunction(),
             bwcSerializedObject.getLossFunctionParameter(),
-            bwcSerializedObject.getFeatureProcessors());
+            bwcSerializedObject.getFeatureProcessors(),
+            bwcSerializedObject.getEarlyStoppingEnabled());
         Regression newInstance = new Regression(testInstance.getDependentVariable(),
             testInstance.getBoostedTreeParams(),
             testInstance.getPredictionFieldName(),
@@ -132,7 +136,8 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             42L,
             testInstance.getLossFunction(),
             testInstance.getLossFunctionParameter(),
-            testInstance.getFeatureProcessors());
+            testInstance.getFeatureProcessors(),
+            testInstance.getEarlyStoppingEnabled());
         super.assertOnBWCObject(newBwc, newInstance, version);
     }
 
@@ -198,21 +203,24 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
 
     public void testConstructor_GivenTrainingPercentIsZero() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 0.0, randomLong(), Regression.LossFunction.MSE, null, null));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 0.0, randomLong(), 
+                                Regression.LossFunction.MSE, null, null, null));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsLessThanZero() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", -0.01, randomLong(), Regression.LossFunction.MSE, null, null));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", -0.01, randomLong(), 
+                                Regression.LossFunction.MSE, null, null, null));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
     }
 
     public void testConstructor_GivenTrainingPercentIsGreaterThan100() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0001, randomLong(), Regression.LossFunction.MSE, null, null));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0001, randomLong(), 
+                                Regression.LossFunction.MSE, null, null, null));
 
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a positive double in (0, 100]"));
@@ -220,55 +228,48 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
 
     public void testConstructor_GivenLossFunctionParameterIsZero() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0, randomLong(), Regression.LossFunction.MSE, 0.0, null));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0, randomLong(), 
+                                Regression.LossFunction.MSE, 0.0, null, null));
 
         assertThat(e.getMessage(), equalTo("[loss_function_parameter] must be a positive double"));
     }
 
     public void testConstructor_GivenLossFunctionParameterIsNegative() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0, randomLong(), Regression.LossFunction.MSE, -1.0, null));
+            () -> new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0, randomLong(), 
+                                Regression.LossFunction.MSE, -1.0, null, null));
 
         assertThat(e.getMessage(), equalTo("[loss_function_parameter] must be a positive double"));
     }
 
     public void testGetPredictionFieldName() {
-        Regression regression = new Regression(
-            "foo",
-            BOOSTED_TREE_PARAMS,
-            "result",
-            50.0,
-            randomLong(),
-            Regression.LossFunction.MSE,
-            1.0,
-            null);
+        Regression regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 50.0, randomLong(),
+                                                Regression.LossFunction.MSE, 1.0, null, null);
         assertThat(regression.getPredictionFieldName(), equalTo("result"));
 
-        regression = new Regression("foo", BOOSTED_TREE_PARAMS, null, 50.0, randomLong(), Regression.LossFunction.MSE, null, null);
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, null, 50.0, randomLong(), 
+                                    Regression.LossFunction.MSE, null, null, null);
         assertThat(regression.getPredictionFieldName(), equalTo("foo_prediction"));
     }
 
     public void testGetTrainingPercent() {
-        Regression regression = new Regression("foo",
-            BOOSTED_TREE_PARAMS,
-            "result",
-            50.0,
-            randomLong(),
-            Regression.LossFunction.MSE,
-            1.0,
-            null);
+        Regression regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 50.0, randomLong(),
+                                                Regression.LossFunction.MSE, 1.0, null, null);
         assertThat(regression.getTrainingPercent(), equalTo(50.0));
 
         // Boundary condition: training_percent == 1.0
-        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 1.0, randomLong(), Regression.LossFunction.MSE, null, null);
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 1.0, randomLong(), 
+                                    Regression.LossFunction.MSE, null, null, null);
         assertThat(regression.getTrainingPercent(), equalTo(1.0));
 
         // Boundary condition: training_percent == 100.0
-        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0, randomLong(), Regression.LossFunction.MSE, null, null);
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", 100.0, randomLong(), 
+                                    Regression.LossFunction.MSE, null, null, null);
         assertThat(regression.getTrainingPercent(), equalTo(100.0));
 
         // training_percent == null, default applied
-        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", null, randomLong(), Regression.LossFunction.MSE, null, null);
+        regression = new Regression("foo", BOOSTED_TREE_PARAMS, "result", null, randomLong(), 
+                                    Regression.LossFunction.MSE, null, null, null);
         assertThat(regression.getTrainingPercent(), equalTo(100.0));
     }
 
@@ -276,21 +277,17 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         int maxTrees = randomIntBetween(1, 100);
         Regression regression = new Regression("foo",
             BoostedTreeParams.builder().setMaxTrees(maxTrees).build(),
-            null,
-            100.0,
-            0L,
-            Regression.LossFunction.MSE,
-            null,
-            null);
+            null, 100.0, 0L, Regression.LossFunction.MSE, null, null, null);
 
         Map<String, Object> params = regression.getParams(null);
 
-        assertThat(params.size(), equalTo(5));
+        assertThat(params.size(), equalTo(6));
         assertThat(params.get("dependent_variable"), equalTo("foo"));
         assertThat(params.get("prediction_field_name"), equalTo("foo_prediction"));
         assertThat(params.get("max_trees"), equalTo(maxTrees));
         assertThat(params.get("training_percent"), equalTo(100.0));
         assertThat(params.get("loss_function"), equalTo("mse"));
+        assertThat(params.get("early_stopping_enabled"), equalTo(true));
     }
 
     public void testGetParams_GivenRandomWithoutBoostedTreeParams() {
@@ -298,7 +295,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
 
         Map<String, Object> params = regression.getParams(null);
 
-        int expectedParamsCount = 4
+        int expectedParamsCount = 5
             + (regression.getLossFunctionParameter() == null ? 0 : 1)
             + (regression.getFeatureProcessors().isEmpty() ? 0 : 1);
         assertThat(params.size(), equalTo(expectedParamsCount));
@@ -311,6 +308,7 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         } else {
             assertThat(params.get("loss_function_parameter"), equalTo(regression.getLossFunctionParameter()));
         }
+        assertThat(params.get("early_stopping_enabled"), equalTo(regression.getEarlyStoppingEnabled()));
     }
 
     public void testRequiredFieldsIsNonEmpty() {

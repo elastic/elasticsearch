@@ -62,6 +62,7 @@ import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -654,6 +655,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         if (resizeType == ResizeType.SPLIT) {
             resizeRequest.setSettings(Settings.builder().put("index.number_of_shards", 2).build());
+        }
+        if (resizeType == ResizeType.SHRINK) {
+            resizeRequest.setMaxSinglePrimarySize(new ByteSizeValue(randomIntBetween(1, 100)));
         }
 
         Request request = function.apply(resizeRequest);

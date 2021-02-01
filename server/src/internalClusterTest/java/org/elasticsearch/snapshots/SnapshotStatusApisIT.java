@@ -363,6 +363,42 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testGetSnapshotsWithSnapshotInProgress() throws Exception {
+        createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
+
+        createIndexWithContent("test-idx-1");
+        ensureGreen();
+
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture = startFullSnapshot("test-repo", "test-snap");
+
+        logger.info("--> wait for data nodes to get blocked");
+        waitForBlockOnAnyDataNode("test-repo");
+        awaitNumberOfSnapshotsInProgress(1);
+
+        GetSnapshotsResponse response1 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
+            .setIgnoreUnavailable(true)
+            .get();
+        List<SnapshotInfo> snapshotInfoList = response1.getSnapshots("test-repo");
+        assertEquals(1, snapshotInfoList.size());
+        assertEquals(SnapshotState.IN_PROGRESS, snapshotInfoList.get(0).state());
+
+        String notExistedSnapshotName = "snapshot_not_exist";
+        GetSnapshotsResponse response2 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName)
+            .setIgnoreUnavailable(true)
+            .get();
+        assertEquals(0, response2.getSnapshots("test-repo").size());
+
+        GetSnapshotsResponse response3 = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName)
+            .setIgnoreUnavailable(false)
+            .get();
+        expectThrows(SnapshotMissingException.class, () -> response3.getSnapshots("test-repo"));
+
+        logger.info("--> unblock all data nodes");
+        unblockAllDataNodes("test-repo");
+
+        assertSuccessful(createSnapshotResponseActionFuture);
+    }
+
     public void testSnapshotStatusOnFailedSnapshot() throws Exception {
         String repoName = "test-repo";
         createRepositoryNoVerify(repoName, "fs"); // mustn't load the repository data before we inject the broken snapshot

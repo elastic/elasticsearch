@@ -275,7 +275,7 @@ public final class SearchPhaseController {
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
         if (reducedQueryPhase.suggest != null) {
-            if (!fetchResults.isEmpty()) {
+            if (fetchResults.isEmpty() == false) {
                 int currentOffset = hits.getHits().length;
                 for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
                     final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
@@ -330,7 +330,7 @@ public final class SearchPhaseController {
         numSearchHits = Math.min(sortedTopDocs.scoreDocs.length, numSearchHits);
         // merge hits
         List<SearchHit> hits = new ArrayList<>();
-        if (!fetchResults.isEmpty()) {
+        if (fetchResults.isEmpty() == false) {
             for (int i = 0; i < numSearchHits; i++) {
                 ScoreDoc shardDoc = sortedTopDocs.scoreDocs[i];
                 SearchPhaseResult fetchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
@@ -659,7 +659,7 @@ public final class SearchPhaseController {
                 }
             }
             fetchHits += topDocs.topDocs.scoreDocs.length;
-            if (!Float.isNaN(topDocs.maxScore)) {
+            if (Float.isNaN(topDocs.maxScore) == false) {
                 maxScore = Math.max(maxScore, topDocs.maxScore);
             }
             if (timedOut) {

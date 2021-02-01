@@ -98,7 +98,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public void merge(Nested mergeWith, MergeReason reason) {
             if (isNested()) {
-                if (!mergeWith.isNested()) {
+                if (mergeWith.isNested() == false) {
                     throw new IllegalArgumentException("cannot change object mapping from nested to non-nested");
                 }
             } else {
@@ -246,7 +246,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
-                } else if (!(fieldNode instanceof Map)) {
+                } else if ((fieldNode instanceof Map) == false) {
                     throw new ElasticsearchParseException("properties must be a map type");
                 } else {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
@@ -479,7 +479,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        if (!(mergeWith instanceof ObjectMapper)) {
+        if ((mergeWith instanceof ObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
@@ -570,7 +570,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            if (!(mapper instanceof MetadataFieldMapper)) {
+            if ((mapper instanceof MetadataFieldMapper) == false) {
                 if (count++ == 0) {
                     builder.startObject("properties");
                 }

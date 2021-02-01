@@ -3059,6 +3059,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setSoftTreeDepthTolerance(1.0) // <17>
                 .setDownsampleFactor(0.5) // <18>
                 .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
+                .setEarlyStoppingEnabled(true) // <20>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -3084,6 +3085,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setSoftTreeDepthTolerance(1.0) // <17>
                 .setDownsampleFactor(0.5) // <18>
                 .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
+                .setEarlyStoppingEnabled(true) // <20>
                 .build();
             // end::put-data-frame-analytics-regression
 

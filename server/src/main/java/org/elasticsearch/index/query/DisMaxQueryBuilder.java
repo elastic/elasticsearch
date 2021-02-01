@@ -165,7 +165,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             }
         }
 
-        if (!queriesFound) {
+        if (queriesFound == false) {
             throw new ParsingException(parser.getTokenLocation(), "[dis_max] requires 'queries' field with at least one clause");
         }
 

@@ -113,15 +113,15 @@ public final class FileSystemUtils {
     public static boolean isAccessibleDirectory(Path directory, Logger logger) {
         assert directory != null && logger != null;
 
-        if (!Files.exists(directory)) {
+        if (Files.exists(directory) == false) {
             logger.debug("[{}] directory does not exist.", directory.toAbsolutePath());
             return false;
         }
-        if (!Files.isDirectory(directory)) {
+        if (Files.isDirectory(directory) == false) {
             logger.debug("[{}] should be a directory but is not.", directory.toAbsolutePath());
             return false;
         }
-        if (!Files.isReadable(directory)) {
+        if (Files.isReadable(directory) == false) {
             logger.debug("[{}] directory is not readable.", directory.toAbsolutePath());
             return false;
         }

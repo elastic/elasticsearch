@@ -24,6 +24,12 @@ HEAD /_template/template_1
 
 `HEAD /_template/<index-template>`
 
+[[template-exists-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[template-exists-api-desc]]
 ==== {api-description-title}

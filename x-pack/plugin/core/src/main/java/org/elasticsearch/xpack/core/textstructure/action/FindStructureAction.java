@@ -33,13 +33,15 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
     public static final FindStructureAction INSTANCE = new FindStructureAction();
     public static final String NAME = "cluster:monitor/text_structure/findstructure";
 
+    public static final int MIN_SAMPLE_LINE_COUNT = 2;
+
     private FindStructureAction() {
         super(NAME, Response::new);
     }
 
     public static class Response extends ActionResponse implements StatusToXContentObject, Writeable {
 
-        private TextStructure textStructure;
+        private final TextStructure textStructure;
 
         public Response(TextStructure textStructure) {
             this.textStructure = textStructure;
@@ -293,9 +295,10 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (linesToSample != null && linesToSample <= 0) {
-                validationException =
-                    addValidationError("[" + LINES_TO_SAMPLE.getPreferredName() + "] must be positive if specified", validationException);
+            if (linesToSample != null && linesToSample < MIN_SAMPLE_LINE_COUNT) {
+                validationException = addValidationError(
+                    "[" + LINES_TO_SAMPLE.getPreferredName() + "] must be at least [" + MIN_SAMPLE_LINE_COUNT + "] if specified",
+                    validationException);
             }
             if (lineMergeSizeLimit != null && lineMergeSizeLimit <= 0) {
                 validationException = addValidationError("[" + LINE_MERGE_SIZE_LIMIT.getPreferredName() + "] must be positive if specified",

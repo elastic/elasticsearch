@@ -119,7 +119,7 @@ public class ObjectPathTests extends ESTestCase {
                 BytesReference.bytes(xContentBuilder));
         Object object = objectPath.evaluate("field1.array1");
         assertThat(object, instanceOf(List.class));
-        List list = (List) object;
+        List<?> list = (List<?>) object;
         assertThat(list.size(), equalTo(2));
         assertThat(list.get(0), instanceOf(String.class));
         assertThat(list.get(0), equalTo("value1"));

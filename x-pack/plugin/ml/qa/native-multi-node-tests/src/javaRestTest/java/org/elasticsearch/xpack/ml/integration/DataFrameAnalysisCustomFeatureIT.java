@@ -128,7 +128,8 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                         new OneHotEncoding("ngram.21", MapBuilder.<String, String>newMapBuilder().put("at", "is_cat").map(), true)
                     },
                         true)
-                    )))
+                    ),
+                    null))
             .setAnalyzedFields(new FetchSourceContext(true, new String[]{TEXT_FIELD, NUMERICAL_FIELD}, new String[]{}))
             .build();
         putAnalytics(config);

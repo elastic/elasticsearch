@@ -25,8 +25,8 @@ import java.util.Arrays;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.textstructure.structurefinder.FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT;
-import static org.elasticsearch.xpack.textstructure.structurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
+import static org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT;
+import static org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides.EMPTY_OVERRIDES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -35,12 +35,12 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class TextStructureFinderManagerTests extends TextStructureTestCase {
 
     private ScheduledExecutorService scheduler;
-    private FileStructureFinderManager structureFinderManager;
+    private TextStructureFinderManager structureFinderManager;
 
     @Before
     public void setup() {
         scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
-        structureFinderManager = new FileStructureFinderManager(scheduler);
+        structureFinderManager = new TextStructureFinderManager(scheduler);
     }
 
     @After
@@ -107,7 +107,7 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
         assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
         assertThat(
             explanation.toString(),
-            containsString("but was rejected as the distribution of zero bytes between odd and even positions in the file is very close")
+            containsString("but was rejected as the distribution of zero bytes between odd and even positions in the text is very close")
         );
     }
 
@@ -122,7 +122,7 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
                 EMPTY_OVERRIDES,
                 NOOP_TIMEOUT_CHECKER
             ),
-            instanceOf(NdJsonFileStructureFinder.class)
+            instanceOf(NdJsonTextStructureFinder.class)
         );
     }
 
@@ -130,7 +130,7 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
 
         // Need to change the quote character from the default of double quotes
         // otherwise the quotes in the NDJSON will stop it parsing as CSV
-        FileStructureOverrides overrides = FileStructureOverrides.builder()
+        TextStructureOverrides overrides = TextStructureOverrides.builder()
             .setFormat(TextStructure.Format.DELIMITED)
             .setQuote('\'')
             .build();
@@ -145,7 +145,7 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
                 overrides,
                 NOOP_TIMEOUT_CHECKER
             ),
-            instanceOf(DelimitedFileStructureFinder.class)
+            instanceOf(DelimitedTextStructureFinder.class)
         );
     }
 
@@ -160,13 +160,13 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
                 EMPTY_OVERRIDES,
                 NOOP_TIMEOUT_CHECKER
             ),
-            instanceOf(XmlFileStructureFinder.class)
+            instanceOf(XmlTextStructureFinder.class)
         );
     }
 
     public void testMakeBestStructureGivenXmlAndTextOverride() throws Exception {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(TextStructure.Format.SEMI_STRUCTURED_TEXT).build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setFormat(TextStructure.Format.SEMI_STRUCTURED_TEXT).build();
 
         assertThat(
             structureFinderManager.makeBestStructureFinder(
@@ -178,7 +178,7 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
                 overrides,
                 NOOP_TIMEOUT_CHECKER
             ),
-            instanceOf(TextLogFileStructureFinder.class)
+            instanceOf(LogTextStructureFinder.class)
         );
     }
 
@@ -193,13 +193,13 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
                 EMPTY_OVERRIDES,
                 NOOP_TIMEOUT_CHECKER
             ),
-            instanceOf(DelimitedFileStructureFinder.class)
+            instanceOf(DelimitedTextStructureFinder.class)
         );
     }
 
     public void testMakeBestStructureGivenCsvAndJsonOverride() {
 
-        FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(TextStructure.Format.NDJSON).build();
+        TextStructureOverrides overrides = TextStructureOverrides.builder().setFormat(TextStructure.Format.NDJSON).build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -225,17 +225,17 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
                 StandardCharsets.UTF_8.name(),
                 randomBoolean(),
                 DEFAULT_LINE_MERGE_SIZE_LIMIT,
-                FileStructureOverrides.EMPTY_OVERRIDES,
+                TextStructureOverrides.EMPTY_OVERRIDES,
                 NOOP_TIMEOUT_CHECKER
             ),
-            instanceOf(TextLogFileStructureFinder.class)
+            instanceOf(LogTextStructureFinder.class)
         );
     }
 
     public void testMakeBestStructureGivenTextAndDelimitedOverride() throws Exception {
 
         // Every line of the text sample has two colons, so colon delimited is possible, just very weird
-        FileStructureOverrides overrides = FileStructureOverrides.builder()
+        TextStructureOverrides overrides = TextStructureOverrides.builder()
             .setFormat(TextStructure.Format.DELIMITED)
             .setDelimiter(':')
             .build();
@@ -250,11 +250,11 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
                 overrides,
                 NOOP_TIMEOUT_CHECKER
             ),
-            instanceOf(DelimitedFileStructureFinder.class)
+            instanceOf(DelimitedTextStructureFinder.class)
         );
     }
 
-    public void testFindFileStructureTimeout() throws IOException, InterruptedException {
+    public void testFindTextStructureTimeout() throws IOException, InterruptedException {
 
         // The number of lines might need increasing in the future if computers get really fast,
         // but currently we're not even close to finding the structure of this much data in 10ms
@@ -285,12 +285,12 @@ public class TextStructureFinderManagerTests extends TextStructureTestCase {
 
                 ElasticsearchTimeoutException e = expectThrows(
                     ElasticsearchTimeoutException.class,
-                    () -> structureFinderManager.findFileStructure(
+                    () -> structureFinderManager.findTextStructure(
                         explanation,
                         DEFAULT_LINE_MERGE_SIZE_LIMIT,
                         linesOfJunk - 1,
                         bigInput,
-                        FileStructureOverrides.EMPTY_OVERRIDES,
+                        TextStructureOverrides.EMPTY_OVERRIDES,
                         timeout
                     )
                 );

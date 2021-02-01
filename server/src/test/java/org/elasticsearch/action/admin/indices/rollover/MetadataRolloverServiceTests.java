@@ -699,19 +699,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
             // Ensure that a warning header is emitted
-            MetadataRolloverService.RolloverResult rolloverResult =
-                rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
-                    randomBoolean(), false);
-            assertWarnings(
-                "aliases [my-alias] cannot refer to backing indices of data streams",
-                "template [template] has alias and data stream definitions"
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
+                    randomBoolean(), false)
             );
-
-            // Just checking that the rollover was successful:
-            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
-            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
+            assertThat(e.getMessage(), equalTo("template [template] has alias and data stream definitions"));
         } finally {
             testThreadPool.shutdown();
         }

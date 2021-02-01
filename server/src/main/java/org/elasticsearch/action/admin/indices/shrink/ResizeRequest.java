@@ -226,6 +226,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
                 }
             }
             builder.endObject();
+            if (maxSinglePrimarySize != null) {
+                builder.field(MAX_SINGLE_PRIMARY_SIZE.getPreferredName(), maxSinglePrimarySize);
+            }
         }
         builder.endObject();
         return builder;
@@ -233,5 +236,22 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public void fromXContent(XContentParser parser) throws IOException {
         PARSER.parse(parser, this, null);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        ResizeRequest that = (ResizeRequest) obj;
+        return Objects.equals(targetIndexRequest, that.targetIndexRequest) &&
+            Objects.equals(sourceIndex, that.sourceIndex) &&
+            Objects.equals(type, that.type) &&
+            Objects.equals(copySettings, that.copySettings) &&
+            Objects.equals(maxSinglePrimarySize, that.maxSinglePrimarySize);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(targetIndexRequest, sourceIndex, type, copySettings, maxSinglePrimarySize);
     }
 }

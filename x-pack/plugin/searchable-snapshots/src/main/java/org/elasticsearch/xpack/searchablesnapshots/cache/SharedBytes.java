@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,25 +35,45 @@ public class SharedBytes extends AbstractRefCounted {
     final int numRegions;
     final long regionSize;
 
+    // TODO: for systems like Windows without true p-write/read support we should split this up into multiple channels since positional
+    // operations in #IO are not contention-free there (https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6265734)
     private final FileChannel fileChannel;
 
     private final Path path;
 
-    SharedBytes(int numRegions, long regionSize, Path file) throws IOException {
+    SharedBytes(int numRegions, long regionSize, Environment environment) throws IOException {
         super("shared-bytes");
         this.numRegions = numRegions;
         this.regionSize = regionSize;
-        this.path = file;
         final long fileSize = numRegions * regionSize;
+        Path cacheFile = null;
         if (fileSize > 0) {
+            for (Path path : environment.dataFiles()) {
+                // TODO: be resilient to this check failing and try next path?
+                long usableSpace = getUsableSpace(path);
+                Path p = path.resolve("snap_cache");
+                if (Files.exists(p)) {
+                    usableSpace += Files.size(p);
+                }
+                // TODO: leave some margin for error here
+                if (usableSpace > fileSize) {
+                    cacheFile = p;
+                    break;
+                }
+            }
+            if (cacheFile == null) {
+                throw new IOException("Could not find a directory with adequate free space for cache file");
+            }
+            // TODO: maybe make this faster by allocating a larger direct buffer if this is too slow for very large files
+            // We fill either the full file or the bytes between its current size and the desired size once with zeros to fully allocate
+            // the file up front
             final ByteBuffer fillBytes = ByteBuffer.allocate(Channels.WRITE_CHUNK_SIZE);
-            Files.createDirectories(file.getParent());
-            this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
+            this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
             long written = fileChannel.size();
+            fileChannel.position(written);
             while (written < fileSize) {
                 final int toWrite = Math.toIntExact(Math.min(fileSize - written, Channels.WRITE_CHUNK_SIZE));
                 fillBytes.position(0).limit(toWrite);
-                // write one byte at the end of the file to make sure all bytes are allocated
                 Channels.writeToChannel(fillBytes, fileChannel);
                 written += toWrite;
             }
@@ -62,12 +83,24 @@ public class SharedBytes extends AbstractRefCounted {
         } else {
             this.fileChannel = null;
         }
+        this.path = cacheFile;
+    }
+
+    // TODO: dry up against MLs usage of the same method
+    private static long getUsableSpace(Path path) throws IOException {
+        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
+
+        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+        if (freeSpaceInBytes < 0) {
+            freeSpaceInBytes = Long.MAX_VALUE;
+        }
+        return freeSpaceInBytes;
     }
 
     @Override
     protected void closeInternal() {
         try {
-            IOUtils.close(fileChannel, () -> Files.deleteIfExists(path));
+            IOUtils.close(fileChannel, path == null ? null : () -> Files.deleteIfExists(path));
         } catch (IOException e) {
             logger.warn("Failed to clean up shared bytes file", e);
         }

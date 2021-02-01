@@ -146,7 +146,7 @@ public class FrozenCacheService implements Releasable {
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
-        sharedBytes = new SharedBytes(numRegions, regionSize, environment.dataFiles()[0].resolve("snap_cache"));
+        sharedBytes = new SharedBytes(numRegions, regionSize, environment);
         new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings)).rescheduleIfNecessary();
         this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);

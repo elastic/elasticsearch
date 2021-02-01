@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -87,6 +88,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
+        for (Path path : environment.dataFiles()) {
+            Files.createDirectories(path);
+        }
 
         try (
             FrozenCacheService cacheService = new FrozenCacheService(environment, threadPool);

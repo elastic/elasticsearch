@@ -17,10 +17,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-
-import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -214,24 +211,6 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         assertThat(info.getMessage(), equalTo("index is red; no indexRoutingTable"));
     }
 
-    public void testStepReturnsFalseIfOriginalIndexIsMissing() {
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .build();
-
-        String indexPrefix = null;
-        if (randomBoolean()) {
-            indexPrefix = randomAlphaOfLengthBetween(5, 10) + "-";
-            logger.debug("--> using prefix {}", indexPrefix);
-        }
-
-        WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN, indexPrefix);
-        ClusterStateWaitStep.Result result = step.isConditionMet(new Index("missing", UUID.randomUUID().toString()), clusterState);
-        assertThat(result.isComplete(), is(false));
-        WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
-        assertThat(info.getMessage(), is("[" + step.getKey().getAction() + "] lifecycle action for index [missing] executed but index no " +
-            "longer exists"));
-    }
-
     public void testStepReturnsFalseIfTargetIndexIsMissing() {
         IndexMetadata originalIndex = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
@@ -256,7 +235,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
         String targetIndex = indexPrefix + originalIndex.getIndex().getName();
         assertThat(info.getMessage(), is("[" + step.getKey().getAction() + "] lifecycle action for index [" +
-            originalIndex.getIndex().getName() + "] executed but the target index [" + targetIndex + "] no longer exists"));
+            originalIndex.getIndex().getName() + "] executed but the target index [" + targetIndex + "] does not exist"));
     }
 
     public void testStepWaitsForTargetIndexHealthWhenPrefixConfigured() {

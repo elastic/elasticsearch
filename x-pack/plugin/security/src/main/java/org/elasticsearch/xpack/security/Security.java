@@ -313,6 +313,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
+    public static final SystemIndexDescriptor SECURITY_MAIN_INDEX_DESCRIPTOR = getSecurityMainIndexDescriptor();
+    public static final SystemIndexDescriptor SECURITY_TOKEN_INDEX_DESCRIPTOR = getSecurityTokenIndexDescriptor();
+
     private final Settings settings;
     private final boolean enabled;
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
@@ -418,10 +421,18 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
-        securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService));
+        securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_MAIN_INDEX_DESCRIPTOR));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(), securityContext.get(),
-            securityIndex.get(), SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
+        final TokenService tokenService = new TokenService(
+            settings,
+            Clock.systemUTC(),
+            client,
+            getLicenseState(),
+            securityContext.get(),
+            securityIndex.get(),
+            SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_TOKEN_INDEX_DESCRIPTOR),
+            clusterService
+        );
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
@@ -1165,37 +1176,41 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
      }
 
+     private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
+         return SystemIndexDescriptor.builder()
+             // This can't just be `.security-*` because that would overlap with the tokens index pattern
+             .setIndexPattern(".security-[0-9]+")
+             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+             .setDescription("Contains Security configuration")
+             .setMappings(getIndexMappings())
+             .setSettings(getIndexSettings())
+             .setAliasName(SECURITY_MAIN_ALIAS)
+             .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+             .setVersionMetaKey("security-version")
+             .setOrigin(SECURITY_ORIGIN)
+             .build();
+     }
+
+     private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
+         return SystemIndexDescriptor.builder()
+             .setIndexPattern(".security-tokens-[0-9]+")
+             .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
+             .setDescription("Contains auth token data")
+             .setMappings(getTokenIndexMappings())
+             .setSettings(getTokenIndexSettings())
+             .setAliasName(SECURITY_TOKENS_ALIAS)
+             .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
+             .setVersionMetaKey(SECURITY_VERSION_STRING)
+             .setOrigin(SECURITY_ORIGIN)
+             .build();
+     }
+
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(
-            SystemIndexDescriptor.builder()
-                // This can't just be `.security-*` because that would overlap with the tokens index pattern
-                .setIndexPattern(".security-[0-9]+")
-                .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
-                .setDescription("Contains Security configuration")
-                .setMappings(getIndexMappings())
-                .setSettings(getIndexSettings())
-                .setAliasName(SECURITY_MAIN_ALIAS)
-                .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-                .setVersionMetaKey("security-version")
-                .setOrigin(SECURITY_ORIGIN)
-                .build(),
-
-            SystemIndexDescriptor.builder()
-                .setIndexPattern(".security-tokens-[0-9]+")
-                .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
-                .setDescription("Contains auth token data")
-                .setMappings(getTokenIndexMappings())
-                .setSettings(getTokenIndexSettings())
-                .setAliasName(SECURITY_TOKENS_ALIAS)
-                .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
-                .setVersionMetaKey(SECURITY_VERSION_STRING)
-                .setOrigin(SECURITY_ORIGIN)
-                .build()
-        );
+        return List.of(SECURITY_MAIN_INDEX_DESCRIPTOR, SECURITY_TOKEN_INDEX_DESCRIPTOR);
     }
 
-    private Settings getIndexSettings() {
+    private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -1211,7 +1226,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             .build();
     }
 
-    private XContentBuilder getIndexMappings() {
+    private static XContentBuilder getIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
@@ -1594,7 +1609,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         }
     }
 
-    private Settings getTokenIndexSettings() {
+    private static Settings getTokenIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -1606,7 +1621,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
 
-    private XContentBuilder getTokenIndexMappings() {
+    private static XContentBuilder getTokenIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 

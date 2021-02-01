@@ -249,7 +249,6 @@ public class NativeUsersStoreTests extends ESTestCase {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isMappingUpToDate()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
         doAnswer((i) -> {

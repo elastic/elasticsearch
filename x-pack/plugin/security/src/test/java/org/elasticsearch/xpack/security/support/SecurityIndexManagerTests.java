@@ -40,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -76,8 +77,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         when(mockClient.settings()).thenReturn(Settings.EMPTY);
         final ClusterService clusterService = mock(ClusterService.class);
 
-        manager = SecurityIndexManager.buildSecurityMainIndexManager(mockClient, clusterService);
-
+        manager = SecurityIndexManager.buildSecurityIndexManager(mockClient, clusterService, Security.SECURITY_MAIN_INDEX_DESCRIPTOR);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {
@@ -90,7 +90,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(true));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
     }
 
     public void testIndexWithoutPrimaryShards() throws IOException {
@@ -314,14 +313,12 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private void assertInitialState() {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(false));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(false));
     }
 
     private void assertIndexUpToDateButNotAvailable() {
         assertThat(manager.indexExists(), Matchers.equalTo(true));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
-        assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
     }
 

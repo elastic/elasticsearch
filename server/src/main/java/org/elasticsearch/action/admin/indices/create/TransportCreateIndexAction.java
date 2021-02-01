@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -82,7 +83,12 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
 
         final CreateIndexClusterStateUpdateRequest updateRequest;
-        if (isSystemIndex) {
+
+        // Requests that a cluster generates itself are permitted to create a system index with
+        // different mappings, settings etc. This is so that rolling upgrade scenarios still work.
+        // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
+        // the index to the latest settings.
+        if (isSystemIndex && Strings.isNullOrEmpty(request.origin())) {
             final String message = descriptor.checkMinimumNodeVersion("create index", state.nodes().getMinNodeVersion());
             if (message != null) {
                 logger.warn(message);

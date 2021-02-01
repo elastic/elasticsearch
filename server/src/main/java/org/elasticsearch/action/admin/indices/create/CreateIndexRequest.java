@@ -84,6 +84,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+    private String origin = "";
+
+    /**
+     * Constructs a new request by deserializing an input
+     * @param in the input from which to deserialize
+     */
     public CreateIndexRequest(StreamInput in) throws IOException {
         super(in);
         cause = in.readString();
@@ -107,20 +113,28 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            origin = in.readString();
+        }
     }
 
     public CreateIndexRequest() {
     }
 
     /**
-     * Constructs a new request to create an index with the specified name.
+     * Constructs a request to create an index.
+     *
+     * @param index the name of the index
      */
     public CreateIndexRequest(String index) {
         this(index, EMPTY_SETTINGS);
     }
 
     /**
-     * Constructs a new request to create an index with the specified name and settings.
+     * Constructs a request to create an index.
+     *
+     * @param index the name of the index
+     * @param settings the settings to apply to the index
      */
     public CreateIndexRequest(String index, Settings settings) {
         this.index = index;
@@ -170,6 +184,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public String cause() {
         return cause;
+    }
+
+    public String origin() {
+        return origin;
+    }
+
+    public CreateIndexRequest origin(String origin) {
+        this.origin = Objects.requireNonNull(origin);
+        return this;
     }
 
     /**
@@ -260,7 +283,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         // wrap it in a type map if its not
-        if (source.size() != 1 || !source.containsKey(type)) {
+        if (source.size() != 1 || source.containsKey(type) == false) {
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
         }
         else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
@@ -462,6 +485,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         waitForActiveShards.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeString(origin);
+        }
     }
 
 }

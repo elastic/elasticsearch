@@ -122,8 +122,8 @@ public class ReplicationGroup {
 
         ReplicationGroup that = (ReplicationGroup) o;
 
-        if (!routingTable.equals(that.routingTable)) return false;
-        if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;
+        if (routingTable.equals(that.routingTable) == false) return false;
+        if (inSyncAllocationIds.equals(that.inSyncAllocationIds) == false) return false;
         return trackedAllocationIds.equals(that.trackedAllocationIds);
     }
 

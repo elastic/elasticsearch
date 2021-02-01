@@ -205,7 +205,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             }
 
             for (int i = 0; i < o1.size(); i++) {
-                if (!(o1.get(i) instanceof Comparable)) {
+                if ((o1.get(i) instanceof Comparable) == false) {
                     throw new RuntimeException(o1.get(i).getClass() + " is not comparable");
                 }
                 Object cmp1 = o1.get(i);

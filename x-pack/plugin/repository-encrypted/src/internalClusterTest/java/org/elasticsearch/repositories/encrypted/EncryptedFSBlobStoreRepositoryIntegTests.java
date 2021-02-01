@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.getEncryptedBlobByteLength;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -136,7 +137,7 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
             });
         }
 
-        final Settings settings = Settings.builder().put(repoSettings).put("readonly", randomBoolean()).build();
+        final Settings settings = Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, randomBoolean()).build();
         final boolean verifyOnCreate = randomBoolean();
 
         if (verifyOnCreate) {

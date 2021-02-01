@@ -24,6 +24,7 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
         Set<String> uniqueTestNames = new HashSet<>();
         List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true, uniqueTestNames);
         specs.addAll(EqlSpecLoader.load("/additional_test_queries.toml", true, uniqueTestNames));
+        specs.addAll(EqlSpecLoader.load("/test_queries_date.toml", true, uniqueTestNames));
         List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false, uniqueTestNames);
 
         // Validate only currently supported specs

@@ -123,7 +123,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                 word[i] = (char) rand.nextInt(127);
             }
             name = String.valueOf(word);
-            if (!matcher.reset(name).matches()) {
+            if (matcher.reset(name).matches() == false) {
                 break;
             }
         }

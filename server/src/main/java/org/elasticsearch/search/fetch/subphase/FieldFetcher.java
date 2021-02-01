@@ -163,7 +163,7 @@ public class FieldFetcher {
             }
         }
         if (this.unmappedFieldsFetchAutomaton != null) {
-            collectUnmapped(documentFields, sourceLookup.loadSourceIfNeeded(), "", 0);
+            collectUnmapped(documentFields, sourceLookup.source(), "", 0);
         }
         return documentFields;
     }

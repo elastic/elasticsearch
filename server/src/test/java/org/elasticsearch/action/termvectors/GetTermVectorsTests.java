@@ -203,7 +203,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
         String resultString = "";
         Map<String, Integer> payloadCounter = new HashMap<>();
         for (String token : tokens) {
-            if (!payloadCounter.containsKey(token)) {
+            if (payloadCounter.containsKey(token) == false) {
                 payloadCounter.putIfAbsent(token, 0);
             } else {
                 payloadCounter.put(token, payloadCounter.get(token) + 1);

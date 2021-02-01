@@ -429,7 +429,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        if (!Strings.hasLength(settingPrefix)) {
+        if (Strings.hasLength(settingPrefix) == false) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
@@ -558,7 +558,7 @@ public final class Settings implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
-        if (!params.paramAsBoolean("flat_settings", false)) {
+        if (params.paramAsBoolean("flat_settings", false) == false) {
             for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
@@ -591,7 +591,7 @@ public final class Settings implements ToXContentFragment {
             // ensure we reached the end of the stream
             XContentParser.Token lastToken = null;
             try {
-                while (!parser.isClosed() && (lastToken = parser.nextToken()) == null) ;
+                while (parser.isClosed() == false && (lastToken = parser.nextToken()) == null) ;
             } catch (Exception e) {
                 throw new ElasticsearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "

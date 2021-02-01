@@ -14,8 +14,8 @@ import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_MILLIS;
-import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_TIME_WITH_MILLIS;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATETIME_WITH_NANOS;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_TIME_WITH_NANOS;
 
 /**
  * JDBC specific datetime specific utility methods. Because of lack of visibility, this class borrows code
@@ -28,30 +28,30 @@ final class JdbcDateUtils {
     // In Java 8 LocalDate.EPOCH is not available, introduced with later Java versions
     private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
-    private static ZonedDateTime asDateTime(String date) {
-        return ISO_DATE_WITH_MILLIS.parse(date, ZonedDateTime::from);
+    static ZonedDateTime asZonedDateTime(String date) {
+        return ISO_DATETIME_WITH_NANOS.parse(date, ZonedDateTime::from);
     }
 
     static long dateTimeAsMillisSinceEpoch(String date) {
-        return asDateTime(date).toInstant().toEpochMilli();
+        return asZonedDateTime(date).toInstant().toEpochMilli();
     }
 
     static long timeAsMillisSinceEpoch(String date) {
-        return ISO_TIME_WITH_MILLIS.parse(date, OffsetTime::from).atDate(EPOCH).toInstant().toEpochMilli();
+        return ISO_TIME_WITH_NANOS.parse(date, OffsetTime::from).atDate(EPOCH).toInstant().toEpochMilli();
     }
 
     static Date asDate(String date) {
-        ZonedDateTime zdt = asDateTime(date);
+        ZonedDateTime zdt = asZonedDateTime(date);
         return new Date(zdt.toLocalDate().atStartOfDay(zdt.getZone()).toInstant().toEpochMilli());
     }
 
     static Time asTime(String date) {
-        ZonedDateTime zdt = asDateTime(date);
+        ZonedDateTime zdt = asZonedDateTime(date);
         return new Time(zdt.toLocalTime().atDate(EPOCH).atZone(zdt.getZone()).toInstant().toEpochMilli());
     }
 
     static Time timeAsTime(String date) {
-        OffsetTime ot = ISO_TIME_WITH_MILLIS.parse(date, OffsetTime::from);
+        OffsetTime ot = ISO_TIME_WITH_NANOS.parse(date, OffsetTime::from);
         return new Time(ot.atDate(EPOCH).toInstant().toEpochMilli());
     }
 
@@ -60,7 +60,10 @@ final class JdbcDateUtils {
     }
 
     static Timestamp asTimestamp(String date) {
-        return new Timestamp(dateTimeAsMillisSinceEpoch(date));
+        ZonedDateTime zdt = asZonedDateTime(date);
+        Timestamp timestamp = new Timestamp(zdt.toInstant().toEpochMilli());
+        timestamp.setNanos(zdt.getNano());
+        return timestamp;
     }
 
     static Timestamp timeAsTimestamp(String date) {

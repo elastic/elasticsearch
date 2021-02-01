@@ -132,7 +132,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                 }
                 for (PipelineConfiguration pipeline: pipelines) {
                     PipelineConfiguration otherPipeline = otherPipelineMap.get(pipeline.getId());
-                    if (!pipeline.equals(otherPipeline)) {
+                    if (pipeline.equals(otherPipeline) == false) {
                         return false;
                     }
                 }

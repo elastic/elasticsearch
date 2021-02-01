@@ -7,6 +7,7 @@ package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,6 +38,15 @@ public class CacheFile {
     @FunctionalInterface
     public interface EvictionListener {
         void onEviction(CacheFile evictedCacheFile);
+    }
+
+    /**
+     * {@link ModificationListener} can be used to be notified when a {@link CacheFile} needs to be fsynced or is deleted.
+     */
+    public interface ModificationListener {
+        void onCacheFileNeedsFsync(CacheFile cacheFile);
+
+        void onCacheFileDelete(CacheFile cacheFile);
     }
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
@@ -60,6 +69,8 @@ public class CacheFile {
                 Files.deleteIfExists(file);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } finally {
+                listener.onCacheFileDelete(CacheFile.this);
             }
         }
     };
@@ -78,10 +89,9 @@ public class CacheFile {
     private final AtomicBoolean needsFsync = new AtomicBoolean();
 
     /**
-     * A runnable that is executed every time the {@link #needsFsync} flag is toggled to {@code true}, which indicates that the cache file
-     * has been updated. See {@link #markAsNeedsFSync()} method.
+     * A {@link ModificationListener} that can be used to be notified when the cache file is updated or deleted.
      */
-    private final Runnable needsFsyncRunnable;
+    private final ModificationListener listener;
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -123,19 +133,19 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(CacheKey cacheKey, long length, Path file, Runnable onNeedFSync) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length), file, onNeedFSync);
+    public CacheFile(CacheKey cacheKey, long length, Path file, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener);
     }
 
-    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, Runnable onNeedFSync) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, onNeedFSync);
+    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener);
     }
 
-    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, Runnable onNeedFSync) {
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener) {
         this.cacheKey = Objects.requireNonNull(cacheKey);
         this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
-        this.needsFsyncRunnable = Objects.requireNonNull(onNeedFSync);
+        this.listener = Objects.requireNonNull(listener);
         assert invariant();
     }
 
@@ -338,7 +348,7 @@ public class CacheFile {
         final RangeMissingHandler writer,
         final Executor executor
     ) {
-        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -361,11 +371,11 @@ public class CacheFile {
                         try {
                             ensureOpen();
                             writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                            gap.onCompletion();
+                            markAsNeedsFSync();
                         } finally {
                             reference.decRef();
                         }
-                        gap.onCompletion();
-                        markAsNeedsFSync();
                     }
 
                     @Override
@@ -391,7 +401,7 @@ public class CacheFile {
      */
     @Nullable
     Future<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
-        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -408,19 +418,19 @@ public class CacheFile {
         }
     }
 
-    private static void releaseAndFail(CompletableFuture<Integer> future, Releasable decrementRef, Exception e) {
+    private static void releaseAndFail(PlainActionFuture<Integer> future, Releasable decrementRef, Exception e) {
         try {
             Releasables.close(decrementRef);
         } catch (Exception ex) {
             e.addSuppressed(ex);
         }
-        future.completeExceptionally(e);
+        future.onFailure(e);
     }
 
     private static ActionListener<Void> rangeListener(
         Tuple<Long, Long> rangeToRead,
         RangeAvailableHandler reader,
-        CompletableFuture<Integer> future,
+        PlainActionFuture<Integer> future,
         FileChannelReference reference,
         Releasable releasable
     ) {
@@ -433,8 +443,8 @@ public class CacheFile {
                 + '-'
                 + rangeToRead.v1()
                 + ']';
-            future.complete(read);
-        }, future::completeExceptionally), releasable::close);
+            future.onResponse(read);
+        }, future::onFailure), releasable::close);
     }
 
     /**
@@ -469,8 +479,9 @@ public class CacheFile {
      * Marks the current cache file as "fsync needed" and notifies the corresponding listener.
      */
     private void markAsNeedsFSync() {
+        assert refCounter.refCount() > 0 : "file should not be fully released";
         if (needsFsync.getAndSet(true) == false) {
-            needsFsyncRunnable.run();
+            listener.onCacheFileNeedsFsync(this);
         }
     }
 

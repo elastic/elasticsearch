@@ -69,7 +69,7 @@ public class LoggerMessageFormat {
                 }
             } else {
                 if (isEscapedDelimiter(messagePattern, j)) {
-                    if (!isDoubleEscaped(messagePattern, j)) {
+                    if (isDoubleEscaped(messagePattern, j) == false) {
                         L--; // DELIM_START was escaped, thus should not be incremented
                         sbuf.append(messagePattern.substring(i, j - 1));
                         sbuf.append(DELIM_START);
@@ -122,7 +122,7 @@ public class LoggerMessageFormat {
             sbuf.append("null");
             return;
         }
-        if (!o.getClass().isArray()) {
+        if (o.getClass().isArray() == false) {
             safeObjectAppend(sbuf, o);
         } else {
             // check for primitive array types because they
@@ -161,7 +161,7 @@ public class LoggerMessageFormat {
 
     private static void objectArrayAppend(StringBuilder sbuf, Object[] a, Set<Object[]> seen) {
         sbuf.append('[');
-        if (!seen.contains(a)) {
+        if (seen.contains(a) == false) {
             seen.add(a);
             final int len = a.length;
             for (int i = 0; i < len; i++) {

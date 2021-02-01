@@ -30,6 +30,7 @@ public final class StringUtils {
     public static final String EMPTY = "";
     public static final String NEW_LINE = "\n";
     public static final String SQL_WILDCARD = "%";
+    public static final String WILDCARD = "*";
 
     private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 
@@ -174,7 +175,7 @@ public final class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "?");
@@ -220,7 +221,7 @@ public final class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "*");

@@ -85,7 +85,7 @@ public abstract class BaseRestHandler implements RestHandler {
             request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
-        if (!unconsumedParams.isEmpty()) {
+        if (unconsumedParams.isEmpty() == false) {
             final Set<String> candidateParams = new HashSet<>();
             candidateParams.addAll(request.consumedParams());
             candidateParams.addAll(responseParams());

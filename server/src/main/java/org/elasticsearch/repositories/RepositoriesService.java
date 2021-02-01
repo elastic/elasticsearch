@@ -66,6 +66,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
  */
@@ -197,7 +199,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             repositoriesMetadata.add(repositoryMetadata);
                         }
                     }
-                    if (!found) {
+                    if (found == false) {
                         logger.info("put repository [{}]", request.name());
                         repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
                     } else {
@@ -454,7 +456,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             for (Repository repo : builder.values()) {
                 repo.updateState(state);
             }
-            repositories = Collections.unmodifiableMap(builder);
+            repositories = unmodifiableMap(builder);
         } catch (Exception ex) {
             assert false : new AssertionError(ex);
             logger.warn("failure updating cluster state ", ex);
@@ -479,8 +481,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     /**
      * Returns registered repository
-     * <p>
-     * This method is called only on the master node
      *
      * @param repositoryName repository name
      * @return registered repository
@@ -496,6 +496,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return repository;
         }
         throw new RepositoryMissingException(repositoryName);
+    }
+
+    /**
+     * @return the current collection of registered repositories, keyed by name.
+     */
+    public Map<String, Repository> getRepositories() {
+        return unmodifiableMap(repositories);
     }
 
     public List<RepositoryStatsSnapshot> repositoriesStats() {

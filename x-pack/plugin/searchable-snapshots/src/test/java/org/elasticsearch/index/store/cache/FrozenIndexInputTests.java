@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
@@ -78,16 +81,21 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             cacheSize = new ByteSizeValue(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
         }
 
-        final FrozenCacheService cacheService = new FrozenCacheService(
-            Settings.builder()
-                .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-                .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
-                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                .build(),
-            threadPool
-        );
+        final Settings settings = Settings.builder()
+            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put("path.home", createTempDir())
+            .build();
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        for (Path path : environment.dataFiles()) {
+            Files.createDirectories(path);
+        }
 
-        try (TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(cacheService, tempDir, fileInfo, fileData)) {
+        try (
+            FrozenCacheService cacheService = new FrozenCacheService(environment, threadPool);
+            TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(cacheService, tempDir, fileInfo, fileData)
+        ) {
             directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
 
             // TODO does not test the checksum shortcut, does not test using the recovery range size

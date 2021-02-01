@@ -13,7 +13,6 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -26,14 +25,14 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -48,7 +47,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
-public class FrozenCacheService {
+public class FrozenCacheService implements Releasable {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.frozen-cache.";
 
@@ -129,9 +128,9 @@ public class FrozenCacheService {
     private final CacheDecayTask decayTask;
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    @SuppressForbidden(reason = "Use temp dir for now")
-    public FrozenCacheService(Settings settings, ThreadPool threadPool) throws IOException {
+    public FrozenCacheService(Environment environment, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
+        final Settings settings = environment.settings();
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         final int numRegions = Math.toIntExact(cacheSize / regionSize);
@@ -152,7 +151,7 @@ public class FrozenCacheService {
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
-        sharedBytes = new SharedBytes(numRegions, regionSize, Files.createTempFile("cache", "snap"));
+        sharedBytes = new SharedBytes(numRegions, regionSize, environment);
         decayTask = new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings));
         decayTask.rescheduleIfNecessary();
         this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);
@@ -433,6 +432,11 @@ public class FrozenCacheService {
         return keyMapping.get(cacheFileRegion.regionKey).freq;
     }
 
+    @Override
+    public void close() {
+        sharedBytes.decRef();
+    }
+
     class CacheDecayTask extends AbstractAsyncTask {
 
         CacheDecayTask(ThreadPool threadPool, TimeValue interval) {
@@ -584,7 +588,8 @@ public class FrozenCacheService {
                 ensureOpen();
                 Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final FileChannel fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
                 if (rangeToRead.v1() == rangeToRead.v2()) {
                     // nothing to read, skip
@@ -642,11 +647,12 @@ public class FrozenCacheService {
                 ensureOpen();
                 final Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final FileChannel fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
+                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
                     return listener;
                 } else {
-                    decrementRef.close();
+                    IOUtils.close(decrementRef, fileChannel::decRef);
                     return null;
                 }
             } catch (Exception e) {
@@ -659,7 +665,7 @@ public class FrozenCacheService {
             Tuple<Long, Long> rangeToRead,
             RangeAvailableHandler reader,
             ActionListener<Integer> listener,
-            FileChannel fileChannel
+            SharedBytes.IO fileChannel
         ) {
             return ActionListener.wrap(success -> {
                 final long physicalStartOffset = physicalStartOffset();
@@ -796,12 +802,12 @@ public class FrozenCacheService {
     public interface RangeAvailableHandler {
         // caller that wants to read from x should instead do a positional read from x + relativePos
         // caller should also only read up to length, further bytes will be offered by another call to this method
-        int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length) throws IOException;
+        int onRangeAvailable(SharedBytes.IO channel, long channelPos, long relativePos, long length) throws IOException;
     }
 
     @FunctionalInterface
     public interface RangeMissingHandler {
-        void fillCacheRange(FileChannel channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
+        void fillCacheRange(SharedBytes.IO channel, long channelPos, long relativePos, long length, Consumer<Long> progressUpdater)
             throws IOException;
     }
 }

@@ -204,7 +204,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
             if (name.equals("type")) {
                 type(entry.getValue().toString());
             } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
+                if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("Malformed settings section, should include an inner object");
                 }
                 @SuppressWarnings("unchecked")

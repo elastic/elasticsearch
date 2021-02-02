@@ -116,7 +116,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             }
         }
 
-        if (!nodesIds.isEmpty()) {
+        if (nodesIds.isEmpty() == false) {
             // There are still some snapshots running - check their progress
             Snapshot[] snapshots = new Snapshot[currentSnapshots.size()];
             for (int i = 0; i < currentSnapshots.size(); i++) {
@@ -143,7 +143,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
         Set<String> currentSnapshotNames = new HashSet<>();
-        if (!currentSnapshotEntries.isEmpty()) {
+        if (currentSnapshotEntries.isEmpty() == false) {
             Map<String, TransportNodesSnapshotsStatus.NodeSnapshotStatus> nodeSnapshotStatusMap;
             if (nodeSnapshotStatuses != null) {
                 nodeSnapshotStatusMap = nodeSnapshotStatuses.getNodesMap();
@@ -310,7 +310,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     private SnapshotInfo snapshot(SnapshotsInProgress snapshotsInProgress, String repositoryName, SnapshotId snapshotId) {
         List<SnapshotsInProgress.Entry> entries =
             SnapshotsService.currentSnapshots(snapshotsInProgress, repositoryName, Collections.singletonList(snapshotId.getName()));
-        if (!entries.isEmpty()) {
+        if (entries.isEmpty() == false) {
             return new SnapshotInfo(entries.iterator().next());
         }
         return repositoriesService.repository(repositoryName).getSnapshotInfo(snapshotId);

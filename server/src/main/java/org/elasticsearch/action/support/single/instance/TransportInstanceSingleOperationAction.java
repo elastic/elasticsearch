@@ -184,7 +184,7 @@ public abstract class TransportInstanceSingleOperationAction<
             ShardRouting shard = shardIt.nextOrNull();
             assert shard != null;
 
-            if (!shard.active()) {
+            if (shard.active() == false) {
                 retry(null);
                 return;
             }

@@ -193,7 +193,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
             }
             for (Map.Entry<String, ThreadPoolStats.Stats> entry : poolThreadStats.entrySet()) {
 
-                if (!included.contains(entry.getKey())) continue;
+                if (included.contains(entry.getKey()) == false) {
+                    continue;
+                }
 
                 table.startRow();
 

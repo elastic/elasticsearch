@@ -160,7 +160,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
-        if (!(runnable instanceof PrioritizedRunnable)) {
+        if ((runnable instanceof PrioritizedRunnable) == false) {
             runnable = PrioritizedRunnable.wrap(runnable, Priority.NORMAL);
         }
         Priority priority = ((PrioritizedRunnable) runnable).priority();
@@ -169,7 +169,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
-        if (!(callable instanceof PrioritizedCallable)) {
+        if ((callable instanceof PrioritizedCallable) == false) {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
         return new PrioritizedFutureTask<>((PrioritizedCallable)callable, insertionOrder.incrementAndGet());

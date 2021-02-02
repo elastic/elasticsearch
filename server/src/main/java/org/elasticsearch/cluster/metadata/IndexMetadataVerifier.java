@@ -90,8 +90,8 @@ public class IndexMetadataVerifier {
     }
 
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        if (indexMetadata.getState() == IndexMetadata.State.OPEN &&
-            indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion)) {
+        boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
+        if (indexMetadata.getState() == IndexMetadata.State.OPEN && isSupportedVersion == false) {
             throw new IllegalStateException("The index " + indexMetadata.getIndex() + " was created with version ["
                 + indexMetadata.getCreationVersion() + "] but the minimum compatible version is ["
                 + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major

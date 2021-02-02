@@ -271,9 +271,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Setting.versionSetting(SETTING_VERSION_CREATED, Version.V_EMPTY, Property.IndexScope, Property.PrivateIndex);
 
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
-    public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
-    public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
+
+    /**
+     * These internal settings are no longer added to new indices. They are deprecated but still defined
+     * to retain compatibility with old indexes. TODO: remove in 9.0.
+     */
+    @Deprecated public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
+    @Deprecated public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
+
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
      * It might still contain date math expressions etc. (added in 5.0)
@@ -387,7 +393,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final DiscoveryNodeFilters initialRecoveryFilters;
 
     private final Version indexCreatedVersion;
-    private final Version indexUpgradedVersion;
 
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
@@ -415,7 +420,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final DiscoveryNodeFilters includeFilters,
             final DiscoveryNodeFilters excludeFilters,
             final Version indexCreatedVersion,
-            final Version indexUpgradedVersion,
             final int routingNumShards,
             final int routingPartitionSize,
             final ActiveShardCount waitForActiveShards,
@@ -447,7 +451,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.excludeFilters = excludeFilters;
         this.initialRecoveryFilters = initialRecoveryFilters;
         this.indexCreatedVersion = indexCreatedVersion;
-        this.indexUpgradedVersion = indexUpgradedVersion;
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
@@ -511,14 +514,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public Version getCreationVersion() {
         return indexCreatedVersion;
-    }
-
-    /**
-     * Return the {@link Version} on which this index has been upgraded. This
-     * information is typically useful for backward compatibility.
-     */
-    public Version getUpgradedVersion() {
-        return indexUpgradedVersion;
     }
 
     public long getCreationDate() {
@@ -1273,7 +1268,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, initialRecoveryMap);
             }
             Version indexCreatedVersion = indexCreatedVersion(settings);
-            Version indexUpgradedVersion = settings.getAsVersion(IndexMetadata.SETTING_VERSION_UPGRADED, indexCreatedVersion);
 
             if (primaryTerms == null) {
                 initializePrimaryTerms();
@@ -1311,7 +1305,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     includeFilters,
                     excludeFilters,
                     indexCreatedVersion,
-                    indexUpgradedVersion,
                     getRoutingNumShards(),
                     routingPartitionSize,
                     waitForActiveShards,
@@ -1603,10 +1596,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Version version = SETTING_INDEX_VERSION_CREATED.get(settings);
         if (version != Version.V_EMPTY) {
             builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
-        }
-        Version versionUpgraded = settings.getAsVersion(SETTING_VERSION_UPGRADED, null);
-        if (versionUpgraded != null) {
-            builder.put(SETTING_VERSION_UPGRADED_STRING, versionUpgraded.toString());
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {

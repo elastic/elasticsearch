@@ -117,7 +117,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1573,7 +1573,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
                     metadataCreateIndexService,
-                    new MetadataIndexUpgradeService(
+                    new IndexMetadataVerifier(
                         settings, namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,

@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -67,15 +67,15 @@ public class LocalAllocateDangledIndices {
 
     private final AllocationService allocationService;
 
-    private final MetadataIndexUpgradeService metadataIndexUpgradeService;
+    private final IndexMetadataVerifier indexMetadataVerifier;
 
     @Inject
     public LocalAllocateDangledIndices(TransportService transportService, ClusterService clusterService,
-                                       AllocationService allocationService, MetadataIndexUpgradeService metadataIndexUpgradeService) {
+                                       AllocationService allocationService, IndexMetadataVerifier indexMetadataVerifier) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.indexMetadataVerifier = indexMetadataVerifier;
         transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, AllocateDangledRequest::new,
             new AllocateDangledRequestHandler());
     }
@@ -143,28 +143,28 @@ public class LocalAllocateDangledIndices {
                         }
                         importNeeded = true;
 
-                        IndexMetadata upgradedIndexMetadata;
+                        IndexMetadata newIndexMetadata;
                         try {
                             // The dangled index might be from an older version, we need to make sure it's compatible
-                            // with the current version and upgrade it if needed.
-                            upgradedIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(indexMetadata,
+                            // with the current version.
+                            newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(indexMetadata,
                                 minIndexCompatibilityVersion);
-                            upgradedIndexMetadata = IndexMetadata.builder(upgradedIndexMetadata).settings(
-                                Settings.builder().put(upgradedIndexMetadata.getSettings()).put(
+                            newIndexMetadata = IndexMetadata.builder(newIndexMetadata).settings(
+                                Settings.builder().put(newIndexMetadata.getSettings()).put(
                                     IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID())).build();
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn(() -> new ParameterizedMessage("found dangled index [{}] on node [{}]. This index cannot be " +
                                 "upgraded to the latest version, adding as closed", indexMetadata.getIndex(), request.fromNode), ex);
-                            upgradedIndexMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE)
+                            newIndexMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE)
                                 .version(indexMetadata.getVersion() + 1).build();
                         }
-                        metadata.put(upgradedIndexMetadata, false);
-                        blocks.addBlocks(upgradedIndexMetadata);
-                        if (upgradedIndexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
-                            routingTableBuilder.addAsFromDangling(upgradedIndexMetadata);
+                        metadata.put(newIndexMetadata, false);
+                        blocks.addBlocks(newIndexMetadata);
+                        if (newIndexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
+                            routingTableBuilder.addAsFromDangling(newIndexMetadata);
                         }
-                        sb.append("[").append(upgradedIndexMetadata.getIndex()).append("/").append(upgradedIndexMetadata.getState())
+                        sb.append("[").append(newIndexMetadata.getIndex()).append("/").append(newIndexMetadata.getState())
                             .append("]");
                     }
                     if (importNeeded == false) {

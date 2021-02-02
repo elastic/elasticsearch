@@ -252,7 +252,19 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
+            List<String> cmd = new ArrayList<>();
+            cmd.add("docker");
+            cmd.add("exec");
+            cmd.add("--user");
+            cmd.add("elasticsearch:root");
+            cmd.add("--tty");
+
+            env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
+
+            cmd.add(containerId);
+            cmd.add(script);
+
+            return super.getScriptCommand(String.join(" ", cmd));
         }
 
         /**

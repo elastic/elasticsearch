@@ -296,6 +296,7 @@ public class SqlDataTypes {
                     || (DataTypes.isString(left) && DataTypes.isString(right))
                     || (left.isNumeric() && right.isNumeric())
                     || (isDateBased(left) && isDateBased(right))
+                    || (isInterval(left) && isDateBased(right)) || (isDateBased(left) && isInterval(right))
                     || (isInterval(left) && isInterval(right) && Intervals.compatibleInterval(left, right) != null);
         }
     }

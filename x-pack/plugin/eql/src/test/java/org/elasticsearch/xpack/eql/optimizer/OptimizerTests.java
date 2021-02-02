@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -663,6 +664,28 @@ public class OptimizerTests extends ESTestCase {
 
         assertEquals(keyRuleBCondition, filterCondition(child2));
         assertEquals(filter, filterCondition(child2.children().get(0)));
+    }
+
+    // ((a + 1) - 3) * 4 >= 16 -> a >= 6.
+    public void testReduceBinaryComparisons() {
+        LogicalPlan plan = accept("foo where ((pid + 1) - 3) * 4 >= 16");
+        assertNotNull(plan);
+        List<LogicalPlan> filters = plan.collectFirstChildren(x -> x instanceof Filter);
+        assertNotNull(filters);
+        assertEquals(1, filters.size());
+        assertTrue(filters.get(0) instanceof Filter);
+        Filter filter = (Filter) filters.get(0);
+
+        assertTrue(filter.condition() instanceof And);
+        And and = (And) filter.condition();
+        assertTrue(and.right() instanceof GreaterThanOrEqual);
+        GreaterThanOrEqual gte = (GreaterThanOrEqual) and.right();
+
+        assertTrue(gte.left() instanceof FieldAttribute);
+        assertEquals("pid", ((FieldAttribute) gte.left()).name());
+
+        assertTrue(gte.right() instanceof Literal);
+        assertEquals(6, ((Literal) gte.right()).value());
     }
 
     private static Attribute timestamp() {

@@ -72,8 +72,8 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         this(
                 painlessMethod.javaMethod.getDeclaringClass().getName(),
                 painlessMethod.javaMethod.getName(),
-                painlessMethod.returnType.getName(),
-                painlessMethod.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+                PainlessContextTypeInfo.getType(painlessMethod.returnType.getName()),
+                painlessMethod.typeParameters.stream().map(c -> PainlessContextTypeInfo.getType(c.getName())).collect(Collectors.toList())
         );
     }
 

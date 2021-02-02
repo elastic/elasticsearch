@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,11 +75,40 @@ public class NamedXContentRegistry {
     }
 
     private final Map<Class<?>, Map<String, Entry>> registry;
+    private final Map<Class<?>, Map<String, Entry>> compatibleRegistry;
 
-    public NamedXContentRegistry(List<Entry> entries) {
+    public NamedXContentRegistry(List<Entry> entries){
+        this(entries, Collections.emptyList());
+    }
+
+    public NamedXContentRegistry(List<Entry> entries, List<Entry> compatibleEntries) {
+        this.registry = unmodifiableMap(getRegistry(entries));
+        this.compatibleRegistry = unmodifiableMap(getCompatibleRegistry(compatibleEntries));
+    }
+
+    private Map<Class<?>, Map<String, Entry>> getCompatibleRegistry(List<Entry> compatibleEntries) {
+        Map<Class<?>, Map<String, Entry>> compatibleRegistry = new HashMap<>(registry);
+        List<Entry> unseenEntries = new ArrayList<>();
+        compatibleEntries.forEach(entry -> {
+                Map<String, Entry> parsers = compatibleRegistry.get(entry.categoryClass);
+                if (parsers == null) {
+                    unseenEntries.add(entry);
+                } else {
+                    Map<String, Entry> parsersCopy = new HashMap<>(parsers);
+                    for (String name : entry.name.getAllNamesIncludedDeprecated()) {
+                        parsersCopy.put(name, entry); //override the parser for the given name
+                    }
+                    compatibleRegistry.put(entry.categoryClass, parsersCopy);
+                }
+            }
+        );
+        compatibleRegistry.putAll(getRegistry(unseenEntries));
+        return compatibleRegistry;
+    }
+
+    private  Map<Class<?>, Map<String, Entry>> getRegistry(List<Entry> entries){
         if (entries.isEmpty()) {
-            registry = emptyMap();
-            return;
+            return emptyMap();
         }
         entries = new ArrayList<>(entries);
         entries.sort((e1, e2) -> e1.categoryClass.getName().compareTo(e2.categoryClass.getName()));
@@ -107,8 +137,7 @@ public class NamedXContentRegistry {
         }
         // handle the last category
         registry.put(currentCategory, unmodifiableMap(parsers));
-
-        this.registry = unmodifiableMap(registry);
+        return registry;
     }
 
     /**
@@ -119,7 +148,8 @@ public class NamedXContentRegistry {
      * @throws NamedObjectNotFoundException if the categoryClass or name is not registered
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
-        Map<String, Entry> parsers = registry.get(categoryClass);
+
+        Map<String, Entry> parsers = parser.useCompatibility() ? compatibleRegistry.get(categoryClass) : registry.get(categoryClass);
         if (parsers == null) {
             if (registry.isEmpty()) {
                 // The "empty" registry will never work so we throw a better exception as a hint.

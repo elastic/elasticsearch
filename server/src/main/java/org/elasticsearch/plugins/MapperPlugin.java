@@ -19,8 +19,10 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.index.mapper.DynamicRuntimeFieldsBuilder;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 
 import java.util.Collections;
 import java.util.Map;
@@ -41,6 +43,25 @@ public interface MapperPlugin {
      */
     default Map<String, Mapper.TypeParser> getMappers() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Returss the runtime field implementations added by this plugin.
+     * <p>
+     * The key of the returned {@link Map} is the unique name for the field type which will be used
+     * as the mapping {@code type}, and the value is a {@link RuntimeFieldType.Parser} to parse the
+     * field type settings into a {@link RuntimeFieldType}.
+     */
+    default Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Defines how runtime fields are dynamically created when objects are mapped with dynamic:runtime.
+     * @see DynamicRuntimeFieldsBuilder
+     */
+    default DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
+        return null;
     }
 
     /**

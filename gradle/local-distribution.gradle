@@ -36,7 +36,7 @@ elasticsearch_distributions {
 }
 
 tasks.register('localDistro', Sync) {
-  from(elasticsearch_distributions.local.extracted)
+  from(elasticsearch_distributions.local)
   into("build/distribution/local")
   doLast {
     logger.lifecycle("Elasticsearch distribution installed to ${destinationDir}.")

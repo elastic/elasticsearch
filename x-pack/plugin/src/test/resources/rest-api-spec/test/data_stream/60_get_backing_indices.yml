@@ -19,6 +19,12 @@
         name: data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       indices.create:
         index: test_index
@@ -29,11 +35,11 @@
 
   - do:
       indices.get:
-        index: ['.ds-data-stream1-000001', 'test_index']
+        index: ['.ds-data-stream1-*000001', 'test_index']
 
-  - is_true: \.ds-data-stream1-000001.settings
-  - is_true: \.ds-data-stream1-000001.data_stream
-  - match: { \.ds-data-stream1-000001.data_stream: data-stream1 }
+  - is_true: .$idx0name.settings
+  - is_true: .$idx0name.data_stream
+  - match: { .$idx0name.data_stream: data-stream1 }
   - is_true: test_index.settings
   - is_false: test_index.data_stream
 

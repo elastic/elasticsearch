@@ -279,10 +279,14 @@ public class InnerHitsIT extends ESIntegTestCase {
         requests.add(client().prepareIndex("articles").setId("1").setSource(jsonBuilder().startObject()
                 .field("title", "quick brown fox")
                 .startArray("comments")
-                .startObject()
-                .field("message", "fox eat quick")
-                .startArray("remarks").startObject().field("message", "good").endObject().endArray()
-                .endObject()
+                    .startObject()
+                        .field("message", "fox eat quick")
+                        .startArray("remarks").startObject().field("message", "good").endObject().endArray()
+                    .endObject()
+                    .startObject()
+                        .field("message", "hippo is hungry")
+                        .startArray("remarks").startObject().field("message", "neutral").endObject().endArray()
+                    .endObject()
                 .endArray()
                 .endObject()));
         requests.add(client().prepareIndex("articles").setId("2").setSource(jsonBuilder().startObject()
@@ -296,6 +300,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()));
         indexRandom(true, requests);
 
+        // Check we can load the first doubly-nested document.
         SearchResponse response = client().prepareSearch("articles")
                 .setQuery(
                         nestedQuery("comments",
@@ -319,6 +324,33 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerHits.getAt(0).getId(), equalTo("1"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
+
+        // Check we can load the second doubly-nested document.
+        response = client().prepareSearch("articles")
+            .setQuery(
+                nestedQuery("comments",
+                    nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "neutral"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder("remark")),
+                    ScoreMode.Avg).innerHit(new InnerHitBuilder())
+            ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertSearchHit(response, 1, hasId("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getHits().length, equalTo(1));
+        assertThat(innerHits.getAt(0).getId(), equalTo("1"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
+        innerHits = innerHits.getAt(0).getInnerHits().get("remark");
+        assertThat(innerHits.getTotalHits().value, equalTo(1L));
+        assertThat(innerHits.getHits().length, equalTo(1));
+        assertThat(innerHits.getAt(0).getId(), equalTo("1"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(1));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
@@ -364,6 +396,34 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
+
+        // Check that inner hits contain _source even when it's disabled on the parent request.
+        response = client().prepareSearch("articles")
+            .setFetchSource(false)
+            .setQuery(
+                nestedQuery("comments",
+                    nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "good"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder("remark")), ScoreMode.Avg)
+                    .innerHit(new InnerHitBuilder())
+            ).get();
+        assertNoFailures(response);
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
+        innerHits = innerHits.getAt(0).getInnerHits().get("remark");
+        assertNotNull(innerHits.getAt(0).getSourceAsMap());
+        assertFalse(innerHits.getAt(0).getSourceAsMap().isEmpty());
+
+        response = client().prepareSearch("articles")
+            .setQuery(
+                nestedQuery("comments",
+                    nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "good"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder("remark")), ScoreMode.Avg)
+                    .innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))
+            ).get();
+        assertNoFailures(response);
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
+        innerHits = innerHits.getAt(0).getInnerHits().get("remark");
+        assertNotNull(innerHits.getAt(0).getSourceAsMap());
+        assertFalse(innerHits.getAt(0).getSourceAsMap().isEmpty());
     }
 
     // Issue #9723

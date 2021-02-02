@@ -80,7 +80,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             }
         }
 
-        if (!removed) {
+        if (removed == false) {
             // no nodes to remove, keep the current cluster state
             return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
         }

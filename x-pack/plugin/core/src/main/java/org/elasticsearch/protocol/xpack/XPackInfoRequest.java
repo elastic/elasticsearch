@@ -47,7 +47,7 @@ public class XPackInfoRequest extends ActionRequest {
     }
 
     public XPackInfoRequest(StreamInput in) throws IOException {
-        // NOTE: this does *not* call super, THIS IS A BUG
+        super(in);
         this.verbose = in.readBoolean();
         EnumSet<Category> categories = EnumSet.noneOf(Category.class);
         int size = in.readVInt();
@@ -83,6 +83,7 @@ public class XPackInfoRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeBoolean(verbose);
         out.writeVInt(categories.size());
         for (Category category : categories) {

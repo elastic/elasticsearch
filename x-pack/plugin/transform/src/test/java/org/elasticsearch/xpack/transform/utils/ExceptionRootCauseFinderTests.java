@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ExceptionRootCauseFinderTests extends ESTestCase {
+
     public void testFetFirstIrrecoverableExceptionFromBulkResponses() {
         Map<Integer, BulkItemResponse> bulkItemResponses = new HashMap<>();
 
@@ -148,4 +149,5 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertEquals(t.getClass(), expectedClass);
         assertEquals(t.getMessage(), message);
     }
+
 }

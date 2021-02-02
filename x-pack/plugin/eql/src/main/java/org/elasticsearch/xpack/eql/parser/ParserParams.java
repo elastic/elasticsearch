@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.eql.parser;
 
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
+
 import java.time.ZoneId;
 import java.util.List;
 
@@ -21,6 +23,7 @@ public class ParserParams {
     private String fieldEventCategory = FIELD_EVENT_CATEGORY;
     private String fieldTimestamp = FIELD_TIMESTAMP;
     private String fieldTiebreaker = null;
+    private OrderDirection resultPosition = OrderDirection.ASC;
     private int size = SIZE;
     private int fetchSize = FETCH_SIZE;
     private List<Object> queryParams = emptyList();
@@ -28,7 +31,7 @@ public class ParserParams {
     public ParserParams(ZoneId zoneId) {
         this.zoneId = zoneId;
     }
-    
+
     public String fieldEventCategory() {
         return fieldEventCategory;
     }
@@ -53,6 +56,15 @@ public class ParserParams {
 
     public ParserParams fieldTiebreaker(String fieldTiebreaker) {
         this.fieldTiebreaker = fieldTiebreaker;
+        return this;
+    }
+
+    public OrderDirection resultPosition() {
+        return resultPosition;
+    }
+
+    public ParserParams resultPosition(OrderDirection resultPosition) {
+        this.resultPosition = resultPosition;
         return this;
     }
 

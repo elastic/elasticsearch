@@ -143,7 +143,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     private byte[] serviceAccountFileContent(String projectId) throws Exception {
         final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(1024);
+        keyPairGenerator.initialize(2048);
         final KeyPair keyPair = keyPairGenerator.generateKeyPair();
         final String encodedKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
         final XContentBuilder serviceAccountBuilder = jsonBuilder().startObject()

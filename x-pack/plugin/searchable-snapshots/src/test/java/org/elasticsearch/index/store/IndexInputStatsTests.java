@@ -11,7 +11,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.store.IndexInputStats.SEEKING_THRESHOLD;
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class IndexInputStatsTests extends ESTestCase {
 

@@ -85,14 +85,14 @@ public class FieldDataCacheTests extends ESTestCase {
     }
 
     private SortedSetOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new SortedSetOrdinalsIndexFieldData(indexFieldDataCache, fieldName, CoreValuesSourceType.BYTES,
+        return new SortedSetOrdinalsIndexFieldData(indexFieldDataCache, fieldName, CoreValuesSourceType.KEYWORD,
             new NoneCircuitBreakerService(), AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
         return new PagedBytesIndexFieldData(
             fieldName,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             indexFieldDataCache,
             new NoneCircuitBreakerService(),
             TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,

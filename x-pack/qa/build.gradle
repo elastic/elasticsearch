@@ -2,7 +2,7 @@
 // by the elasticsearch x-plugins include mechanism
 
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 
 dependencies {
   api project(':test:framework')

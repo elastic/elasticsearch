@@ -68,7 +68,7 @@ public class MultiValueModeTests extends ESTestCase {
     private static FixedBitSet randomInnerDocs(FixedBitSet rootDocs) {
         FixedBitSet innerDocs = new FixedBitSet(rootDocs.length());
         for (int i = 0; i < innerDocs.length(); ++i) {
-            if (!rootDocs.get(i) && randomBoolean()) {
+            if (rootDocs.get(i) == false && randomBoolean()) {
                 innerDocs.set(i);
             }
         }

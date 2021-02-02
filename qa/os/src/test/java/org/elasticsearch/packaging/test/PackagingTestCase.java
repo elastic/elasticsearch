@@ -59,14 +59,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -173,6 +176,9 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
         }
+        if (installation != null && distribution.isDocker() == false) {
+            setHeap("1g");
+        }
     }
 
     @After
@@ -219,10 +225,16 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
                 installation = Docker.runContainer(distribution);
+                waitForElasticsearch(installation);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        }
+
+        // the purpose of the packaging tests are not to all test auto heap, so we explicitly set heap size to 1g
+        if (distribution.isDocker() == false) {
+            setHeap("1g");
         }
     }
 
@@ -321,7 +333,7 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed", result.exitCode, equalTo(0));
+        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
@@ -446,5 +458,26 @@ public abstract class PackagingTestCase extends Assert {
             sh.getEnv().remove("ES_PATH_CONF");
         }
         IOUtils.rm(tempDir);
+    }
+
+    /**
+     * Manually set the heap size with a jvm.options.d file. This will be reset before each test.
+     */
+    public static void setHeap(String heapSize) throws IOException {
+        setHeap(heapSize, installation.config);
+    }
+
+    public static void setHeap(String heapSize, Path config) throws IOException {
+        Path heapOptions = config.resolve("jvm.options.d").resolve("heap.options");
+        if (heapSize == null) {
+            FileUtils.rm(heapOptions);
+        } else {
+            Files.writeString(
+                heapOptions,
+                String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s%n", heapSize),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            );
+        }
     }
 }

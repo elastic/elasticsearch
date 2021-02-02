@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.vectors;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -15,13 +14,9 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class VectorsInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public VectorsInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      XPackLicenseState licenseState) {
+    public VectorsInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.VECTORS.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -31,7 +26,7 @@ public class VectorsInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.VECTORS);
+        return true;
     }
 
     @Override

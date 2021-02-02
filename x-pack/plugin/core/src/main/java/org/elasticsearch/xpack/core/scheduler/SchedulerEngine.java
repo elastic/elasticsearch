@@ -188,6 +188,11 @@ public class SchedulerEngine {
         }
     }
 
+    // for testing
+    ActiveSchedule getSchedule(String jobId) {
+        return schedules.get(jobId);
+    }
+
     class ActiveSchedule implements Runnable {
 
         private final String name;
@@ -195,7 +200,7 @@ public class SchedulerEngine {
         private final long startTime;
 
         private ScheduledFuture<?> future;
-        private long scheduledTime;
+        private long scheduledTime = -1;
 
         ActiveSchedule(String name, Schedule schedule, long startTime) {
             this.name = name;
@@ -223,10 +228,10 @@ public class SchedulerEngine {
             scheduleNextRun(triggeredTime);
         }
 
-        private void scheduleNextRun(long currentTime) {
-            this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, currentTime);
+        private void scheduleNextRun(long triggeredTime) {
+            this.scheduledTime = computeNextScheduledTime(triggeredTime);
             if (scheduledTime != -1) {
-                long delay = Math.max(0, scheduledTime - currentTime);
+                long delay = Math.max(0, scheduledTime - clock.millis());
                 try {
                     synchronized (this) {
                         if (future == null || future.isCancelled() == false) {
@@ -240,6 +245,28 @@ public class SchedulerEngine {
                     }
                 }
             }
+        }
+
+        // for testing
+        long getScheduledTime() {
+            return scheduledTime;
+        }
+
+        long computeNextScheduledTime(long triggeredTime) {
+            // multiple time sources + multiple cpus + ntp + VMs means you can't trust time ever!
+            // scheduling happens far enough in advance in most cases that time can drift and we
+            // may execute at some point before the scheduled time. There can also be time differences
+            // between the CPU cores and/or the clock used by the threadpool and that used by this class
+            // for scheduling. Regardless, we shouldn't reschedule to execute again until after the
+            // scheduled time.
+            final long scheduleAfterTime;
+            if (scheduledTime != -1 && triggeredTime < scheduledTime) {
+                scheduleAfterTime = scheduledTime;
+            } else {
+                scheduleAfterTime = triggeredTime;
+            }
+
+            return schedule.nextScheduledTimeAfter(startTime, scheduleAfterTime);
         }
 
         public synchronized void cancel() {

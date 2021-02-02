@@ -21,6 +21,9 @@ package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.transform.TransformNamedXContentProvider;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.client.transform.transforms.latest.LatestConfigTests;
+import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,13 +44,23 @@ import static org.elasticsearch.client.transform.transforms.SourceConfigTests.ra
 public class TransformConfigTests extends AbstractXContentTestCase<TransformConfig> {
 
     public static TransformConfig randomTransformConfig() {
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
             randomBoolean() ? null : randomSyncConfig(),
-            PivotConfigTests.randomPivotConfig(),
+            pivotConfig,
+            latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
             SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : Instant.now(),

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -420,9 +421,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             }
             break;
         case 7:
-            ArrayList<ScriptField> scriptFields = new ArrayList<>(instance.getScriptFields());
-            scriptFields.add(new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true));
-            builder.setScriptFields(scriptFields);
+            builder.setScriptFields(CollectionUtils.appendToCopy(instance.getScriptFields(),
+                    new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true)));
             builder.setAggregations(null);
             break;
         case 8:

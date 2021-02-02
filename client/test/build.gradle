@@ -45,12 +45,13 @@ tasks.named('forbiddenApisTest').configure {
 
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
-jarHell.enabled = false
+tasks.named("jarHell").configure { enabled = false }
 
 // TODO: should we have licenses for our test deps?
-tasks.named("dependencyLicenses").configure { it.enabled = false }
-dependenciesInfo.enabled = false
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
+tasks.named("dependenciesGraph").configure { it.enabled = false }
 
 //we aren't releasing this jar
-thirdPartyAudit.enabled = false
-test.enabled = false
+tasks.named("thirdPartyAudit").configure { enabled = false }
+tasks.named("test").configure { enabled = false }

@@ -24,28 +24,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DupNode extends UnaryNode {
 
-    /* ---- begin node data ---- */
-
-    private int size;
-    private int depth;
-
-    public void setSize(int size) {
-        this.size = size;
-    }
-
-    public int getSize() {
-        return size;
-    }
-
-    public void setDepth(int depth) {
-        this.depth = depth;
-    }
-
-    public int getDepth() {
-        return depth;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

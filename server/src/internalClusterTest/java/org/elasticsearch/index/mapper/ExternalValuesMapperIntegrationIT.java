@@ -91,8 +91,6 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").setMapping(
                 XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject(ExternalMetadataMapper.CONTENT_TYPE)
-                .endObject()
                 .startObject("properties")
                     .startObject("field").field("type", ExternalMapperPlugin.EXTERNAL).endObject()
                 .endObject()

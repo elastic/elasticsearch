@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -27,6 +28,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
@@ -63,7 +65,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
     @Override
     protected void masterOperation(Task task, PutAutoFollowPatternAction.Request request,
                                    ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+                                   ActionListener<AcknowledgedResponse> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -80,24 +82,16 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             return;
         }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
             ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {
                     clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
-                        new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
+                        new AckedClusterStateUpdateTask(request, listener) {
                             @Override
-                            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                                return AcknowledgedResponse.of(acknowledged);
-                            }
-
-                            @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
+                            public ClusterState execute(ClusterState currentState) {
                                 return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
                             }
                         });
@@ -200,7 +194,8 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         List<String> followedIndexUUIDS) {
 
         for (final IndexMetadata indexMetadata : leaderMetadata) {
-            if (AutoFollowPattern.match(patterns, indexMetadata.getIndex().getName())) {
+            IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
+            if (AutoFollowPattern.match(patterns, indexAbstraction)) {
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }
         }

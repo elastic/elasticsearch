@@ -447,7 +447,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                         listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                         return;
                     }
-
+                    checkHistoryUUID(indexShard, request.expectedHistoryUUID);
                     final long mappingVersion = indexMetadata.getMappingVersion();
                     final long settingsVersion = indexMetadata.getSettingsVersion();
                     final long aliasesVersion = indexMetadata.getAliasesVersion();
@@ -493,6 +493,14 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
+    private static void checkHistoryUUID(IndexShard indexShard, String expectedHistoryUUID) {
+        final String historyUUID = indexShard.getHistoryUUID();
+        if (historyUUID.equals(expectedHistoryUUID) == false) {
+            throw new IllegalStateException(
+                "unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" + historyUUID + "]");
+        }
+    }
+
     /**
      * Returns at most the specified maximum number of operations from the specified from sequence number. This method will never return
      * operations above the specified global checkpoint.
@@ -519,11 +527,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
-        final String historyUUID = indexShard.getHistoryUUID();
-        if (historyUUID.equals(expectedHistoryUUID) == false) {
-            throw new IllegalStateException("unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" +
-                historyUUID + "]");
-        }
+        checkHistoryUUID(indexShard, expectedHistoryUUID);
         if (fromSeqNo > globalCheckpoint) {
             throw new IllegalStateException(
                     "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]");

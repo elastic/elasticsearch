@@ -25,9 +25,9 @@ dependencies {
   api project(':libs:elasticsearch-core')
 }
 
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 // Since CLI does not depend on :server, it cannot run the jarHell task
-jarHell.enabled = false
+tasks.named("jarHell").configure { enabled = false }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'

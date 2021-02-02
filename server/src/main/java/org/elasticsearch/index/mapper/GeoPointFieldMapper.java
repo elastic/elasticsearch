@@ -21,11 +21,15 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -34,8 +38,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.ParsedGeoPoint;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -109,14 +112,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
 
         @Override
-        public FieldMapper build(BuilderContext context) {
+        public FieldMapper build(ContentPath contentPath) {
             Parser<List<ParsedGeoPoint>> geoParser = new PointParser<>(name, ParsedGeoPoint::new, (parser, point) -> {
                 GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
                 return point;
             }, (ParsedGeoPoint) nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             GeoPointFieldType ft
-                = new GeoPointFieldType(buildFullName(context), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
-            return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context),
+                = new GeoPointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), geoParser, meta.get());
+            return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath),
                 copyTo.build(), new GeoPointIndexer(ft), geoParser, this);
         }
 
@@ -185,12 +188,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
 
     public static class GeoPointFieldType extends AbstractGeometryFieldType implements GeoShapeQueryable {
 
-        private final VectorGeoPointShapeQueryProcessor queryProcessor;
-
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                   Parser<?> parser, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, true, parser, meta);
-            this.queryProcessor = new VectorGeoPointShapeQueryProcessor();
         }
 
         public GeoPointFieldType(String name) {
@@ -203,8 +203,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+            if (luceneGeometries.length == 0) {
+                return new MatchNoDocsQuery();
+            }
+            Query query = LatLonPoint.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            if (hasDocValues()) {
+                Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
 
         @Override
@@ -214,7 +223,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             GeoPoint originGeoPoint;
             if (origin instanceof GeoPoint) {
                 originGeoPoint = (GeoPoint) origin;

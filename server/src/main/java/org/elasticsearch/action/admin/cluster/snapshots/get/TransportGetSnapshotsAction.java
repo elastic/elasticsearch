@@ -106,21 +106,21 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
         final GroupedActionListener<GetSnapshotsResponse.Response> groupedActionListener =
                 new GroupedActionListener<>(
-                        ActionListener.map(listener, responses -> {
+                        listener.map(responses -> {
                             assert repos.size() == responses.size();
                             return new GetSnapshotsResponse(responses);
                         }), repos.size());
 
         for (final RepositoryMetadata repo : repos) {
             final String repoName = repo.name();
-            getSingleRepoSnapshotInfo(snapshotsInProgress, repoName, snapshots, ignoreUnavailable, verbose, ActionListener.map(
+            getSingleRepoSnapshotInfo(snapshotsInProgress, repoName, snapshots, ignoreUnavailable, verbose,
                     ActionListener.delegateResponse(groupedActionListener, (groupedListener, e) -> {
                         if (e instanceof ElasticsearchException) {
                             groupedListener.onResponse(GetSnapshotsResponse.Response.error(repoName, (ElasticsearchException) e));
                         } else {
                             groupedListener.onFailure(e);
                         }
-                    }), snInfos -> GetSnapshotsResponse.Response.snapshots(repoName, snInfos)));
+                    }).map(snInfos -> GetSnapshotsResponse.Response.snapshots(repoName, snInfos)));
         }
     }
 
@@ -236,8 +236,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
             snapshotsInProgress, repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
         for (SnapshotsInProgress.Entry entry : entries) {
-            snapshotSet.add(new SnapshotInfo(entry));
-            snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId());
+            if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
+                snapshotSet.add(new SnapshotInfo(entry));
+            }
         }
         // then, look in the repository
         final Repository repository = repositoriesService.repository(repositoryName);

@@ -38,12 +38,13 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -73,7 +74,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             String name,
             ValuesSourceConfig valuesSourceConfig,
             int precision,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
@@ -152,6 +153,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     @Override
     public double metric(long owningBucketOrd) {
+        try {
+            // Make sure all outstanding data has been synced down to the counts.
+            postCollectLastCollector();
+        } catch (IOException e) {
+            throw new AggregationExecutionException("error collecting data in last segment", e);
+        }
         return counts == null ? 0 : counts.cardinality(owningBucketOrd);
     }
 

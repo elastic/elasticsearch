@@ -133,7 +133,7 @@ public class GeoLineDecomposer {
     private static double calculateShift(double lon, boolean include180) {
         double normalized = GeoUtils.centeredModulus(lon, 360);
         double shift = Math.round(normalized - lon);
-        if (!include180 && normalized == 180.0) {
+        if (include180 == false && normalized == 180.0) {
             shift = shift - 360;
         }
         return shift;

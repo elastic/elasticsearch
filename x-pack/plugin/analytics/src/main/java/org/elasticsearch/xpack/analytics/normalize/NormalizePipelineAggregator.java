@@ -38,10 +38,10 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        @SuppressWarnings("unchecked")
+        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg =
+            (InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>(buckets.size());
 

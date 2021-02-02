@@ -146,11 +146,8 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
-        } else if (value instanceof Number) {
-            afterValue = ((Number) value).longValue();
         } else {
-            // for date histogram source with "format", the after value is formatted
-            // as a string so we need to retrieve the original value in milliseconds.
+            // parse the value from a string in case it is a date or a formatted unsigned long.
             afterValue = format.parseLong(value.toString(), false, () -> {
                 throw new IllegalArgumentException("now() is not supported in [after] key");
             });

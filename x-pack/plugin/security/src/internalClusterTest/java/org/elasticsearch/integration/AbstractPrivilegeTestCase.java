@@ -12,7 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
@@ -94,7 +94,8 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
 
     private void setUser(Request request, String user) {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(user, new SecureString("passwd".toCharArray())));
+        options.addHeader("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         request.setOptions(options);
     }
 }

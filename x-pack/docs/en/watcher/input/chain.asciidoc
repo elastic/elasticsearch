@@ -1,6 +1,9 @@
 [role="xpack"]
 [[input-chain]]
-=== Chain input
+=== {watcher} chain input
+++++
+<titleabbrev>Chain input</titleabbrev>
+++++
 
 Use the `chain` input to load data from multiple sources into the watch 
 execution context when the watch is triggered. The inputs in a chain

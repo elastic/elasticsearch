@@ -32,6 +32,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -97,7 +98,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         String relationString = in.readOptionalString();
         if (relationString != null) {
             relation = ShapeRelation.getRelationByName(relationString);
-            if (relation != null && !isRelationAllowed(relation)) {
+            if (relation != null && isRelationAllowed(relation) == false) {
                 throw new IllegalArgumentException(
                     "[range] query does not support relation [" + relationString + "]");
             }
@@ -309,7 +310,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (this.relation == null) {
             throw new IllegalArgumentException(relation + " is not a valid relation");
         }
-        if (!isRelationAllowed(this.relation)) {
+        if (isRelationAllowed(this.relation) == false) {
             throw new IllegalArgumentException("[range] query does not support relation [" + relation + "]");
         }
         return this;
@@ -428,19 +429,35 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-        if (shardContext != null) {
-            final MappedFieldType fieldType = shardContext.getFieldType(fieldName);
+        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
+        if (coordinatorRewriteContext != null) {
+            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) fieldType;
+                if (coordinatorRewriteContext.hasTimestampData() == false) {
+                    return MappedFieldType.Relation.DISJOINT;
+                }
+                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+                DateMathParser dateMathParser = getForceDateParser();
+                return dateFieldType.isFieldWithinQuery(minTimestamp, maxTimestamp, from, to, includeLower,
+                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+            }
+        }
+
+        SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
+        if (searchExecutionContext != null) {
+            final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
             if (fieldType == null) {
                 return MappedFieldType.Relation.DISJOINT;
             }
-            if (shardContext.getIndexReader() == null) {
+            if (searchExecutionContext.getIndexReader() == null) {
                 // No reader, this may happen e.g. for percolator queries.
                 return MappedFieldType.Relation.INTERSECTS;
             }
 
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
+            return fieldType.isFieldWithinQuery(searchExecutionContext.getIndexReader(), from, to, includeLower,
                     includeUpper, timeZone, dateMathParser, queryRewriteContext);
         }
 
@@ -473,7 +490,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (from == null && to == null) {
             /*
              * Open bounds on both side, we can rewrite to an exists query

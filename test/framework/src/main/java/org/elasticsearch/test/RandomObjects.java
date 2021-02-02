@@ -136,13 +136,13 @@ public final class RandomObjects {
      */
     public static Object getExpectedParsedValue(XContentType xContentType, Object value) {
         if (value instanceof BytesArray) {
-            if (xContentType == XContentType.JSON) {
+            if (xContentType.canonical() == XContentType.JSON) {
                 //JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray)value).toBytesRef().bytes);
             }
         }
         if (value instanceof Float) {
-            if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
+            if (xContentType.canonical() == XContentType.CBOR || xContentType.canonical() == XContentType.SMILE) {
                 // with binary content types we pass back the object as is
                 return value;
             }

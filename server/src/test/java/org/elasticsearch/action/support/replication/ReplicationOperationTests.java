@@ -387,7 +387,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get, threadPool) {
             @Override
             public void perform(Request request, ActionListener<Result> listener) {
-                super.perform(request, ActionListener.map(listener, result -> {
+                super.perform(request, listener.map(result -> {
                     replicationGroup.set(updatedReplicationGroup);
                     logger.debug("--> state after primary operation:\n{}", replicationGroup.get());
                     return result;

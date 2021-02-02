@@ -86,14 +86,18 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
@@ -248,6 +252,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
+        map.put(LongRareTerms.NAME, (p, c) -> ParsedLongRareTerms.fromXContent(p, (String) c));
+        map.put(StringRareTerms.NAME, (p, c) -> ParsedStringRareTerms.fromXContent(p, (String) c));
         map.put(MissingAggregationBuilder.NAME, (p, c) -> ParsedMissing.fromXContent(p, (String) c));
         map.put(NestedAggregationBuilder.NAME, (p, c) -> ParsedNested.fromXContent(p, (String) c));
         map.put(ReverseNestedAggregationBuilder.NAME, (p, c) -> ParsedReverseNested.fromXContent(p, (String) c));
@@ -327,7 +333,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     @Override
-
     protected final Class<T> categoryClass() {
         return (Class<T>) InternalAggregation.class;
     }
@@ -362,13 +367,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, inputs.size());
-            List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
+            List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
+            // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
+            toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
                     bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
             @SuppressWarnings("unchecked")
-            T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
+            T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
             int initialBucketCount = 0;
-            for (InternalAggregation internalAggregation : internalAggregations) {
+            for (InternalAggregation internalAggregation : toPartialReduce) {
                 initialBucketCount += countInnerBucket(internalAggregation);
             }
             int reducedBucketCount = countInnerBucket(reduced);
@@ -414,7 +421,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(randomAlphaOfLength(5));
     }
 
-    private T createTestInstance(String name) {
+    public final Map<String, Object> createTestMetadata() {
         Map<String, Object> metadata = null;
         if (randomBoolean()) {
             metadata = new HashMap<>();
@@ -423,7 +430,11 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         }
-        return createTestInstance(name, metadata);
+        return metadata;
+    }
+
+    private T createTestInstance(String name) {
+        return createTestInstance(name, createTestMetadata());
     }
 
     /** Return an instance on an unmapped field. */

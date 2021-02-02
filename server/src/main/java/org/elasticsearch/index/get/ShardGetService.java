@@ -125,7 +125,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      */
     public GetResult get(Engine.GetResult engineGetResult, String id,
                             String[] fields, FetchSourceContext fetchSourceContext) {
-        if (!engineGetResult.exists()) {
+        if (engineGetResult.exists() == false) {
             return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
         }
 
@@ -269,7 +269,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
 
             // put stored fields into result objects
-            if (!fieldVisitor.fields().isEmpty()) {
+            if (fieldVisitor.fields().isEmpty() == false) {
                 fieldVisitor.postProcess(mapperService::fieldType);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();

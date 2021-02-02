@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -87,7 +86,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
-                Collections.singletonMap("name", Sets.newHashSet("bar", "baz")), null, request, listener,
+            null, request, listener,
                 new GroupShardsIterator<>(
                     Collections.singletonList(
                         new SearchShardIterator(null, null, Collections.emptyList(), null)
@@ -142,49 +141,20 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     }
 
     public void testBuildShardSearchTransportRequest() {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean()).preference("_shards:1,3");
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
             new ArraySearchPhaseResults<>(10), null, false, expected);
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
-        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
+        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator, 10);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
         assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
-        assertArrayEquals(new String[] {"bar", "baz"}, shardSearchTransportRequest.indexRoutings());
-        assertEquals("_shards:1,3", shardSearchTransportRequest.preference());
         assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
-    }
-
-    public void testBuildSearchResponse() {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
-        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(10);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest,
-            phaseResults, null, false, new AtomicLong());
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
-        assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
-        assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
-        assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
-        assertSame(searchResponse.getHits(), internalSearchResponse.hits());
-    }
-
-    public void testBuildSearchResponseAllowPartialFailures() {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        final ArraySearchPhaseResults<SearchPhaseResult> queryResult = new ArraySearchPhaseResults<>(10);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, queryResult, null, false, new AtomicLong());
-        action.onShardFailure(0, new SearchShardTarget("node", new ShardId("index", "index-uuid", 0), null, OriginalIndices.NONE),
-            new IllegalArgumentException());
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        SearchResponse searchResponse = action.buildSearchResponse(internalSearchResponse, action.buildShardFailures(), null, null);
-        assertSame(searchResponse.getAggregations(), internalSearchResponse.aggregations());
-        assertSame(searchResponse.getSuggest(), internalSearchResponse.suggest());
-        assertSame(searchResponse.getProfileResults(), internalSearchResponse.profile());
-        assertSame(searchResponse.getHits(), internalSearchResponse.hits());
     }
 
     public void testSendSearchResponseDisallowPartialFailures() {

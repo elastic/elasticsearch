@@ -221,7 +221,7 @@ public class GeoWKTParser {
         List<Coordinate> coordinates = parseCoordinateList(stream, ignoreZValue, coerce);
         int coordinatesNeeded = coerce ? 3 : 4;
         if (coordinates.size() >= coordinatesNeeded) {
-            if (!coordinates.get(0).equals(coordinates.get(coordinates.size() - 1))) {
+            if (coordinates.get(0).equals(coordinates.get(coordinates.size() - 1)) == false) {
                 if (coerce) {
                     coordinates.add(coordinates.get(0));
                 } else {

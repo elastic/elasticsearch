@@ -5,6 +5,10 @@
       "description":"Updates the cluster voting config exclusions by node ids or node names."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

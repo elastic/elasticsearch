@@ -47,8 +47,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -205,7 +205,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof QueryWrapperBitSetProducer)) return false;
+            if ((o instanceof QueryWrapperBitSetProducer) == false) return false;
             return this.query.equals(((QueryWrapperBitSetProducer) o).query);
         }
 
@@ -230,30 +230,16 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                 return TerminationHandle.NO_WAIT;
             }
 
-            if (!loadRandomAccessFiltersEagerly) {
+            if (loadRandomAccessFiltersEagerly == false) {
                 return TerminationHandle.NO_WAIT;
             }
 
-            boolean hasNested = false;
             final Set<Query> warmUp = new HashSet<>();
             final MapperService mapperService = indexShard.mapperService();
-            DocumentMapper docMapper = mapperService.documentMapper();
-            if (docMapper != null) {
-                if (docMapper.hasNestedObjects()) {
-                    hasNested = true;
-                    for (ObjectMapper objectMapper : docMapper.mappers().objectMappers().values()) {
-                        if (objectMapper.nested().isNested()) {
-                            ObjectMapper parentObjectMapper = objectMapper.getParentObjectMapper(mapperService::getObjectMapper);
-                            if (parentObjectMapper != null && parentObjectMapper.nested().isNested()) {
-                                warmUp.add(parentObjectMapper.nestedTypeFilter());
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (hasNested) {
+            MappingLookup lookup = mapperService.mappingLookup();
+            if (lookup.hasNested()) {
                 warmUp.add(Queries.newNonNestedFilter());
+                lookup.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());

@@ -27,10 +27,11 @@ class AggregationDataExtractorContext {
     final boolean includeDocCount;
     final Map<String, String> headers;
     final IndicesOptions indicesOptions;
+    final Map<String, Object> runtimeMappings;
 
     AggregationDataExtractorContext(String jobId, String timeField, Set<String> fields, List<String> indices, QueryBuilder query,
                                     AggregatorFactories.Builder aggs, long start, long end, boolean includeDocCount,
-                                    Map<String, String> headers, IndicesOptions indicesOptions) {
+                                    Map<String, String> headers, IndicesOptions indicesOptions, Map<String, Object> runtimeMappings) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
@@ -42,5 +43,6 @@ class AggregationDataExtractorContext {
         this.includeDocCount = includeDocCount;
         this.headers = headers;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
     }
 }

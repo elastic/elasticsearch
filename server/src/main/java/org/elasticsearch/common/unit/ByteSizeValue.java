@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -259,12 +260,12 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
                 try {
                     final double doubleValue = Double.parseDouble(s);
                     DeprecationLoggerHolder.deprecationLogger
-                        .deprecate("fractional_byte_values",
+                        .deprecate(DeprecationCategory.PARSING, "fractional_byte_values",
                          "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [{}] found for setting [{}]",
                          initialInput, settingName);
                     return new ByteSizeValue((long) (doubleValue * unit.toBytes(1)));
                 } catch (final NumberFormatException ignored) {
-                    throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+                    throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}]", e, settingName, initialInput);
                 }
             }
         } catch (IllegalArgumentException e) {

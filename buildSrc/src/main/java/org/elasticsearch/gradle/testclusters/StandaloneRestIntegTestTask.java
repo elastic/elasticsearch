@@ -19,9 +19,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.test.Fixture;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.tasks.CacheableTask;
@@ -66,6 +64,13 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
                     .filter(task -> task != this)
                     .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false)
             );
+
+        this.getOutputs()
+            .doNotCacheIf(
+                "Caching disabled for this task since it is configured to preserve data directory",
+                // Don't cache the output of this task if it's not running from a clean data directory.
+                t -> getClusters().stream().anyMatch(cluster -> cluster.isPreserveDataDir())
+            );
     }
 
     @Override
@@ -91,29 +96,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
         if (nodeCount > 0) {
             locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
         }
-
         return Collections.unmodifiableList(locks);
-    }
-
-    @Override
-    public Task dependsOn(Object... dependencies) {
-        super.dependsOn(dependencies);
-        for (Object dependency : dependencies) {
-            if (dependency instanceof Fixture) {
-                finalizedBy(((Fixture) dependency).getStopTask());
-            }
-        }
-        return this;
-    }
-
-    @Override
-    public void setDependsOn(Iterable<?> dependencies) {
-        super.setDependsOn(dependencies);
-        for (Object dependency : dependencies) {
-            if (dependency instanceof Fixture) {
-                finalizedBy(((Fixture) dependency).getStopTask());
-            }
-        }
     }
 
     public WorkResult delete(Object... objects) {

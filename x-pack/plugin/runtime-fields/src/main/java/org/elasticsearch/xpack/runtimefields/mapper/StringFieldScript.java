@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -26,10 +24,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("string_script_field", Factory.class);
 
-    static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt"));
-    }
-
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 
@@ -40,6 +34,22 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     public interface LeafFactory {
         StringFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new StringFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v != null) {
+                    emit(v.toString());
+                }
+            }
+        }
+    };
 
     private final List<String> results = new ArrayList<>();
     private long chars;

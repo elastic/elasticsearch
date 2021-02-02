@@ -88,6 +88,7 @@ public class EmailSslTests extends ESTestCase {
     }
 
     public void testCanSendMessageToSmtpServerUsingTrustStore() throws Exception {
+        assumeFalse("Can't use PKCS12 keystores in fips mode", inFipsJvm());
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {

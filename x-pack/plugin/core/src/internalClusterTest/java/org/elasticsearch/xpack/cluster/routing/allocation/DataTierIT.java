@@ -168,7 +168,9 @@ public class DataTierIT extends ESIntegTestCase {
         Template t = new Template(Settings.builder()
             .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
             .build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList(index))
+            .template(t).build();
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 
@@ -185,7 +187,8 @@ public class DataTierIT extends ESIntegTestCase {
         t = new Template(Settings.builder()
             .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
             .build(), null, null);
-        ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
+        ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
+                 .template(t).build();
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 
@@ -241,6 +244,26 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryByteCount, greaterThanOrEqualTo(1L));
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryByteCountMedian, greaterThanOrEqualTo(1L));
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryShardBytesMAD, greaterThanOrEqualTo(0L));
+    }
+
+    public void testTierFilteringIgnoredByFilterAllocationDecider() {
+        startContentOnlyNode();
+        startHotOnlyNode();
+
+        // Exclude all data_cold nodes
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold")
+                .build())
+            .get();
+
+        // Create an index, which should be excluded just fine, ignored by the FilterAllocationDecider
+        client().admin().indices().prepareCreate(index)
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0))
+            .setWaitForActiveShards(0)
+            .get();
     }
 
     private DataTiersFeatureSetUsage getUsage() {

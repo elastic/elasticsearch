@@ -19,18 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Weight;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +35,6 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
 
     private final String[] keys;
     private final Query[] filters;
-    private Weight[] weights;
     private final boolean keyed;
     private final boolean otherBucket;
     private final String otherBucketKey;
@@ -61,38 +55,11 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         }
     }
 
-    /**
-     * Returns the {@link Weight}s for this filter aggregation, creating it if
-     * necessary. This is done lazily so that the {@link Weight}s are only
-     * created if the aggregation collects documents reducing the overhead of
-     * the aggregation in the case where no documents are collected.
-     *
-     * Note that as aggregations are initialsed and executed in a serial manner,
-     * no concurrency considerations are necessary here.
-     */
-    public Weight[] getWeights(SearchContext searchContext) {
-        if (weights == null) {
-            try {
-                IndexSearcher contextSearcher = searchContext.searcher();
-                weights = new Weight[filters.length];
-                for (int i = 0; i < filters.length; ++i) {
-                    this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filters[i]), ScoreMode.COMPLETE_NO_SCORES, 1);
-                }
-            } catch (IOException e) {
-                throw new AggregationInitializationException("Failed to initialse filters for aggregation [" + name() + "]", e);
-            }
-        }
-        return weights;
-    }
-
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
+    public Aggregator createInternal(Aggregator parent,
                                         CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
-        return new FiltersAggregator(name, factories, keys, () -> getWeights(searchContext), keyed,
-            otherBucket ? otherBucketKey : null, searchContext, parent, cardinality, metadata);
+        return FiltersAggregator.build(name, factories, keys, filters, keyed,
+            otherBucket ? otherBucketKey : null, context, parent, cardinality, metadata);
     }
-
-
 }

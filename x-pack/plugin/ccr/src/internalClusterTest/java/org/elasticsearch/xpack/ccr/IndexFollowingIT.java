@@ -82,7 +82,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction.StatsRequest;
@@ -1385,7 +1385,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             String action = ShardFollowTask.NAME + "[c]";
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
             assertThat(listTasksResponse.getTasks(), hasSize(0));
-        });
+        }, 60, TimeUnit.SECONDS);
         ensureNoCcrTasks();
     }
 

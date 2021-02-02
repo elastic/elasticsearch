@@ -58,7 +58,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final XContent xContent = builder.contentType().xContent();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try (XContentBuilder filteredBuilder = new XContentBuilder(xContent, out, filters)) {
+            try (XContentBuilder filteredBuilder = new XContentBuilder(builder.contentType(), out, filters)) {
                 super.toXContent(filteredBuilder, params);
             }
             try (InputStream stream = out.bytes().streamInput();

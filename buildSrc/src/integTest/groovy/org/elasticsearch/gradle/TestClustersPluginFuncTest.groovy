@@ -75,6 +75,31 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertNoCustomDistro('myCluster')
     }
 
+    def "can declare test cluster in lazy evaluated task configuration block"() {
+        given:
+        buildFile << """
+            tasks.register('myTask', SomeClusterAwareTask) {
+                testClusters {
+                    myCluster {
+                        testDistribution = 'default'
+                    }
+                }
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
+        }
+
+        then:
+        result.output.contains("elasticsearch-keystore script executed!")
+        assertEsStdoutContains("myCluster", "Starting Elasticsearch process")
+        assertEsStdoutContains("myCluster", "Stopping node")
+        assertNoCustomDistro('myCluster')
+    }
+
     def "custom distro folder created for tweaked cluster distribution"() {
         given:
         buildFile << """

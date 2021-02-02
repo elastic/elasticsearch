@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermsGroupConfig implements Writeable, ToXContentObject {
 
-    static final String NAME = "terms";
+    public static final String NAME = "terms";
     private static final String FIELDS = "fields";
 
     private static final List<String> FLOAT_TYPES = Arrays.asList("half_float", "float", "double", "scaled_float");
@@ -63,7 +63,7 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
         this.fields = fields;
     }
 
-    TermsGroupConfig(StreamInput in) throws IOException {
+    public TermsGroupConfig(StreamInput in) throws IOException {
         fields = in.readStringArray();
     }
 

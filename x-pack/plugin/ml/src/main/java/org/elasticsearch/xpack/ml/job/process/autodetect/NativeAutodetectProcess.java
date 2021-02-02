@@ -126,4 +126,9 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
     private AutodetectControlMsgWriter newMessageWriter() {
         return new AutodetectControlMsgWriter(recordWriter(), numberOfFields());
     }
+
+    @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) throws IOException {
+        newMessageWriter().writeStartBackgroundPersistMessage(snapshotTimestamp, snapshotId, snapshotDescription);
+    }
 }

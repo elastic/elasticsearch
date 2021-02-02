@@ -19,7 +19,8 @@ services:
   elasticsearch:
     image: elasticsearch-oss:test
     environment:
-      discovery.type: single-node
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
     ulimits:
       memlock:
         soft: -1

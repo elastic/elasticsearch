@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -161,8 +162,12 @@ public class NodeJoinTests extends ESTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination) {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(destination, initialState.getClusterName(),
-                        destination.getVersion()));
+                    handleResponse(requestId, new TransportService.HandshakeResponse(
+                            destination.getVersion(),
+                            Build.CURRENT.hash(),
+                            destination,
+                            initialState.getClusterName()
+                    ));
                 } else if (action.equals(JoinHelper.VALIDATE_JOIN_ACTION_NAME)) {
                     handleResponse(requestId, new TransportResponse.Empty());
                 } else {

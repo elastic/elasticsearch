@@ -46,9 +46,11 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -142,8 +144,8 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        writeBlob(blobName, bytes, failIfAlreadyExists);
     }
 
     @Override
@@ -174,9 +176,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     doDeleteBlobs(blobsToDelete, false);
                     prevListing = list;
                 } else {
-                    final List<String> lastBlobsToDelete = new ArrayList<>(blobsToDelete);
-                    lastBlobsToDelete.add(keyPath);
-                    doDeleteBlobs(lastBlobsToDelete, false);
+                    doDeleteBlobs(CollectionUtils.appendToCopy(blobsToDelete, keyPath), false);
                     break;
                 }
             }
@@ -207,7 +207,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             final List<String> partition = new ArrayList<>();
             for (String key : outstanding) {
                 partition.add(key);
-                if (partition.size() == MAX_BULK_DELETES ) {
+                if (partition.size() == MAX_BULK_DELETES) {
                     deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
                     partition.clear();
                 }

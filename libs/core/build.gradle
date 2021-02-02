@@ -39,15 +39,17 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // from log4j
-  'org/osgi/framework/AdaptPermission',
-  'org/osgi/framework/AdminPermission',
-  'org/osgi/framework/Bundle',
-  'org/osgi/framework/BundleActivator',
-  'org/osgi/framework/BundleContext',
-  'org/osgi/framework/BundleEvent',
-  'org/osgi/framework/SynchronousBundleListener',
-  'org/osgi/framework/wiring/BundleWire',
-  'org/osgi/framework/wiring/BundleWiring'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          // from log4j
+          'org/osgi/framework/AdaptPermission',
+          'org/osgi/framework/AdminPermission',
+          'org/osgi/framework/Bundle',
+          'org/osgi/framework/BundleActivator',
+          'org/osgi/framework/BundleContext',
+          'org/osgi/framework/BundleEvent',
+          'org/osgi/framework/SynchronousBundleListener',
+          'org/osgi/framework/wiring/BundleWire',
+          'org/osgi/framework/wiring/BundleWiring'
+  )
+}

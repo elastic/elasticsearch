@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.DynamicMap;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -33,7 +35,7 @@ public abstract class AbstractFieldScript {
      */
     static final int MAX_VALUES = 100;
 
-    public static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
+    static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(
             name + "_script_field",
             factoryClass,
@@ -57,12 +59,12 @@ public abstract class AbstractFieldScript {
 
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
         "_source",
-        value -> ((SourceLookup) value).loadSourceIfNeeded()
+        value -> ((SourceLookup) value).source()
     );
 
     protected final String fieldName;
     private final Map<String, Object> params;
-    private final LeafSearchLookup leafSearchLookup;
+    protected final LeafSearchLookup leafSearchLookup;
 
     public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         this.fieldName = fieldName;
@@ -88,17 +90,14 @@ public abstract class AbstractFieldScript {
     }
 
     /**
-     * Expose the {@code _source} to the script.
-     */
-    protected final Map<String, Object> getSource() {
-        return leafSearchLookup.source();
-    }
-
-    /**
      * Expose field data to the script as {@code doc}.
      */
     public final Map<String, ScriptDocValues<?>> getDoc() {
         return leafSearchLookup.doc();
+    }
+
+    protected final List<Object> extractFromSource(String path) {
+        return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
     }
 
     /**

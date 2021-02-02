@@ -222,7 +222,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
     }
 
     private static PutUserRequest randomPutUserRequest(User user, boolean enabled) {
-        final char[] password = randomAlphaOfLengthBetween(6, 10).toCharArray();
+        final char[] password = randomAlphaOfLengthBetween(14, 19).toCharArray();
         return new PutUserRequest(user, password, enabled, RefreshPolicy.IMMEDIATE);
     }
 

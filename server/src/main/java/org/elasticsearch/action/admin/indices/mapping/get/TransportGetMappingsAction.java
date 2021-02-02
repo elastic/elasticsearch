@@ -26,15 +26,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
@@ -55,12 +51,6 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
-        try {
-            ImmutableOpenMap<String, MappingMetadata> result =
-                    state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
-            listener.onResponse(new GetMappingsResponse(result));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+        listener.onResponse(new GetMappingsResponse(state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter())));
     }
 }

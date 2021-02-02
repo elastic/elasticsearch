@@ -99,13 +99,13 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         assertThat("Expected the following line in output:\n\n" + line + "\n\nOutput is:\n" + output, output, containsString(line));
     }
 
-    protected void assertOutputDoesNotContain(String output, String line) {
+    protected void assertOutputMissing(String output, String line) {
         assertFalse("Expected the following line not to be in output:\n\n" + line + "\n\nOutput is:\n" + output, output.contains(line));
     }
 
-    protected void assertOutputDoesNotContain(String output, String... lines) {
+    protected void assertOutputMissing(String output, String... lines) {
         for (String line : lines) {
-            assertOutputDoesNotContain(line);
+            assertOutputMissing(line);
         }
     }
 
@@ -167,7 +167,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
     }
 
     protected void assertNoDeprecationWarning(BuildResult result) {
-        assertOutputDoesNotContain(result.getOutput(), "Deprecated Gradle features were used in this build");
+        assertOutputMissing(result.getOutput(), "Deprecated Gradle features were used in this build");
     }
 
     protected void assertBuildFileExists(BuildResult result, String projectName, String path) {

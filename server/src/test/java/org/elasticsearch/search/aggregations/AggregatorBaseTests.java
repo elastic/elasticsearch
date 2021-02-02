@@ -26,16 +26,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -51,8 +48,8 @@ import static org.mockito.Mockito.when;
 public class AggregatorBaseTests extends MapperServiceTestCase {
 
     class BogusAggregator extends AggregatorBase {
-        BogusAggregator(SearchContext searchContext, Aggregator parent) throws IOException {
-            super("bogus", AggregatorFactories.EMPTY, searchContext, parent, CardinalityUpperBound.NONE, Map.of());
+        BogusAggregator(AggregationContext context, Aggregator parent) throws IOException {
+            super("bogus", AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, Map.of());
         }
 
         @Override
@@ -71,21 +68,16 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         }
     }
 
-    private SearchContext mockSearchContext(Query query) {
-        SearchContext searchContext = mock(SearchContext.class);
-        when(searchContext.query()).thenReturn(query);
-        BigArrays mockBigArrays = mock(BigArrays.class);
-        CircuitBreakerService mockCBS = mock(CircuitBreakerService.class);
-        when(mockCBS.getBreaker(CircuitBreaker.REQUEST)).thenReturn(mock(CircuitBreaker.class));
-        when(mockBigArrays.breakerService()).thenReturn(mockCBS);
-        when(searchContext.bigArrays()).thenReturn(mockBigArrays);
-        return searchContext;
+    private AggregationContext context(Query query) {
+        AggregationContext context = mock(AggregationContext.class);
+        when(context.query()).thenReturn(query);
+        when(context.breaker()).thenReturn(mock(CircuitBreaker.class));
+        return context;
     }
 
-    private Function<byte[], Number> pointReaderShim(SearchContext context, Aggregator parent, ValuesSourceConfig config)
+    private Function<byte[], Number> pointReaderShim(AggregationContext context, Aggregator parent, ValuesSourceConfig config)
         throws IOException {
-        BogusAggregator aggregator = new BogusAggregator(context, parent);
-        return aggregator.pointReaderIfAvailable(config);
+        return new BogusAggregator(context, parent).pointReaderIfAvailable(config);
     }
 
     private Aggregator mockAggregator() {
@@ -119,37 +111,37 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", "abc"))), context -> {
             for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
                 assertNotNull(
-                    pointReaderShim(mockSearchContext(new MatchAllDocsQuery()), null, getVSConfig("number", type, true, context))
+                    pointReaderShim(context(new MatchAllDocsQuery()), null, getVSConfig("number", type, true, context))
                 );
-                assertNotNull(pointReaderShim(mockSearchContext(null), null, getVSConfig("number", type, true, context)));
-                assertNull(pointReaderShim(mockSearchContext(null), mockAggregator(), getVSConfig("number", type, true, context)));
+                assertNotNull(pointReaderShim(context(null), null, getVSConfig("number", type, true, context)));
+                assertNull(pointReaderShim(context(null), mockAggregator(), getVSConfig("number", type, true, context)));
                 assertNull(
                     pointReaderShim(
-                        mockSearchContext(new TermQuery(new Term("foo", "bar"))),
+                        context(new TermQuery(new Term("foo", "bar"))),
                         null,
                         getVSConfig("number", type, true, context)
                     )
                 );
-                assertNull(pointReaderShim(mockSearchContext(null), mockAggregator(), getVSConfig("number", type, true, context)));
-                assertNull(pointReaderShim(mockSearchContext(null), null, getVSConfig("number", type, false, context)));
+                assertNull(pointReaderShim(context(null), mockAggregator(), getVSConfig("number", type, true, context)));
+                assertNull(pointReaderShim(context(null), null, getVSConfig("number", type, false, context)));
             }
             for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
                 assertNull(
                     pointReaderShim(
-                        mockSearchContext(new MatchAllDocsQuery()),
+                        context(new MatchAllDocsQuery()),
                         mockAggregator(),
                         getVSConfig("number", resolution, true, context)
                     )
                 );
                 assertNull(
                     pointReaderShim(
-                        mockSearchContext(new TermQuery(new Term("foo", "bar"))),
+                        context(new TermQuery(new Term("foo", "bar"))),
                         null,
                         getVSConfig("number", resolution, true, context)
                     )
                 );
-                assertNull(pointReaderShim(mockSearchContext(null), mockAggregator(), getVSConfig("number", resolution, true, context)));
-                assertNull(pointReaderShim(mockSearchContext(null), null, getVSConfig("number", resolution, false, context)));
+                assertNull(pointReaderShim(context(null), mockAggregator(), getVSConfig("number", resolution, true, context)));
+                assertNull(pointReaderShim(context(null), null, getVSConfig("number", resolution, false, context)));
             }
             // Check that we decode a dates "just like" the doc values instance.
             Instant expected = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2020-01-01T00:00:00Z"));
@@ -157,7 +149,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
             assertThat(
                 pointReaderShim(
-                    mockSearchContext(new MatchAllDocsQuery()),
+                    context(new MatchAllDocsQuery()),
                     null,
                     getVSConfig("number", DateFieldMapper.Resolution.MILLISECONDS, true, context)
                 ).apply(scratch),
@@ -166,7 +158,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             LongPoint.encodeDimension(DateFieldMapper.Resolution.NANOSECONDS.convert(expected), scratch, 0);
             assertThat(
                 pointReaderShim(
-                    mockSearchContext(new MatchAllDocsQuery()),
+                    context(new MatchAllDocsQuery()),
                     null,
                     getVSConfig("number", DateFieldMapper.Resolution.NANOSECONDS, true, context)
                 ).apply(scratch),

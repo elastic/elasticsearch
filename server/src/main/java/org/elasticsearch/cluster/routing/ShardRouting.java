@@ -438,7 +438,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      */
     public ShardRouting moveUnassignedFromPrimary() {
         assert state == ShardRoutingState.UNASSIGNED : "expected an unassigned shard " + this;
-        if (!primary) {
+        if (primary == false) {
             throw new IllegalShardRoutingStateException(this, "Not primary, can't move to replica");
         }
         return new ShardRouting(shardId, currentNodeId, relocatingNodeId, false, state, PeerRecoverySource.INSTANCE, unassignedInfo,

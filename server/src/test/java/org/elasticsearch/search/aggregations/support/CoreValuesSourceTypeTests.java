@@ -37,7 +37,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
 
     public void testFromString() {
         assertThat(CoreValuesSourceType.fromString("numeric"), equalTo(CoreValuesSourceType.NUMERIC));
-        assertThat(CoreValuesSourceType.fromString("bytes"), equalTo(CoreValuesSourceType.BYTES));
+        assertThat(CoreValuesSourceType.fromString("keyword"), equalTo(CoreValuesSourceType.KEYWORD));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));
         assertThat(CoreValuesSourceType.fromString("range"), equalTo(CoreValuesSourceType.RANGE));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -72,8 +72,8 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         long max = randomLongBetween(min + 10, 100000000000L);
         MapperService mapperService = dateMapperService();
         Query query = mapperService.fieldType("field")
-            .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createQueryShardContext(mapperService));
-        withAggregationContext(mapperService, List.of(), query, context -> {
+            .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
+        withAggregationContext(null, mapperService, List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
             CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
             verify(rounding).prepare(min, max);
@@ -101,8 +101,8 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         }
         MapperService mapperService = dateMapperService();
         Query query = mapperService.fieldType("field")
-            .rangeQuery(minQuery, maxQuery, true, true, ShapeRelation.CONTAINS, null, null, createQueryShardContext(mapperService));
-        withAggregationContext(mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
+            .rangeQuery(minQuery, maxQuery, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
+        withAggregationContext(null, mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
             Rounding rounding = mock(Rounding.class);
             CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
             verify(rounding).prepare(min, max);

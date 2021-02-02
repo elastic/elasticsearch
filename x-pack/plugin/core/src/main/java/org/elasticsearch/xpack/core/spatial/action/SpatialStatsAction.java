@@ -38,6 +38,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
      * Items to track. Serialized by ordinals. Append only, don't remove or change order of items in this list.
      */
     public enum Item {
+        GEOLINE
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
@@ -115,9 +116,15 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             EnumCounters<Item> stats = getStats();
-            builder.startObject("stats");
-            for (Item item : Item.values()) {
-                builder.field(item.name().toLowerCase(Locale.ROOT) + "_usage", stats.get(item));
+            builder.startObject();
+            {
+                builder.startObject("stats");
+                {
+                    for (Item item : Item.values()) {
+                        builder.field(item.name().toLowerCase(Locale.ROOT) + "_usage", stats.get(item));
+                    }
+                }
+                builder.endObject();
             }
             builder.endObject();
             return builder;

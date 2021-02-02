@@ -42,3 +42,5 @@ PUT my-index-000001
 <1> The `status_code` field has `doc_values` enabled by default.
 <2> The `session_id` has `doc_values` disabled, but can still be queried.
 
+NOTE: You cannot disable doc values for <<wildcard-field-type,`wildcard`>>
+fields.

@@ -33,7 +33,7 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public int read() throws IOException {
-        if (!buffer.hasRemaining()) {
+        if (buffer.hasRemaining() == false) {
             return -1;
         }
         return buffer.get() & 0xFF;
@@ -41,7 +41,7 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (!buffer.hasRemaining()) {
+        if (buffer.hasRemaining() == false) {
             throw new EOFException();
         }
         return buffer.get();
@@ -49,7 +49,7 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        if (!buffer.hasRemaining()) {
+        if (buffer.hasRemaining() == false) {
             return -1;
         }
 

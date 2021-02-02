@@ -19,16 +19,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -40,6 +45,17 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(mapperService, MergeReason.MAPPING_UPDATE, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
         assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
+    }
+
+    public void testMappingLookup() throws IOException {
+        MapperService service = createMapperService(mapping(b -> {}));
+        MappingLookup oldLookup = service.mappingLookup();
+        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
+
+        merge(service, mapping(b -> b.startObject("cat").field("type", "keyword").endObject()));
+        MappingLookup newLookup = service.mappingLookup();
+        assertThat(newLookup.fieldTypes().get("cat"), not(nullValue()));
+        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
     }
 
     /**
@@ -230,6 +246,24 @@ public class MapperServiceTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = mapperService.merge("_doc", mapping, MergeReason.MAPPING_RECOVERY);
 
         assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
+    }
+
+    public void testIsMetadataField() throws IOException {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+
+        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
+            if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(Version.V_8_0_0)) {
+                continue;   // Nested field does not exist in the 7x line
+            }
+            assertTrue("Expected " + builtIn + " to be a metadata field for version " + version,
+                mapperService.isMetadataField(builtIn));
+        }
     }
 
 }

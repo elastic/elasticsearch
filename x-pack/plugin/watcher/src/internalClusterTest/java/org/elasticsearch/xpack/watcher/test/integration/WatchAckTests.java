@@ -116,7 +116,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
                 is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
 
-        long throttledCount = docCount(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*",
+        long throttledCount = docCount(HistoryStoreField.DATA_STREAM + "*",
                 matchQuery(WatchRecord.STATE.getPreferredName(), ExecutionState.ACKNOWLEDGED.id()));
         assertThat(throttledCount, greaterThan(0L));
     }
@@ -185,7 +185,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(parsedWatch.status().actionStatus("_a2").ackStatus().state(),
                 is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
 
-        long throttledCount = docCount(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*",
+        long throttledCount = docCount(HistoryStoreField.DATA_STREAM + "*",
                 matchQuery(WatchRecord.STATE.getPreferredName(), ExecutionState.ACKNOWLEDGED.id()));
         assertThat(throttledCount, greaterThan(0L));
     }

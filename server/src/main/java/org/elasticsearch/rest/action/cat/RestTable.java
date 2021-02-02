@@ -51,18 +51,21 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = getXContentType(request);
+        XContentType xContentType = getResponseContentType(request);
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);
     }
 
-    private static XContentType getXContentType(RestRequest request) {
+    private static XContentType getResponseContentType(RestRequest request) {
         if (request.hasParam("format")) {
             return XContentType.fromFormat(request.param("format"));
         }
-        return XContentType.fromMediaType(request.header("Accept"));
+        if (request.getParsedAccept() != null) {
+            return request.getParsedAccept().toMediaType(XContentType.MEDIA_TYPE_REGISTRY);
+        }
+        return null;
     }
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {
@@ -98,7 +101,7 @@ public class RestTable {
                 DisplayHeader header = headers.get(col);
                 boolean isLastColumn = col == lastHeader;
                 pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out, isLastColumn);
-                if (!isLastColumn) {
+                if (isLastColumn == false) {
                     out.append(" ");
                 }
             }
@@ -112,7 +115,7 @@ public class RestTable {
                 DisplayHeader header = headers.get(col);
                 boolean isLastColumn = col == lastHeader;
                 pad(table.getAsMap().get(header.name).get(row), width[col], request, out, isLastColumn);
-                if (!isLastColumn) {
+                if (isLastColumn == false) {
                     out.append(" ");
                 }
             }
@@ -331,7 +334,7 @@ public class RestTable {
                 out.append(sValue);
             }
             // Ignores the leftover spaces if the cell is the last of the column.
-            if (!isLast) {
+            if (isLast == false) {
                 for (byte i = 0; i < leftOver; i++) {
                     out.append(" ");
                 }

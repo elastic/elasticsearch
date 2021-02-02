@@ -123,14 +123,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
                 clusterService.submitStateUpdateTask(
-                    taskSource,
-                    new AckedClusterStateUpdateTask<>(deleteRequest, clusterStateUpdatedListener) {
-
-                        @Override
-                        protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                            return AcknowledgedResponse.of(acknowledged);
-                        }
-
+                    taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
                         @Override
                         public ClusterState execute(final ClusterState currentState) {
                             return deleteDanglingIndex(currentState, indexToDelete);

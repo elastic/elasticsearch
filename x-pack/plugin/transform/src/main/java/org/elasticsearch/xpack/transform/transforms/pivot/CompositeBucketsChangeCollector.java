@@ -113,10 +113,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
          * Apply the collected changes in the query that updates the transform destination.
          *
          * @param lastCheckpointTimestamp the last(complete) checkpoint timestamp
-         * @param nextcheckpointTimestamp the next(currently running) checkpoint timestamp.
+         * @param nextCheckpointTimestamp the next(currently running) checkpoint timestamp.
          * @return a querybuilder instance with added filters to narrow the search
          */
-        QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
+        QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextCheckpointTimestamp);
 
         /**
          * Clear the field collector, e.g. the changes to free up memory.
@@ -653,16 +653,16 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp) {
         // shortcut for only 1 element
         if (fieldCollectors.size() == 1) {
-            return fieldCollectors.values().iterator().next().filterByChanges(lastCheckpointTimestamp, nextcheckpointTimestamp);
+            return fieldCollectors.values().iterator().next().filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
         }
 
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
 
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextcheckpointTimestamp);
+            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
             if (filter != null) {
                 filteredQuery.filter(filter);
             }

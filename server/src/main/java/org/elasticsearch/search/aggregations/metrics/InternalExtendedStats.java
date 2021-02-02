@@ -25,9 +25,13 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
@@ -40,6 +44,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             return Metrics.valueOf(name);
         }
     }
+
+    private static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
+    );
 
     private final double sumOfSqrs;
     private final double sigma;
@@ -113,6 +121,11 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             return getStdDeviationBound(Bounds.LOWER_SAMPLING);
         }
         return super.value(name);
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return METRIC_NAMES;
     }
 
     public double getSigma() {

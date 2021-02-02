@@ -33,7 +33,6 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -52,10 +51,6 @@ public class SourceLookup implements Map<String, Object> {
     private Map<String, Object> source;
     private XContentType sourceContentType;
 
-    public Map<String, Object> source() {
-        return source;
-    }
-
     public XContentType sourceContentType() {
         return sourceContentType;
     }
@@ -64,11 +59,11 @@ public class SourceLookup implements Map<String, Object> {
         return docId;
     }
 
-    // Scripting requires this method to be public. Using source()
-    // is not possible because certain checks use source == null as
-    // as a determination if source is enabled/disabled, but it should
-    // never be a null Map for scripting even when disabled.
-    public Map<String, Object> loadSourceIfNeeded() {
+    /**
+     * Return the source as a map that will be unchanged when the lookup
+     * moves to a different document
+     */
+    public Map<String, Object> source() {
         if (source != null) {
             return source;
         }
@@ -115,19 +110,15 @@ public class SourceLookup implements Map<String, Object> {
         if (this.reader != context.reader()) {
             this.reader = context.reader();
             // only reset reader and fieldReader when reader changes
-            try {
-                if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
-                    // All the docs to fetch are adjacent but Lucene stored fields are optimized
-                    // for random access and don't optimize for sequential access - except for merging.
-                    // So we do a little hack here and pretend we're going to do merges in order to
-                    // get better sequential access.
-                    SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
-                    fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
-                } else {
-                    fieldReader = context.reader()::document;
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+            if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
+                // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                // for random access and don't optimize for sequential access - except for merging.
+                // So we do a little hack here and pretend we're going to do merges in order to
+                // get better sequential access.
+                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+                fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+            } else {
+                fieldReader = context.reader()::document;
             }
         }
         this.source = null;
@@ -159,7 +150,7 @@ public class SourceLookup implements Map<String, Object> {
      * handle path expression where an array/list is navigated within.
      */
     public List<Object> extractRawValues(String path) {
-        return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
+        return XContentMapValues.extractRawValues(path, source());
     }
 
     /**
@@ -175,51 +166,51 @@ public class SourceLookup implements Map<String, Object> {
      * @return the value associated with the path in the source or 'null' if the path does not exist.
      */
     public Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, loadSourceIfNeeded(), nullValue);
+        return XContentMapValues.extractValue(path, source(), nullValue);
     }
 
     public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(loadSourceIfNeeded());
+        return context.getFilter().apply(source());
     }
 
     @Override
     public Object get(Object key) {
-        return loadSourceIfNeeded().get(key);
+        return source().get(key);
     }
 
     @Override
     public int size() {
-        return loadSourceIfNeeded().size();
+        return source().size();
     }
 
     @Override
     public boolean isEmpty() {
-        return loadSourceIfNeeded().isEmpty();
+        return source().isEmpty();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        return loadSourceIfNeeded().containsKey(key);
+        return source().containsKey(key);
     }
 
     @Override
     public boolean containsValue(Object value) {
-        return loadSourceIfNeeded().containsValue(value);
+        return source().containsValue(value);
     }
 
     @Override
     public Set<String> keySet() {
-        return loadSourceIfNeeded().keySet();
+        return source().keySet();
     }
 
     @Override
     public Collection<Object> values() {
-        return loadSourceIfNeeded().values();
+        return source().values();
     }
 
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
-        return loadSourceIfNeeded().entrySet();
+        return source().entrySet();
     }
 
     @Override

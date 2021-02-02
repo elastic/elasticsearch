@@ -292,7 +292,7 @@ public class Realms implements Iterable<Realm> {
     private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
         if (fileRealm != null) {
-            var realmIdentifier = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE);
+            var realmIdentifier = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
             realms.add(fileRealm.create(new RealmConfig(
                 realmIdentifier,
                 ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 1),
@@ -300,7 +300,7 @@ public class Realms implements Iterable<Realm> {
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
-            var realmIdentifier = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE);
+            var realmIdentifier = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
             realms.add(indexRealmFactory.create(new RealmConfig(
                 realmIdentifier,
                 ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 2),

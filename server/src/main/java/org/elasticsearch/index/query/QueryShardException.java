@@ -32,17 +32,17 @@ import java.io.IOException;
  */
 public class QueryShardException extends ElasticsearchException {
 
-    public QueryShardException(QueryShardContext context, String msg, Object... args) {
+    public QueryShardException(SearchExecutionContext context, String msg, Object... args) {
         this(context, msg, null, args);
     }
 
-    public QueryShardException(QueryShardContext context, String msg, Throwable cause, Object... args) {
+    public QueryShardException(SearchExecutionContext context, String msg, Throwable cause, Object... args) {
         this(context.getFullyQualifiedIndex(), msg, cause, args);
     }
 
     /**
      * This constructor is provided for use in unit tests where a
-     * {@link QueryShardContext} may not be available
+     * {@link SearchExecutionContext} may not be available
      */
     public QueryShardException(Index index, String msg, Throwable cause, Object... args) {
         super(msg, cause, args);

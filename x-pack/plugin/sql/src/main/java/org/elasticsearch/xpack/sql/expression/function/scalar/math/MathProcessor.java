@@ -77,26 +77,13 @@ public class MathProcessor implements Processor {
                 Randomness.get().nextDouble(), true),
         SIGN((Object l) -> {
             if (l instanceof Double) {
-                return Math.signum((Double) l);
+                return (int) Math.signum((Double) l);
             }
             if (l instanceof Float) {
-                return Math.signum((Float) l);
+                return (int) Math.signum((Float) l);
             }
 
-            long lo = Long.signum(((Number) l).longValue());
-
-            if (l instanceof Integer) {
-                return DataTypeConverter.safeToInt(lo);
-            }
-            if (l instanceof Short) {
-                return DataTypeConverter.safeToShort(lo);
-            }
-            if (l instanceof Byte) {
-                return DataTypeConverter.safeToByte(lo);
-            }
-
-            //fallback to generic double
-            return lo;
+            return Long.signum(((Number) l).longValue());
         }),
         SIN(Math::sin),
         SINH(Math::sinh),

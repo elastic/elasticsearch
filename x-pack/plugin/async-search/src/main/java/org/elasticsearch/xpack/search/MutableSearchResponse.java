@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +34,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
+    private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
     private final Clusters clusters;
@@ -77,7 +80,7 @@ class MutableSearchResponse {
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
-        this.totalHits = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+        this.totalHits = EMPTY_TOTAL_HITS;
     }
 
     /**
@@ -182,6 +185,58 @@ class MutableSearchResponse {
         }
         return new AsyncSearchResponse(task.getExecutionId().getEncoded(), searchResponse,
             failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
+    }
+
+
+    /**
+     * Creates an {@link AsyncStatusResponse} -- status of an async response.
+     * Response is created based on the current state of the mutable response or based on {@code finalResponse} if it is available.
+     * @param asyncExecutionId – id of async search request
+     * @param startTime – start time of task
+     * @param expirationTime – expiration time of async search request
+     * @return response representing the status of async search
+     */
+    synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+        if (finalResponse != null) {
+            return new AsyncStatusResponse(
+                asyncExecutionId,
+                false,
+                false,
+                startTime,
+                expirationTime,
+                finalResponse.getTotalShards(),
+                finalResponse.getSuccessfulShards(),
+                finalResponse.getSkippedShards(),
+                finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
+                finalResponse.status()
+            );
+        }
+        if (failure != null) {
+            return new AsyncStatusResponse(
+                asyncExecutionId,
+                false,
+                true,
+                startTime,
+                expirationTime,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                queryFailures == null ? 0 : queryFailures.nonNullLength(),
+                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure))
+            );
+        }
+        return new AsyncStatusResponse(
+            asyncExecutionId,
+            true,
+            true,
+            startTime,
+            expirationTime,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            queryFailures == null ? 0 : queryFailures.nonNullLength(),
+            null  // for a still running search, completion status is null
+        );
     }
 
     synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task,

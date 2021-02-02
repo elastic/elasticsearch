@@ -236,6 +236,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return builder;
     }
 
+    public static AliasMetadata getFirstAliasMetadata(IndexAbstraction ia) {
+        if (ia.getType() != IndexAbstraction.Type.ALIAS) {
+            throw new IllegalArgumentException("unexpected type: [" + ia.getType() + "]");
+        }
+
+        return ia.getIndices().get(0).getAliases().get(ia.getName());
+    }
+
     public static class Builder {
 
         private final String alias;
@@ -266,7 +274,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         public Builder filter(String filter) {
-            if (!Strings.hasLength(filter)) {
+            if (Strings.hasLength(filter) == false) {
                 this.filter = null;
                 return this;
             }

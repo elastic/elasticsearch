@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -75,40 +73,31 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
      * @return list of repository metadata
      */
     public static List<RepositoryMetadata> getRepositories(ClusterState state, String[] repoNames) {
-        Metadata metadata = state.metadata();
-        RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE);
-        if (repoNames.length == 0 || (repoNames.length == 1 && "_all".equals(repoNames[0]))) {
-            if (repositories != null) {
-                return repositories.repositories();
-            } else {
-                return Collections.emptyList();
-            }
+        RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        if (repoNames.length == 0 || (repoNames.length == 1 && ("_all".equals(repoNames[0]) || "*".equals(repoNames[0])))) {
+            return repositories.repositories();
         } else {
-            if (repositories != null) {
-                Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
-                for (String repositoryOrPattern : repoNames) {
-                    if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
-                        repositoriesToGet.add(repositoryOrPattern);
-                    } else {
-                        for (RepositoryMetadata repository : repositories.repositories()) {
-                            if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
-                                repositoriesToGet.add(repository.name());
-                            }
+            Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
+            for (String repositoryOrPattern : repoNames) {
+                if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
+                    repositoriesToGet.add(repositoryOrPattern);
+                } else {
+                    for (RepositoryMetadata repository : repositories.repositories()) {
+                        if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
+                            repositoriesToGet.add(repository.name());
                         }
                     }
                 }
-                List<RepositoryMetadata> repositoryListBuilder = new ArrayList<>();
-                for (String repository : repositoriesToGet) {
-                    RepositoryMetadata repositoryMetadata = repositories.repository(repository);
-                    if (repositoryMetadata == null) {
-                        throw new RepositoryMissingException(repository);
-                    }
-                    repositoryListBuilder.add(repositoryMetadata);
-                }
-                return repositoryListBuilder;
-            } else {
-                throw new RepositoryMissingException(repoNames[0]);
             }
+            List<RepositoryMetadata> repositoryListBuilder = new ArrayList<>();
+            for (String repository : repositoriesToGet) {
+                RepositoryMetadata repositoryMetadata = repositories.repository(repository);
+                if (repositoryMetadata == null) {
+                    throw new RepositoryMissingException(repository);
+                }
+                repositoryListBuilder.add(repositoryMetadata);
+            }
+            return repositoryListBuilder;
         }
     }
 }

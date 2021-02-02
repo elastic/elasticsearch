@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -65,13 +67,15 @@ public class InferenceToXContentCompressorTests extends ESTestCase {
         String compressedString = InferenceToXContentCompressor.deflate(definition);
         int max = compressedString.getBytes(StandardCharsets.UTF_8).length + 10;
 
-        IOException e = expectThrows(IOException.class, ()-> InferenceToXContentCompressor.inflate(compressedString,
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, ()-> InferenceToXContentCompressor.inflate(
+            compressedString,
             parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
             xContentRegistry(),
             max));
 
         assertThat(e.getMessage(), equalTo("Cannot parse model definition as the content is larger than the maximum stream size of ["
             + max + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest"));
+        assertThat(e.getDurability(), equalTo(CircuitBreaker.Durability.PERMANENT));
     }
 
     @Override

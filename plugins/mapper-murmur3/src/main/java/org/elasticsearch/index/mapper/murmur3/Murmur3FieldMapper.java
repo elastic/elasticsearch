@@ -29,14 +29,14 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -75,11 +75,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public Murmur3FieldMapper build(BuilderContext context) {
+        public Murmur3FieldMapper build(ContentPath contentPath) {
             return new Murmur3FieldMapper(
                 name,
-                new Murmur3FieldType(buildFullName(context), stored.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
+                new Murmur3FieldType(buildFullName(contentPath), stored.getValue(), meta.getValue()),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build());
         }
     }
@@ -104,12 +104,12 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Murmur3 fields are not searchable: [" + name() + "]");
         }
     }

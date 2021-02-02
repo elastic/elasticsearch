@@ -33,12 +33,15 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
         implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
+    public static final long DEFAULT_PREALLOCATION = 1024 * 6;
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -63,6 +66,18 @@ public abstract class AggregationBuilder
     /** Return this aggregation's name. */
     public String getName() {
         return name;
+    }
+
+    /**
+     * Return the field names this aggregation creates.
+     *
+     * This method is a optional helper for clients that need to know the output field names.
+     *
+     * @return The set of output field names this aggregation produces or Optional.empty() if not implemented or Optional.of(emptySet())
+     *         if the fields are not known.
+     */
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.empty();
     }
 
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
@@ -129,7 +144,7 @@ public abstract class AggregationBuilder
      * identity reference must be returned otherwise the builder will be
      * rewritten infinitely.
      */
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 
@@ -147,7 +162,7 @@ public abstract class AggregationBuilder
      * and pipeline aggregations. Just "zero", "one", and "many".
      * <p>
      * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
-     * instead of <strong>per parent bucket</strong>. 
+     * instead of <strong>per parent bucket</strong>.
      */
     public enum BucketCardinality {
         NONE, ONE, MANY;
@@ -157,6 +172,18 @@ public abstract class AggregationBuilder
      * by this builder will contain per owning parent bucket.
      */
     public abstract BucketCardinality bucketCardinality();
+
+    /**
+     * Bytes to preallocate on the "request" breaker for this aggregation. The
+     * goal is to request a few more bytes than we expect to use at first to
+     * cut down on contention on the "request" breaker when we are constructing
+     * the aggs. Underestimating what we allocate up front will fail to
+     * accomplish the goal. Overestimating will cause requests to fail for no
+     * reason.
+     */
+    public long bytesToPreallocate() {
+        return DEFAULT_PREALLOCATION;
+    }
 
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {

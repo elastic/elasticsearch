@@ -27,6 +27,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
 
     public static final String NAME = "trained_model_metadata";
     public static final ParseField TOTAL_FEATURE_IMPORTANCE = new ParseField("total_feature_importance");
+    public static final ParseField HYPERPARAMETERS = new ParseField("hyperparameters");
     public static final ParseField FEATURE_IMPORTANCE_BASELINE = new ParseField("feature_importance_baseline");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
@@ -38,7 +39,8 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
     private static ConstructingObjectParser<TrainedModelMetadata, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<TrainedModelMetadata, Void> parser = new ConstructingObjectParser<>(NAME,
             ignoreUnknownFields,
-            a -> new TrainedModelMetadata((String)a[0], (List<TotalFeatureImportance>)a[1], (FeatureImportanceBaseline)a[2]));
+            a -> new TrainedModelMetadata((String)a[0], (List<TotalFeatureImportance>)a[1], (FeatureImportanceBaseline)a[2], 
+                                          (List<Hyperparameters>)a[3]));
         parser.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
         parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
             ignoreUnknownFields ? TotalFeatureImportance.LENIENT_PARSER : TotalFeatureImportance.STRICT_PARSER,
@@ -46,6 +48,9 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? FeatureImportanceBaseline.LENIENT_PARSER : FeatureImportanceBaseline.STRICT_PARSER,
             FEATURE_IMPORTANCE_BASELINE);
+        parser.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
+            ignoreUnknownFields ? Hyperparameters.LENIENT_PARSER : Hyperparameters.STRICT_PARSER,
+            HYPERPARAMETERS);
         return parser;
     }
 
@@ -63,20 +68,24 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
 
     private final List<TotalFeatureImportance> totalFeatureImportances;
     private final FeatureImportanceBaseline featureImportanceBaselines;
+    private final List<Hyperparameters> hyperparameters;
     private final String modelId;
 
     public TrainedModelMetadata(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.totalFeatureImportances = in.readList(TotalFeatureImportance::new);
         this.featureImportanceBaselines = in.readOptionalWriteable(FeatureImportanceBaseline::new);
+        this.hyperparameters = in.readList(Hyperparameters::new);
     }
 
     public TrainedModelMetadata(String modelId,
                                 List<TotalFeatureImportance> totalFeatureImportances,
-                                FeatureImportanceBaseline featureImportanceBaselines) {
+                                FeatureImportanceBaseline featureImportanceBaselines,
+                                List<Hyperparameters> hyperparameters) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.totalFeatureImportances = Collections.unmodifiableList(totalFeatureImportances);
         this.featureImportanceBaselines = featureImportanceBaselines;
+        this.hyperparameters =  hyperparameters == null ? Collections.emptyList() : Collections.unmodifiableList(hyperparameters);
     }
 
     public String getModelId() {
@@ -95,6 +104,10 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         return featureImportanceBaselines;
     }
 
+    public List<Hyperparameters> getHyperparameters() {
+        return hyperparameters;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -102,12 +115,13 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         TrainedModelMetadata that = (TrainedModelMetadata) o;
         return Objects.equals(totalFeatureImportances, that.totalFeatureImportances) &&
             Objects.equals(featureImportanceBaselines, that.featureImportanceBaselines) &&
+            Objects.equals(hyperparameters, that.hyperparameters) &&
             Objects.equals(modelId, that.modelId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalFeatureImportances, featureImportanceBaselines, modelId);
+        return Objects.hash(totalFeatureImportances, featureImportanceBaselines, hyperparameters, modelId);
     }
 
     @Override
@@ -115,6 +129,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         out.writeString(modelId);
         out.writeList(totalFeatureImportances);
         out.writeOptionalWriteable(featureImportanceBaselines);
+        out.writeList(hyperparameters);
     }
 
     @Override
@@ -128,6 +143,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         if (featureImportanceBaselines != null) {
             builder.field(FEATURE_IMPORTANCE_BASELINE.getPreferredName(), featureImportanceBaselines);
         }
+        builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
         builder.endObject();
         return builder;
     }

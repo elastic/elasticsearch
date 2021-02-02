@@ -146,11 +146,6 @@ final class RemoteClusterConnection implements Closeable {
                         public void handleException(TransportException exp) {
                             contextPreservingActionListener.onFailure(exp);
                         }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
                     });
             }
         };

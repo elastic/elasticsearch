@@ -34,11 +34,10 @@ to be enabled.
 * Operations on parent and child documents from a `join` field, including
 `has_child` queries and `parent` aggregations.
 
-NOTE: The global ordinal mapping is an on-heap data structure. When measuring
-memory usage, Elasticsearch counts the memory from global ordinals as
-'fielddata'. Global ordinals memory is included in the
-<<fielddata-circuit-breaker, fielddata circuit breaker>>, and is returned
-under `fielddata` in the <<cluster-nodes-stats, node stats>> response.
+NOTE: The global ordinal mapping uses heap memory as part of the
+<<modules-fielddata, field data cache>>. Aggregations on high cardinality fields
+can use a lot of memory and trigger the <<fielddata-circuit-breaker, field data
+circuit breaker>>.
 
 ==== Loading global ordinals
 

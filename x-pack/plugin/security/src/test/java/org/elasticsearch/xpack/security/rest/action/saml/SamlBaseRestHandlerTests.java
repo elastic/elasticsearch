@@ -45,7 +45,7 @@ public class SamlBaseRestHandlerTests extends ESTestCase {
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .build();
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState(settings);
-        licenseState.update(licenseMode, true, null);
+        licenseState.update(licenseMode, true, Long.MAX_VALUE, null);
 
         return new SamlBaseRestHandler(settings, licenseState) {
 

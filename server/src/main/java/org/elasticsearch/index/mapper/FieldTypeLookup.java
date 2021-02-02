@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
@@ -44,16 +45,21 @@ final class FieldTypeLookup {
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
-    private final String type;
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
+    /**
+     * A field type representing the document type. This will be null for 8.0 indices,
+     * which don't have a type and do not support using the _type field in searches.
+     */
+    @Nullable private final TypeFieldType typeFieldType;
+
     FieldTypeLookup(
-        String type,
+        @Nullable TypeFieldType typeFieldType,
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
         Collection<RuntimeFieldType> runtimeFieldTypes
     ) {
-        this.type = type;
+        this.typeFieldType = typeFieldType;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -96,7 +102,7 @@ final class FieldTypeLookup {
      */
     MappedFieldType get(String field) {
         if (field.equals(TypeFieldType.NAME)) {
-            return new TypeFieldType(type);
+            return typeFieldType;
         }
 
         MappedFieldType fieldType = fullNameToFieldType.get(field);

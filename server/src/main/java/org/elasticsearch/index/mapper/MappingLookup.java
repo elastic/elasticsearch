@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -159,7 +160,12 @@ public final class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mapping.root().name(), mappers, aliasMappers, mapping.root().runtimeFieldTypes());
+        TypeFieldType typeFieldType = null;
+        if (mapping != Mapping.EMPTY && indexSettings.getIndexVersionCreated().before(Version.V_8_0_0)) {
+            typeFieldType = new TypeFieldType(mapping.root().typeName());
+        }
+
+        this.fieldTypeLookup = new FieldTypeLookup(typeFieldType, mappers, aliasMappers, mapping.root().runtimeFieldTypes());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }

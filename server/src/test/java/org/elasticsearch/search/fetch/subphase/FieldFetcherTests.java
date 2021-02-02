@@ -118,7 +118,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "non-existent");
-        assertThat(fields.size(), equalTo(0));
+        assertTrue(fields.isEmpty());
     }
 
     public void testMetadataFields() throws IOException {
@@ -128,6 +128,18 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "_routing");
+        assertTrue(fields.isEmpty());
+    }
+
+    public void testTypeMetadataField() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .endObject();
+
+        // The _type field was deprecated in 7.x and is not supported in 8.0. So the behavior
+        // should be the same as if the field didn't exist.
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "_type");
         assertTrue(fields.isEmpty());
     }
 

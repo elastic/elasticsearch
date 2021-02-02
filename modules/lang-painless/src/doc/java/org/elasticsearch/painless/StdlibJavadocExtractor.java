@@ -181,7 +181,7 @@ public class StdlibJavadocExtractor {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof MethodSignature)) return false;
+            if ((o instanceof MethodSignature) == false) return false;
             MethodSignature that = (MethodSignature) o;
             return Objects.equals(name, that.name) &&
                 Objects.equals(parameterTypes, that.parameterTypes);

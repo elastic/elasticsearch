@@ -90,7 +90,7 @@ public class WatcherTemplateTests extends ESTestCase {
             assertThat(renderedTemplate, notNullValue());
 
             if (contentType == XContentType.JSON) {
-                if (!escaped.toString().equals(renderedTemplate)) {
+                if (escaped.toString().equals(renderedTemplate) == false) {
                     String escapedString = escaped.toString();
                     for (int l = 0; l < renderedTemplate.length() && l < escapedString.length(); ++l) {
                         if (renderedTemplate.charAt(l) != escapedString.charAt(l)) {

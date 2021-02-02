@@ -118,8 +118,8 @@ public final class QuotaAwareFileSystem extends FileSystem {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         QuotaAwareFileSystem other = (QuotaAwareFileSystem) obj;
-        if (!delegate.equals(other.delegate)) return false;
-        if (!provider.equals(other.provider)) return false;
+        if (delegate.equals(other.delegate) == false) return false;
+        if (provider.equals(other.provider) == false) return false;
         return true;
     }
 

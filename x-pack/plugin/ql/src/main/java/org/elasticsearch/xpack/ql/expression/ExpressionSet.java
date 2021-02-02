@@ -63,7 +63,7 @@ public class ExpressionSet<E extends Expression> implements Set<E> {
     @Override
     public boolean containsAll(Collection<?> c) {
         for (Object o : c) {
-            if (!contains(o)) {
+            if (contains(o) == false) {
                 return false;
             }
         }
@@ -107,7 +107,7 @@ public class ExpressionSet<E extends Expression> implements Set<E> {
                     break;
                 }
             }
-            if (!found) {
+            if (found == false) {
                 keys.remove();
             }
         }

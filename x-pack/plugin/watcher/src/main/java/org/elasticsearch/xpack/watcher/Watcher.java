@@ -637,7 +637,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                     }
                 }
             }
-            if (!matched) {
+            if (matched == false) {
                 throw new IllegalArgumentException(errorMessage);
             }
         }

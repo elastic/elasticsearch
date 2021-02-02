@@ -84,12 +84,6 @@ tasks.named("dependenciesGraph").configure {  enabled = false }
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
           // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)
-          'org.openjdk.jmh.profile.AbstractHotspotProfiler',
-          'org.openjdk.jmh.profile.HotspotThreadProfiler',
-          'org.openjdk.jmh.profile.HotspotClassloadingProfiler',
-          'org.openjdk.jmh.profile.HotspotCompilationProfiler',
-          'org.openjdk.jmh.profile.HotspotMemoryProfiler',
-          'org.openjdk.jmh.profile.HotspotRuntimeProfiler',
           'org.openjdk.jmh.util.Utils'
   )
 }

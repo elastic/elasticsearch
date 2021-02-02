@@ -89,7 +89,7 @@ public class AsyncActionBranchingStep extends AsyncActionStep {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         AsyncActionBranchingStep that = (AsyncActionBranchingStep) o;

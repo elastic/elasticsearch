@@ -153,6 +153,14 @@ public interface Function {
     void validateConfig(ActionListener<Boolean> listener);
 
     /**
+     * Returns names of fields that are critical to achieve good transform performance.
+     * Such fields should ideally be indexed, not runtime or script fields.
+     *
+     * @return list of fields names
+     */
+    List<String> getPerformanceCriticalFields();
+
+    /**
      * Runtime validation by querying the source and checking if source and config fit.
      *
      * @param client a client instance for querying the source

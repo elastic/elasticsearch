@@ -137,7 +137,7 @@ class XExternalRefSorter implements BytesRefSorter, Closeable {
                 success = true;
                 return scratch;
             } finally {
-                if (!success) {
+                if (success == false) {
                     IOUtils.closeWhileHandlingException(reader);
                 }
             }

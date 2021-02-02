@@ -150,7 +150,7 @@ public class Verifier {
 
             plan.forEachDown(p -> {
                 // if the children are unresolved, so will this node; counting it will only add noise
-                if (!p.childrenResolved()) {
+                if (p.childrenResolved() == false) {
                     return;
                 }
 

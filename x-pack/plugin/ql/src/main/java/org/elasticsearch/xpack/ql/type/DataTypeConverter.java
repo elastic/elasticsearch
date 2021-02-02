@@ -396,7 +396,7 @@ public final class DataTypeConverter {
     public enum DefaultConverter implements Converter {
         IDENTITY(Function.identity()),
         TO_NULL(value -> null),
-        
+
         DATETIME_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
         OTHER_TO_STRING(String::valueOf),
 
@@ -448,7 +448,7 @@ public final class DataTypeConverter {
         BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L)),
 
         STRING_TO_IP(o -> {
-            if (!InetAddresses.isInetAddress(o.toString())) {
+            if (InetAddresses.isInetAddress(o.toString()) == false) {
                 throw new QlIllegalArgumentException("[" + o + "] is not a valid IPv4 or IPv6 address");
             }
             return o;
@@ -469,7 +469,7 @@ public final class DataTypeConverter {
         private static Function<Object, Object> fromLong(LongFunction<Object> converter) {
             return (Object l) -> converter.apply(((Number) l).longValue());
         }
-        
+
         private static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
             return (Object value) -> {
                 try {
@@ -518,7 +518,7 @@ public final class DataTypeConverter {
     }
 
     public static DataType asInteger(DataType dataType) {
-        if (!dataType.isNumeric()) {
+        if (dataType.isNumeric() == false) {
             return dataType;
         }
 

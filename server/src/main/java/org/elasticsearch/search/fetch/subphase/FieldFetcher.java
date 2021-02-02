@@ -133,31 +133,28 @@ public class FieldFetcher {
                 Regex.simpleMatchToAutomaton(unmappedFetchPattern.toArray(new String[unmappedFetchPattern.size()]))
             );
         }
-        return new FieldFetcher(fieldContexts, unmappedFieldsFetchAutomaton, fieldsInsideNested.keySet());
+        return new FieldFetcher(fieldContexts, unmappedFieldsFetchAutomaton);
     }
 
     private final Map<String, FieldContext> fieldContexts;
     private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
-    private final Set<String> excludedNestedPaths;
 
     private FieldFetcher(
         Map<String, FieldContext> fieldContexts,
-        @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton,
-        Set<String> excludedNestedPaths
+        @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton
     ) {
         this.fieldContexts = fieldContexts;
         this.unmappedFieldsFetchAutomaton = unmappedFieldsFetchAutomaton;
-        this.excludedNestedPaths = excludedNestedPaths;
     }
 
     public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
+        assert ignoredFields != null;
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
 
             ValueFetcher valueFetcher = context.valueFetcher;
             List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredFields);
-
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }
@@ -172,7 +169,7 @@ public class FieldFetcher {
         for (String key : source.keySet()) {
             Object value = source.get(key);
             String currentPath = parentPath + key;
-            if (this.excludedNestedPaths.contains(currentPath)) {
+            if (this.fieldContexts.keySet().contains(currentPath)) {
                 continue;
             }
             int currentState = step(this.unmappedFieldsFetchAutomaton, key, lastState);

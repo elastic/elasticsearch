@@ -38,6 +38,7 @@ import java.util.Set;
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final String fieldName;
 
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -51,15 +52,16 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
         this.sourcePaths = context.sourcePath(fieldName);
         this.nullValue = nullValue;
+        this.fieldName = fieldName;
     }
 
     @Override
     public List<Object> fetchValues(SourceLookup lookup, Set<String> ignoredFields) {
         List<Object> values = new ArrayList<>();
+        if (ignoredFields.contains(fieldName)) {
+            return values;
+        }
         for (String path : sourcePaths) {
-            if (ignoredFields != null && ignoredFields.contains(path)) {
-                continue;
-            }
             Object sourceValue = lookup.extractValue(path, nullValue);
             if (sourceValue == null) {
                 return List.of();

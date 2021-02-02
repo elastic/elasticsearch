@@ -36,7 +36,8 @@ public interface WhitelistAnnotationParser {
                     new AbstractMap.SimpleEntry<>(NoImportAnnotation.NAME, NoImportAnnotationParser.INSTANCE),
                     new AbstractMap.SimpleEntry<>(DeprecatedAnnotation.NAME, DeprecatedAnnotationParser.INSTANCE),
                     new AbstractMap.SimpleEntry<>(NonDeterministicAnnotation.NAME, NonDeterministicAnnotationParser.INSTANCE),
-                    new AbstractMap.SimpleEntry<>(InjectConstantAnnotation.NAME, InjectConstantAnnotationParser.INSTANCE)
+                    new AbstractMap.SimpleEntry<>(InjectConstantAnnotation.NAME, InjectConstantAnnotationParser.INSTANCE),
+                    new AbstractMap.SimpleEntry<>(CompileTimeOnlyAnnotation.NAME, CompileTimeOnlyAnnotationParser.INSTANCE)
             ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 

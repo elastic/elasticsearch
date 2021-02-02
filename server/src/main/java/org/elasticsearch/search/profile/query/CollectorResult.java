@@ -149,7 +149,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
         }
         builder.field(TIME_NANOS.getPreferredName(), getTime());
 
-        if (!children.isEmpty()) {
+        if (children.isEmpty() == false) {
             builder = builder.startArray(CHILDREN.getPreferredName());
             for (CollectorResult child : children) {
                 builder = child.toXContent(builder, params);

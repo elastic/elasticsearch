@@ -151,7 +151,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * Handle case where a disco node cannot be found in the routing table. Usually means that it's not a data node.
      */
     protected RerouteExplanation explainOrThrowMissingRoutingNode(RoutingAllocation allocation, boolean explain, DiscoveryNode discoNode) {
-        if (!discoNode.isDataNode()) {
+        if (discoNode.isDataNode() == false) {
             return explainOrThrowRejectedCommand(explain, allocation, "allocation can only be done on data nodes, not [" + node + "]");
         } else {
             return explainOrThrowRejectedCommand(explain, allocation, "could not find [" + node + "] among the routing nodes");
@@ -206,7 +206,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
                                              @Nullable RecoverySource recoverySource) {
         for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             ShardRouting unassigned = it.next();
-            if (!unassigned.equalsIgnoringMetadata(shardRouting)) {
+            if (unassigned.equalsIgnoringMetadata(shardRouting) == false) {
                 continue;
             }
             if (unassignedInfo != null || recoverySource != null) {

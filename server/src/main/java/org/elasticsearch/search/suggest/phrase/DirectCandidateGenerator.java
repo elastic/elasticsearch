@@ -317,7 +317,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             if (term == null) {
                 if (other.term != null) return false;
             } else {
-                if (!term.equals(other.term)) return false;
+                if (term.equals(other.term) == false) return false;
             }
             return true;
         }

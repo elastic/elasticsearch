@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.ArrayList;
@@ -29,7 +30,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+
 public class BindingsTests extends ScriptTestCase {
+
+    public static int classMul(int i, int j) {
+        return i * j;
+    }
+
+    public static int compileTimeBlowUp(int i, int j) {
+        throw new RuntimeException("Boom");
+    }
+
+    public static List<Object> fancyConstant(String thing1, String thing2) {
+        return List.of(thing1, thing2);
+    }
 
     public static class BindingTestClass {
         public int state;
@@ -83,6 +100,10 @@ public class BindingsTests extends ScriptTestCase {
         public int getInstanceBindingValue() {
             return value;
         }
+
+        public int instanceMul(int i, int j) {
+            return i * j;
+        }
     }
 
     public abstract static class BindingsTestScript {
@@ -106,9 +127,12 @@ public class BindingsTests extends ScriptTestCase {
                 "setInstanceBindingValue", "void", Collections.singletonList("int"), Collections.emptyList());
         WhitelistInstanceBinding setter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
                 "getInstanceBindingValue", "int", Collections.emptyList(), Collections.emptyList());
+        WhitelistInstanceBinding mul = new WhitelistInstanceBinding("test", instanceBindingTestClass,
+                "instanceMul", "int", List.of("int", "int"), List.of(CompileTimeOnlyAnnotation.INSTANCE));
         List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);
+        instanceBindingsList.add(mul);
         Whitelist instanceBindingsWhitelist = new Whitelist(instanceBindingTestClass.getClass().getClassLoader(),
                 Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), instanceBindingsList);
         whitelists.add(instanceBindingsWhitelist);
@@ -179,5 +203,101 @@ public class BindingsTests extends ScriptTestCase {
         factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
         executableScript = factory.newInstance();
         assertEquals(8, executableScript.execute(-2, 6));
+    }
+
+    public void testClassMethodCompileTimeOnly() {
+        String script = "classMul(2, 2)";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+        assertEquals(4, executableScript.execute(1, 1));
+
+        assertThat(
+            Debugger.toString(BindingsTestScript.class, script, new CompilerSettings(), scriptContexts().get(BindingsTestScript.CONTEXT)),
+            containsString("ICONST_4")
+        );
+    }
+
+    public void testClassMethodCompileTimeOnlyVariableParams() {
+        Exception e = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> scriptEngine.compile(null, "def a = 2; classMul(2, a)", BindingsTestScript.CONTEXT, Collections.emptyMap())
+        );
+        assertThat(e.getMessage(), equalTo("all arguments must be constant but the [2] argument isn't"));
+    }
+
+    public void testClassMethodCompileTimeOnlyThrows() {
+        Exception e = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> scriptEngine.compile(null, "compileTimeBlowUp(2, 2)", BindingsTestScript.CONTEXT, Collections.emptyMap())
+        );
+        assertThat(e.getMessage(), startsWith("error invoking"));
+        assertThat(e.getCause().getMessage(), equalTo("Boom"));
+    }
+
+    public void testInstanceBindingCompileTimeOnly() {
+        String script = "instanceMul(2, 2)";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+        assertEquals(4, executableScript.execute(1, 1));
+
+        assertThat(
+            Debugger.toString(BindingsTestScript.class, script, new CompilerSettings(), scriptContexts().get(BindingsTestScript.CONTEXT)),
+            containsString("ICONST_4")
+        );
+    }
+
+    public void testInstanceMethodCompileTimeOnlyVariableParams() {
+        Exception e = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> scriptEngine.compile(null, "def a = 2; instanceMul(a, 2)", BindingsTestScript.CONTEXT, Collections.emptyMap())
+        );
+        assertThat(e.getMessage(), equalTo("all arguments must be constant but the [1] argument isn't"));
+    }
+
+    public void testCompileTimeOnlyParameterFoldedToConstant() {
+        String script = "classMul(1, 1 + 1)";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+        assertEquals(2, executableScript.execute(1, 1));
+
+        assertThat(
+            Debugger.toString(BindingsTestScript.class, script, new CompilerSettings(), scriptContexts().get(BindingsTestScript.CONTEXT)),
+            containsString("ICONST_2")
+        );
+    }
+
+    /**
+     * Tests that {@code @compile_time_only} can return values that don't
+     * fit into the constant pool and we'll create them as static members.
+     */
+    public void testCompileTimeOnlyResultOutsideConstantPool() {
+        String script = "fancyConstant('foo', 'bar').stream().mapToInt(String::length).sum()";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+        assertEquals(6, executableScript.execute(1, 1));
+
+        String code = Debugger.toString(
+            BindingsTestScript.class,
+            script,
+            new CompilerSettings(),
+            scriptContexts().get(BindingsTestScript.CONTEXT)
+        );
+        assertThat(
+            "We make a static field to hold the constant",
+            code,
+            containsString("public static synthetic Ljava/util/List; constant$synthetic$0")
+        );
+        assertThat(
+            "We load the constant from the static field",
+            code,
+            containsString("GETSTATIC org/elasticsearch/painless/PainlessScript$Script.constant$synthetic$0 : Ljava/util/List;")
+        );
+        /*
+         * It's kind of important that we use java.util.List above and *not*
+         * the specific subtype returned by java.util.List.of(). Doing that
+         * means that we don't have to whitelist the actual returned type, just
+         * the interface. The JVM ought to be able to optimize the invocation
+         * because the constant is effectively final.
+         */
     }
 }

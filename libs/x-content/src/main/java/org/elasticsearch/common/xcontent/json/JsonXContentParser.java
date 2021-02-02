@@ -38,7 +38,13 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     public JsonXContentParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, JsonParser parser) {
-        super(xContentRegistry, deprecationHandler);
+        super(xContentRegistry, deprecationHandler, false);
+        this.parser = parser;
+    }
+
+    public JsonXContentParser(NamedXContentRegistry xContentRegistry,
+                              DeprecationHandler deprecationHandler, JsonParser parser, boolean useCompatibility) {
+        super(xContentRegistry, deprecationHandler, useCompatibility);
         this.parser = parser;
     }
 

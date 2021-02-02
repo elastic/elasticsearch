@@ -349,11 +349,12 @@ public class DissectParserTests extends ESTestCase {
         }
     }
 
-    private DissectException assertFail(String pattern, String input){
-        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).parse(input));
+    private DissectException assertFail(String pattern, String input) {
+        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).forceParse(input));
     }
 
     private void assertMiss(String pattern, String input) {
+        assertNull(new DissectParser(pattern, null).parse(input)); 
         DissectException e = assertFail(pattern, input);
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
         assertThat(e.getMessage(), CoreMatchers.containsString(pattern));

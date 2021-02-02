@@ -32,7 +32,7 @@ public class EsAbortPolicy implements XRejectedExecutionHandler {
         if (r instanceof AbstractRunnable) {
             if (((AbstractRunnable) r).isForceExecution()) {
                 BlockingQueue<Runnable> queue = executor.getQueue();
-                if (!(queue instanceof SizeBlockingQueue)) {
+                if ((queue instanceof SizeBlockingQueue) == false) {
                     throw new IllegalStateException("forced execution, but expected a size queue");
                 }
                 try {

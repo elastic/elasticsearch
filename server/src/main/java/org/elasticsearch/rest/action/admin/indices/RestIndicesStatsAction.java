@@ -106,7 +106,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
                 }
             }
 
-            if (!invalidMetrics.isEmpty()) {
+            if (invalidMetrics.isEmpty() == false) {
                 throw new IllegalArgumentException(unrecognized(request, invalidMetrics, METRICS.keySet(), "metric"));
             }
         }

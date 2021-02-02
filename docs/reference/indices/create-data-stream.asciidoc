@@ -55,7 +55,9 @@ or `manage` <<privileges-list-indices,index privilege>> for the data stream.
 --
 (Required, string) Name of the data stream to create.
 
-Data stream names must meet the following criteria:
+// tag::data-stream-name[]
+We recommend using the <<elastic-data-stream-naming-scheme,Elastic data stream
+naming scheme>>. Data stream names must meet the following criteria:
 
 - Lowercase only
 - Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character),

@@ -79,7 +79,7 @@ To get realistic results, you should exercise care when running benchmarks. Here
 
 ## Disassembling
 
-NOTE: Linux only.
+NOTE: Linux only. Sorry Mac and Windows.
 
 Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and FCML's `hsdis`.
 `perf` is generally available via `apg-get install perf` or `pacman -S perf`. FCML is a little more involved. This worked
@@ -106,7 +106,7 @@ If you want `perf` to find the hot methods for you then do add `-prof:perfasm`.
 
 ## Async Profiler
 
-Note: Instructions for Linux only, but it looks like async profiler supports mac as well.
+Note: Linux and Mac only. Sorry Windows.
 
 The async profiler is neat because it does not suffer from the safepoint
 bias problem. And because it makes pretty flame graphs!
@@ -120,11 +120,13 @@ exit
 ```
 
 Grab the async profiler from https://github.com/jvm-profiling-tools/async-profiler
-and run jmh with it in the LD_LIBRARY_PATH:
+and run `prof async` like so:
 ```
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/Downloads/tmp/async-profiler-1.8.3-linux-x64/build/ \
-  gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:dir=/tmp/prof;output=flamegraph"'
+gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:libPath=/home/nik9000/Downloads/tmp/async-profiler-1.8.3-linux-x64/build/libasyncProfiler.so;dir=/tmp/prof;output=flamegraph"'
 ```
+
+If you are on mac this'll warn you that you downloaded the shared library from
+the internet. You'll need to go to settings and allow it to run.
 
 The profiler tells you it'll be more accurate if you install debug symbols
 with the JVM. I didn't and the results looked pretty good to me. (2021-02-01)

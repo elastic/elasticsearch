@@ -171,7 +171,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
                     logger.warn("Error while executing bulk request", ex);
                 }
                 long stop = System.nanoTime();
-                if (iteration < warmupIterations) {
+                if (iteration >= warmupIterations) {
                     sampleRecorder.addSample(new Sample("bulk", start, start, stop, success));
                 }
             }

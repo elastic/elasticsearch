@@ -137,7 +137,7 @@ public class AllocationCommands implements ToXContentFragment {
             throw new ElasticsearchParseException("No commands");
         }
         if (token == XContentParser.Token.FIELD_NAME) {
-            if (!parser.currentName().equals("commands")) {
+            if (parser.currentName().equals("commands") == false) {
                 throw new ElasticsearchParseException("expected field name to be named [commands], got [{}] instead", parser.currentName());
             }
             token = parser.nextToken();

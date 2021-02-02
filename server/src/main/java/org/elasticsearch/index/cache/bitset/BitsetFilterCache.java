@@ -205,7 +205,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof QueryWrapperBitSetProducer)) return false;
+            if ((o instanceof QueryWrapperBitSetProducer) == false) return false;
             return this.query.equals(((QueryWrapperBitSetProducer) o).query);
         }
 
@@ -230,7 +230,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                 return TerminationHandle.NO_WAIT;
             }
 
-            if (!loadRandomAccessFiltersEagerly) {
+            if (loadRandomAccessFiltersEagerly == false) {
                 return TerminationHandle.NO_WAIT;
             }
 

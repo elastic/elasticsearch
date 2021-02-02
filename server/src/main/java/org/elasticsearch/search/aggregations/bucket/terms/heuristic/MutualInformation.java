@@ -51,7 +51,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof MutualInformation)) {
+        if ((other instanceof MutualInformation) == false) {
             return false;
         }
         return super.equals(other);
@@ -82,7 +82,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
             score = Double.NEGATIVE_INFINITY;
         }
         // here we check if the term appears more often in subset than in background without subset.
-        if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
+        if (includeNegatives == false && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
             score = Double.NEGATIVE_INFINITY;
         }
         return score;

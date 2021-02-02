@@ -2,6 +2,7 @@
     "properties" : {
         "bool" : { "type" : "boolean" },
         "int" : { "type" : "integer" },
+        "float" : { "type" : "float" },
         "text" : { "type" : "text" },
         "keyword" : { "type" : "keyword" },
         "date" :  { "type" : "date" },

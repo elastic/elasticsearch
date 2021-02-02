@@ -119,7 +119,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             instance.getTrainingPercent(),
             instance.getRandomizeSeed(),
             version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
-            version.onOrAfter(Version.V_8_0_0) ? instance.getEarlyStoppingEnabled() : null);
+            instance.getEarlyStoppingEnabled());
     }
 
     @Override

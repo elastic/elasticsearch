@@ -199,7 +199,7 @@ public class MultiPhrasePrefixQuery extends Query {
             }
 
             for (BytesRef term = termsEnum.term(); term != null; term = termsEnum.next()) {
-                if (!StringHelper.startsWith(term, prefix.bytes())) {
+                if (StringHelper.startsWith(term, prefix.bytes()) == false) {
                     break;
                 }
 
@@ -304,8 +304,7 @@ public class MultiPhrasePrefixQuery extends Query {
         while (iterator1.hasNext()) {
             Term[] termArray1 = iterator1.next();
             Term[] termArray2 = iterator2.next();
-            if (!(termArray1 == null ? termArray2 == null : Arrays.equals(termArray1,
-                    termArray2))) {
+            if ((termArray1 == null ? termArray2 == null : Arrays.equals(termArray1, termArray2)) == false) {
                 return false;
             }
         }

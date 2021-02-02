@@ -92,12 +92,12 @@ public class Iterables {
         } else {
             Iterator<T> it = iterable.iterator();
             for (int index = 0; index < position; index++) {
-                if (!it.hasNext()) {
+                if (it.hasNext() == false) {
                     throw new IndexOutOfBoundsException(Integer.toString(position));
                 }
                 it.next();
             }
-            if (!it.hasNext()) {
+            if (it.hasNext() == false) {
                 throw new IndexOutOfBoundsException(Integer.toString(position));
             }
             return it.next();

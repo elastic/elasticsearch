@@ -102,7 +102,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         @Override
         public long getDocCountError() {
-            if (!showDocCountError) {
+            if (showDocCountError == false) {
                 throw new IllegalStateException("show_terms_doc_count_error is false");
             }
             return docCountError;

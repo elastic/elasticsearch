@@ -48,7 +48,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof ChiSquare)) {
+        if ((other instanceof ChiSquare) == false) {
             return false;
         }
         return super.equals(other);
@@ -70,7 +70,7 @@ public class ChiSquare extends NXYSignificanceHeuristic {
         Frequencies frequencies = computeNxys(subsetFreq, subsetSize, supersetFreq, supersetSize, "ChiSquare");
 
         // here we check if the term appears more often in subset than in background without subset.
-        if (!includeNegatives && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
+        if (includeNegatives == false && frequencies.N11 / frequencies.N_1 < frequencies.N10 / frequencies.N_0) {
             return Double.NEGATIVE_INFINITY;
         }
         return (frequencies.N * Math.pow((frequencies.N11 * frequencies.N00 - frequencies.N01 * frequencies.N10), 2.0) /

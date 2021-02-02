@@ -299,7 +299,7 @@ public class FunctionScoreQuery extends Query {
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
 
             Explanation expl = subQueryWeight.explain(context, doc);
-            if (!expl.isMatch()) {
+            if (expl.isMatch() == false) {
                 return expl;
             }
             boolean singleFunction = functions.length == 1 && functions[0] instanceof FilterScoreFunction == false;

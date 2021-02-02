@@ -389,7 +389,7 @@ public abstract class StreamOutput extends OutputStream {
     private final BytesRefBuilder spare = new BytesRefBuilder();
 
     public void writeText(Text text) throws IOException {
-        if (!text.hasBytes()) {
+        if (text.hasBytes() == false) {
             final String string = text.string();
             spare.copyChars(string);
             writeInt(spare.length());

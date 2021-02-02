@@ -97,7 +97,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
                 if (selectedFields == null) {
                     selectedFields = new HashSet<>();
                 }
-                if (!selectedFields.contains(field)) {
+                if (selectedFields.contains(field) == false) {
                     field = field.replaceAll("\\s", "");
                     selectedFields.add(field);
                 }

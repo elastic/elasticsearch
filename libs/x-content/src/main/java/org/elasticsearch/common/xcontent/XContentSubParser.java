@@ -270,6 +270,11 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
+    public boolean useCompatibility() {
+        return parser.useCompatibility();
+    }
+
+    @Override
     public DeprecationHandler getDeprecationHandler() {
         return parser.getDeprecationHandler();
     }

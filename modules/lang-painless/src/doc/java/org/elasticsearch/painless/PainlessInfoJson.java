@@ -212,11 +212,11 @@ public class PainlessInfoJson {
             builder.field(PainlessContextMethodInfo.DECLARING.getPreferredName(), declaring);
             builder.field(PainlessContextMethodInfo.NAME.getPreferredName(), name);
             builder.field(PainlessContextMethodInfo.RTN.getPreferredName(), rtn);
-            if (javadoc != null) {
+            if (javadoc != null && "".equals(javadoc) == false) {
                 builder.field(JAVADOC.getPreferredName(), javadoc);
             }
             builder.field(PainlessContextMethodInfo.PARAMETERS.getPreferredName(), parameters);
-            if (parameterNames != null) {
+            if (parameterNames != null && parameterNames.size() > 0) {
                 builder.field(PARAMETER_NAMES.getPreferredName(), parameterNames);
             }
             builder.endObject();
@@ -268,10 +268,10 @@ public class PainlessInfoJson {
             builder.startObject();
             builder.field(PainlessContextConstructorInfo.DECLARING.getPreferredName(), declaring);
             builder.field(PainlessContextConstructorInfo.PARAMETERS.getPreferredName(), parameters);
-            if (parameterNames != null) {
+            if (parameterNames != null && parameterNames.size() > 0) {
                 builder.field(PARAMETER_NAMES.getPreferredName(), parameterNames);
             }
-            if (javadoc != null) {
+            if (javadoc != null && "".equals(javadoc) == false) {
                 builder.field(JAVADOC.getPreferredName(), javadoc);
             }
             builder.endObject();
@@ -315,7 +315,7 @@ public class PainlessInfoJson {
             builder.field(PainlessContextFieldInfo.DECLARING.getPreferredName(), declaring);
             builder.field(PainlessContextFieldInfo.NAME.getPreferredName(), name);
             builder.field(PainlessContextFieldInfo.TYPE.getPreferredName(), type);
-            if (javadoc != null) {
+            if (javadoc != null && "".equals(javadoc) == false) {
                 builder.field(JAVADOC.getPreferredName(), javadoc);
             }
             builder.endObject();

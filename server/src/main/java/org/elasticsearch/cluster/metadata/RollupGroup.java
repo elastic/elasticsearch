@@ -33,113 +33,79 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Object representing information about rollup-v2 indices and their respective original-indexes. These objects
- * also include information about their capabilities, like which date-intervals and date-timezones they are configured
- * with. Used by {@link RollupMetadata}.
+ * Object representing a group of rollup-v2 indices that have been computed on their respective original-indexes.
+ * Used by {@link RollupMetadata}. The rollup group is based on a map with the rollup-index name as a key and
+ * its rollup information object as value.
  *
- * The information in this class will be used to decide which index within the <code>group</code> will be chosen
- * for a specific aggregation. For example, if there are two indices with different intervals (`1h`, `1d`) and
- * a date-histogram aggregation request is sent for daily intervals, then the index with the associated `1d` interval
- * will be chosen.
  */
 public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXContentObject {
     private static final ParseField GROUP_FIELD = new ParseField("group");
-    private static final ParseField DATE_INTERVAL_FIELD = new ParseField("interval");
-    private static final ParseField DATE_TIMEZONE_FIELD = new ParseField("timezone");
 
-    // the list of indices part of this rollup group
-    private List<String> group;
-    // a map from index-name to the date interval used in the associated index
-    private Map<String, DateHistogramInterval> dateInterval;
-    // a map from index-name to timezone used in the associated index
-    private Map<String, WriteableZoneId> dateTimezone;
+    /** a map from rollup-index name to its rollup configuration */
+    private Map<String, RollupIndexMetadata> group;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupGroup, Void> PARSER =
         new ConstructingObjectParser<>("rollup_group", false,
-            a -> new RollupGroup((List<String>) a[0], (Map<String, DateHistogramInterval>) a[1], (Map<String, WriteableZoneId>) a[2]));
+            a -> new RollupGroup((Map<String, RollupIndexMetadata>) a[0]));
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), GROUP_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, DateHistogramInterval> intervalMap = new HashMap<>();
-
+            Map<String, RollupIndexMetadata> rollupGroups = new HashMap<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 String name = p.currentName();
-                p.nextToken();
-                String expression = p.text();
-                intervalMap.put(name, new DateHistogramInterval(expression));
+                rollupGroups.put(name, RollupIndexMetadata.parse(p));
             }
-            return intervalMap;
-        }, DATE_INTERVAL_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, WriteableZoneId> zoneMap = new HashMap<>();
-            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                String name = p.currentName();
-                p.nextToken();
-                String timezone = p.text();
-                zoneMap.put(name, WriteableZoneId.of(timezone));
-            }
-            return zoneMap;
-        }, DATE_TIMEZONE_FIELD);
+            return rollupGroups;
+        }, GROUP_FIELD);
     }
 
-    public RollupGroup(List<String> group, Map<String, DateHistogramInterval> dateInterval, Map<String, WriteableZoneId> dateTimezone) {
+    public RollupGroup(Map<String, RollupIndexMetadata> group) {
         this.group = group;
-        this.dateInterval = dateInterval;
-        this.dateTimezone = dateTimezone;
     }
 
     public RollupGroup() {
-        this.group = new ArrayList<>();
-        this.dateInterval = new HashMap<>();
-        this.dateTimezone = new HashMap<>();
+        this.group = new HashMap<>();
     }
 
     public RollupGroup(StreamInput in) throws IOException {
-        this.group = in.readStringList();
-        this.dateInterval = in.readMap(StreamInput::readString, DateHistogramInterval::new);
-        this.dateTimezone = in.readMap(StreamInput::readString, WriteableZoneId::new);
+        this.group = in.readMap(StreamInput::readString, RollupIndexMetadata::new);
     }
-
 
     public static RollupGroup fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public void add(String name, DateHistogramInterval interval, WriteableZoneId timezone) {
-        group.add(name);
-        dateInterval.put(name, interval);
-        dateTimezone.put(name, timezone);
+    public void add(String name, RollupIndexMetadata rollupIndexMetadata) {
+        group.put(name, rollupIndexMetadata);
     }
 
     public void remove(String name) {
         group.remove(name);
-        dateInterval.remove(name);
-        dateTimezone.remove(name);
     }
 
     public boolean contains(String name) {
-        return group.contains(name);
+        return group.containsKey(name);
     }
 
     public DateHistogramInterval getDateInterval(String name) {
-        return dateInterval.get(name);
+        RollupIndexMetadata rollupIndex = group.get(name);
+        return rollupIndex != null ? rollupIndex.getDateInterval() : null;
     }
 
     public WriteableZoneId getDateTimezone(String name) {
-        return dateTimezone.get(name);
+        RollupIndexMetadata rollupIndex = group.get(name);
+        return rollupIndex != null ? rollupIndex.getDateTimezone() : null;
     }
 
-    public List<String> getIndices() {
-        return group;
+    public Set<String> getIndices() {
+        return group.keySet();
     }
 
     static Diff<RollupGroup> readDiffFrom(StreamInput in) throws IOException {
@@ -157,9 +123,7 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringCollection(group);
-        out.writeMap(dateInterval, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
-        out.writeMap(dateTimezone, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(group, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
 
     @Override
@@ -167,8 +131,6 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
         return builder
             .startObject()
             .field(GROUP_FIELD.getPreferredName(), group)
-            .field(DATE_INTERVAL_FIELD.getPreferredName(), dateInterval)
-            .field(DATE_TIMEZONE_FIELD.getPreferredName(), dateTimezone)
             .endObject();
     }
 
@@ -177,13 +139,11 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RollupGroup that = (RollupGroup) o;
-        return group.equals(that.group) &&
-            dateInterval.equals(that.dateInterval) &&
-            dateTimezone.equals(that.dateTimezone);
+        return Objects.equals(group, that.group);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(group, dateInterval, dateTimezone);
+        return Objects.hash(group);
     }
 }

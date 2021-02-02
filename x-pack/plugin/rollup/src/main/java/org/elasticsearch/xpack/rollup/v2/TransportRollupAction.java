@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RollupGroup;
+import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -49,11 +50,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -306,13 +307,19 @@ public class TransportRollupAction
                     rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
                 }
                 RollupActionDateHistogramGroupConfig dateConfig = request.getRollupConfig().getGroupConfig().getDateHistogram();
+                Map<String, List<String>> metricsConfig = new HashMap<>();
+                for (MetricConfig mconfig: request.getRollupConfig().getMetricsConfig()) {
+                    metricsConfig.put(mconfig.getField(), mconfig.getMetrics());
+                }
                 WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
+                RollupIndexMetadata rollupInfo = new RollupIndexMetadata(dateConfig.getInterval(), rollupDateZoneId, metricsConfig);
+
                 if (rollupGroups.containsKey(rollupGroupKeyName)) {
                     RollupGroup group = rollupGroups.get(rollupGroupKeyName);
-                    group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
+                    group.add(rollupIndexName, rollupInfo);
                 } else {
                     RollupGroup group = new RollupGroup();
-                    group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
+                    group.add(rollupIndexName, rollupInfo);
                     rollupGroups.put(rollupGroupKeyName, group);
                 }
                 // add rolled up index to backing datastream if rolling up a backing index of a datastream

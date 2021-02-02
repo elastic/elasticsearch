@@ -60,6 +60,7 @@ public class RollupMetadata implements Metadata.Custom {
         }, ROLLUP);
     }
 
+    /** a map with the name of the original index and the group of rollups as a value */
     private final Map<String, RollupGroup> rollupIndices;
 
     public RollupMetadata(Map<String, RollupGroup> rollupIndices) {

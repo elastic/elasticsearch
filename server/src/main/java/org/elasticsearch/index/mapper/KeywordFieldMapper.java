@@ -42,7 +42,6 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -95,7 +94,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
         private final Parameter<String> normalizer
-            = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
+            = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, null).acceptsNull();
 
         private final Parameter<Boolean> splitQueriesOnWhitespace
             = Parameter.boolParam("split_queries_on_whitespace", true, m -> toType(m).splitQueriesOnWhitespace, false);
@@ -144,7 +143,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer quoteAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
-            if (Objects.equals(normalizerName, "default") == false) {
+            if (normalizerName != null) {
                 assert indexAnalyzers != null;
                 normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {

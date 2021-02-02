@@ -28,9 +28,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 
-import static org.elasticsearch.test.VersionUtils.randomIndexCompatibleVersion;
-import static org.hamcrest.Matchers.equalTo;
-
 public class IndexMetadataVerifierTests extends ESTestCase {
 
     public void testArchiveBrokenIndexSettings() {

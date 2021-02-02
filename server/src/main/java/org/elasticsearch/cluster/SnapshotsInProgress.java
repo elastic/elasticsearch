@@ -424,7 +424,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (version.equals(entry.version) == false) return false;
             if (Objects.equals(source, ((Entry) o).source) == false) return false;
             if (clones.equals(((Entry) o).clones) == false) return false;
-            if (!featureStates.equals(entry.featureStates)) return false;
+            if (featureStates.equals(entry.featureStates) == false) return false;
 
             return true;
         }

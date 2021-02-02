@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -34,8 +35,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog;
@@ -93,7 +94,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         }
 
         @Override
-        public HyperLogLogPlusPlusFieldMapper build(BuilderContext context) {
+        public HyperLogLogPlusPlusFieldMapper build(ContentPath context) {
             final HyperLogLogPlusPlusFieldType mappedFieldType
                 = new HyperLogLogPlusPlusFieldType(buildFullName(context), meta.getValue(), precision.getValue().value());
             return new HyperLogLogPlusPlusFieldMapper(name, mappedFieldType,
@@ -160,7 +161,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -248,7 +249,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
             } else {
@@ -258,7 +259,7 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + CONTENT_TYPE + "] field do not support searching, " +
                 "use dedicated aggregations instead: [" + name() + "]");
         }
@@ -427,10 +428,4 @@ public class HyperLogLogPlusPlusFieldMapper extends FieldMapper {
         }
         return hashes;
     }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
 }

@@ -24,7 +24,10 @@ import com.carrotsearch.hppc.IntHashSet;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -161,13 +164,11 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
                     throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
                 }
                 total.addAndGet(bytes);
-                return total.get();
             }
 
             @Override
             public void addWithoutBreaking(long bytes) {
                 total.addAndGet(bytes);
-                return total.get();
             }
         });
         BigArrays bigArrays = new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking();
@@ -196,7 +197,6 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
     }
 
-
     public void testAllocation() {
         int precision = between(MIN_PRECISION, MAX_PRECISION);
         long initialBucketCount = between(0, 100);
@@ -205,5 +205,4 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
         );
     }
-
 }

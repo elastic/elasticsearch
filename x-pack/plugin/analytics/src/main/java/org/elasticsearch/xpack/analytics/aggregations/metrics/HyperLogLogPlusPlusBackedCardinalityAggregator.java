@@ -17,8 +17,8 @@ import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus
 import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HyperLogLogPlusPlusValuesSource.HyperLogLogPlusPlusSketch;
 import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusValue;
 import org.elasticsearch.xpack.analytics.mapper.fielddata.HyperLogLogPlusPlusValues;
@@ -38,7 +38,7 @@ public class HyperLogLogPlusPlusBackedCardinalityAggregator extends NumericMetri
             String name,
             ValuesSourceConfig valuesSourceConfig,
             int precision,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);

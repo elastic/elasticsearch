@@ -50,11 +50,13 @@ ${path.logs}
 #
 # ---------------------------------- Network -----------------------------------
 #
-# Set the bind address to a specific IP (IPv4 or IPv6):
+# By default Elasticsearch is only accessible on localhost. Set a different
+# address here to expose this node on the network:
 #
 #network.host: 192.168.0.1
 #
-# Set a custom port for HTTP:
+# By default Elasticsearch listens for HTTP traffic on the first free port it
+# finds starting at 9200. Set a specific HTTP port here:
 #
 #http.port: 9200
 #

@@ -1115,7 +1115,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<Map<String, AliasMetadata>> resolvedAliases =
-            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template", true);
+            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
@@ -1132,11 +1132,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .metadata(Metadata.builder().put("1", it).build())
             .build();
         Exception e =
-            expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", true));
+            expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1"));
         assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
-        // Ignoring validation
-        assertThat(MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", false), equalTo(List.of(a1)));
-        assertWarnings("template [1] has alias and data stream definitions");
 
         // index template can't have data streams and a component template with an aliases
         ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, null, a1), null, null);
@@ -1145,11 +1142,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state2 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put("1", it).put("c1", componentTemplate).build())
             .build();
-        e = expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", true));
+        e = expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1"));
         assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
-        // Ignoring validation
-        assertThat(MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", false), equalTo(List.of(a1)));
-        assertWarnings("template [1] has alias and data stream definitions");
     }
 
     public void testAddInvalidTemplate() throws Exception {

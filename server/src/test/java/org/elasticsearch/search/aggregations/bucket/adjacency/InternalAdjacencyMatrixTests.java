@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
@@ -94,7 +93,7 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedAdjacencyMatrix> implementationClass() {
         return ParsedAdjacencyMatrix.class;
     }
 

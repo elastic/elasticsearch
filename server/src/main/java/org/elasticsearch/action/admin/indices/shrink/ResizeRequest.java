@@ -70,7 +70,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             if (in.readBoolean()) {
                 maxSinglePrimarySize = new ByteSizeValue(in);
             }
@@ -117,7 +117,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalWriteable(maxSinglePrimarySize);
         }
     }

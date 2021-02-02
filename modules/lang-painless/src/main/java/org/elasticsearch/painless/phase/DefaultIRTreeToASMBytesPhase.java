@@ -121,10 +121,11 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDCast;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDClassBinding;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDComparisonType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDConstantFieldName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstructor;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDeclarationType;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDefReferenceEncoding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDField;
@@ -1220,7 +1221,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         else if (constant instanceof Byte)      methodWriter.push((byte)constant);
         else if (constant instanceof Boolean)   methodWriter.push((boolean)constant);
         else {
-            throw new IllegalStateException("unexpected constant [" + constant + "]");
+            /*
+             * The constant doesn't properly fit into the constant pool so
+             * we should have made a static field for it.
+             */
+            String fieldName = irConstantNode.getDecorationValue(IRDConstantFieldName.class);
+            Type asmFieldType = MethodWriter.getType(irConstantNode.getDecorationValue(IRDExpressionType.class));
+            methodWriter.getStatic(CLASS_TYPE, fieldName, asmFieldType);
         }
     }
 

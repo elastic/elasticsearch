@@ -108,4 +108,10 @@ public class SmileXContent implements XContent {
             DeprecationHandler deprecationHandler, Reader reader) throws IOException {
         return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(reader));
     }
+
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
+                                                       DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), true);
+    }
 }

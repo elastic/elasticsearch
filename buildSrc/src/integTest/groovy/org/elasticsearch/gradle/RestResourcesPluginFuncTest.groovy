@@ -28,8 +28,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
         """
 
         String api = "foo.json"
@@ -47,8 +47,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-           apply plugin: 'elasticsearch.rest-resources'
            apply plugin: 'elasticsearch.java'
+           apply plugin: 'elasticsearch.rest-resources'
         """
         String api = "foo.json"
         setupRestResources([api])
@@ -67,8 +67,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
 
             restResources {
                 restTests {
@@ -103,8 +103,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
 
             restResources {
                 restApi {
@@ -136,8 +136,8 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         given:
         internalBuild()
         buildFile << """
-            apply plugin: 'elasticsearch.rest-resources'
             apply plugin: 'elasticsearch.java'
+            apply plugin: 'elasticsearch.rest-resources'
 
             restResources {
                 restApi {

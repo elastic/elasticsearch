@@ -479,7 +479,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @param featureStates The feature states to be included in the snapshot
      */
     public RestoreSnapshotRequest featureStates(List<String> featureStates) {
-        return featureStates(featureStates.toArray(new String[featureStates.size()]));
+        return featureStates(featureStates.toArray(Strings.EMPTY_ARRAY));
     }
 
     /**

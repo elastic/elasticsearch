@@ -379,7 +379,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param featureStates The plugin states to be included in the snapshot
      */
     public CreateSnapshotRequest featureStates(List<String> featureStates) {
-        return featureStates(featureStates.toArray(new String[featureStates.size()]));
+        return featureStates(featureStates.toArray(EMPTY_ARRAY));
     }
 
     /**

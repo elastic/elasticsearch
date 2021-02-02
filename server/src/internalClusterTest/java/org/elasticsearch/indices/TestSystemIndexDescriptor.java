@@ -49,7 +49,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .build();
 
     TestSystemIndexDescriptor() {
-        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", null, SETTINGS, INDEX_NAME, 0, "version", "stack");
+        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", null, SETTINGS, INDEX_NAME, 0, "version", "stack", null);
     }
 
     @Override

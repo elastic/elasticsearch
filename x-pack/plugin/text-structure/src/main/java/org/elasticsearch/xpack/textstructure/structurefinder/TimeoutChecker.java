@@ -105,7 +105,7 @@ public class TimeoutChecker implements Closeable {
             return grok.captures(text);
         } finally {
             // If a timeout has occurred then this check will overwrite any timeout exception thrown by Grok.captures() and this
-            // is intentional - the exception from this class makes more sense in the context of the find file structure API
+            // is intentional - the exception from this class makes more sense in the context of the find structure API
             check(where);
         }
     }

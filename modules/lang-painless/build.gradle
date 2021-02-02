@@ -87,6 +87,15 @@ sourceSets {
 dependencies {
   docImplementation project(':server')
   docImplementation project(':modules:lang-painless')
+  docImplementation 'com.github.javaparser:javaparser-core:3.18.0'
+  if (isEclipse) {
+    /*
+     * Eclipse isn't quite "with it" enough to understand the different
+     * source sets. This adds the dependency to all source sets so it
+     * can compile the doc java files.
+     */
+    implementation 'com.github.javaparser:javaparser-core:3.18.0'
+  }
 }
 
 testClusters {
@@ -123,6 +132,7 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
       main = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
+      systemProperty "jdksrc", System.getProperty("jdksrc")
     }.assertNormalExitValue()
   }
 }

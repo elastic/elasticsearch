@@ -120,7 +120,7 @@ public class MetricAggExtractor implements BucketExtractor {
             if (object == null) {
                 return object;
             } else if (object instanceof Number) {
-                return DateUtils.asDateTime(((Number) object).longValue(), zoneId);
+                return DateUtils.asDateTimeWithMillis(((Number) object).longValue(), zoneId);
             } else {
                 throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
             }

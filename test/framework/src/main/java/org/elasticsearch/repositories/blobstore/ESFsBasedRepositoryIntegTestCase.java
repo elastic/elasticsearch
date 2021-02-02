@@ -33,6 +33,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,7 +77,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         }
         assertFalse(Files.exists(deletedPath));
 
-        createRepository(repoName, Settings.builder().put(repoSettings).put("readonly", true).build(), randomBoolean());
+        createRepository(repoName, Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, true).build(), randomBoolean());
 
         final ElasticsearchException exception = expectThrows(ElasticsearchException.class, () ->
             client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get());
@@ -90,7 +91,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         final Path repoPath = randomRepoPath();
         final Settings repoSettings = Settings.builder()
                 .put(repositorySettings(repoName))
-                .put("readonly", true)
+                .put(READONLY_SETTING_KEY, true)
                 .put(FsRepository.LOCATION_SETTING.getKey(), repoPath)
                 .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), String.valueOf(randomIntBetween(1, 8) * 1024) + "kb")
                 .build();
@@ -107,7 +108,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
             assertFalse(Files.exists(storePath));
         }
 
-        createRepository(repoName, Settings.builder().put(repoSettings).put("readonly", false).build(), false);
+        createRepository(repoName, Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, false).build(), false);
 
         try (BlobStore store = newBlobStore(repoName)) {
             assertTrue(Files.exists(repoPath));

@@ -289,6 +289,11 @@ public class TransformStats implements Writeable, ToXContentObject {
             out.writeEnum(this);
         }
 
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }

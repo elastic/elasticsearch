@@ -42,9 +42,8 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-            histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-            InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        @SuppressWarnings("unchecked")
+        InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 

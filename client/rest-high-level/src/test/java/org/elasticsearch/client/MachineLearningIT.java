@@ -1366,6 +1366,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setSoftTreeDepthTolerance(0.1)
                 .setDownsampleFactor(0.5)
                 .setMaxOptimizationRoundsPerHyperparameter(3)
+                .setMaxOptimizationRoundsPerHyperparameter(3)
+                .setEarlyStoppingEnabled(false)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1417,6 +1419,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setSoftTreeDepthTolerance(0.1)
                 .setDownsampleFactor(0.5)
                 .setMaxOptimizationRoundsPerHyperparameter(3)
+                .setEarlyStoppingEnabled(false)
                 .build())
             .setDescription("this is a classification")
             .build();

@@ -561,7 +561,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             throw new ElasticsearchParseException("Missing start of array in include/exclude clause");
         }
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (!parser.currentToken().isValue()) {
+            if (parser.currentToken().isValue() == false) {
                 throw new ElasticsearchParseException("Array elements in include/exclude clauses should be string values");
             }
             set.add(new BytesRef(parser.text()));

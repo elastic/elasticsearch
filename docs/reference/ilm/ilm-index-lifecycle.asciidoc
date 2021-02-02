@@ -86,6 +86,9 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-readonly,Read-Only>>
   - <<ilm-shrink,Shrink>>
   - <<ilm-forcemerge,Force Merge>>
+ifdef::permanently-unreleased-branch[]
+  - <<ilm-rollup,Rollup>>
+endif::[]
 * Warm
   - <<ilm-set-priority,Set Priority>>
   - <<ilm-unfollow,Unfollow>>
@@ -100,6 +103,9 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
   - <<ilm-allocate,Allocate>>
   - <<ilm-migrate,Migrate>>
   - <<ilm-freeze,Freeze>>
+ifdef::permanently-unreleased-branch[]
+  - <<ilm-rollup,Rollup>>
+endif::[]
   - <<ilm-searchable-snapshot, Searchable Snapshot>>
 * Delete
   - <<ilm-wait-for-snapshot,Wait For Snapshot>>

@@ -38,4 +38,9 @@ public class GreaterThanOrEqual extends BinaryComparison implements Negatable<Bi
     public LessThan negate() {
         return new LessThan(source(), left(), right(), zoneId());
     }
+
+    @Override
+    public BinaryComparison reverse() {
+        return new LessThanOrEqual(source(), left(), right(), zoneId());
+    }
 }

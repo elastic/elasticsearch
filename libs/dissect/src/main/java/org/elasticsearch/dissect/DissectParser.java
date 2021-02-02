@@ -34,7 +34,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * <p>Splits (dissects) a string into its parts based on a pattern.</p><p>A dissect pattern is composed of a set of keys and delimiters.
+ * Splits (dissects) a string into its parts based on a pattern.
+ * <p>A dissect pattern is composed of a set of keys and delimiters.
  * For example the dissect pattern: <pre>%{a} %{b},%{c}</pre> has 3 keys (a,b,c) and two delimiters (space and comma). This pattern will
  * match a string of the form: <pre>foo bar,baz</pre> and will result a key/value pairing of <pre>a=foo, b=bar, and c=baz.</pre>
  * <p>Matches are all or nothing. For example, the same pattern will NOT match <pre>foo bar baz</pre> since all of the delimiters did not
@@ -280,7 +281,19 @@ public final class DissectParser {
         }
         Map<String, String> results = dissectMatch.getResults();
 
-        if (dissectMatch.isValid(results) == false) {
+        return dissectMatch.isValid(results) ? results : null;
+    }
+
+    /**
+     * <p>Entry point to dissect a string into it's parts.</p>
+     *
+     * @param inputString The string to dissect
+     * @return the key/value Map of the results
+     * @throws DissectException if unable to dissect a pair into it's parts.
+     */
+    public Map<String, String> forceParse(String inputString) {
+        Map<String, String> results = parse(inputString);
+        if (results == null) {
             throw new DissectException.FindMatch(pattern, inputString);
         }
         return results;

@@ -458,7 +458,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
         builder.field(FORCE_UNIGRAM_FIELD.getPreferredName(), forceUnigrams);
         builder.field(TOKEN_LIMIT_FIELD.getPreferredName(), tokenLimit);
-        if (!generators.isEmpty()) {
+        if (generators.isEmpty() == false) {
             Set<Entry<String, List<CandidateGenerator>>> entrySet = generators.entrySet();
             for (Entry<String, List<CandidateGenerator>> entry : entrySet) {
                 builder.startArray(entry.getKey());

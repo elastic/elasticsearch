@@ -11,9 +11,12 @@ import org.apache.lucene.geo.Point;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -23,6 +26,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.fielddata.GeoPointScriptFieldData;
+import org.elasticsearch.xpack.runtimefields.query.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xpack.runtimefields.query.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.GeoPointScriptFieldGeoShapeQuery;
 
@@ -103,5 +107,28 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             return new MatchNoDocsQuery();
         }
         return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, luceneGeometries);
+    }
+
+    @Override
+    public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
+        GeoPoint originGeoPoint;
+        if (origin instanceof GeoPoint) {
+            originGeoPoint = (GeoPoint) origin;
+        } else if (origin instanceof String) {
+            originGeoPoint = GeoUtils.parseFromString((String) origin);
+        } else {
+            throw new IllegalArgumentException(
+                "Illegal type [" + origin.getClass() + "] for [origin]! " + "Must be of type [geo_point] or [string] for geo_point fields!"
+            );
+        }
+        double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
+        return new GeoPointScriptFieldDistanceFeatureQuery(
+            script,
+            leafFactory(context)::newInstance,
+            name(),
+            originGeoPoint.lat(),
+            originGeoPoint.lon(),
+            pivotDouble
+        );
     }
 }

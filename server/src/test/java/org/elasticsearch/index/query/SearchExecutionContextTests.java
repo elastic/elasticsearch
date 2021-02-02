@@ -560,7 +560,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 if (randomBoolean()) {
                     indexFieldData = searchExecutionContext.getForField(fieldType);
                 } else {
-                    indexFieldData = searchExecutionContext.lookup().doc().getForField(fieldType);
+                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType);
                 }
                 searcher.search(query, new Collector() {
                     @Override
@@ -579,7 +579,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                             public void collect(int doc) throws IOException {
                                 ScriptDocValues<?> scriptDocValues;
                                 if(randomBoolean()) {
-                                    LeafDocLookup leafDocLookup = searchExecutionContext.lookup().doc().getLeafDocLookup(context);
+                                    LeafDocLookup leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
                                     leafDocLookup.setDocument(doc);
                                     scriptDocValues = leafDocLookup.get(field);
                                 } else {

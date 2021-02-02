@@ -450,7 +450,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Item)) return false;
+            if ((o instanceof Item) == false) return false;
             Item other = (Item) o;
             return Objects.equals(index, other.index)
                 && Objects.equals(id, other.id)
@@ -1054,7 +1054,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
 
         // exclude the items from the search
-        if (!include) {
+        if (include == false) {
             handleExclude(boolQuery, likeItems, context);
         }
         return boolQuery.build();
@@ -1093,7 +1093,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 continue;
             }
             TermVectorsResponse getResponse = response.getResponse();
-            if (!getResponse.isExists()) {
+            if (getResponse.isExists() == false) {
                 continue;
             }
             likeFields.add(getResponse.getFields());
@@ -1122,7 +1122,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             ids.add(item.id());
         }
-        if (!ids.isEmpty()) {
+        if (ids.isEmpty() == false) {
             Query query = idField.termsQuery(ids, context);
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }

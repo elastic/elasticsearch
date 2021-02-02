@@ -138,7 +138,7 @@ public class IndicesStatsResponse extends BroadcastResponse {
         final String level = params.param("level", "indices");
         final boolean isLevelValid =
             "cluster".equalsIgnoreCase(level) || "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
-        if (!isLevelValid) {
+        if (isLevelValid == false) {
             throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
         }
 

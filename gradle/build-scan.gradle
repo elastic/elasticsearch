@@ -32,7 +32,7 @@ buildScan {
       link 'System logs', "https://infra-stats.elastic.co/app/infra#/logs?" +
         "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
       buildFinished {
-        link 'System metrics', "https://infra-stats.elastic.co/app/infra#/metrics/host/" +
+        link 'System metrics', "https://infra-stats.elastic.co/app/metrics/detail/host/" +
           "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
           "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
           "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
@@ -63,7 +63,7 @@ buildScan {
 
       tag 'CI'
       link 'CI Build', buildUrl
-      link 'GCP Upload', "https://console.cloud.google.com/storage/elasticsearch-ci-artifacts/jobs/${jobName}/build/${buildNumber}.tar.bz2"
+      link 'GCP Upload', "https://console.cloud.google.com/storage/_details/elasticsearch-ci-artifacts/jobs/${jobName}/build/${buildNumber}.tar.bz2"
       value 'Job Number', buildNumber
 
       System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {

@@ -90,7 +90,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedRange> implementationClass() {
         return ParsedRange.class;
     }
 

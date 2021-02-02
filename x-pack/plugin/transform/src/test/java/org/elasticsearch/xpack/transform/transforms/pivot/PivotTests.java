@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -32,6 +33,8 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.transform.Transform;
@@ -54,6 +57,7 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -94,14 +98,14 @@ public class PivotTests extends ESTestCase {
 
     public void testValidateExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), randomAlphaOfLength(10), new SettingsConfig(), Version.CURRENT);
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT);
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("non_existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), randomAlphaOfLength(10), new SettingsConfig(), Version.CURRENT);
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT);
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -111,7 +115,6 @@ public class PivotTests extends ESTestCase {
 
         Function pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize),
-            randomAlphaOfLength(10),
             new SettingsConfig(),
             Version.CURRENT
         );
@@ -119,7 +122,6 @@ public class PivotTests extends ESTestCase {
 
         pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null),
-            randomAlphaOfLength(10),
             new SettingsConfig(),
             Version.CURRENT
         );
@@ -133,19 +135,19 @@ public class PivotTests extends ESTestCase {
         // search has failures although they might just be temporary
         SourceConfig source = new SourceConfig("existing_source_index_with_failing_shards");
 
-        Function pivot = new Pivot(getValidPivotConfig(), randomAlphaOfLength(10), new SettingsConfig(), Version.CURRENT);
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT);
 
         assertInvalidTransform(client, source, pivot);
     }
 
     public void testValidateAllSupportedAggregations() throws Exception {
+        SourceConfig source = new SourceConfig("existing_source");
+
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
-            SourceConfig source = new SourceConfig("existing_source");
 
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
-                randomAlphaOfLength(10),
                 new SettingsConfig(),
                 Version.CURRENT
             );
@@ -159,7 +161,6 @@ public class PivotTests extends ESTestCase {
 
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
-                randomAlphaOfLength(10),
                 new SettingsConfig(),
                 Version.CURRENT
             );
@@ -169,6 +170,23 @@ public class PivotTests extends ESTestCase {
                 assertThat("expected aggregations to be unsupported, but they were", e, is(notNullValue()));
             }));
         }
+    }
+
+    public void testGetPerformanceCriticalFields() throws IOException {
+        String groupConfigJson = "{"
+            + "\"group-A\": { \"terms\": { \"field\": \"field-A\" } },"
+            + "\"group-B\": { \"terms\": { \"field\": \"field-B\" } },"
+            + "\"group-C\": { \"terms\": { \"field\": \"field-C\" } }"
+        + "}";
+        GroupConfig groupConfig;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, groupConfigJson)) {
+            groupConfig = GroupConfig.fromXContent(parser, false);
+        }
+        assertThat(groupConfig.isValid(), is(true));
+
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
+        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
+        assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
     private class MyMockClient extends NoOpClient {

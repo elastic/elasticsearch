@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -114,6 +115,12 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     public Map<String, Object> getRuntimeMappings() {
         return runtimeMappings;
+    }
+
+    public Map<String, Object> getScriptBasedRuntimeMappings() {
+        return getRuntimeMappings().entrySet().stream()
+            .filter(e -> e.getValue() instanceof Map<?, ?> && ((Map<?, ?>) e.getValue()).containsKey("script"))
+            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public boolean isValid() {

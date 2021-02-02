@@ -46,7 +46,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         Rectangle rectangle = new Rectangle(-35, -25, -25, -35);
 
         for (ShapeRelation shapeRelation : ShapeRelation.values()) {
-            if (!shapeRelation.equals(ShapeRelation.INTERSECTS)) {
+            if (shapeRelation.equals(ShapeRelation.INTERSECTS) == false) {
                 SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                     client().prepareSearch("test")
                         .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle)

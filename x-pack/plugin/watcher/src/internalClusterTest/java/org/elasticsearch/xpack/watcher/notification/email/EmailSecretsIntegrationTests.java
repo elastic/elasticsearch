@@ -148,7 +148,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         value = contentSource.getValue("result.actions.0.status");
         assertThat(value, is("success"));
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for the email to be sent");
         }
     }

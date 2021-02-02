@@ -17,11 +17,11 @@ public class UnsupportedEsField extends EsField {
 
     private final String originalType;
     private final String inherited; // for fields belonging to parents (or grandparents) that have an unsupported type
-    
+
     public UnsupportedEsField(String name, String originalType) {
         this(name, originalType, null, new TreeMap<>());
     }
-    
+
     public UnsupportedEsField(String name, String originalType, String inherited, Map<String, EsField> properties) {
         super(name, DataTypes.UNSUPPORTED, properties, false);
         this.originalType = originalType;
@@ -31,11 +31,11 @@ public class UnsupportedEsField extends EsField {
     public String getOriginalType() {
         return originalType;
     }
-    
+
     public String getInherited() {
         return inherited;
     }
-    
+
     public boolean hasInherited() {
         return inherited != null;
     }
@@ -48,7 +48,7 @@ public class UnsupportedEsField extends EsField {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         UnsupportedEsField that = (UnsupportedEsField) o;

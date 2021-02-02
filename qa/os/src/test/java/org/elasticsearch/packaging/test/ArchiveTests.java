@@ -245,6 +245,18 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    /**
+     * Checks that an installation succeeds when <code>POSIXLY_CORRECT</code> is set in the environment.
+     * <p>
+     * This test purposefully ignores the existence of the Windows POSIX sub-system.
+     */
+    public void test55InstallUnderPosix() throws Exception {
+        assumeTrue("Only run this test on Unix-like systems", Platforms.WINDOWS == false);
+        sh.getEnv().put("POSIXLY_CORRECT", "1");
+        startElasticsearch();
+        stopElasticsearch();
+    }
+
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         withCustomConfig(tempConf -> {
@@ -424,5 +436,4 @@ public class ArchiveTests extends PackagingTestCase {
             Platforms.onWindows(action);
         }
     }
-
 }

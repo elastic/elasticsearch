@@ -464,7 +464,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 };
             }
         };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY)));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             BooleanFieldScript.Factory factory = scriptService.compile(script, BooleanFieldScript.CONTEXT);
             return new BooleanScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});

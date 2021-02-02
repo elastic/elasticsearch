@@ -22,7 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
@@ -57,7 +57,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
 
     @Override
     Metadata upgradeMetadataForNode(
-            Metadata metadata, MetadataIndexUpgradeService metadataIndexUpgradeService,
+            Metadata metadata, IndexMetadataVerifier indexMetadataVerifier,
             MetadataUpgrader metadataUpgrader) {
         // Metadata upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
         return metadata;

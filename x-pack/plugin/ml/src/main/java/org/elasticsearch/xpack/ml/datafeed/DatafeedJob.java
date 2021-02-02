@@ -160,7 +160,7 @@ class DatafeedJob {
                 return nextRealtimeTimestamp();
             }
         }
-        if (!isIsolated) {
+        if (isIsolated == false) {
             LOGGER.debug("[{}] Lookback finished after being stopped", jobId);
         }
         return null;

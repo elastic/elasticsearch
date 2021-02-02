@@ -75,7 +75,7 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
         }
 
         // verify
-        if (!LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath))) {
+        if (LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath)) == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid License!");
         }
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

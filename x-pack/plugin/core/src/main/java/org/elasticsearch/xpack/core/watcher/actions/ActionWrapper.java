@@ -63,7 +63,7 @@ public class ActionWrapper implements ToXContentObject {
                          @Nullable ExecutableTransform<Transform, Transform.Result> transform,
                          ExecutableAction<? extends Action> action,
                          @Nullable String path,
-                         @Nullable Integer maxIterations) {        
+                         @Nullable Integer maxIterations) {
         this.id = id;
         this.condition = condition;
         this.throttler = throttler;
@@ -112,7 +112,7 @@ public class ActionWrapper implements ToXContentObject {
         if (result != null) {
             return result;
         }
-        if (!ctx.skipThrottling(id)) {
+        if (ctx.skipThrottling(id) == false) {
             Throttler.Result throttleResult = throttler.throttle(id, ctx);
             if (throttleResult.throttle()) {
                 if (throttleResult.type() == Throttler.Type.ACK) {

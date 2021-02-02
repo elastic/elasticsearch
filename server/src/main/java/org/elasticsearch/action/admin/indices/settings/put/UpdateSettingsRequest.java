@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -53,6 +54,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
     private Settings settings = EMPTY_SETTINGS;
     private boolean preserveExisting = false;
+    private String origin = "";
 
     public UpdateSettingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,6 +62,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            origin = in.readString();
+        }
     }
 
     public UpdateSettingsRequest() {
@@ -171,6 +176,15 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return this;
     }
 
+    public String origin() {
+        return origin;
+    }
+
+    public UpdateSettingsRequest origin(String origin) {
+        this.origin = Objects.requireNonNull(origin, "origin cannot be null");
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -178,6 +192,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indicesOptions.writeIndicesOptions(out);
         writeSettingsToStream(settings, out);
         out.writeBoolean(preserveExisting);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeString(origin);
+        }
     }
 
     @Override

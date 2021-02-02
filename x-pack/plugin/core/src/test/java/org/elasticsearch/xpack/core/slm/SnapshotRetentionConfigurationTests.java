@@ -101,6 +101,34 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(s9), equalTo(false));
     }
 
+    public void testMaximumWithExpireAfter() {
+        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(
+            () -> TimeValue.timeValueDays(1).millis() + 2,
+            TimeValue.timeValueDays(1), null, 2);
+        SnapshotInfo old1 = makeInfo(0);
+        SnapshotInfo old2 = makeInfo(1);
+        SnapshotInfo new1 = makeInfo(2);
+
+        List<SnapshotInfo> infos = Arrays.asList(old1, old2 , new1);
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(old1), equalTo(true));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(old2), equalTo(true));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(new1), equalTo(false));
+    }
+
+    public void testMaximumWithFailedOrPartial() {
+        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> 1, null, null, 1);
+        SnapshotInfo s1 = makeInfo(1);
+        SnapshotInfo s2 = makeFailureOrPartial(2, randomBoolean());
+        SnapshotInfo s3 = makeInfo(3);
+        SnapshotInfo s4 = makeInfo(4);
+
+        List<SnapshotInfo> infos = Arrays.asList(s1 , s2, s3, s4);
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(true));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(true));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(true));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
+    }
+
     public void testFailuresDeletedIfExpired() {
         assertUnsuccessfulDeletedIfExpired(true);
     }

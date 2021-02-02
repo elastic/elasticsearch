@@ -548,7 +548,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 };
             }
         };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY)));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DateFieldScript.Factory factory = scriptService.compile(script, DateFieldScript.CONTEXT);
             return new DateScriptFieldType("test", factory, dateTimeFormatter, script, emptyMap(), (b, d) -> {});

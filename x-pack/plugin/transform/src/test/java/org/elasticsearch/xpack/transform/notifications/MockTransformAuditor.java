@@ -56,6 +56,10 @@ public class MockTransformAuditor extends TransformAuditor {
         expectations = new CopyOnWriteArrayList<>();
     }
 
+    /**
+     * Adds an audit expectation.
+     * Must be called *before* the code that uses auditor's {@code info}, {@code warning} or {@code error} methods.
+     */
     public void addExpectation(AuditExpectation expectation) {
         expectations.add(expectation);
     }

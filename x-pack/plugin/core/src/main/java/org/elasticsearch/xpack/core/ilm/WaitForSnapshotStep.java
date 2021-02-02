@@ -89,7 +89,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         WaitForSnapshotStep that = (WaitForSnapshotStep) o;
         return policy.equals(that.policy);
     }

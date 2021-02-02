@@ -160,7 +160,7 @@ public class TransportClusterUpdateSettingsAction extends
                 // We're about to send a second update task, so we need to check if we're still the elected master
                 // For example the minimum_master_node could have been breached and we're no longer elected master,
                 // so we should *not* execute the reroute.
-                if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
                     logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
                     listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(),
                         updater.getPersistentUpdate()));

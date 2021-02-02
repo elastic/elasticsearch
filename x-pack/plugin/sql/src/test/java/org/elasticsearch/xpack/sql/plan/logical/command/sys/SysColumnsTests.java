@@ -54,7 +54,8 @@ public class SysColumnsTests extends ESTestCase {
     private static final String CLUSTER_NAME = "cluster";
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
-    private static final int FIELD_COUNT = 16;
+    private static final int FIELD_COUNT1 = 16;
+    private static final int FIELD_COUNT2 = 17;
 
     private final SqlParser parser = new SqlParser();
 
@@ -62,7 +63,7 @@ public class SysColumnsTests extends ESTestCase {
         Class<? extends Number> typeClass = mode == Mode.ODBC ? Short.class : Integer.class;
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode);
-        assertEquals(FIELD_COUNT, rows.size());
+        assertEquals(FIELD_COUNT2, rows.size());
         assertEquals(24, rows.get(0).size());
 
         List<?> row = rows.get(0);
@@ -72,39 +73,42 @@ public class SysColumnsTests extends ESTestCase {
         assertDriverType("int", Types.INTEGER, true, 11, 4, typeClass, row);
 
         row = rows.get(2);
-        assertDriverType("text", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("float", Types.REAL, true, 15, 4, typeClass, row);
 
         row = rows.get(3);
-        assertDriverType("keyword", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("text", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(4);
-        assertDriverType("date", Types.TIMESTAMP, false, 34, 8, typeClass, row);
+        assertDriverType("keyword", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(5);
-        assertDriverType("date_nanos", Types.TIMESTAMP, false, 34, 8, typeClass, row);
+        assertDriverType("date", Types.TIMESTAMP, false, 34, 8, typeClass, row);
 
         row = rows.get(6);
-        assertDriverType("some.dotted.field", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("date_nanos", Types.TIMESTAMP, false, 34, 8, typeClass, row);
 
         row = rows.get(7);
-        assertDriverType("some.string", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("some.dotted.field", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(8);
-        assertDriverType("some.string.normalized", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("some.string", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(9);
-        assertDriverType("some.string.typical", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("some.string.normalized", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(10);
-        assertDriverType("some.ambiguous", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("some.string.typical", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(11);
-        assertDriverType("some.ambiguous.one", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("some.ambiguous", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(12);
-        assertDriverType("some.ambiguous.two", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
+        assertDriverType("some.ambiguous.one", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
         row = rows.get(13);
+        assertDriverType("some.ambiguous.two", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
+
+        row = rows.get(14);
         assertDriverType("some.ambiguous.normalized", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
     }
 
@@ -162,7 +166,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsNoArg() {
         executeCommand("SYS COLUMNS", emptyList(), r -> {
-            assertEquals(FIELD_COUNT, r.size());
+            assertEquals(FIELD_COUNT1, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             // no index specified
             assertEquals("test", r.column(2));
@@ -177,7 +181,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithCatalogWildcard() {
         executeCommand("SYS COLUMNS CATALOG 'cluster' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(FIELD_COUNT, r.size());
+            assertEquals(FIELD_COUNT1, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -190,7 +194,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithMissingCatalog() {
         executeCommand("SYS COLUMNS TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(FIELD_COUNT, r.size());
+            assertEquals(FIELD_COUNT1, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -203,7 +207,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithNullCatalog() {
         executeCommand("SYS COLUMNS CATALOG ? TABLE LIKE 'test' LIKE '%'", singletonList(new SqlTypedParamValue("keyword", null)), r -> {
-            assertEquals(FIELD_COUNT, r.size());
+            assertEquals(FIELD_COUNT1, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -220,8 +224,8 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testSysColumnsPaginationInOdbcMode() {
-        assertEquals(FIELD_COUNT, executeCommandInOdbcModeAndCountRows("SYS COLUMNS"));
-        assertEquals(FIELD_COUNT, executeCommandInOdbcModeAndCountRows("SYS COLUMNS TABLE LIKE 'test'"));
+        assertEquals(FIELD_COUNT1, executeCommandInOdbcModeAndCountRows("SYS COLUMNS"));
+        assertEquals(FIELD_COUNT1, executeCommandInOdbcModeAndCountRows("SYS COLUMNS TABLE LIKE 'test'"));
     }
 
     private int executeCommandInOdbcModeAndCountRows(String sql) {
@@ -285,7 +289,7 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     private static void checkOdbcShortTypes(SchemaRowSet r) {
-        assertEquals(FIELD_COUNT, r.size());
+        assertEquals(FIELD_COUNT1, r.size());
         // https://github.com/elastic/elasticsearch/issues/35376
         // cols that need to be of short type: DATA_TYPE, DECIMAL_DIGITS, NUM_PREC_RADIX, NULLABLE, SQL_DATA_TYPE, SQL_DATETIME_SUB
         List<Integer> cols = Arrays.asList(4, 8, 9, 10, 13, 14);

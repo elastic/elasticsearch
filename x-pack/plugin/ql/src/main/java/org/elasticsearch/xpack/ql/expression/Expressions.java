@@ -98,7 +98,7 @@ public final class Expressions {
 
     public static boolean foldable(List<? extends Expression> exps) {
         for (Expression exp : exps) {
-            if (!exp.foldable()) {
+            if (exp.foldable() == false) {
                 return false;
             }
         }
@@ -155,7 +155,7 @@ public final class Expressions {
     }
 
     public static boolean equalsAsAttribute(Expression left, Expression right) {
-        if (!left.semanticEquals(right)) {
+        if (left.semanticEquals(right) == false) {
             Attribute l = attribute(left);
             return (l != null && l.semanticEquals(attribute(right)));
         }
@@ -193,7 +193,7 @@ public final class Expressions {
                 if (a instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) a;
                     // skip nested fields and seen multi-fields
-                    if (!fa.isNested() && !seenMultiFields.contains(fa.parent())) {
+                    if (fa.isNested() == false && seenMultiFields.contains(fa.parent()) == false) {
                         filtered.add(a);
                         seenMultiFields.add(a);
                     }

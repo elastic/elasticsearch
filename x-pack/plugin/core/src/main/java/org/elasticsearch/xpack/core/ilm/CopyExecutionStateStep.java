@@ -100,7 +100,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         CopyExecutionStateStep that = (CopyExecutionStateStep) o;

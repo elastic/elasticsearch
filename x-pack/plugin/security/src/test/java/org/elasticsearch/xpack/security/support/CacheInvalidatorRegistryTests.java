@@ -47,7 +47,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
 
         final SecurityIndexManager.State previousState = SecurityIndexManager.State.UNRECOVERED_STATE;
         final SecurityIndexManager.State currentState = new SecurityIndexManager.State(
-            Instant.now(), true, true, true, Version.CURRENT,
+            Instant.now(), true, true, Version.CURRENT,
             ".security", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN);
 
         cacheInvalidatorRegistry.onSecurityIndexStageChange(previousState, currentState);

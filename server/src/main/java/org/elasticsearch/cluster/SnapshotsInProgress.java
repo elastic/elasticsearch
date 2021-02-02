@@ -96,9 +96,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * will be in state {@link State#SUCCESS} right away otherwise it will be in state {@link State#STARTED}.
      */
     public static Entry startedEntry(Snapshot snapshot, boolean includeGlobalState, boolean partial, List<IndexId> indices,
-                                     List<String> dataStreams, List<SnapshotFeatureInfo> featureStates, long repositoryStateId,
-                                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Map<String, Object> userMetadata,
-                                     Version version, long startTime) {
+        List<String> dataStreams, long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+        Map<String, Object> userMetadata, Version version, List<SnapshotFeatureInfo> featureStates) {
         return new SnapshotsInProgress.Entry(snapshot, includeGlobalState, partial,
                 completed(shards.values()) ? State.SUCCESS : State.STARTED,
                 indices, dataStreams, featureStates, startTime, repositoryStateId, shards, null, userMetadata, version);

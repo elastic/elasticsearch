@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -33,6 +34,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 
 public class SystemIndexResetApiIT extends ESIntegTestCase {
@@ -46,12 +48,16 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
 
     public void testResetSystemIndices() throws Exception {
         // put a document in a system index
-        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_PATTERN, "1", "purpose", "pre-snapshot doc");
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_PATTERN, "1", "purpose", "system index doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_PATTERN);
 
         // put a document in associated index
-        indexDoc(SystemIndexTestPlugin.ASSOCIATED_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        indexDoc(SystemIndexTestPlugin.ASSOCIATED_INDEX_NAME, "1", "purpose", "associated index doc");
         refresh(SystemIndexTestPlugin.ASSOCIATED_INDEX_NAME);
+
+        // put a document in a normal index
+        indexDoc("my_index", "1", "purpose", "normal index doc");
+        refresh("my_index");
 
         // call the reset API
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
@@ -68,6 +74,12 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
             .get());
 
         assertThat(e2.getMessage(), containsString("no such index"));
+
+        GetIndexResponse response = client().admin().indices().prepareGetIndex()
+            .addIndices("my_index")
+            .get();
+
+        assertThat(response.getIndices(), arrayContaining("my_index"));
     }
 
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {

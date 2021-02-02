@@ -32,6 +32,11 @@ public class YamlXContentParser extends JsonXContentParser {
         super(xContentRegistry, deprecationHandler, parser);
     }
 
+    public YamlXContentParser(NamedXContentRegistry xContentRegistry,
+                               DeprecationHandler deprecationHandler, JsonParser parser, boolean useCompatibility) {
+        super(xContentRegistry, deprecationHandler, parser, useCompatibility);
+    }
+
     @Override
     public XContentType contentType() {
         return XContentType.YAML;

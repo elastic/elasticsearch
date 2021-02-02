@@ -26,22 +26,23 @@ import org.objectweb.asm.util.Textifier;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
 
 /** quick and dirty tools for debugging */
 final class Debugger {
 
     /** compiles source to bytecode, and returns debugging output */
     static String toString(final String source) {
-        return toString(PainlessTestScript.class, source, new CompilerSettings());
+        return toString(PainlessTestScript.class, source, new CompilerSettings(), Whitelist.BASE_WHITELISTS);
     }
 
     /** compiles to bytecode, and returns debugging output */
-    static String toString(Class<?> iface, String source, CompilerSettings settings) {
+    static String toString(Class<?> iface, String source, CompilerSettings settings, List<Whitelist> whitelists) {
         StringWriter output = new StringWriter();
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS))
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists))
                     .compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);

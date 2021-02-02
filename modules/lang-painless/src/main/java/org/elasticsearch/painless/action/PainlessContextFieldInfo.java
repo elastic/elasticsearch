@@ -63,7 +63,7 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
         this(
                 painlessField.javaField.getDeclaringClass().getName(),
                 painlessField.javaField.getName(),
-                painlessField.typeParameter.getName()
+                PainlessContextTypeInfo.getType(painlessField.typeParameter.getName())
         );
     }
 

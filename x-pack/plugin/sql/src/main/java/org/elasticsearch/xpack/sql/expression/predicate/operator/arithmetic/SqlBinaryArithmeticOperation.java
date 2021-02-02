@@ -52,7 +52,7 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
             return IntervalArithmetics.add((Temporal) r, ((IntervalDayTime) l).interval());
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [+] between [{}] [{}]", l.getClass().getSimpleName(),
+        throw new QlIllegalArgumentException("Cannot compute [+] between [{}] and [{}]", l.getClass().getSimpleName(),
                 r.getClass().getSimpleName());
     }, "+"),
     SUB((Object l, Object r) -> {
@@ -77,7 +77,7 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
             throw new QlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [-] between [{}] [{}]", l.getClass().getSimpleName(),
+        throw new QlIllegalArgumentException("Cannot compute [-] between [{}] and [{}]", l.getClass().getSimpleName(),
                 r.getClass().getSimpleName());
     }, "-"),
     MUL((Object l, Object r) -> {
@@ -99,7 +99,7 @@ public enum SqlBinaryArithmeticOperation implements BinaryArithmeticOperation {
             return ((IntervalDayTime) l).mul(((Number) r).longValue());
         }
 
-        throw new QlIllegalArgumentException("Cannot compute [*] between [{}] [{}]", l.getClass().getSimpleName(),
+        throw new QlIllegalArgumentException("Cannot compute [*] between [{}] and [{}]", l.getClass().getSimpleName(),
                 r.getClass().getSimpleName());
     }, "*"),
     DIV(Arithmetics::div, "/"),

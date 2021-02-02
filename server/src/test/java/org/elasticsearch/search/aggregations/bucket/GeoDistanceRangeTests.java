@@ -99,8 +99,10 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
             assertWarnings(true,
                 "Deprecated field [distance_type] used, this field is unused and will be removed entirely");
         } catch (java.lang.AssertionError assertionError) {
-            if (assertionError.getMessage().startsWith("Expected 1 warnings but found ")) {
-                // expect number of warnings to be a random number > 2
+            if (assertionError.getMessage().startsWith("Expected 1 warnings but found ") &&
+                assertionError.getMessage().contains(
+                    "Deprecated field [distance_type] used, this field is unused and will be removed entirely")) {
+                // expect number of warnings to be a random number > 2 where each warning comprises a repetition of this message
             } else {
                 throw assertionError;
             }

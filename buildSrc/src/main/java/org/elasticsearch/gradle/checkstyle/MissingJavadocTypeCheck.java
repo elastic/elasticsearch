@@ -113,8 +113,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
             TokenTypes.CLASS_DEF,
             TokenTypes.ENUM_DEF,
             TokenTypes.ANNOTATION_DEF,
-            TokenTypes.RECORD_DEF,
-        };
+            TokenTypes.RECORD_DEF };
     }
 
     @Override
@@ -145,8 +144,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
 
         if (ScopeUtil.isInInterfaceOrAnnotationBlock(ast)) {
             customScope = Scope.PUBLIC;
-        }
-        else {
+        } else {
             final DetailAST mods = ast.findFirstToken(TokenTypes.MODIFIERS);
             customScope = ScopeUtil.getScopeFromMods(mods);
         }
@@ -156,10 +154,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
 
         return customScope.isIn(scope)
             && (surroundingScope == null || surroundingScope.isIn(scope))
-            && (excludeScope == null
-                || !customScope.isIn(excludeScope)
-                || surroundingScope != null
-                && !surroundingScope.isIn(excludeScope))
+            && (excludeScope == null || !customScope.isIn(excludeScope) || surroundingScope != null && !surroundingScope.isIn(excludeScope))
             && AnnotationUtil.containsAnnotation(ast, skipAnnotations) == false
             && ignorePattern.matcher(outerTypeName).find() == false;
     }

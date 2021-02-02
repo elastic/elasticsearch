@@ -486,7 +486,7 @@ public class DockerTests extends PackagingTestCase {
         Map<String, String> envVars = new HashMap<>();
         envVars.put("xpack.security.enabled", "true");
         envVars.put("ELASTIC_PASSWORD", "hunter2");
-        installation = runContainer(distribution(), envVars);
+        installation = runContainer(distribution(), builder().envVars(envVars));
 
         // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
         waitForElasticsearch("green", null, installation, "elastic", "hunter2");

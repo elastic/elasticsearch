@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * Addition function ({@code a + b}).
  */
-public class Add extends DateTimeArithmeticOperation {
+public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
     public Add(Source source, Expression left, Expression right) {
         super(source, left, right, SqlBinaryArithmeticOperation.ADD);
     }
@@ -30,5 +31,10 @@ public class Add extends DateTimeArithmeticOperation {
     @Override
     public Add swapLeftAndRight() {
         return new Add(source(), right(), left());
+    }
+
+    @Override
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Sub::new;
     }
 }

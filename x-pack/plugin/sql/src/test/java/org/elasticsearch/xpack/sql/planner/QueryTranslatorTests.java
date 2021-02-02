@@ -2128,15 +2128,15 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testZonedDateTimeInScripts() {
         PhysicalPlan p = optimizeAndPlan(
-                "SELECT date FROM test WHERE date + INTERVAL 1 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
+                "SELECT date FROM test WHERE date - INTERVAL 999999999 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
                 "\"script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter("
-                        + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                        + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),"
                         + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),InternalSqlScriptUtils.asDateTime(params.v3)))\","
                 + "\"lang\":\"painless\","
-                + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
+                + "\"params\":{\"v0\":\"date\",\"v1\":\"P999999999Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
     }
 
     public void testChronoFieldBasedDateTimeFunctionsWithMathIntervalAndGroupBy() {

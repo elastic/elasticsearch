@@ -11,6 +11,8 @@ archivesBaseName = 'x-pack-runtime-fields'
 dependencies {
   compileOnly project(":server")
   compileOnly project(':modules:lang-painless:spi')
+  api project(':libs:elasticsearch-grok')
+  api project(':libs:elasticsearch-dissect')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
 }
 

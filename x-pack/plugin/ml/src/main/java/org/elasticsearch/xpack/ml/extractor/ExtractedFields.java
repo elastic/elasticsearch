@@ -179,7 +179,7 @@ public class ExtractedFields {
                 throw new IllegalArgumentException("cannot retrieve field [" + field + "] because it has no mappings");
             }
             for (FieldCapabilities capsPerIndex : fieldCaps.values()) {
-                if (!capsPerIndex.isAggregatable()) {
+                if (capsPerIndex.isAggregatable() == false) {
                     return false;
                 }
             }

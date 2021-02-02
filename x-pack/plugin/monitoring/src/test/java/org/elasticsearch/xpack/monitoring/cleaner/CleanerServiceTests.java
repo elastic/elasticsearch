@@ -170,7 +170,7 @@ public class CleanerServiceTests extends ESTestCase {
             service.start();
 
             logger.debug("--> waits for listener to be executed");
-            if (!latch.await(10, TimeUnit.SECONDS)) {
+            if (latch.await(10, TimeUnit.SECONDS) == false) {
                 fail("waiting too long for test to complete. Expected listener was not executed");
             }
         } finally {

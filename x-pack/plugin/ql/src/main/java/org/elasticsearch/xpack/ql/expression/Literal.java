@@ -98,7 +98,7 @@ public class Literal extends LeafExpression {
      * Throws an exception if the expression is not foldable.
      */
     public static Literal of(Expression foldable) {
-        if (!foldable.foldable()) {
+        if (foldable.foldable() == false) {
             throw new QlIllegalArgumentException("Foldable expression required for Literal creation; received unfoldable " + foldable);
         }
 

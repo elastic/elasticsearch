@@ -88,7 +88,7 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (!e.foldable()) {
+        if (e.foldable() == false) {
             return new TypeResolution(format(null, "{}argument of [{}] must be a constant, received [{}]",
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                 operationName,

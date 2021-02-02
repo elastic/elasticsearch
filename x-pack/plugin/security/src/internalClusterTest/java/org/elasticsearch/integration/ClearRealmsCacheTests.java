@@ -151,7 +151,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
                 }
             });
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("waiting for clear realms cache request too long");
             }
 

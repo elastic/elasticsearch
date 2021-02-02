@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 public abstract class Check {
 
     public static void isTrue(boolean expression, String message, Object... values) {
-        if (!expression) {
+        if (expression == false) {
             throw new SqlIllegalArgumentException(message, values);
         }
     }
 
     public static void isTrue(boolean expression, String message) {
-        if (!expression) {
+        if (expression == false) {
             throw new SqlIllegalArgumentException(message);
         }
     }

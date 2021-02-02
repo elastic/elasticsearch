@@ -172,7 +172,7 @@ public class Exporters extends AbstractLifecycleComponent {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
             Exporter.Config config = new Exporter.Config(name, type, settings, clusterService, licenseState);
-            if (!config.enabled()) {
+            if (config.enabled() == false) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
                     logger.debug("exporter [{}/{}] is disabled", type, name);

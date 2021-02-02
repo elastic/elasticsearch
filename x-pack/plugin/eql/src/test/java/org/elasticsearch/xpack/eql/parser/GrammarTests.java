@@ -47,7 +47,7 @@ public class GrammarTests extends ESTestCase {
                 "Query not identified as unsupported: " + q,
                 () -> parser.createStatement(q));
 
-            if (!pe.getErrorMessage().contains("supported")) {
+            if (pe.getErrorMessage().contains("supported") == false) {
                 throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
                     pe.getErrorMessage() + " inside statement <{}>", q);
             }

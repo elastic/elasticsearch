@@ -20,7 +20,6 @@ package org.elasticsearch.node;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
@@ -38,8 +36,6 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
@@ -341,58 +337,6 @@ public class NodeTests extends ESTestCase {
         public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
             assertThat(circuitBreaker.getName(), equalTo("test_breaker"));
             myCircuitBreaker.set(circuitBreaker);
-        }
-    }
-
-    public static class TestRestCompatibility1 extends Plugin implements RestCompatibilityPlugin {
-        @Override
-        public Version getCompatibleVersion(ParsedMediaType acceptHeader, ParsedMediaType contentTypeHeader, boolean hasContent) {
-            return Version.CURRENT.previousMajor();
-        }
-    }
-
-    public static class TestRestCompatibility2 extends Plugin implements RestCompatibilityPlugin {
-        @Override
-        public Version getCompatibleVersion(ParsedMediaType acceptHeader, ParsedMediaType contentTypeHeader, boolean hasContent) {
-            return null;
-        }
-    }
-
-    public void testLoadingMultipleRestCompatibilityPlugins() throws IOException {
-        Settings.Builder settings = baseSettings();
-
-        // throw an exception when two plugins are registered
-        List<Class<? extends Plugin>> plugins = basePlugins();
-        plugins.add(TestRestCompatibility1.class);
-        plugins.add(TestRestCompatibility2.class);
-
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
-        assertThat(e.getMessage(), equalTo("Only one RestCompatibilityPlugin is allowed"));
-    }
-
-    public void testCorrectUsageOfRestCompatibilityPlugin() throws IOException {
-        Settings.Builder settings = baseSettings();
-
-        // the correct usage expects one plugin
-        List<Class<? extends Plugin>> plugins = basePlugins();
-        plugins.add(TestRestCompatibility1.class);
-
-        try (Node node = new MockNode(settings.build(), plugins)) {
-            CompatibleVersion restCompatibleFunction = node.getRestCompatibleFunction();
-            assertThat(restCompatibleFunction.get(null, null, false), equalTo(Version.CURRENT.previousMajor()));
-        }
-    }
-
-
-    public void testDefaultingRestCompatibilityPlugin() throws IOException {
-        Settings.Builder settings = baseSettings();
-
-        // default to CompatibleVersion.CURRENT_VERSION when no plugins provided
-        List<Class<? extends Plugin>> plugins = basePlugins();
-
-        try (Node node = new MockNode(settings.build(), plugins)) {
-            CompatibleVersion restCompatibleFunction = node.getRestCompatibleFunction();
-            assertThat(restCompatibleFunction.get(null, null, false), equalTo(Version.CURRENT));
         }
     }
 }

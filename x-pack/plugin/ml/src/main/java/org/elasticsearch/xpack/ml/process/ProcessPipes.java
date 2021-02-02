@@ -88,7 +88,7 @@ public class ProcessPipes {
         // main() function.
         StringBuilder prefixBuilder = new StringBuilder();
         prefixBuilder.append(namedPipeHelper.getDefaultPipeDirectoryPrefix(env)).append(Objects.requireNonNull(processName)).append('_');
-        if (!Strings.isNullOrEmpty(jobId)) {
+        if (Strings.isNullOrEmpty(jobId) == false) {
             prefixBuilder.append(jobId).append('_');
         }
         if (uniqueId != null) {

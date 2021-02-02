@@ -1535,7 +1535,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);
             assertTrue(failureCallbackTriggered.get());
 
-            if (corruptIndexException && !throwWhenMarkingStoreCorrupted.get()) {
+            if (corruptIndexException && throwWhenMarkingStoreCorrupted.get() == false) {
                 assertTrue(store.isMarkedCorrupted());
             }
         }
@@ -3268,7 +3268,7 @@ public class IndexShardTests extends IndexShardTestCase {
         boolean gap = false;
         Set<String> ids = new HashSet<>();
         for (int i = offset + 1; i < operations; i++) {
-            if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
+            if (rarely() == false || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
                 final String id = ids.isEmpty() || randomBoolean() ? Integer.toString(i) : randomFrom(ids);
                 if (ids.add(id) == false) { // this is an update
                     indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
@@ -3277,7 +3277,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         new BytesArray("{}"), XContentType.JSON);
                 indexShard.applyIndexOperationOnReplica(i, indexShard.getOperationPrimaryTerm(), 1,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
-                if (!gap && i == localCheckpoint + 1) {
+                if (gap == false && i == localCheckpoint + 1) {
                     localCheckpoint++;
                 }
                 max = i;

@@ -813,7 +813,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             allocation.clusterInfo(), allocation.snapshotShardSizeInfo(), allocation.metadata(), allocation.routingTable());
                         shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize, allocation.changes());
                         minNode.addShard(shard);
-                        if (!shard.primary()) {
+                        if (shard.primary() == false) {
                             // copy over the same replica shards to the secondary array so they will get allocated
                             // in a subsequent iteration, allowing replicas of other shards to be allocated first
                             while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
@@ -842,7 +842,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         }
 
                         unassigned.ignoreShard(shard, allocationDecision.getAllocationStatus(), allocation.changes());
-                        if (!shard.primary()) { // we could not allocate it and we are a replica - check if we can ignore the other replicas
+                        if (shard.primary() == false) {
+                            // we could not allocate it and we are a replica - check if we can ignore the other replicas
                             while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
                                 unassigned.ignoreShard(primary[++i], allocationDecision.getAllocationStatus(), allocation.changes());
                             }

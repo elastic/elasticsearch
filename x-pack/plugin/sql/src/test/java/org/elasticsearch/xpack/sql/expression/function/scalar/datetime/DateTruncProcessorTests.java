@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTest
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
-import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATETIME_WITH_NANOS;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
 
@@ -308,7 +308,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         return StringUtils.toString(intervalDayTime);
     }
     private String toString(ZonedDateTime dateTime) {
-        return ISO_DATE_WITH_NANOS.format(dateTime);
+        return ISO_DATETIME_WITH_NANOS.format(dateTime);
     }
 
     private static Literal intervalLiteral(TemporalAmount value, DataType intervalType) {

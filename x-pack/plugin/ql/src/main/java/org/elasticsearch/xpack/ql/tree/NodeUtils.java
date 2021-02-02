@@ -62,7 +62,7 @@ public abstract class NodeUtils {
 
     public static <E> String limitedToString(Collection<E> c) {
         Iterator<E> it = c.iterator();
-        if (!it.hasNext()) {
+        if (it.hasNext() == false) {
             return "[]";
         }
 
@@ -79,7 +79,7 @@ public abstract class NodeUtils {
             } else {
                 sb.append(next);
             }
-            if (!it.hasNext()) {
+            if (it.hasNext() == false) {
                 return sb.append(']').toString();
             }
             sb.append(',').append(' ');

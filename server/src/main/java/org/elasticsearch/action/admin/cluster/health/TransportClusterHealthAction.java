@@ -283,7 +283,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 // missing indices, wait a bit more...
             }
         }
-        if (!request.waitForNodes().isEmpty()) {
+        if (request.waitForNodes().isEmpty() == false) {
             if (request.waitForNodes().startsWith(">=")) {
                 int expected = Integer.parseInt(request.waitForNodes().substring(2));
                 if (response.getNumberOfNodes() >= expected) {

@@ -65,7 +65,7 @@ class ProblemTracker {
      */
     private void reportProblem(String template, String problemMessage) {
         hasProblems = true;
-        if (!Objects.equals(previousProblem, problemMessage)) {
+        if (Objects.equals(previousProblem, problemMessage) == false) {
             previousProblem = problemMessage;
             auditor.error(jobId, Messages.getMessage(template, problemMessage));
         }
@@ -97,7 +97,7 @@ class ProblemTracker {
      * Issues a recovery message if appropriate and prepares for next report
      */
     public void finishReport() {
-        if (!hasProblems && hadProblems) {
+        if (hasProblems == false && hadProblems) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_RECOVERED));
         }
 

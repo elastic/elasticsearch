@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -377,10 +378,15 @@ public class IndicesOptions implements ToXContentFragment {
     private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
 
     public static IndicesOptions fromXContent(XContentParser parser) throws IOException {
-        EnumSet<WildcardStates> wildcardStates = null;
-        Boolean allowNoIndices = null;
-        Boolean ignoreUnavailable = null;
-        boolean ignoreThrottled = false;
+        return fromXContent(parser, null);
+    }
+
+    public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
+        boolean parsedWildcardStates = false;
+        EnumSet<WildcardStates> wildcardStates = defaults == null ? null : defaults.getExpandWildcards();
+        Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
+        Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
+        boolean ignoreThrottled = defaults == null ? false : defaults.ignoreThrottled();
         Token token = parser.currentToken() == Token.START_OBJECT ? parser.currentToken() : parser.nextToken();
         String currentFieldName = null;
         if (token != Token.START_OBJECT) {
@@ -391,7 +397,8 @@ public class IndicesOptions implements ToXContentFragment {
                 currentFieldName = parser.currentName();
             } else if (token == Token.START_ARRAY) {
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (wildcardStates == null) {
+                    if (parsedWildcardStates == false) {
+                        parsedWildcardStates = true;
                         wildcardStates = EnumSet.noneOf(WildcardStates.class);
                         while ((token = parser.nextToken()) != Token.END_ARRAY) {
                             if (token.isValue()) {
@@ -410,7 +417,8 @@ public class IndicesOptions implements ToXContentFragment {
                 }
             } else if (token.isValue()) {
                 if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (wildcardStates == null) {
+                    if (parsedWildcardStates == false) {
+                        parsedWildcardStates = true;
                         wildcardStates = EnumSet.noneOf(WildcardStates.class);
                         WildcardStates.updateSetForValue(wildcardStates, parser.text());
                     } else {

@@ -58,7 +58,7 @@ public class GND extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof GND)) {
+        if ((other instanceof GND) == false) {
             return false;
         }
         return super.equals(other);

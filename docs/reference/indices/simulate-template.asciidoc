@@ -62,6 +62,12 @@ POST /_index_template/_simulate/template_1
 
 `POST /_index_template/_simulate/<index-template>`
 
+[[simulate-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[simulate-template-api-path-params]]
 ==== {api-path-parms-title}

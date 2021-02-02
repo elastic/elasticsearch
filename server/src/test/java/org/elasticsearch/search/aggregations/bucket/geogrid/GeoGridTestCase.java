@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
@@ -119,7 +118,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedGeoGrid> implementationClass() {
         return ParsedGeoGrid.class;
     }
 

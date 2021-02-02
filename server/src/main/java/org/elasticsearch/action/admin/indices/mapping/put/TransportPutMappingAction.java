@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -92,7 +93,6 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
-            final String mappingSource = request.source();
 
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
@@ -100,14 +100,10 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
 
-            final List<String> violations = checkForSystemIndexViolations(concreteIndices, mappingSource);
-            if (violations.isEmpty() == false) {
-                final String message = "Cannot update mappings in "
-                    + violations
-                    + ": system indices can only use mappings from their descriptors, "
-                    + "but the mappings in the request did not match those in the descriptors(s)";
+            final String message = checkForSystemIndexViolations(systemIndices, concreteIndices, request);
+            if (message != null) {
                 logger.warn(message);
-                listener.onFailure(new IllegalArgumentException(message));
+                listener.onFailure(new IllegalStateException(message));
                 return;
             }
 
@@ -160,14 +156,21 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         });
     }
 
-    private List<String> checkForSystemIndexViolations(Index[] concreteIndices, String requestMappings) {
+    static String checkForSystemIndexViolations(SystemIndices systemIndices, Index[] concreteIndices, PutMappingRequest request) {
+        // Requests that a cluster generates itself are permitted to have a difference in mappings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (Strings.isNullOrEmpty(request.origin()) == false) {
+            return null;
+        }
+
         List<String> violations = new ArrayList<>();
+
+        final String requestMappings = request.source();
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
             if (descriptor != null && descriptor.isAutomaticallyManaged()) {
                 final String descriptorMappings = descriptor.getMappings();
-
                 // Technically we could trip over a difference in whitespace here, but then again nobody should be trying to manually
                 // update a descriptor's mappings.
                 if (descriptorMappings.equals(requestMappings) == false) {
@@ -175,6 +178,14 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 }
             }
         }
-        return violations;
+
+        if (violations.isEmpty() == false) {
+            return "Cannot update mappings in "
+                + violations
+                + ": system indices can only use mappings from their descriptors, "
+                + "but the mappings in the request did not match those in the descriptors(s)";
+        }
+
+        return null;
     }
 }

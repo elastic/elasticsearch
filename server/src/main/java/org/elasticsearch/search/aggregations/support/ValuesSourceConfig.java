@@ -228,7 +228,7 @@ public class ValuesSourceConfig {
      */
     public static ValuesSourceConfig resolveFieldOnly(MappedFieldType fieldType, AggregationContext context) {
         FieldContext fieldContext = context.buildFieldContext(fieldType);
-        ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType(); 
+        ValuesSourceType vstype = fieldContext.indexFieldData().getValuesSourceType();
         return new ValuesSourceConfig(vstype, fieldContext, false, null, null, null, null, null, context);
     }
 
@@ -276,7 +276,7 @@ public class ValuesSourceConfig {
         this.timeZone = timeZone;
         this.format = format == null ? DocValueFormat.RAW : format;
 
-        if (!valid()) {
+        if (valid() == false) {
             // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
                 "value source config is invalid; must have either a field context or a script or marked as unwrapped");

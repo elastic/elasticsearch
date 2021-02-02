@@ -115,7 +115,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
     @Override
     public String toString(String field) {
         StringBuilder buffer = new StringBuilder();
-        if (!getField().equals(field)) {
+        if (getField().equals(field) == false) {
             buffer.append(getField());
             buffer.append(":");
         }

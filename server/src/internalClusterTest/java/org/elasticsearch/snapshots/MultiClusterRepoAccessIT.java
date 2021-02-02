@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,7 +105,10 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
         assertThat(cause.getMessage(), containsString("[" + repoNameOnFirstCluster +
-                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository"));
+                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository."
+                + " The last cluster to write to this repository was ["
+                + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
+                + "] at generation [4]."));
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");
@@ -125,7 +129,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         secondCluster.startDataOnlyNode();
         assertAcked(secondCluster.client().admin().cluster().preparePutRepository(repoName)
                 .setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath).put("readonly", true)));
+                .setSettings(Settings.builder().put("location", repoPath).put(READONLY_SETTING_KEY, true)));
         assertThat(secondCluster.client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
                 .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid(), equalTo(repoUuid));
 

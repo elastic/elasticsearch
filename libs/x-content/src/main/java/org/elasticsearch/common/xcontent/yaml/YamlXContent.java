@@ -101,4 +101,11 @@ public class YamlXContent implements XContent {
             DeprecationHandler deprecationHandler, Reader reader) throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(reader));
     }
+
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
+                                                       DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is), true);
+    }
+
 }

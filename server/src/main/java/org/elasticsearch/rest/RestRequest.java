@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
@@ -71,6 +73,7 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
+    private final Version compatibleVersion;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -108,6 +111,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
+        this.compatibleVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
     }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
@@ -445,7 +449,12 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return xContentType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
+        XContent xContent = xContentType.get().xContent();
+        if (compatibleVersion == Version.CURRENT.minimumRestCompatibilityVersion()) {
+            return xContent.createParserForCompatibility(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
+        } else {
+            return xContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
+        }
     }
 
     /**
@@ -551,6 +560,10 @@ public class RestRequest implements ToXContent.Params {
             }
         }
         throw new IllegalArgumentException("empty Content-Type header");
+    }
+
+    public Version getCompatibleVersion() {
+        return compatibleVersion;
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

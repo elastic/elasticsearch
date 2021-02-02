@@ -205,7 +205,7 @@ public class SqlParser {
         @Override
         public void exitNonReserved(SqlBaseParser.NonReservedContext context) {
             // tree cannot be modified during rule enter/exit _unless_ it's a terminal node
-            if (!(context.getChild(0) instanceof TerminalNode)) {
+            if ((context.getChild(0) instanceof TerminalNode) == false) {
                 int rule = ((ParserRuleContext) context.getChild(0)).getRuleIndex();
                 throw new ParsingException("nonReserved can only contain tokens. Found nested rule: " + ruleNames.get(rule));
             }

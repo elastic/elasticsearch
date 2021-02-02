@@ -227,3 +227,35 @@ setup:
   - match: {hits.hits.4._source.location.0: "POINT(46.5 33.45)" }
   - match: {hits.hits.4._source.location.1: "POINT(45.4 32.75)" }
 
+---
+"distance_feature query":
+  - do:
+      search:
+        index: locations
+        body:
+          runtime_mappings:
+            location:
+              type: geo_point
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: "location"
+                  pivot: "1000km"
+                  origin: [0.0, 0.0]
+  - match: {hits.total.value: 10}
+  - match: {hits.hits.0._source.location.lat: 0.0 }
+  - match: {hits.hits.0._source.location.lon: 0.0 }
+  - match: {hits.hits.1._source.location.0.0: -174.45 }
+  - match: {hits.hits.1._source.location.0.1: 46.78 }
+  - match: {hits.hits.1._source.location.1.0: 0.0 }
+  - match: {hits.hits.1._source.location.1.1: 1.0 }
+  - match: {hits.hits.2._source.location.0.lat: 13.0 }
+  - match: {hits.hits.2._source.location.0.lon: 34.0 }
+  - match: {hits.hits.2._source.location.1.lat: 14.0 }
+  - match: {hits.hits.2._source.location.1.lon: 35.0 }
+  - match: {hits.hits.3._source.location.lat: 13.5 }
+  - match: {hits.hits.3._source.location.lon: 34.89 }
+  - match: {hits.hits.4._source.location.0: "POINT(46.5 33.45)" }
+  - match: {hits.hits.4._source.location.1: "POINT(45.4 32.75)" }
+

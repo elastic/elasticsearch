@@ -1587,7 +1587,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new SystemIndices(Map.of())));
                 actions.put(AutoPutMappingAction.INSTANCE,
                     new TransportAutoPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
-                        actionFilters, indexNameExpressionResolver));
+                        actionFilters, indexNameExpressionResolver, systemIndices));
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
                 final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));

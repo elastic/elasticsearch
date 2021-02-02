@@ -192,7 +192,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 .execute().actionGet();
         assertHitCount(searchResponse, 1);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waited too long for email to be received");
         }
     }

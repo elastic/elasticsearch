@@ -105,7 +105,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         logger.info("THREAD NAME: {}" + Thread.currentThread().getName());
 
         // Ensure positive result
-        if (!clusterUpdateSettingsResponse.isAcknowledged()) {
+        if (clusterUpdateSettingsResponse.isAcknowledged() == false) {
             listener.onFailure(new ElasticsearchException("Failed to update monitoring migration settings"));
         }
 

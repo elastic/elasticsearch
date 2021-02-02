@@ -48,6 +48,16 @@ public final class MultiValuesSourceParseHelper {
         }
     }
 
+    /**
+     * Declares a field that contains information about a values source
+     *
+     * @param scriptable - allows specifying script in addition to a field as a values source
+     * @param timezoneAware - allows specifying timezone
+     * @param filterable - allows specifying filters on the values
+     * @param heterogeneous - allows specifying value-source specific format and user value type hint
+     * @param <VS> - values source type
+     * @param <T> - parser context
+     */
     public static <VS extends ValuesSource, T> void declareField(
         String fieldName,
         AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,

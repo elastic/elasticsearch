@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics.multiterms;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.aggsUsedForSorting;
 import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.descendsFromNestedAggregator;
 import static org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder.REGISTRY_KEY;
 
@@ -63,7 +64,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     protected final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     protected final BucketOrder order;
     protected final Comparator<InternalMultiTerms.Bucket> partiallyBuiltBucketComparator;
-    protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
+    protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
     private final List<TermValuesSource> values;
     private final boolean showTermDocCountError;
@@ -102,18 +103,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         } else {
             this.collectMode = collectMode;
         }
-        // TODO: Make a function
-        // Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof InternalOrder.Aggregation) {
-            aggsUsedForSorting.add(((InternalOrder.Aggregation) order).path().resolveTopmostAggregator(this));
-        } else if (order instanceof InternalOrder.CompoundOrder) {
-            InternalOrder.CompoundOrder compoundOrder = (InternalOrder.CompoundOrder) order;
-            for (BucketOrder orderElement : compoundOrder.orderElements()) {
-                if (orderElement instanceof InternalOrder.Aggregation) {
-                    aggsUsedForSorting.add(((InternalOrder.Aggregation) orderElement).path().resolveTopmostAggregator(this));
-                }
-            }
-        }
+        aggsUsedForSorting = aggsUsedForSorting(this, order);
         this.needsScore = configs.stream().anyMatch(c -> c.getValuesSource().needsScores());
         values = configs.stream()
             .map(c -> context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c))

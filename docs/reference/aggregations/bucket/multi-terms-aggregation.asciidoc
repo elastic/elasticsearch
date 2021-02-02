@@ -236,7 +236,7 @@ Response:
 
 The `missing` parameter defines how documents that are missing a value should be treated.
 By default if any of the key components are missing the entire document will be ignored
-but it is also possible to treat them as if they had a value.
+but it is also possible to treat them as if they had a value by using the `missing` parameter.
 
 [source,console,id=multi-terms-aggregation-missing-example]
 --------------------------------------------------

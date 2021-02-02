@@ -28,12 +28,13 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 
+import static org.elasticsearch.test.VersionUtils.randomIndexCompatibleVersion;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MetadataIndexUpgradeServiceTests extends ESTestCase {
+public class IndexMetadataVerifierTests extends ESTestCase {
 
     public void testArchiveBrokenIndexSettings() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
         IndexMetadata indexMetadata = service.archiveBrokenIndexSettings(src);
         assertSame(indexMetadata, src);
@@ -58,78 +59,38 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         assertSame(indexMetadata, src);
     }
 
-    public void testAlreadyUpgradedIndexArchivesBrokenIndexSettings() {
-        final MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        final IndexMetadata initial = newIndexMeta(
-            "foo",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).put("index.refresh_interval", "-200").build());
-        assertTrue(service.isUpgraded(initial));
-        final IndexMetadata after = service.upgradeIndexMetadata(initial, Version.CURRENT.minimumIndexCompatibilityVersion());
-        // the index does not need to be upgraded, but checking that it does should archive any broken settings
-        assertThat(after.getSettings().get("archived.index.refresh_interval"), equalTo("-200"));
-        assertNull(after.getSettings().get("index.refresh_interval"));
-    }
-
-    public void testUpgrade() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        IndexMetadata src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
-        assertFalse(service.isUpgraded(src));
-        src = service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
-        assertTrue(service.isUpgraded(src));
-        assertEquals("-200", src.getSettings().get("archived.index.refresh_interval"));
-        assertNull(src.getSettings().get("index.refresh_interval"));
-        assertSame(src, service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion())); // no double upgrade
-    }
-
-    public void testUpgradeCustomSimilarity() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
+    public void testCustomSimilarity() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo",
             Settings.builder()
                 .put("index.similarity.my_similarity.type", "DFR")
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build());
-        assertFalse(service.isUpgraded(src));
-        src = service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
-        assertTrue(service.isUpgraded(src));
+        service.verifyIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
-    public void testIsUpgraded() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        IndexMetadata src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
-        assertFalse(service.isUpgraded(src));
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion());
-        src = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, version).build());
-        assertFalse(service.isUpgraded(src));
-        src = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).build());
-        assertTrue(service.isUpgraded(src));
-    }
-
-    public void testFailUpgrade() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
+    public void testIncompatibleVersion() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
-        Version indexUpgraded = VersionUtils.randomVersionBetween(random(), minCompat, VersionUtils.getPreviousVersion(Version.CURRENT));
         Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetadata metadata = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
             .build());
-        String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetadata(metadata,
+        String message = expectThrows(IllegalStateException.class, () -> service.verifyIndexMetadata(metadata,
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
         assertEquals(message, "The index [[foo/BOOM]] was created with version [" + indexCreated + "] " +
              "but the minimum compatible version is [" + minCompat + "]." +
             " It should be re-indexed in Elasticsearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + ".");
 
         indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
-        indexUpgraded = VersionUtils.randomVersionBetween(random(), indexCreated, Version.CURRENT);
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
             .build());
-        service.upgradeIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
-    private MetadataIndexUpgradeService getMetadataIndexUpgradeService() {
-        return new MetadataIndexUpgradeService(
+    private IndexMetadataVerifier getIndexMetadataVerifier() {
+        return new IndexMetadataVerifier(
             Settings.EMPTY,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), null,
@@ -145,10 +106,8 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_CREATION_DATE, 1)
             .put(IndexMetadata.SETTING_INDEX_UUID, "BOOM")
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.V_6_0_0_alpha1)
             .put(indexSettings)
             .build();
         return IndexMetadata.builder(name).settings(build).build();
     }
-
 }

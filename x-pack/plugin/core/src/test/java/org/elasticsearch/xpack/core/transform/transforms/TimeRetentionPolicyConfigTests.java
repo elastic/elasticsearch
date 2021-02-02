@@ -16,7 +16,7 @@ import java.io.IOException;
 public class TimeRetentionPolicyConfigTests extends AbstractSerializingTestCase<TimeRetentionPolicyConfig> {
 
     public static TimeRetentionPolicyConfig randomTimeRetentionPolicyConfig() {
-        return new TimeRetentionPolicyConfig(randomAlphaOfLengthBetween(1, 10), new TimeValue(randomNonNegativeLong()));
+        return new TimeRetentionPolicyConfig(randomAlphaOfLengthBetween(1, 10), new TimeValue(randomLongBetween(60000, Long.MAX_VALUE)));
     }
 
     @Override

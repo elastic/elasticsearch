@@ -23,11 +23,20 @@
       "description": {
         "type": "keyword"
       },
+      "filter_id": {
+        "type": "keyword"
+      },
+      "items": {
+        "type": "keyword"
+      },
       "start_time": {
         "type": "date"
       },
       "end_time": {
         "type": "date"
+      },
+      "type": {
+        "type": "keyword"
       }
     }
   }

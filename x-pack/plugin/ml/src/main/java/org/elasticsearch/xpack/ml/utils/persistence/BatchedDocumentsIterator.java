@@ -73,7 +73,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
      */
     @Override
     public Deque<T> next() {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -121,7 +121,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
         }
         count += hits.length;
 
-        if (!hasNext() && scrollId != null) {
+        if (hasNext() == false && scrollId != null) {
             client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();
         }
         return results;

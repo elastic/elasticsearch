@@ -26,7 +26,7 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 

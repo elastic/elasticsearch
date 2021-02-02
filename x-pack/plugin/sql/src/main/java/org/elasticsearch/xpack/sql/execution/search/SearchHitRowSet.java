@@ -62,7 +62,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         int sz = hits.length;
 
         int maxDepth = 0;
-        if (!innerHits.isEmpty()) {
+        if (innerHits.isEmpty() == false) {
             if (innerHits.size() > 1) {
                 throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
             }
@@ -85,14 +85,14 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         this.innerHit = innerHit;
 
         String scrollId = response.getScrollId();
-        
+
         if (scrollId == null) {
             /* SearchResponse can contain a null scroll when you start a
              * scroll but all results fit in the first page. */
             nextScrollData = null;
         } else {
             TotalHits totalHits = response.getHits().getTotalHits();
-            
+
             // compute remaining limit (only if the limit is specified - that is, positive).
             int remainingLimit = limit < 0 ? limit : limit - size;
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
@@ -105,7 +105,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
             }
         }
     }
-    
+
     protected boolean isLimitReached() {
         return nextScrollData == null;
     }
@@ -132,7 +132,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
         if (hit == null) {
             return null;
         }
-        
+
         // multiple inner_hits results sections can match the same nested documents, thus we eliminate the duplicates by
         // using the offset as the "deduplicator" in a HashMap
         HashMap<Integer, SearchHit> lhm = new HashMap<>();
@@ -153,7 +153,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
         return sortedList.toArray(SearchHit[]::new);
     }
-    
+
     private class NestedHitOffsetComparator implements Comparator<SearchHit> {
     @Override
         public int compare(SearchHit sh1, SearchHit sh2) {

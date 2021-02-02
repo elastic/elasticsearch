@@ -64,7 +64,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             payloadMap.put("_headers", headers);
         }
 
-        if (!response.hasContent()) {
+        if (response.hasContent() == false) {
             return new HttpInput.Result(request, response.status(), new Payload.Simple(payloadMap));
         }
 

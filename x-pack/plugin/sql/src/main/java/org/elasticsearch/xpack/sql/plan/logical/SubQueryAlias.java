@@ -46,7 +46,7 @@ public class SubQueryAlias extends UnaryPlan {
             output = alias == null ? child().output() :
                 child().output().stream()
                 .map(e -> e.withQualifier(alias))
-                .collect(toList()); 
+                .collect(toList());
         }
         return output;
     }
@@ -63,7 +63,7 @@ public class SubQueryAlias extends UnaryPlan {
 
     @Override
     public boolean equals(Object obj) {
-        if (!super.equals(obj)) {
+        if (super.equals(obj) == false) {
             return false;
         }
 

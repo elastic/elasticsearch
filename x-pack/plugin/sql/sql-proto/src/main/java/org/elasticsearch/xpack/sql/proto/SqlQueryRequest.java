@@ -134,7 +134,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public ToXContent filter() {
         return filter;
     }
-    
+
     /**
      * Optional setting for returning the result values in a columnar fashion (as opposed to rows of values).
      * Each column will have all its values in a list. Defaults to false.
@@ -146,15 +146,15 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public boolean fieldMultiValueLeniency() {
         return fieldMultiValueLeniency;
     }
-    
+
     public boolean indexIncludeFrozen() {
         return indexIncludeFrozen;
     }
-    
+
     public Boolean binaryCommunication() {
         return binaryCommunication;
     }
-    
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -163,7 +163,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         SqlQueryRequest that = (SqlQueryRequest) o;

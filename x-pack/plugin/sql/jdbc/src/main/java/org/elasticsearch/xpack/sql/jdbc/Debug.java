@@ -183,7 +183,7 @@ final class Debug {
     }
 
     static void release(JdbcConfiguration info) {
-        if (!info.debug()) {
+        if (info.debug() == false) {
             return;
         }
 

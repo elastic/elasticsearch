@@ -159,7 +159,7 @@ public class Email implements ToXContentObject {
 
         Email email = (Email) o;
 
-        if (!id.equals(email.id)) return false;
+        if (id.equals(email.id) == false) return false;
 
         return true;
     }
@@ -580,7 +580,7 @@ public class Email implements ToXContentObject {
 
             AddressList addresses1 = (AddressList) o;
 
-            if (!addresses.equals(addresses1.addresses)) return false;
+            if (addresses.equals(addresses1.addresses) == false) return false;
 
             return true;
         }

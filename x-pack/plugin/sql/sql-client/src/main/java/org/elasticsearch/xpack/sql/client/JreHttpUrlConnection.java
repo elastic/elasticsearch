@@ -189,7 +189,7 @@ public class JreHttpUrlConnection implements Closeable {
         SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
         if (type == null) {
             // check if x-pack or sql are not available (x-pack not installed or sql not enabled)
-            // by checking the error message the server is sending back 
+            // by checking the error message the server is sending back
             if (con.getResponseCode() >= HttpURLConnection.HTTP_BAD_REQUEST && failure.reason().contains(SQL_NOT_AVAILABLE_ERROR_MESSAGE)) {
                 return new ResponseOrException<>(new SQLException("X-Pack/SQL does not seem to be available"
                         + " on the Elasticsearch node using the access path '"
@@ -250,7 +250,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     @Override
     public void close() {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
 
             // consume streams

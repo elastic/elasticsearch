@@ -124,7 +124,7 @@ public class Calendar implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(obj instanceof Calendar)) {
+        if ((obj instanceof Calendar) == false) {
             return false;
         }
 

@@ -53,7 +53,7 @@ class ProxyConfig {
 
     // returns hostname (string), port (int)
     private static Object[] host(String address, int defaultPort) {
-        if (!StringUtils.hasText(address)) {
+        if (StringUtils.hasText(address) == false) {
             return null;
         }
         try {

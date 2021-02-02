@@ -119,7 +119,7 @@ public class MlFilter implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(obj instanceof MlFilter)) {
+        if ((obj instanceof MlFilter) == false) {
             return false;
         }
 
@@ -185,7 +185,7 @@ public class MlFilter implements ToXContentObject, Writeable {
         public MlFilter build() {
             ExceptionsHelper.requireNonNull(id, MlFilter.ID.getPreferredName());
             ExceptionsHelper.requireNonNull(items, MlFilter.ITEMS.getPreferredName());
-            if (!MlStrings.isValidId(id)) {
+            if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
             if (items.size() > MAX_ITEMS) {

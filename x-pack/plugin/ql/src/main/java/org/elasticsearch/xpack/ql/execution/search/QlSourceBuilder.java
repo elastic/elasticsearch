@@ -65,7 +65,7 @@ public class QlSourceBuilder {
      */
     public void build(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores(this.trackScores);
-        if (!sourceFields.isEmpty()) {
+        if (sourceFields.isEmpty() == false) {
             sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
         }
         docFields.forEach(field -> sourceBuilder.docValueField(field.field, field.format));

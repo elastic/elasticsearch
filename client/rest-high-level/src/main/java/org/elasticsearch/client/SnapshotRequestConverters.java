@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import java.io.IOException;
-
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -38,6 +36,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesRequest;
 import org.elasticsearch.common.Strings;
+
+import java.io.IOException;
 
 final class SnapshotRequestConverters {
 

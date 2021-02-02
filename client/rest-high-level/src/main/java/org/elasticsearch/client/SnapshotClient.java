@@ -19,10 +19,6 @@
 
 package org.elasticsearch.client;
 
-import static java.util.Collections.emptySet;
-
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
@@ -45,6 +41,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesRequest;
 import org.elasticsearch.client.snapshots.GetSnapshottableFeaturesResponse;
+
+import java.io.IOException;
+
+import static java.util.Collections.emptySet;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Snapshot API.

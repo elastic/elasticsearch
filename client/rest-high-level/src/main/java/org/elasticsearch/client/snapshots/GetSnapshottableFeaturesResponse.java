@@ -19,13 +19,13 @@
 
 package org.elasticsearch.client.snapshots;
 
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.util.List;
+import java.util.Objects;
 
 public class GetSnapshottableFeaturesResponse {
 

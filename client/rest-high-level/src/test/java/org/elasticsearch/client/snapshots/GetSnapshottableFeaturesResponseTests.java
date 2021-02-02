@@ -19,18 +19,18 @@
 
 package org.elasticsearch.client.snapshots;
 
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.is;
+import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 
 public class GetSnapshottableFeaturesResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse,

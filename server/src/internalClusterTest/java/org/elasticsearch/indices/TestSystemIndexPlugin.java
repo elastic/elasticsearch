@@ -19,12 +19,12 @@
 
 package org.elasticsearch.indices;
 
-import java.util.Collection;
-import java.util.List;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Just a test plugin to allow the test descriptor to be installed in the cluster.

@@ -19,9 +19,15 @@
 
 package org.elasticsearch.indices;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -32,15 +38,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
-import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.snapshots.SnapshotsService;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
+import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the

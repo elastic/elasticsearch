@@ -1667,7 +1667,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         String query = "\"query with spaces\"";
         QueryStringQueryBuilder b = new QueryStringQueryBuilder(query);
         b.field("ww_keyword");
-        Query q = b.doToQuery(createSearchExecutionContext());
+        Query q = b.doToQuery(createShardContext());
         assertEquals(new TermQuery(new Term("ww_keyword", "query with spaces")), q);
     }
 }

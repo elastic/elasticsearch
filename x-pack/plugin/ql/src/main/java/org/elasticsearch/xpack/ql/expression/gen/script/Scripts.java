@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.expression.gen.script;
@@ -45,7 +46,7 @@ public final class Scripts {
 
     /**
      * Expands common tokens inside the script:
-     * 
+     *
      * <pre>
      * {sql} -&gt; InternalSqlScriptUtils
      * doc[{}].value -&gt; InternalSqlScriptUtils.docValue(doc, {})
@@ -81,7 +82,7 @@ public final class Scripts {
     public static ScriptTemplate or(ScriptTemplate left, ScriptTemplate right) {
         return binaryMethod("{ql}", "or", left, right, DataTypes.BOOLEAN);
     }
-    
+
     public static ScriptTemplate binaryMethod(String prefix, String methodName, ScriptTemplate leftScript, ScriptTemplate rightScript,
             DataType dataType) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("%s.%s(%s,%s)"),

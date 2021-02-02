@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.expression.function.scalar.string;
@@ -61,7 +62,7 @@ public class StartsWithProcessorTests extends ESTestCase {
         assertEquals(null, startsWithInstantiator(EMPTY, l("foo"), l(null)).get().makePipe().asProcessor().process(null));
         assertEquals(null, startsWithInstantiator(EMPTY, l(null), l(null)).get().makePipe().asProcessor().process(null));
     }
-    
+
     public void testStartsWithFunctionInputsValidation() {
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
                 () -> startsWithInstantiator(EMPTY, l(5), l("foo")).get().makePipe().asProcessor().process(null));

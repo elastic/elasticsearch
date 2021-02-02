@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.index.query;
 
@@ -27,7 +28,7 @@ import java.util.Objects;
 public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder> {
     public static final String NAME = "pinned";
     protected final QueryBuilder organicQuery;
-    protected final List<String> ids;    
+    protected final List<String> ids;
     protected static final ParseField IDS_FIELD = new ParseField("ids");
     protected static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
@@ -49,7 +50,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
       }
       this.ids = new ArrayList<>();
       Collections.addAll(this.ids, ids);
-      
+
     }
 
 
@@ -72,7 +73,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public List<String> ids() {
         return Collections.unmodifiableList(this.ids);
     }
-    
+
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {

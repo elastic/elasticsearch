@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -56,7 +57,7 @@ public class SubstringFunctionPipeTests extends AbstractNodeTestCase<SubstringFu
             b1.end());
 
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         SubstringFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new SubstringFunctionPipe(
@@ -75,10 +76,10 @@ public class SubstringFunctionPipeTests extends AbstractNodeTestCase<SubstringFu
         Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
         Pipe newStart = randomValueOtherThan(b.start(), () -> pipe(randomIntLiteral()));
         Pipe newEnd = b.end() == null ? null : randomValueOtherThan(b.end(), () -> pipe(randomIntLiteral()));
-        
+
         SubstringFunctionPipe newB = new SubstringFunctionPipe(b.source(), b.expression(), b.input(), b.start(), b.end());
         SubstringFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
@@ -87,7 +88,7 @@ public class SubstringFunctionPipeTests extends AbstractNodeTestCase<SubstringFu
                         comb.get(0) ? newInput : b.input(),
                         comb.get(1) ? newStart : b.start(),
                         tempNewEnd);
-                
+
                 assertEquals(transformed.input(), comb.get(0) ? newInput : b.input());
                 assertEquals(transformed.start(), comb.get(1) ? newStart : b.start());
                 assertEquals(transformed.end(), tempNewEnd);
@@ -121,7 +122,7 @@ public class SubstringFunctionPipeTests extends AbstractNodeTestCase<SubstringFu
                 }
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

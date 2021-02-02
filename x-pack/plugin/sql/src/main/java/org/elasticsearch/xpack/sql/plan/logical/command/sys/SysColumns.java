@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -71,7 +72,7 @@ public class SysColumns extends Command {
     public List<Attribute> output() {
         return output(false);
     }
-    
+
     private List<Attribute> output(boolean odbcCompatible) {
         // https://github.com/elastic/elasticsearch/issues/35376
         // ODBC expects some fields as SHORT while JDBC as Integer
@@ -167,7 +168,7 @@ public class SysColumns extends Command {
             name = prefix != null ? prefix + "." + name : name;
             EsField field = entry.getValue();
             DataType type = field.getDataType();
-            
+
             // skip the nested, object and unsupported types
             if (isPrimitive(type)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
@@ -214,7 +215,7 @@ public class SysColumns extends Command {
             }
         }
     }
-    
+
     private static Object odbcCompatible(Integer value, boolean isOdbcClient) {
         if (isOdbcClient && value != null) {
             return Short.valueOf(value.shortValue());

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -27,11 +28,11 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
     protected EndsWithFunctionPipe randomInstance() {
         return randomEndsWithFunctionPipe();
     }
-    
+
     private Expression randomEndsWithFunctionExpression() {
         return randomEndsWithFunctionPipe().expression();
     }
-    
+
     public static EndsWithFunctionPipe randomEndsWithFunctionPipe() {
         return (EndsWithFunctionPipe) (new EndsWith(randomSource(),
                 randomStringLiteral(),
@@ -53,7 +54,7 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
                 b1.pattern(),
                 b1.isCaseSensitive());
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         EndsWithFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new EndsWithFunctionPipe(
@@ -74,19 +75,19 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
         boolean newCaseSensitive = randomValueOtherThan(b.isCaseSensitive(), () -> randomBoolean());
         EndsWithFunctionPipe newB =
                 new EndsWithFunctionPipe(b.source(), b.expression(), b.input(), b.pattern(), newCaseSensitive);
-        
+
         EndsWithFunctionPipe transformed = newB.replaceChildren(newInput, b.pattern());
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.pattern(), b.pattern());
-        
+
         transformed = newB.replaceChildren(b.input(), newPattern);
         assertEquals(transformed.input(), b.input());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.pattern(), newPattern);
-        
+
         transformed = newB.replaceChildren(newInput, newPattern);
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
@@ -112,7 +113,7 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
                 pipe(((Expression) randomValueOtherThan(f.input(), () -> randomStringLiteral()))),
                 pipe(((Expression) randomValueOtherThan(f.pattern(), () -> randomStringLiteral()))),
                 randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

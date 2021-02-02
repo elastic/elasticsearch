@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -66,7 +67,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rowCount = columnCount;
                 columnCount = temp;
             }
-            
+
             rows = new ArrayList<>(rowCount);
             for (int r = 0; r < rowCount; r++) {
                 List<Object> row = new ArrayList<>(rowCount);

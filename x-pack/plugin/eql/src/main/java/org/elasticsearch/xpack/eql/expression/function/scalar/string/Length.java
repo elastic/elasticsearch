@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 public class Length extends ScalarFunction {
 
     private final Expression input;
-    
+
     public Length(Source source, Expression input) {
         super(source, Arrays.asList(input));
         this.input = input;
@@ -46,7 +47,7 @@ public class Length extends ScalarFunction {
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-        
+
         return isStringAndExact(input, sourceText(), ParamOrdinal.DEFAULT);
     }
 

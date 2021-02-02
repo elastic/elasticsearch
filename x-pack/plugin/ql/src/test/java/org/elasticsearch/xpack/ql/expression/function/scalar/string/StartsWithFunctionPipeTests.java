@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.expression.function.scalar.string;
@@ -29,11 +30,11 @@ public class StartsWithFunctionPipeTests extends AbstractNodeTestCase<StartsWith
     protected StartsWithFunctionPipe randomInstance() {
         return randomStartsWithFunctionPipe();
     }
-    
+
     private Expression randomStartsWithFunctionExpression() {
         return randomStartsWithFunctionPipe().expression();
     }
-    
+
     public static StartsWithFunctionPipe randomStartsWithFunctionPipe() {
         return (StartsWithFunctionPipe) (new StartsWith(randomSource(),
                             randomStringLiteral(),
@@ -56,7 +57,7 @@ public class StartsWithFunctionPipeTests extends AbstractNodeTestCase<StartsWith
                 b1.isCaseSensitive());
 
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         StartsWithFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new StartsWithFunctionPipe(
@@ -75,20 +76,20 @@ public class StartsWithFunctionPipeTests extends AbstractNodeTestCase<StartsWith
         StartsWithFunctionPipe b = randomInstance();
         Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
         Pipe newPattern = randomValueOtherThan(b.pattern(), () -> pipe(randomStringLiteral()));
-        
+
         StartsWithFunctionPipe newB = new StartsWithFunctionPipe(b.source(), b.expression(), b.input(), b.pattern(), b.isCaseSensitive());
         StartsWithFunctionPipe transformed = (StartsWithFunctionPipe) newB.replaceChildren(newInput, b.pattern());
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.pattern(), b.pattern());
-        
+
         transformed = (StartsWithFunctionPipe) newB.replaceChildren(b.input(), newPattern);
         assertEquals(transformed.input(), b.input());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.pattern(), newPattern);
-        
+
         transformed = (StartsWithFunctionPipe) newB.replaceChildren(newInput, newPattern);
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
@@ -108,7 +109,7 @@ public class StartsWithFunctionPipeTests extends AbstractNodeTestCase<StartsWith
                         comb.get(2) ? randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean()) : f.isCaseSensitive()));
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -59,7 +60,7 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
             b1.isCaseSensitive());
 
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         IndexOfFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new IndexOfFunctionPipe(
@@ -80,11 +81,11 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
         Pipe newSubstring = randomValueOtherThan(b.substring(), () -> pipe(randomStringLiteral()));
         Pipe newStart = b.start() == null ? null : randomValueOtherThan(b.start(), () -> pipe(randomIntLiteral()));
         boolean newCaseSensitive = randomValueOtherThan(b.isCaseSensitive(), () -> randomBoolean());
-        
+
         IndexOfFunctionPipe newB = new IndexOfFunctionPipe(b.source(), b.expression(), b.input(), b.substring(), b.start(),
             newCaseSensitive);
         IndexOfFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 4; i++) {
             for(BitSet comb : new Combinations(3, i)) {
@@ -93,7 +94,7 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
                         comb.get(0) ? newInput : b.input(),
                         comb.get(1) ? newSubstring : b.substring(),
                         tempNewStart);
-                
+
                 assertEquals(transformed.input(), comb.get(0) ? newInput : b.input());
                 assertEquals(transformed.substring(), comb.get(1) ? newSubstring : b.substring());
                 assertEquals(transformed.start(), tempNewStart);
@@ -129,7 +130,7 @@ public class IndexOfFunctionPipeTests extends AbstractNodeTestCase<IndexOfFuncti
                 }
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

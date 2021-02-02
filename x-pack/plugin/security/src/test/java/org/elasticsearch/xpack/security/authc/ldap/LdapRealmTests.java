@@ -442,7 +442,6 @@ public class LdapRealmTests extends LdapTestCase {
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
         when(mockSecurityIndex.isAvailable()).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
-        when(mockSecurityIndex.isMappingUpToDate()).thenReturn(true);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);

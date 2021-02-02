@@ -53,8 +53,8 @@ public class LatestContinuousIT extends ContinuousTestCase {
     @Override
     public TransformConfig createConfig() {
         Map<String, Object> runtimeMappings =
-            new HashMap<>() {{
-                put("event-upper-at-search", new HashMap<>() {{
+            new HashMap<String, Object>() {{
+                put("event-upper-at-search", new HashMap<String, Object>() {{
                     put("type", "keyword");
                     put("script", singletonMap("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}"));
                 }});

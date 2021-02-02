@@ -480,7 +480,7 @@ public class TransformIndexerTests extends ESTestCase {
             new SourceConfig(
                 generateRandomStringArray(10, 10, false, false),
                 QueryConfigTests.randomQueryConfig(),
-                new HashMap<>() {{
+                new HashMap<String, Object>() {{
                     put("field-A", singletonMap("script", "some script"));
                     put("field-B", emptyMap());
                     put("field-C", singletonMap("script", "some script"));
@@ -510,7 +510,7 @@ public class TransformIndexerTests extends ESTestCase {
             new SourceConfig(
                 generateRandomStringArray(10, 10, false, false),
                 QueryConfigTests.randomQueryConfig(),
-                new HashMap<>() {{
+                new HashMap<String, Object>() {{
                     put("field-A", singletonMap("script", "some script"));
                     put("field-B", singletonMap("script", "some script"));
                     put("field-C", singletonMap("script", "some script"));

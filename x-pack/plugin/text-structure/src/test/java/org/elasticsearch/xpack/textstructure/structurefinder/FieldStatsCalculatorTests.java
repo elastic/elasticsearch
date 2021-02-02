@@ -16,9 +16,9 @@ import java.util.Map;
 
 public class FieldStatsCalculatorTests extends TextStructureTestCase {
 
-    private static final Map<String, String> LONG = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long");
-    private static final Map<String, String> DOUBLE = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "double");
-    private static final Map<String, String> KEYWORD = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+    private static final Map<String, String> LONG = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long");
+    private static final Map<String, String> DOUBLE = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "double");
+    private static final Map<String, String> KEYWORD = Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword");
 
     public void testMean() {
 
@@ -111,7 +111,7 @@ public class FieldStatsCalculatorTests extends TextStructureTestCase {
     public void testCalculateGivenEmpty() {
 
         FieldStatsCalculator calculator = new FieldStatsCalculator(
-            randomFrom(Arrays.asList(LONG, DOUBLE, KEYWORD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT))
+            randomFrom(Arrays.asList(LONG, DOUBLE, KEYWORD, TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT))
         );
 
         calculator.accept(Collections.emptyList());
@@ -216,7 +216,7 @@ public class FieldStatsCalculatorTests extends TextStructureTestCase {
 
     public void testGivenDateFieldWithoutFormat() {
 
-        FieldStatsCalculator calculator = new FieldStatsCalculator(FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
+        FieldStatsCalculator calculator = new FieldStatsCalculator(TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
 
         calculator.accept(
             Arrays.asList(
@@ -254,8 +254,8 @@ public class FieldStatsCalculatorTests extends TextStructureTestCase {
     public void testGivenDateFieldWithFormat() {
 
         Map<String, String> dateMapping = new HashMap<>();
-        dateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        dateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "M/dd/yyyy h:mma");
+        dateMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        dateMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "M/dd/yyyy h:mma");
         FieldStatsCalculator calculator = new FieldStatsCalculator(dateMapping);
 
         calculator.accept(

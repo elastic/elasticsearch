@@ -8,22 +8,15 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.List;
 import java.util.Map;
 
 public abstract class BooleanFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("boolean_script_field", Factory.class);
-
-    static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "boolean_whitelist.txt"));
-    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

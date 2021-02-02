@@ -128,13 +128,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (!Double.isInfinite(from)) {
+            if (Double.isInfinite(from) == false) {
                 builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
                 }
             }
-            if (!Double.isInfinite(to)) {
+            if (Double.isInfinite(to) == false) {
                 builder.field(CommonFields.TO.getPreferredName(), to);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));

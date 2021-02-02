@@ -140,9 +140,7 @@ public class IndexingPressureTests extends ESTestCase {
             assertEquals(1, indexingPressure.stats().getReplicaRejections());
             assertEquals(1024 * 14, indexingPressure.stats().getCurrentReplicaBytes());
             forced.close();
-
             replica2.close();
-            forced.close();
         }
 
         assertEquals(1024 * 14, indexingPressure.stats().getTotalReplicaBytes());

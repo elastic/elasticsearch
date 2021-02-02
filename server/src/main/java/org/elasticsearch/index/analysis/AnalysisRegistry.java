@@ -540,7 +540,7 @@ public final class AnalysisRegistry implements Closeable {
             analyzer.normalize("", ""); // check for deprecations
         }
 
-        if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
+        if (analyzers.containsKey(DEFAULT_ANALYZER_NAME) == false) {
             analyzers.put(DEFAULT_ANALYZER_NAME,
                     produceAnalyzer(DEFAULT_ANALYZER_NAME,
                             new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.Builder.EMPTY_SETTINGS),

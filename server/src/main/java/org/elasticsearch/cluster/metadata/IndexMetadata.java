@@ -646,22 +646,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return false;
         }
 
-        if (!aliases.equals(that.aliases)) {
+        if (aliases.equals(that.aliases) == false) {
             return false;
         }
-        if (!index.equals(that.index)) {
+        if (index.equals(that.index) == false) {
             return false;
         }
-        if (!mappings.equals(that.mappings)) {
+        if (mappings.equals(that.mappings) == false) {
             return false;
         }
-        if (!settings.equals(that.settings)) {
+        if (settings.equals(that.settings) == false) {
             return false;
         }
         if (state != that.state) {
             return false;
         }
-        if (!customData.equals(that.customData)) {
+        if (customData.equals(that.customData) == false) {
             return false;
         }
         if (routingNumShards != that.routingNumShards) {
@@ -673,7 +673,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (Arrays.equals(primaryTerms, that.primaryTerms) == false) {
             return false;
         }
-        if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) {
+        if (inSyncAllocationIds.equals(that.inSyncAllocationIds) == false) {
             return false;
         }
         if (rolloverInfos.equals(that.rolloverInfos) == false) {
@@ -840,7 +840,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.customMetadata.putAll(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
-            builder.system(part.isSystem);
+            builder.system(isSystem);
             builder.timestampRange(timestampRange);
             return builder.build();
         }

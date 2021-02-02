@@ -232,8 +232,8 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Key key = (Key) o;
-            if (!indexCache.equals(key.indexCache)) return false;
-            if (!readerKey.equals(key.readerKey)) return false;
+            if (indexCache.equals(key.indexCache) == false) return false;
+            if (readerKey.equals(key.readerKey) == false) return false;
             return true;
         }
 

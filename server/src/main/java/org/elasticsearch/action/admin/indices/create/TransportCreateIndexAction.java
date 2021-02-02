@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -45,6 +48,7 @@ import java.util.Set;
  * Create index action.
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);
 
     private final MetadataCreateIndexService createIndexService;
     private final SystemIndices systemIndices;
@@ -76,9 +80,25 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
 
         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-        final CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
-            ? buildSystemIndexUpdateRequest(request, cause, descriptor)
-            : buildUpdateRequest(request, cause, indexName);
+        final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
+
+        final CreateIndexClusterStateUpdateRequest updateRequest;
+
+        // Requests that a cluster generates itself are permitted to create a system index with
+        // different mappings, settings etc. This is so that rolling upgrade scenarios still work.
+        // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
+        // the index to the latest settings.
+        if (isSystemIndex && Strings.isNullOrEmpty(request.origin())) {
+            final String message = descriptor.checkMinimumNodeVersion("create index", state.nodes().getMinNodeVersion());
+            if (message != null) {
+                logger.warn(message);
+                listener.onFailure(new IllegalStateException(message));
+                return;
+            }
+            updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor);
+        } else {
+            updateRequest = buildUpdateRequest(request, cause, indexName);
+        }
 
         createIndexService.createIndex(updateRequest, listener.map(response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));

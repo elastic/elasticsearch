@@ -144,7 +144,7 @@ public class MockTransport extends StubbableTransport {
      * @param e         the failure
      */
     public void handleError(final long requestId, final TransportException e) {
-        final TransportResponseHandler transportResponseHandler = getResponseHandlers().onResponseReceived(requestId, listener);
+        final TransportResponseHandler<?> transportResponseHandler = getResponseHandlers().onResponseReceived(requestId, listener);
         if (transportResponseHandler != null) {
             transportResponseHandler.handleException(e);
         }

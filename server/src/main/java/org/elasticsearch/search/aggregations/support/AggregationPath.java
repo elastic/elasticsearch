@@ -133,7 +133,7 @@ public class AggregationPath {
             PathElement token = (PathElement) o;
 
             if (key != null ? !key.equals(token.key) : token.key != null) return false;
-            if (!name.equals(token.name)) return false;
+            if (name.equals(token.name) == false) return false;
 
             return true;
         }

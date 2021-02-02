@@ -264,6 +264,11 @@ public class DissectParserTests extends ESTestCase {
         assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
     }
 
+    public void testEmptyValueWithBrackets() {
+        assertMatch("(%{a}) [%{b}] -[%{c}]", "(foo) [] -[bar]", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "", "bar"));
+        assertMatch("[%{a}] [%{b}]", "[] []", Arrays.asList("a", "b"), Arrays.asList("", ""));
+    }
+
     /**
      * Runtime errors
      */
@@ -321,7 +326,7 @@ public class DissectParserTests extends ESTestCase {
         while (tests.hasNext()) {
             JsonNode test = tests.next();
             boolean skip = test.path("skip").asBoolean();
-            if (!skip) {
+            if (skip == false) {
                 String name = test.path("name").asText();
                 logger.debug("Running Json specification: " + name);
                 String pattern = test.path("tok").asText();
@@ -344,11 +349,12 @@ public class DissectParserTests extends ESTestCase {
         }
     }
 
-    private DissectException assertFail(String pattern, String input){
-        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).parse(input));
+    private DissectException assertFail(String pattern, String input) {
+        return expectThrows(DissectException.class, () -> new DissectParser(pattern, null).forceParse(input));
     }
 
     private void assertMiss(String pattern, String input) {
+        assertNull(new DissectParser(pattern, null).parse(input)); 
         DissectException e = assertFail(pattern, input);
         assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
         assertThat(e.getMessage(), CoreMatchers.containsString(pattern));

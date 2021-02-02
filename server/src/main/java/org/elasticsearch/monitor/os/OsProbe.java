@@ -497,16 +497,16 @@ public class OsProbe {
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, /sys/fs/cgroup/cpuacct and /sys/fs/cgroup/memory")
     boolean areCgroupStatsAvailable() {
-        if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
+        if (Files.exists(PathUtils.get("/proc/self/cgroup")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpu"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/cpu")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/cpuacct")) == false) {
             return false;
         }
-        if (!Files.exists(PathUtils.get("/sys/fs/cgroup/memory"))) {
+        if (Files.exists(PathUtils.get("/sys/fs/cgroup/memory")) == false) {
             return false;
         }
         return true;
@@ -519,7 +519,7 @@ public class OsProbe {
      */
     private OsStats.Cgroup getCgroup() {
         try {
-            if (!areCgroupStatsAvailable()) {
+            if (areCgroupStatsAvailable() == false) {
                 return null;
             } else {
                 final Map<String, String> controllerMap = getControlGroups();

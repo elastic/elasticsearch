@@ -132,7 +132,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     Map<String, Settings> indexToDefaultSettings) throws IOException {
         String indexName = parser.currentName();
         parser.nextToken();
-        while (!parser.isClosed() && parser.currentToken() != XContentParser.Token.END_OBJECT) {
+        while (parser.isClosed() == false && parser.currentToken() != XContentParser.Token.END_OBJECT) {
             parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
         }
     }
@@ -146,7 +146,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         parser.nextToken();
 
-        while (!parser.isClosed()) {
+        while (parser.isClosed() == false) {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 //we must assume this is an index entry
                 parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);

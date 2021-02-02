@@ -218,11 +218,11 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     }
 
     public static String termVectorOptionsToString(FieldType fieldType) {
-        if (!fieldType.storeTermVectors()) {
+        if (fieldType.storeTermVectors() == false) {
             return "no";
-        } else if (!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
+        } else if (fieldType.storeTermVectorOffsets() == false && fieldType.storeTermVectorPositions() == false) {
             return "yes";
-        } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
+        } else if (fieldType.storeTermVectorOffsets() && fieldType.storeTermVectorPositions() == false) {
             return "with_offsets";
         } else {
             StringBuilder builder = new StringBuilder("with");

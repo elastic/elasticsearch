@@ -130,7 +130,7 @@ public class StopWatch {
      * @see #start()
      */
     public StopWatch stop() throws IllegalStateException {
-        if (!this.running) {
+        if (this.running == false) {
             throw new IllegalStateException("Can't stop StopWatch: it's not running");
         }
         long lastTimeNS = System.nanoTime() - this.startTimeNS;

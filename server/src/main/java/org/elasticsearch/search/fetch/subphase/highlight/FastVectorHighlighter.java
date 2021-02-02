@@ -84,7 +84,7 @@ public class FastVectorHighlighter implements Highlighter {
         Encoder encoder = field.fieldOptions().encoder().equals("html") ?
             HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
-        if (!fieldContext.cache.containsKey(CACHE_KEY)) {
+        if (fieldContext.cache.containsKey(CACHE_KEY) == false) {
             fieldContext.cache.put(CACHE_KEY, new HighlighterEntry());
         }
         HighlighterEntry cache = (HighlighterEntry) fieldContext.cache.get(CACHE_KEY);
@@ -185,7 +185,7 @@ public class FastVectorHighlighter implements Highlighter {
         BoundaryScanner boundaryScanner = getBoundaryScanner(field);
         FieldOptions options = field.fieldOptions();
         Function<SourceLookup, BaseFragmentsBuilder> supplier;
-        if (!forceSource && fieldType.isStored()) {
+        if (forceSource == false && fieldType.isStored()) {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = ignored -> new ScoreOrderFragmentsBuilder(options.preTags(), options.postTags(), boundaryScanner);
             } else {

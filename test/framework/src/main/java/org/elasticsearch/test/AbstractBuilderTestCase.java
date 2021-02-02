@@ -279,6 +279,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             if (method.equals(Client.class.getMethod("get", GetRequest.class, ActionListener.class))){
                 GetResponse getResponse = delegate.executeGet((GetRequest) args[0]);
+                @SuppressWarnings("unchecked")  // We matched the method above.
                 ActionListener<GetResponse> listener = (ActionListener<GetResponse>) args[1];
                 if (randomBoolean()) {
                     listener.onResponse(getResponse);
@@ -332,7 +333,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
             client = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
-                    new Class[]{Client.class},
+                    new Class<?>[]{Client.class},
                     clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();

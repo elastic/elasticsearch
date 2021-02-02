@@ -3123,7 +3123,7 @@ public class TranslogTests extends ESTestCase {
             final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;
             int expectedSnapshotOps = 0;
             for (long g = generation; g < translog.currentFileGeneration(); g++) {
-                if (!seqNoPerGeneration.containsKey(g)) {
+                if (seqNoPerGeneration.containsKey(g) == false) {
                     final Set<Tuple<Long, Long>> generationSeenSeqNos = new HashSet<>();
                     int opCount = 0;
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));

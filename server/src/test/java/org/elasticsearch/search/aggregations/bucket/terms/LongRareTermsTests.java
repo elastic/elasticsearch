@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,7 +51,7 @@ public class LongRareTermsTests extends InternalRareTermsTestCase {
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedLongRareTerms> implementationClass() {
         return ParsedLongRareTerms.class;
     }
 

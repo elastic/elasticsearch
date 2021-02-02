@@ -83,7 +83,7 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
             }
 
             // Both have values, calculate diff and replace the "empty" bucket
-            if (!Double.isNaN(thisBucketValue) && !Double.isNaN(lagValue)) {
+            if (Double.isNaN(thisBucketValue) == false && Double.isNaN(lagValue) == false) {
                 double diff = thisBucketValue - lagValue;
 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(

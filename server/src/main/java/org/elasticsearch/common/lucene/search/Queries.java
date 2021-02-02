@@ -91,7 +91,7 @@ public class Queries {
     }
 
     static boolean isNegativeQuery(Query q) {
-        if (!(q instanceof BooleanQuery)) {
+        if ((q instanceof BooleanQuery) == false) {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();

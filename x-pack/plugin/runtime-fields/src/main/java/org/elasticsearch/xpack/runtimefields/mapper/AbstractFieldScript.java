@@ -35,7 +35,7 @@ public abstract class AbstractFieldScript {
      */
     static final int MAX_VALUES = 100;
 
-    public static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
+    static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(
             name + "_script_field",
             factoryClass,
@@ -59,7 +59,7 @@ public abstract class AbstractFieldScript {
 
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
         "_source",
-        value -> ((SourceLookup) value).loadSourceIfNeeded()
+        value -> ((SourceLookup) value).source()
     );
 
     protected final String fieldName;
@@ -97,7 +97,7 @@ public abstract class AbstractFieldScript {
     }
 
     protected final List<Object> extractFromSource(String path) {
-        return XContentMapValues.extractRawValues(path, leafSearchLookup.source().loadSourceIfNeeded());
+        return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
     }
 
     /**

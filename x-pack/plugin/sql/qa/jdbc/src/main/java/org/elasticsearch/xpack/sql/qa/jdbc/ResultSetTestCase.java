@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -302,7 +303,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Byte]", randomString),
                 sqle.getMessage()
             );
-            
+
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_date"));
             assertErrorMessageForDateTimeValues(sqle, Byte.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Byte.class));
@@ -738,7 +739,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Double]", randomString),
                 sqle.getMessage()
             );
-            
+
             sqle = expectThrows(SQLException.class, () -> results.getDouble("test_date"));
             assertErrorMessageForDateTimeValues(sqle, Double.class, randomDate);
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_date", Double.class));
@@ -2264,7 +2265,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void assertErrorMessageForDateTimeValues(Exception ex, Class<?> expectedType, long epochMillis, Integer nanos) {
-        Pattern expectedPattern = compile(quote("Unable to convert value [") + "(?<instant>.*?)" 
+        Pattern expectedPattern = compile(quote("Unable to convert value [") + "(?<instant>.*?)"
                 + quote("] of type [DATETIME] to [" + expectedType.getSimpleName() + "]"));
         Matcher matcher = expectedPattern.matcher(ex.getMessage());
         assertTrue(matcher.matches());

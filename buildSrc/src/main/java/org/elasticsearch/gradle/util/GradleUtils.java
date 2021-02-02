@@ -48,9 +48,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 public abstract class GradleUtils {
 
@@ -142,8 +140,6 @@ public abstract class GradleUtils {
         extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourceSetName);
 
         setupIdeForTestSourceSet(project, testSourceSet);
-
-        disableTransitiveDependenciesForSourceSet(project, testSourceSet);
 
         // add to the check task
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
@@ -239,19 +235,7 @@ public abstract class GradleUtils {
             || projectPath.startsWith(":x-pack:quota-aware-fs");
     }
 
-    public static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
-        Stream.of(
-            sourceSet.getApiConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
-            sourceSet.getCompileOnlyConfigurationName(),
-            sourceSet.getRuntimeOnlyConfigurationName()
-        )
-            .map(name -> project.getConfigurations().findByName(name))
-            .filter(Objects::nonNull)
-            .forEach(GradleUtils::disableTransitiveDependencies);
-    }
-
-    private static void disableTransitiveDependencies(Configuration config) {
+    public static void disableTransitiveDependencies(Configuration config) {
         config.getDependencies().all(dep -> {
             if (dep instanceof ModuleDependency
                 && dep instanceof ProjectDependency == false

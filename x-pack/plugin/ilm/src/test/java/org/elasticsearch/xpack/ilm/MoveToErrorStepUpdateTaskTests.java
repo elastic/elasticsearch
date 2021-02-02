@@ -118,23 +118,6 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         assertThat(newState, sameInstance(clusterState));
     }
 
-    public void testOnFailure() {
-        StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
-        long now = randomNonNegativeLong();
-        Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
-
-        setStateToKey(currentStepKey);
-
-        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause, () -> now,
-            (idxMeta, stepKey) -> new MockStep(stepKey, new StepKey("next-phase", "action", "step")), state -> {});
-        Exception expectedException = new RuntimeException();
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
-        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
-                + "] to the ERROR step.", exception.getMessage());
-        assertSame(expectedException, exception.getCause());
-    }
-
     private void setStatePolicy(String policy) {
         clusterState = ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata())

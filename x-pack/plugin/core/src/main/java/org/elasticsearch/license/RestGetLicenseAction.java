@@ -74,7 +74,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
                     @Override
                     public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
                         // Default to pretty printing, but allow ?pretty=false to disable
-                        if (!request.hasParam("pretty")) {
+                        if (request.hasParam("pretty") == false) {
                             builder.prettyPrint().lfAtEnd();
                         }
                         boolean hasLicense = response.license() != null;

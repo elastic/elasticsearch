@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 
@@ -95,6 +96,10 @@ public final class DataTypeConverter {
             }
         }
 
+        if (isDateTime(left) && isDateTime(right)) {
+            return DATETIME;
+        }
+
         // none found
         return null;
     }
@@ -116,7 +121,7 @@ public final class DataTypeConverter {
      */
     public static Converter converterFor(DataType from, DataType to) {
         // Special handling for nulls and if conversion is not requires
-        if (from == to) {
+        if (from == to || (isDateTime(from) && isDateTime(to))) {
             return DefaultConverter.IDENTITY;
         }
         if (to == NULL || from == NULL) {
@@ -144,7 +149,7 @@ public final class DataTypeConverter {
         if (to == DOUBLE) {
             return conversionToDouble(from);
         }
-        if (to == DATETIME) {
+        if (isDateTime(to)) {
             return conversionToDateTime(from);
         }
         if (to == BOOLEAN) {
@@ -157,7 +162,7 @@ public final class DataTypeConverter {
     }
 
     private static Converter conversionToString(DataType from) {
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_STRING;
         }
         return DefaultConverter.OTHER_TO_STRING;
@@ -183,7 +188,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_LONG;
         }
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_LONG;
         }
         return null;
@@ -202,7 +207,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_INT;
         }
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_INT;
         }
         return null;
@@ -221,7 +226,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_SHORT;
         }
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_SHORT;
         }
         return null;
@@ -240,7 +245,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_BYTE;
         }
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_BYTE;
         }
         return null;
@@ -259,7 +264,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_FLOAT;
         }
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_FLOAT;
         }
         return null;
@@ -278,7 +283,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_DOUBLE;
         }
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_DOUBLE;
         }
         return null;
@@ -307,7 +312,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_BOOLEAN;
         }
-        if (from == DATETIME) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_BOOLEAN;
         }
         return null;
@@ -391,7 +396,7 @@ public final class DataTypeConverter {
     public enum DefaultConverter implements Converter {
         IDENTITY(Function.identity()),
         TO_NULL(value -> null),
-        
+
         DATETIME_TO_STRING(o -> DateUtils.toString((ZonedDateTime) o)),
         OTHER_TO_STRING(String::valueOf),
 
@@ -443,7 +448,7 @@ public final class DataTypeConverter {
         BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L)),
 
         STRING_TO_IP(o -> {
-            if (!InetAddresses.isInetAddress(o.toString())) {
+            if (InetAddresses.isInetAddress(o.toString()) == false) {
                 throw new QlIllegalArgumentException("[" + o + "] is not a valid IPv4 or IPv6 address");
             }
             return o;
@@ -464,7 +469,7 @@ public final class DataTypeConverter {
         private static Function<Object, Object> fromLong(LongFunction<Object> converter) {
             return (Object l) -> converter.apply(((Number) l).longValue());
         }
-        
+
         private static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
             return (Object value) -> {
                 try {
@@ -513,7 +518,7 @@ public final class DataTypeConverter {
     }
 
     public static DataType asInteger(DataType dataType) {
-        if (!dataType.isNumeric()) {
+        if (dataType.isNumeric() == false) {
             return dataType;
         }
 

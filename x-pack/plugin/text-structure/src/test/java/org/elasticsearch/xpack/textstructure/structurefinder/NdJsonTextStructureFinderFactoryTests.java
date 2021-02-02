@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 public class NdJsonTextStructureFinderFactoryTests extends TextStructureTestCase {
 
-    private FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
+    private final TextStructureFinderFactory factory = new NdJsonTextStructureFinderFactory();
 
     public void testCanCreateFromSampleGivenNdJson() {
 

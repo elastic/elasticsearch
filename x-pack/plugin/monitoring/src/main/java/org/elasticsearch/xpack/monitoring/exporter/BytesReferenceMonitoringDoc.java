@@ -66,7 +66,7 @@ public class BytesReferenceMonitoringDoc extends MonitoringDoc {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         BytesReferenceMonitoringDoc that = (BytesReferenceMonitoringDoc) o;

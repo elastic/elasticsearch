@@ -176,7 +176,7 @@ public abstract class Graphviz {
         nodeInfo.append("</table>\n");
 
         // check any subtrees
-        if (!subTrees.isEmpty()) {
+        if (subTrees.isEmpty() == false) {
             // write nested trees
             output.append("subgraph cluster_" + thisId + " {");
             output.append("style=filled; color=white; fillcolor=azure2; label=\"\";\n");
@@ -190,7 +190,7 @@ public abstract class Graphviz {
         output.append(quoteGraphviz(nodeInfo.toString()));
         output.append("];\n");
 
-        if (!subTrees.isEmpty()) {
+        if (subTrees.isEmpty() == false) {
             indent(output, currentIndent + INDENT);
             output.append("node[shape=ellipse, color=black]\n");
 

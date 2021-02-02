@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,7 +41,10 @@ import static org.elasticsearch.action.admin.indices.mapping.put.TransportPutMap
 
 public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
+    private static final Logger logger = LogManager.getLogger(TransportAutoPutMappingAction.class);
+
     private final MetadataMappingService metadataMappingService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportAutoPutMappingAction(
@@ -47,10 +53,12 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             final ThreadPool threadPool,
             final MetadataMappingService metadataMappingService,
             final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final SystemIndices systemIndices) {
         super(AutoPutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters,
             PutMappingRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.metadataMappingService = metadataMappingService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -72,6 +80,14 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
     protected void masterOperation(Task task, final PutMappingRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         final Index[] concreteIndices = new Index[] {request.getConcreteIndex()};
+
+        final String message = TransportPutMappingAction.checkForSystemIndexViolations(systemIndices, concreteIndices, request);
+        if (message != null) {
+            logger.warn(message);
+            listener.onFailure(new IllegalStateException(message));
+            return;
+        }
+
         performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
     }
 

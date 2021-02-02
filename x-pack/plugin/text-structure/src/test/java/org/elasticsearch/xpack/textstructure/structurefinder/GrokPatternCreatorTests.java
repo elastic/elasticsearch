@@ -260,14 +260,14 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
         assertEquals(
             "%{SYSLOGTIMESTAMP:timestamp} .*? .*?\\[%{INT:field}\\]: %{LOGLEVEL:loglevel} \\(.*? .*? .*?\\) .*? "
                 + "%{QUOTEDSTRING:field2}: %{IP:ipaddress}#%{INT:field3}",
-            grokPatternCreator.createGrokPatternFromExamples("SYSLOGTIMESTAMP", FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT, "timestamp")
+            grokPatternCreator.createGrokPatternFromExamples("SYSLOGTIMESTAMP", TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT, "timestamp")
         );
         assertEquals(5, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("field2"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field3"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("field2"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field3"));
     }
 
     public void testCreateGrokPatternFromExamplesGivenCatalinaLogs() {
@@ -297,12 +297,12 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
             "%{CATALINA_DATESTAMP:timestamp} .*? .*?\\n%{LOGLEVEL:loglevel}: .*",
             grokPatternCreator.createGrokPatternFromExamples(
                 "CATALINA_DATESTAMP",
-                FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
                 "timestamp"
             )
         );
         assertEquals(1, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
 
     public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogs() {
@@ -334,19 +334,19 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
                 + "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
             grokPatternCreator.createGrokPatternFromExamples(
                 "TIMESTAMP_ISO8601",
-                FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
                 "timestamp"
             )
         );
         assertEquals(5, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         Map<String, String> expectedDateMapping = new HashMap<>();
-        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
         assertEquals(expectedDateMapping, mappings.get("extra_timestamp"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
 
     public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogsAndIndeterminateFormat() {
@@ -378,19 +378,19 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
                 + "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
             grokPatternCreator.createGrokPatternFromExamples(
                 "TIMESTAMP_ISO8601",
-                FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
                 "timestamp"
             )
         );
         assertEquals(5, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         Map<String, String> expectedDateMapping = new HashMap<>();
-        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date_nanos");
-        expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "dd/MM/yyyy HH:mm:ss,SSSSSS");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date_nanos");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "dd/MM/yyyy HH:mm:ss,SSSSSS");
         assertEquals(expectedDateMapping, mappings.get("extra_timestamp"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
 
     public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogsAndCustomDefinition() {
@@ -418,22 +418,22 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
         );
 
         Map<String, String> customMapping = new HashMap<>();
-        customMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        customMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "M/dd/yyyy h:mma");
+        customMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        customMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "M/dd/yyyy h:mma");
         assertEquals(
             "%{INT:field}\\t%{CUSTOM_TIMESTAMP:timestamp}\\t%{TIMESTAMP_ISO8601:extra_timestamp}\\t%{INT:field2}\\t.*?\\t"
                 + "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
             grokPatternCreator.createGrokPatternFromExamples("CUSTOM_TIMESTAMP", customMapping, "timestamp")
         );
         assertEquals(5, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
         Map<String, String> expectedDateMapping = new HashMap<>();
-        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
         assertEquals(expectedDateMapping, mappings.get("extra_timestamp"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
 
     public void testCreateGrokPatternFromExamplesGivenTimestampAndTimeWithoutDate() {
@@ -465,16 +465,16 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
                 + "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
             grokPatternCreator.createGrokPatternFromExamples(
                 "TIMESTAMP_ISO8601",
-                FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
+                TextStructureUtils.DATE_MAPPING_WITHOUT_FORMAT,
                 "timestamp"
             )
         );
         assertEquals(5, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("time"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("time"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
 
     public void testFindFullLineGrokPatternGivenApacheCombinedLogs() {
@@ -512,16 +512,16 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
             grokPatternCreator.findFullLineGrokPattern(randomBoolean() ? "timestamp" : null)
         );
         assertEquals(10, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text"), mappings.get("agent"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("auth"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bytes"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("clientip"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "double"), mappings.get("httpversion"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("ident"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("referrer"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("request"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("response"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("verb"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "text"), mappings.get("agent"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("auth"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bytes"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("clientip"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "double"), mappings.get("httpversion"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("ident"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("referrer"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("request"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("response"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("verb"));
     }
 
     public void testAdjustForPunctuationGivenCommonPrefix() {
@@ -608,18 +608,18 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
 
         grokPatternCreator.validateFullLineGrokPattern(grokPattern, timestampField);
         assertEquals(9, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("serial_no"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("serial_no"));
         Map<String, String> expectedDateMapping = new HashMap<>();
-        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
         assertEquals(expectedDateMapping, mappings.get("local_timestamp"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("user_id"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("host"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("client_ip"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("method"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("severity"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("program"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("message"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("user_id"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("host"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("client_ip"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("method"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("severity"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("program"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("message"));
     }
 
     public void testValidateFullLineGrokPatternGivenValidAndCustomDefinition() {
@@ -653,18 +653,18 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
 
         grokPatternCreator.validateFullLineGrokPattern(grokPattern, timestampField);
         assertEquals(9, mappings.size());
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("serial_no"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("serial_no"));
         Map<String, String> expectedDateMapping = new HashMap<>();
-        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-        expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedDateMapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
         assertEquals(expectedDateMapping, mappings.get("utc_timestamp"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("user_id"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("host"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("client_ip"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("method"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("severity"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("program"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("message"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("user_id"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("host"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("client_ip"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("method"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("severity"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("program"));
+        assertEquals(Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("message"));
     }
 
     public void testValidateFullLineGrokPatternGivenInvalid() {

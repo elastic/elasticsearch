@@ -181,7 +181,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 }
                 builder.endArray();
 
-                if (!node.getAttributes().isEmpty()) {
+                if (node.getAttributes().isEmpty() == false) {
                     builder.startObject("attributes");
                     for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
                         builder.field(attrEntry.getKey(), attrEntry.getValue());

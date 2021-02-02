@@ -97,7 +97,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         CopySettingsStep that = (CopySettingsStep) o;

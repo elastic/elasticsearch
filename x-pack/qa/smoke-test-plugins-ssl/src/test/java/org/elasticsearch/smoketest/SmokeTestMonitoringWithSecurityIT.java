@@ -120,7 +120,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         } catch (URISyntaxException e) {
             throw new ElasticsearchException("exception while reading the store", e);
         }
-        if (!Files.exists(keyStore)) {
+        if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
     }

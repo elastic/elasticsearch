@@ -29,7 +29,6 @@ import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.github.javaparser.javadoc.Javadoc;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 
 import java.io.File;
 import java.io.IOException;
@@ -80,8 +79,8 @@ public class StdlibJavadocExtractor {
             constructors = new HashMap<>();
         }
 
-        public ParsedMethod getMethod(PainlessContextMethodInfo info, Map<String, String> javaNamesToDisplayNames) {
-            return methods.get(MethodSignature.fromInfo(info, javaNamesToDisplayNames));
+        public ParsedMethod getMethod(String name, List<String> parameterTypes) {
+            return methods.get(new MethodSignature(name, parameterTypes));
         }
 
         @Override
@@ -137,8 +136,8 @@ public class StdlibJavadocExtractor {
             return type;
         }
 
-        public ParsedMethod getConstructor(List<String> parameters) {
-            return constructors.get(parameters);
+        public ParsedMethod getConstructor(List<String> parameterTypes) {
+            return constructors.get(parameterTypes);
         }
 
         public String getField(String name) {
@@ -161,13 +160,6 @@ public class StdlibJavadocExtractor {
             this.parameterTypes = parameterTypes;
         }
 
-        public static MethodSignature fromInfo(PainlessContextMethodInfo info,Map<String, String> javaNamesToDisplayNames) {
-            return new MethodSignature(
-                info.getName(),
-                info.getParameters().stream().map(javaNamesToDisplayNames::get).collect(Collectors.toList())
-            );
-        }
-
         public static MethodSignature fromDeclaration(MethodDeclaration declaration) {
             return new MethodSignature(
                     declaration.getNameAsString(),
@@ -181,7 +173,7 @@ public class StdlibJavadocExtractor {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof MethodSignature)) return false;
+            if ((o instanceof MethodSignature) == false) return false;
             MethodSignature that = (MethodSignature) o;
             return Objects.equals(name, that.name) &&
                 Objects.equals(parameterTypes, that.parameterTypes);

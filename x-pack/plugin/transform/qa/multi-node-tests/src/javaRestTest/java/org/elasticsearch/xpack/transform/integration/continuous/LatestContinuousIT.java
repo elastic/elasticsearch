@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,15 +26,18 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.S
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68394")
 public class LatestContinuousIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-latest-test";
@@ -44,16 +48,27 @@ public class LatestContinuousIT extends ContinuousTestCase {
     private final String timestampField;
 
     public LatestContinuousIT() {
-        eventField = randomFrom(TERMS_FIELDS);
+        eventField = randomFrom("event", "event-upper", "event-upper-at-search");
         timestampField = randomFrom(TIMESTAMP_FIELDS);
     }
 
     @Override
     public TransformConfig createConfig() {
+        Map<String, Object> runtimeMappings =
+            new HashMap<>() {{
+                put("event-upper-at-search", new HashMap<>() {{
+                    put("type", "keyword");
+                    put("script", singletonMap("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}"));
+                }});
+            }};
         TransformConfig.Builder transformConfigBuilder =
             new TransformConfig.Builder()
                 .setId(NAME)
-                .setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX))
+                .setSource(
+                    SourceConfig.builder()
+                        .setIndex(CONTINUOUS_EVENTS_SOURCE_INDEX)
+                        .setRuntimeMappings(runtimeMappings)
+                        .build())
                 .setDest(new DestConfig(NAME, INGEST_PIPELINE))
                 .setLatestConfig(
                     LatestConfig.builder()

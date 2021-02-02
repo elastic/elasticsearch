@@ -95,7 +95,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitQueryNoWith(QueryNoWithContext ctx) {
         LogicalPlan plan = plan(ctx.queryTerm());
 
-        if (!ctx.orderBy().isEmpty()) {
+        if (ctx.orderBy().isEmpty() == false) {
             List<OrderByContext> orders = ctx.orderBy();
             OrderByContext endContext = orders.get(orders.size() - 1);
             plan = new OrderBy(source(ctx.ORDER(), endContext), plan, visitList(ctx.orderBy(), Order.class));
@@ -147,7 +147,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             ParserRuleContext endSource = groupingElement.isEmpty() ? groupByCtx : groupingElement.get(groupingElement.size() - 1);
             query = new Aggregate(source(ctx.GROUP(), endSource), query, groupBy, selectTarget);
         }
-        else if (!selectTarget.isEmpty()) {
+        else if (selectTarget.isEmpty() == false) {
             query = new Project(source(ctx.selectItems()), query, selectTarget);
         }
 

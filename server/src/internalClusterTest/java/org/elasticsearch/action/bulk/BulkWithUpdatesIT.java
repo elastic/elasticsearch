@@ -524,7 +524,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         int successes = 0;
         for (BulkResponse response : responses) {
-            if (!response.hasFailures()) {
+            if (response.hasFailures() == false) {
                 successes++;
             }
         }

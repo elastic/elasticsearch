@@ -149,6 +149,15 @@ public class IRDecorations {
     }
 
     /**
+     * describes the field name holding a constant value.
+     */
+    public static class IRDConstantFieldName extends IRDecoration<String> {
+        public IRDConstantFieldName(String value) {
+            super(value);
+        }
+    }
+
+    /**
      * describes the type for a declaration
      */
     public static class IRDDeclarationType extends IRDType {

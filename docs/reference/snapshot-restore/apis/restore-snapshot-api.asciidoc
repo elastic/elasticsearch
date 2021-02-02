@@ -61,6 +61,12 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 
 `POST /_snapshot/<repository>/<snapshot>/_restore`
 
+[[restore-snapshot-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[restore-snapshot-api-desc]]
 ==== {api-description-title}
 

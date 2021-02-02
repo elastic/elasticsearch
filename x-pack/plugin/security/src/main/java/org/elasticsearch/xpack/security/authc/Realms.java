@@ -176,7 +176,7 @@ public class Realms implements Iterable<Realm> {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
-            if (!config.enabled()) {
+            if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", identifier);
                 }
@@ -209,7 +209,7 @@ public class Realms implements Iterable<Realm> {
 
         checkUniqueOrders(orderToRealmName);
 
-        if (!realms.isEmpty()) {
+        if (realms.isEmpty() == false) {
             Collections.sort(realms);
         } else {
             // there is no "realms" configuration, add the defaults

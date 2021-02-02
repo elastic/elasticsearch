@@ -30,8 +30,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -388,6 +390,41 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(e.getMessage(), containsString("duplicate test section"));
     }
 
+    public void testParseSkipOs() throws Exception {
+        parser = createParser(
+            YamlXContent.yamlXContent,
+            "\"Broken on some os\":\n"
+                + "\n"
+                + "  - skip:\n"
+                + "      features:     skip_os\n"
+                + "      os:           [\"windows95\", \"debian-5\"]\n"
+                + "      reason:      \"not supported\"\n"
+                + "\n"
+                + "  - do:\n"
+                + "      indices.get_mapping:\n"
+                + "        index: test_index\n"
+                + "        type: test_type\n"
+                + "\n"
+                + "  - match: {test_type.properties.text.type:     string}\n"
+                + "  - match: {test_type.properties.text.analyzer: whitespace}\n"
+        );
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Broken on some os"));
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getReason(), equalTo("not supported"));
+        assertThat(
+            restTestSuite.getTestSections().get(0).getSkipSection().getOperatingSystems(),
+            containsInAnyOrder("windows95", "debian-5")
+        );
+        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().getFeatures(), containsInAnyOrder("skip_os"));
+    }
+
     public void testAddingDoWithoutSkips() {
         int lineNumber = between(1, 10000);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
@@ -509,13 +546,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), emptyList(), null);
         createTestSuite(skipSection, doSection).validate();
     }
 
     public void testAddingDoWithNodeSelectorWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), emptyList(), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
@@ -525,7 +562,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingDoWithHeadersWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("headers"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("headers"), emptyList(), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(singletonMap("foo", "bar"));
@@ -535,7 +572,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingContainsWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("contains"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("contains"), emptyList(), null);
         ContainsAssertion containsAssertion = new ContainsAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),

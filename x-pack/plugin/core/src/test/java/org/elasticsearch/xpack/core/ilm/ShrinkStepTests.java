@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
@@ -30,16 +31,23 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
     public ShrinkStep createRandomInstance() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        int numberOfShards = randomIntBetween(1, 20);
+        Integer numberOfShards = null;
+        ByteSizeValue maxSinglePrimarySize = null;
+        if (randomBoolean()) {
+            numberOfShards = randomIntBetween(1, 20);
+        } else {
+            maxSinglePrimarySize = new ByteSizeValue(between(1,100));
+        }
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, shrunkIndexPrefix);
+        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxSinglePrimarySize, shrunkIndexPrefix);
     }
 
     @Override
     public ShrinkStep mutateInstance(ShrinkStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        int numberOfShards = instance.getNumberOfShards();
+        Integer numberOfShards = instance.getNumberOfShards();
+        ByteSizeValue maxSinglePrimarySize = instance.getMaxSinglePrimarySize();
         String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
 
         switch (between(0, 3)) {
@@ -50,7 +58,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 2:
-            numberOfShards = numberOfShards + 1;
+            if (numberOfShards != null) {
+                numberOfShards = numberOfShards + 1;
+            }
+            if (maxSinglePrimarySize != null) {
+                maxSinglePrimarySize = new ByteSizeValue(maxSinglePrimarySize.getBytes() + 1);
+            }
             break;
         case 3:
             shrunkIndexPrefix += randomAlphaOfLength(5);
@@ -59,13 +72,13 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, shrunkIndexPrefix);
+        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxSinglePrimarySize, shrunkIndexPrefix);
     }
 
     @Override
     public ShrinkStep copyInstance(ShrinkStep instance) {
         return new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getNumberOfShards(),
-                instance.getShrunkIndexPrefix());
+            instance.getMaxSinglePrimarySize(), instance.getShrunkIndexPrefix());
     }
 
     public void testPerformAction() throws Exception {
@@ -91,14 +104,20 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
             assertThat(request.getSourceIndex(), equalTo(sourceIndexMetadata.getIndex().getName()));
             assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.emptySet()));
-            assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
+
+            Settings.Builder builder = Settings.builder();
+            builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
                 .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null)
-                .build()));
-            assertThat(request.getTargetIndexRequest().settings()
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
+            if (step.getNumberOfShards() != null) {
+                builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards());
+            }
+            assertThat(request.getTargetIndexRequest().settings(), equalTo(builder.build()));
+            if (step.getNumberOfShards() != null) {
+                assertThat(request.getTargetIndexRequest().settings()
                     .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
+            }
+            request.setMaxSinglePrimarySize(step.getMaxSinglePrimarySize());
             listener.onResponse(new ResizeResponse(true, true, sourceIndexMetadata.getIndex().getName()));
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());

@@ -126,7 +126,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
                     }
                 }
-                if (!collateMatch && !collatePrune) {
+                if (collateMatch == false && collatePrune == false) {
                     continue;
                 }
                 Text phrase = new Text(spare.toString());

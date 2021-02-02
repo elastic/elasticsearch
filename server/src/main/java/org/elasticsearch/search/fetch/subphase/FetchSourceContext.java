@@ -210,8 +210,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         FetchSourceContext that = (FetchSourceContext) o;
 
         if (fetchSource != that.fetchSource) return false;
-        if (!Arrays.equals(excludes, that.excludes)) return false;
-        if (!Arrays.equals(includes, that.includes)) return false;
+        if (Arrays.equals(excludes, that.excludes) == false) return false;
+        if (Arrays.equals(includes, that.includes) == false) return false;
 
         return true;
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
-import org.elasticsearch.xpack.textstructure.structurefinder.FileStructureFinderManager;
+import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 
 import java.util.Collections;
 import java.util.List;
@@ -49,13 +49,13 @@ public class RestFindStructureAction extends BaseRestHandler {
         request.setLinesToSample(
             restRequest.paramAsInt(
                 FindStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
-                FileStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT
+                TextStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT
             )
         );
         request.setLineMergeSizeLimit(
             restRequest.paramAsInt(
                 FindStructureAction.Request.LINE_MERGE_SIZE_LIMIT.getPreferredName(),
-                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT
             )
         );
         request.setTimeout(

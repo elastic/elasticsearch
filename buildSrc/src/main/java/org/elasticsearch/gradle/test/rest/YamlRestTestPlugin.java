@@ -54,9 +54,6 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        // disable transitive dependency management
-        GradleUtils.disableTransitiveDependenciesForSourceSet(project, yamlTestSourceSet);
-
         // create the test cluster container
         createTestCluster(project, yamlTestSourceSet);
 
@@ -67,15 +64,23 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         setupDependencies(project, yamlTestSourceSet);
 
         // setup the copy for the rest resources
-        project.getTasks()
-            .withType(CopyRestApiTask.class)
-            .configureEach(copyRestApiTask -> { copyRestApiTask.setSourceSetName(SOURCE_SET_NAME); });
+        project.getTasks().withType(CopyRestApiTask.class).configureEach(copyRestApiTask -> {
+            copyRestApiTask.setOutputResourceDir(yamlTestSourceSet.getOutput().getResourcesDir());
+            copyRestApiTask.setSourceResourceDir(
+                yamlTestSourceSet.getResources()
+                    .getSrcDirs()
+                    .stream()
+                    .filter(f -> f.isDirectory() && f.getName().equals("resources"))
+                    .findFirst()
+                    .orElse(null)
+            );
+        });
         project.getTasks()
             .named(yamlTestSourceSet.getProcessResourcesTaskName())
             .configure(t -> t.dependsOn(project.getTasks().withType(CopyRestApiTask.class)));
         project.getTasks()
             .withType(CopyRestTestsTask.class)
-            .configureEach(copyRestTestTask -> copyRestTestTask.setSourceSetName(SOURCE_SET_NAME));
+            .configureEach(copyRestTestTask -> copyRestTestTask.setOutputResourceDir(yamlTestSourceSet.getOutput().getResourcesDir()));
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);

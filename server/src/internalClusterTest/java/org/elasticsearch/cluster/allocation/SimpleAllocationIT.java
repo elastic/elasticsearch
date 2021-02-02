@@ -49,7 +49,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
         for (RoutingNode node : state.getRoutingNodes()) {
-            if (!node.isEmpty()) {
+            if (node.isEmpty() == false) {
                 assertThat(node.size(), equalTo(2));
             }
         }
@@ -60,7 +60,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
 
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
         for (RoutingNode node : state.getRoutingNodes()) {
-            if (!node.isEmpty()) {
+            if (node.isEmpty() == false) {
                 assertThat(node.size(), equalTo(1));
             }
         }
@@ -79,7 +79,7 @@ public class SimpleAllocationIT extends ESIntegTestCase {
 
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
         for (RoutingNode node : state.getRoutingNodes()) {
-            if (!node.isEmpty()) {
+            if (node.isEmpty() == false) {
                 assertThat(node.size(), equalTo(4));
             }
         }

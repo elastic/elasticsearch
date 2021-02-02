@@ -236,8 +236,8 @@ public class Authentication implements ToXContentObject {
 
             RealmRef realmRef = (RealmRef) o;
 
-            if (!nodeName.equals(realmRef.nodeName)) return false;
-            if (!name.equals(realmRef.name)) return false;
+            if (nodeName.equals(realmRef.nodeName) == false) return false;
+            if (name.equals(realmRef.name) == false) return false;
             return type.equals(realmRef.type);
         }
 

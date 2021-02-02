@@ -55,7 +55,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     private LogicalPlan verify(LogicalPlan plan) {
         Collection<Failure> failures = verifier.verify(plan);
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
         return plan;
@@ -66,7 +66,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             // if the children are not resolved, there's no way the node can be resolved
-            if (!plan.childrenResolved()) {
+            if (plan.childrenResolved() == false) {
                 return plan;
             }
 

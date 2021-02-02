@@ -137,7 +137,7 @@ public class ValidationTests extends ESTestCase {
             while (true) {
                 c = randomUnicodeOfLength(1).charAt(0);
                 final char finalChar = c;
-                if (!Validation.VALID_NAME_CHARS.contains(finalChar)) {
+                if (Validation.VALID_NAME_CHARS.contains(finalChar) == false) {
                     break;
                 }
             }

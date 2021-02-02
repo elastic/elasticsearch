@@ -179,7 +179,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             if (log.isTraceEnabled()) {
                 TreeType before = plan;
                 TreeType after = plan;
-                if (!tfs.isEmpty()) {
+                if (tfs.isEmpty() == false) {
                     before = tfs.get(0).before;
                     after = tfs.get(tfs.size() - 1).after;
                 }

@@ -166,7 +166,7 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(TRIGGER_EVENT.getPreferredName());
         triggerEvent.recordXContent(builder, params);
 
-        if (!vars.isEmpty() && WatcherParams.debug(params)) {
+        if (vars.isEmpty() == false && WatcherParams.debug(params)) {
             builder.field(VARS.getPreferredName(), vars);
         }
 

@@ -120,7 +120,7 @@ public class CryptoService {
      * @return plaintext chars
      */
     public char[] decrypt(char[] chars) {
-        if (!isEncrypted(chars)) {
+        if (isEncrypted(chars) == false) {
             // Not encrypted
             return chars;
         }

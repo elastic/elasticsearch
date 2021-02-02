@@ -129,7 +129,7 @@ public final class SSLConfiguration {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof SSLConfiguration)) return false;
+        if ((o instanceof SSLConfiguration) == false) return false;
 
         SSLConfiguration that = (SSLConfiguration) o;
 
@@ -142,7 +142,7 @@ public final class SSLConfiguration {
         if (this.cipherSuites() != null ? !this.cipherSuites().equals(that.cipherSuites()) : that.cipherSuites() != null) {
             return false;
         }
-        if (!this.supportedProtocols().equals(that.supportedProtocols())) {
+        if (this.supportedProtocols().equals(that.supportedProtocols()) == false) {
             return false;
         }
         if (this.verificationMode() != that.verificationMode()) {

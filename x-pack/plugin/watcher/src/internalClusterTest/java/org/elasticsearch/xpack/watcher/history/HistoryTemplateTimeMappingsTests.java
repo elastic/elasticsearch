@@ -49,7 +49,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
             assertThat(mappingsResponse, notNullValue());
             assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
             for (ObjectObjectCursor<String, MappingMetadata> metadatas : mappingsResponse.getMappings()) {
-                if (!metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX)) {
+                if (metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX) == false) {
                     continue;
                 }
                 MappingMetadata metadata = metadatas.value;

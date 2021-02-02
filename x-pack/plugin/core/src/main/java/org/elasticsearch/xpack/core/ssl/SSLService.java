@@ -410,7 +410,7 @@ public class SSLService {
                 }
             }
 
-            if (!found) {
+            if (found == false) {
                 unsupportedCiphers.add(requestedCipher);
             }
         }

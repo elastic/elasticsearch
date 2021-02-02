@@ -370,7 +370,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 break;
                             }
                         }
-                        if (!shouldKeep) {
+                        if (shouldKeep == false) {
                             orders.remove(entry.getValue());
                         }
                     }

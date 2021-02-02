@@ -620,12 +620,7 @@ public class DockerTests extends PackagingTestCase {
         staticLabels.put("documentation", "https://www.elastic.co/guide/en/elasticsearch/reference/index.html");
         staticLabels.put("source", "https://github.com/elastic/elasticsearch");
         staticLabels.put("vendor", "Elastic");
-
-        if (distribution.isOSS()) {
-            staticLabels.put("licenses", "Apache-2.0");
-        } else {
-            staticLabels.put("licenses", "Elastic-License");
-        }
+        staticLabels.put("licenses", "Elastic-License-2.0");
 
         // TODO: we should check the actual version value
         final Set<String> dynamicLabels = new HashSet<>();

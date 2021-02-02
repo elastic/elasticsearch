@@ -265,7 +265,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             this.unitAbbreviation = unitAbbreviation;
             this.innerIntervals = innerIntervals;
             Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
-            if (!ALLOWED_INTERVALS.containsKey(dateTimeUnit)) {
+            if (ALLOWED_INTERVALS.containsKey(dateTimeUnit) == false) {
                 throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
             }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);

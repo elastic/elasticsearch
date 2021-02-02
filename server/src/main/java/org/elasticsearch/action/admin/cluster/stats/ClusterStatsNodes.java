@@ -89,7 +89,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             TransportAddress publishAddress =
                     nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
+            if (seenAddresses.add(inetAddress) == false) {
                 continue;
             }
             if (nodeResponse.nodeStats().getFs() != null) {

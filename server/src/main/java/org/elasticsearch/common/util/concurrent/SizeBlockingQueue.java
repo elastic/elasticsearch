@@ -140,7 +140,7 @@ public class SizeBlockingQueue<E> extends AbstractQueue<E> implements BlockingQu
             }
         }
         boolean offered = queue.offer(e);
-        if (!offered) {
+        if (offered == false) {
             size.decrementAndGet();
         }
         return offered;

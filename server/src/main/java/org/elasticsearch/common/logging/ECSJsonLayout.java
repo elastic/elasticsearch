@@ -27,11 +27,8 @@ import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.util.KeyValuePair;
-import org.elasticsearch.common.Strings;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * This is a wrapper class around <code>co.elastic.logging.log4j2.EcsLayout</code>

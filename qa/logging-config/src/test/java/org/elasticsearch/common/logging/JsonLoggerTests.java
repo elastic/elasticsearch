@@ -85,17 +85,6 @@ public class JsonLoggerTests extends ESTestCase {
         Configurator.shutdown(context);
         super.tearDown();
     }
-    public void testCompatibleLog() throws Exception {
-        withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
-            final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
-            testLogger.deprecate("someKey", "deprecated message1")
-                .compatibleApiWarning("compatibleKey","compatible API message");
-
-            final Path path = PathUtils.get(
-                System.getProperty("es.logs.base_path"),
-                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
-            );
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
@@ -130,6 +119,18 @@ public class JsonLoggerTests extends ESTestCase {
         assertWarnings("deprecated message1");
     }
 
+    public void testCompatibleLog() throws Exception {
+        withThreadContext(threadContext -> {
+            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
+            testLogger.deprecate(DeprecationCategory.OTHER,"someKey", "deprecated message1")
+                .compatibleApiWarning("compatibleKey","compatible API message");
+
+            final Path path = PathUtils.get(
+                System.getProperty("es.logs.base_path"),
+                System.getProperty("es.logs.cluster_name") + "_deprecated.json"
+            );
+
             try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
                 List<Map<String, String>> jsonLogs = stream.collect(Collectors.toList());
 
@@ -161,6 +162,7 @@ public class JsonLoggerTests extends ESTestCase {
             assertWarnings("deprecated message1", "compatible API message");
         });
     }
+
 
     public void testDeprecatedMessage() throws Exception {
         withThreadContext(threadContext -> {

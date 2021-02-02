@@ -41,11 +41,21 @@ public class DeprecatedMessage  {
     }
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    public static ESLogMessage compatibleDeprecationMessage(String key, String xOpaqueId, String messagePattern, Object... args){
+    public static ESLogMessage compatibleDeprecationMessage(
+        DeprecationCategory category,
+        String key, String xOpaqueId,
+        String messagePattern,
+        Object... args){
         return getEsLogMessage(category, key, xOpaqueId, messagePattern, args, "elasticsearch.compatible");
     }
 
-    private static ESLogMessage getEsLogMessage(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object[] args, String type) {
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
+    private static ESLogMessage getEsLogMessage(
+        DeprecationCategory category,
+        String key, String xOpaqueId,
+        String messagePattern,
+        Object[] args,
+        String type) {
         ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args)
             .field("data_stream.type", "logs")
             .field("data_stream.dataset", type)

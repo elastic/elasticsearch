@@ -141,7 +141,7 @@ public class BulkByScrollTask extends CancellableTask {
      * a leader task.
      */
     public LeaderBulkByScrollTaskState getLeaderState() {
-        if (!isLeader()) {
+        if (isLeader() == false) {
             throw new IllegalStateException("This task is not set to be a leader for other slice subtasks");
         }
         return leaderState;
@@ -178,7 +178,7 @@ public class BulkByScrollTask extends CancellableTask {
      * worker task.
      */
     public WorkerBulkByScrollTaskState getWorkerState() {
-        if (!isWorker()) {
+        if (isWorker() == false) {
             throw new IllegalStateException("This task is not set to be a worker");
         }
         return workerState;

@@ -17,7 +17,7 @@ explicitly map all other data types.
 // tag::dynamic-field-mapping-types-tag[]
 [cols="3"]
 |===
-h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
+h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
  |`null` 2*| No field added
  |`true` or `false` 2*| `boolean`
  |`double` | `float` | `double`

@@ -21,8 +21,8 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BinaryImplNode;
+import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
@@ -66,13 +66,20 @@ import org.elasticsearch.painless.ir.StringConcatenationNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.UnaryMathNode;
 import org.elasticsearch.painless.ir.WhileLoopNode;
+import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDCast;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDComparisonType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDOperation;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.function.Consumer;
 
 /**
@@ -824,6 +831,48 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             int j = i;
             irInvokeCallMemberNode.getArgumentNodes().get(i).visit(this, (e) -> irInvokeCallMemberNode.getArgumentNodes().set(j, e));
         }
+        PainlessMethod method = irInvokeCallMemberNode.getDecorationValue(IRDMethod.class);
+        if (method != null && method.annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
+            replaceCallWithConstant(irInvokeCallMemberNode, scope, method.javaMethod, null);
+            return;
+        }
+        PainlessInstanceBinding instanceBinding = irInvokeCallMemberNode.getDecorationValue(IRDInstanceBinding.class);
+        if (instanceBinding != null && instanceBinding.annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
+            replaceCallWithConstant(irInvokeCallMemberNode, scope, instanceBinding.javaMethod, instanceBinding.targetInstance);
+            return;
+        }
+    }
+
+    private void replaceCallWithConstant(
+        InvokeCallMemberNode irInvokeCallMemberNode,
+        Consumer<ExpressionNode> scope,
+        Method javaMethod,
+        Object receiver
+    ) {
+        Object[] args = new Object[irInvokeCallMemberNode.getArgumentNodes().size()];
+        for (int i = 0; i < irInvokeCallMemberNode.getArgumentNodes().size(); i++) {
+            ExpressionNode argNode = irInvokeCallMemberNode.getArgumentNodes().get(i);
+            if (argNode instanceof ConstantNode == false) {
+                // TODO find a better string to output
+                throw irInvokeCallMemberNode.getLocation()
+                    .createError(new IllegalArgumentException("all arguments must be constant but the [" + (i + 1) + "] argument isn't"));
+            }
+            args[i] = ((ConstantNode) argNode).getDecorationValue(IRDConstant.class);
+        }
+        Object result;
+        try {
+            result = javaMethod.invoke(receiver, args);
+        } catch (IllegalAccessException | IllegalArgumentException e) {
+            throw irInvokeCallMemberNode.getLocation()
+                .createError(new IllegalArgumentException("error invoking [" + irInvokeCallMemberNode + "] at compile time", e));
+        } catch (InvocationTargetException e) {
+            throw irInvokeCallMemberNode.getLocation()
+                .createError(new IllegalArgumentException("error invoking [" + irInvokeCallMemberNode + "] at compile time", e.getCause()));
+        }
+        ConstantNode replacement = new ConstantNode(irInvokeCallMemberNode.getLocation());
+        replacement.attachDecoration(new IRDConstant(result));
+        replacement.attachDecoration(irInvokeCallMemberNode.getDecoration(IRDExpressionType.class));
+        scope.accept(replacement);
     }
 
     @Override

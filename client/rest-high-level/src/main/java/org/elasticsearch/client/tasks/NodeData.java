@@ -124,7 +124,7 @@ class NodeData {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof NodeData)) return false;
+        if ((o instanceof NodeData) == false) return false;
         NodeData nodeData = (NodeData) o;
         return Objects.equals(getNodeId(), nodeData.getNodeId()) &&
             Objects.equals(getName(), nodeData.getName()) &&

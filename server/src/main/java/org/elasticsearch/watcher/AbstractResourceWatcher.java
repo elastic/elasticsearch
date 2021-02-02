@@ -32,7 +32,7 @@ public abstract class AbstractResourceWatcher<Listener> implements ResourceWatch
 
     @Override
     public void init() throws IOException {
-        if (!initialized) {
+        if (initialized == false) {
             doInit();
             initialized = true;
         }

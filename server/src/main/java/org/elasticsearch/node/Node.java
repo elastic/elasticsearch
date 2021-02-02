@@ -70,6 +70,7 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
@@ -145,13 +146,11 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.RestCompatibilityPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -316,6 +315,7 @@ public class Node implements Closeable {
             } else {
                 logger.info("JVM home [{}]", System.getProperty("java.home"));
                 deprecationLogger.deprecate(
+                    DeprecationCategory.OTHER,
                     "no-jdk",
                     "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
             }
@@ -464,7 +464,10 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .flatMap(p -> p.getNamedXContent().stream()),
                 ClusterModule.getNamedXWriteables().stream())
-                .flatMap(Function.identity()).collect(toList()));
+                .flatMap(Function.identity()).collect(toList()),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList())
+                );
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final PersistedClusterStateService lucenePersistedStateFactory
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry, bigArrays, clusterService.getClusterSettings(),
@@ -562,8 +565,7 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, systemIndices,
-                getRestCompatibleFunction());
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, systemIndices);
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
@@ -576,7 +578,7 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final MetadataIndexUpgradeService metadataIndexUpgradeService = new MetadataIndexUpgradeService(settings, xContentRegistry,
-                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), systemIndices, scriptService);
+                indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings(), scriptService);
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             }
@@ -733,27 +735,10 @@ public class Node implements Closeable {
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);
         } finally {
-            if (!success) {
+            if (success == false) {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
-    }
-
-    /**
-     * @return A function that can be used to determine the requested REST compatible version
-     * package scope for testing
-     */
-    CompatibleVersion getRestCompatibleFunction() {
-        List<RestCompatibilityPlugin> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibilityPlugin.class);
-        final CompatibleVersion compatibleVersion;
-        if (restCompatibilityPlugins.size() > 1) {
-            throw new IllegalStateException("Only one RestCompatibilityPlugin is allowed");
-        } else if (restCompatibilityPlugins.size() == 1) {
-            compatibleVersion = restCompatibilityPlugins.get(0)::getCompatibleVersion;
-        } else {
-            compatibleVersion = CompatibleVersion.CURRENT_VERSION;
-        }
-        return compatibleVersion;
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
@@ -800,7 +785,7 @@ public class Node implements Closeable {
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() throws NodeValidationException {
-        if (!lifecycle.moveToStarted()) {
+        if (lifecycle.moveToStarted() == false) {
             return this;
         }
 
@@ -929,7 +914,7 @@ public class Node implements Closeable {
     }
 
     private Node stop() {
-        if (!lifecycle.moveToStopped()) {
+        if (lifecycle.moveToStopped() == false) {
             return this;
         }
         logger.info("stopping ...");
@@ -973,7 +958,7 @@ public class Node implements Closeable {
             if (lifecycle.started()) {
                 stop();
             }
-            if (!lifecycle.moveToClosed()) {
+            if (lifecycle.moveToClosed() == false) {
                 return;
             }
         }

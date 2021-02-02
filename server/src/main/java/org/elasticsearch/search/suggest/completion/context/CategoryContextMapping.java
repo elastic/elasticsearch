@@ -192,7 +192,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         CategoryContextMapping mapping = (CategoryContextMapping) o;
         return !(fieldName != null ? !fieldName.equals(mapping.fieldName) : mapping.fieldName != null);
     }

@@ -50,16 +50,20 @@ public class TargetMeanEncodingTests extends AbstractXContentTestCase<TargetMean
     }
 
     public static TargetMeanEncoding createRandom() {
+        return createRandom(randomAlphaOfLength(10));
+    }
+
+    public static TargetMeanEncoding createRandom(String inputField) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new TargetMeanEncoding(randomAlphaOfLength(10),
+        return new TargetMeanEncoding(inputField,
             randomAlphaOfLength(10),
             valueMap,
             randomDoubleBetween(0.0, 1.0, false),
-            randomBoolean() ? null : randomBoolean());
+            true);
     }
 
 }

@@ -42,10 +42,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
-        return randomTransformConfigWithoutHeaders(Version.CURRENT, id);
-    }
-
-    public static TransformConfig randomTransformConfigWithoutHeaders(Version version, String id) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -53,7 +49,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
-            PivotConfigTests.randomPivotConfig(version),
+            PivotConfigTests.randomPivotConfig(Version.CURRENT),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),

@@ -60,7 +60,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     protected RankFeatureQueryBuilder doCreateTestQueryBuilder() {
         ScoreFunction function;
         boolean mayUseNegativeField = true;
-        switch (random().nextInt(3)) {
+        switch (random().nextInt(4)) {
         case 0:
             mayUseNegativeField = false;
             function = new ScoreFunction.Log(1 + randomFloat());
@@ -74,6 +74,9 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             break;
         case 2:
             function = new ScoreFunction.Sigmoid(randomFloat(), randomFloat());
+            break;
+        case 3:
+            function = new ScoreFunction.Linear();
             break;
         default:
             throw new AssertionError();
@@ -106,7 +109,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
         assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
-    public void testIllegalField() throws IOException {
+    public void testIllegalField() {
         String query = "{\n" +
                 "    \"rank_feature\" : {\n" +
                 "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" +
@@ -118,7 +121,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             e.getMessage());
     }
 
-    public void testIllegalCombination() throws IOException {
+    public void testIllegalCombination() {
         String query = "{\n" +
                 "    \"rank_feature\" : {\n" +
                 "        \"field\": \"my_negative_feature_field\",\n" +

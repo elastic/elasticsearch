@@ -250,7 +250,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 throw new ElasticsearchParseException("parameter [{}] not supported!", parameterName);
             }
         }
-        if (!scaleFound || !refFound) {
+        if (scaleFound == false || refFound == false) {
             throw new ElasticsearchParseException("both [{}] and [{}] must be set for numeric fields.", DecayFunctionBuilder.SCALE,
                     DecayFunctionBuilder.ORIGIN);
         }

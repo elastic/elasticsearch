@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -39,6 +38,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -116,7 +116,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             }
         }
 
-        if (!nodesIds.isEmpty()) {
+        if (nodesIds.isEmpty() == false) {
             // There are still some snapshots running - check their progress
             Snapshot[] snapshots = new Snapshot[currentSnapshots.size()];
             for (int i = 0; i < currentSnapshots.size(); i++) {
@@ -143,7 +143,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
         Set<String> currentSnapshotNames = new HashSet<>();
-        if (!currentSnapshotEntries.isEmpty()) {
+        if (currentSnapshotEntries.isEmpty() == false) {
             Map<String, TransportNodesSnapshotsStatus.NodeSnapshotStatus> nodeSnapshotStatusMap;
             if (nodeSnapshotStatuses != null) {
                 nodeSnapshotStatusMap = nodeSnapshotStatuses.getNodesMap();
@@ -238,9 +238,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                     List<SnapshotStatus> builder, Set<String> currentSnapshotNames, String repositoryName,
                                     ActionListener<SnapshotsStatusResponse> listener) {
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
-        final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+        final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
-        repositoryDataListener.whenComplete(repositoryData -> {
+        repositoryDataListener.addListener(ActionListener.wrap(repositoryData -> {
             final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
@@ -295,7 +295,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 }
             }
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
-        }, listener::onFailure);
+        }, listener::onFailure), threadPool.generic());
     }
 
     /**
@@ -310,7 +310,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     private SnapshotInfo snapshot(SnapshotsInProgress snapshotsInProgress, String repositoryName, SnapshotId snapshotId) {
         List<SnapshotsInProgress.Entry> entries =
             SnapshotsService.currentSnapshots(snapshotsInProgress, repositoryName, Collections.singletonList(snapshotId.getName()));
-        if (!entries.isEmpty()) {
+        if (entries.isEmpty() == false) {
             return new SnapshotInfo(entries.iterator().next());
         }
         return repositoriesService.repository(repositoryName).getSnapshotInfo(snapshotId);

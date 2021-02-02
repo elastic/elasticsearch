@@ -310,7 +310,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             TermsQueryBuilder terms = (TermsQueryBuilder) builder;
             String fieldName = terms.fieldName();
             String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
-            return new TermsQueryBuilder(rewrittenFieldName, terms.values());
+            return new TermsQueryBuilder(rewrittenFieldName, terms.getValues());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
             return builder;

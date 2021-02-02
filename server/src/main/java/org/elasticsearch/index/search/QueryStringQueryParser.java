@@ -562,7 +562,9 @@ public class QueryStringQueryParser extends XQueryParser {
 
             while (true) {
                 try {
-                    if (!source.incrementToken()) break;
+                    if (source.incrementToken() == false) {
+                        break;
+                    }
                 } catch (IOException e) {
                     break;
                 }

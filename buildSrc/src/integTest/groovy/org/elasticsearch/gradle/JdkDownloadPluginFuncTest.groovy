@@ -34,12 +34,14 @@ import java.util.regex.Pattern
 
 import static org.elasticsearch.gradle.JdkDownloadPlugin.VENDOR_ADOPTOPENJDK
 import static org.elasticsearch.gradle.JdkDownloadPlugin.VENDOR_OPENJDK
+import static org.elasticsearch.gradle.JdkDownloadPlugin.VENDOR_AZUL
 
 class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     private static final String OPENJDK_VERSION_OLD = "1+99"
     private static final String ADOPT_JDK_VERSION = "12.0.2+10"
     private static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
+    private static final String AZUL_AARCH_VERSION = "15.0.1+99@123456789123456789123456789abcde"
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
 
     @Unroll
@@ -57,7 +59,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 vendor = '$jdkVendor'
                 version = '$jdkVersion'
                 platform = "$platform"
-                architecture = "x64"
+                architecture = '$arch'
               }
             }
 
@@ -79,18 +81,19 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         assertExtraction(result.output, expectedJavaBin);
 
         where:
-        platform  | jdkVendor           | jdkVersion          | expectedJavaBin          | suffix
-        "linux"   | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "bin/java"               | ""
-        "linux"   | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "bin/java"               | ""
-        "linux"   | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
-        "windows" | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "bin/java"               | ""
-        "windows" | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "bin/java"               | ""
-        "windows" | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
-        "darwin"  | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "Contents/Home/bin/java" | ""
-        "darwin"  | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
-        "darwin"  | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
-        "mac"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
-        "mac"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
+        platform  | arch      | jdkVendor           | jdkVersion          | expectedJavaBin          | suffix
+        "linux"   | "x64"     | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "bin/java"               | ""
+        "linux"   | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
+        "windows" | "x64"     | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "bin/java"               | ""
+        "windows" | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "bin/java"               | ""
+        "windows" | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "bin/java"               | "(old version)"
+        "darwin"  | "x64"     | VENDOR_ADOPTOPENJDK | ADOPT_JDK_VERSION   | "Contents/Home/bin/java" | ""
+        "darwin"  | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
+        "darwin"  | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
+        "mac"     | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
+        "mac"     | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
+        "darwin"  | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION  | "Contents/Home/bin/java" | ""
     }
 
     def "transforms are reused across projects"() {
@@ -212,6 +215,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
             final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + effectivePlatform + "-x64_bin." + extension(platform);
             return "/java/GA/" + versionPath + "/GPL/" + filename;
+        } else if(vendor.equals(VENDOR_AZUL)) {
+            final String module = isMac(platform) ? "macosx" : platform;
+            // we only test zulu 15 darwin aarch64 for now
+            return "/zulu/bin/zulu15.28.1013-ca-jdk15.0.1-${module}_aarch64.tar.gz";
         }
     }
 
@@ -221,6 +228,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptopenjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
         } else if (vendor.equals(VENDOR_OPENJDK)) {
             JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
+        } else if (vendor.equals(VENDOR_AZUL)) {
+            String resourcePath = "fake_azuljdk_" + effectivePlatform + "_aarch64." + extension(platform)
+            JdkDownloadPluginFuncTest.class.getResourceAsStream(resourcePath).getBytes()
         }
     }
 

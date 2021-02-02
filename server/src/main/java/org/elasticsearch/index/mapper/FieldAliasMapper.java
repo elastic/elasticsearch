@@ -68,7 +68,7 @@ public final class FieldAliasMapper extends Mapper {
 
     @Override
     public Mapper merge(Mapper mergeWith) {
-        if (!(mergeWith instanceof FieldAliasMapper)) {
+        if ((mergeWith instanceof FieldAliasMapper) == false) {
             throw new IllegalArgumentException("Cannot merge a field alias mapping ["
                 + name() + "] with a mapping that is not for a field alias.");
         }
@@ -105,7 +105,7 @@ public final class FieldAliasMapper extends Mapper {
         String aliasScope = mappers.getNestedScope(name);
         String pathScope = mappers.getNestedScope(path);
 
-        if (!Objects.equals(aliasScope, pathScope)) {
+        if (Objects.equals(aliasScope, pathScope) == false) {
             StringBuilder message = new StringBuilder("Invalid [path] value [" + path + "] for field alias [" +
                 name + "]: an alias must have the same nested scope as its target. ");
             message.append(aliasScope == null

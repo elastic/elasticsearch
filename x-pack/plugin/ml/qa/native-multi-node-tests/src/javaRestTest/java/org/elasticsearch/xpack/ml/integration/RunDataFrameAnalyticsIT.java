@@ -581,6 +581,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Stopped analytics");
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67889")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 
@@ -611,11 +612,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         NodeAcknowledgedResponse response = startAnalytics(id);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until progress for first phase is over 1
-        assertBusy(() -> {
-            List<PhaseProgress> progress = getAnalyticsStats(id).getProgress();
-            assertThat(progress.get(0).getProgressPercent(), greaterThan(1));
-        });
+        String phaseToWait = randomFrom("reindexing", "loading_data", "computing_outliers");
+        waitUntilSomeProgressHasBeenMadeForPhase(id, phaseToWait);
         stopAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 

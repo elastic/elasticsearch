@@ -95,6 +95,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("type", "text")
             .startObject("index_prefixes").endObject()
             .endObject()
+            .startObject("ww_keyword")
+            .field("type", "keyword")
+            .field("split_queries_on_whitespace", true)
+            .endObject()
             .endObject().endObject().endObject();
 
         mapperService.merge("_doc",
@@ -1622,5 +1626,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertNotNull(rewritten.toQuery(context));
         assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
                 context.isCacheable());
+    }
+
+    public void testWhitespaceKeywordQueries() throws IOException {
+        String query = "\"query with spaces\"";
+        QueryStringQueryBuilder b = new QueryStringQueryBuilder(query);
+        b.field("ww_keyword");
+        Query q = b.doToQuery(createSearchExecutionContext());
+        assertEquals(new TermQuery(new Term("ww_keyword", "query with spaces")), q);
     }
 }

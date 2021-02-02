@@ -10,6 +10,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -65,7 +66,13 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        deprecationLogger.deprecate(NAME, "[{}] query is deprecated, but used on [{}] index", NAME, context.index().getName());
+        deprecationLogger.deprecate(
+            DeprecationCategory.QUERIES,
+            NAME,
+            "[{}] query is deprecated, but used on [{}] index",
+            NAME,
+            context.index().getName()
+        );
 
         return Queries.newMatchAllQuery();
     }

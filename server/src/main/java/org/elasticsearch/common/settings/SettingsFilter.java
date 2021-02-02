@@ -99,7 +99,7 @@ public final class SettingsFilter {
                 builder.remove(pattern);
             }
         }
-        if (!simpleMatchPatternList.isEmpty()) {
+        if (simpleMatchPatternList.isEmpty() == false) {
             String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
             builder.keys().removeIf(key -> Regex.simpleMatch(simpleMatchPatterns, key));
         }

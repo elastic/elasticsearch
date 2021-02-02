@@ -35,8 +35,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -133,11 +133,8 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, @Nullable SearchExecutionContext context) {
-            long[] v = new long[values.size()];
-            for (int i = 0; i < values.size(); ++i) {
-                v[i] = parse(values.get(i));
-            }
+        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+            long[] v = values.stream().mapToLong(this::parse).toArray();
             return LongPoint.newSetQuery(name(), v);
         }
 

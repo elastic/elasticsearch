@@ -61,7 +61,7 @@ public class PlainHighlighter implements Highlighter {
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
-        if (!fieldContext.cache.containsKey(CACHE_KEY)) {
+        if (fieldContext.cache.containsKey(CACHE_KEY) == false) {
             fieldContext.cache.put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
@@ -120,7 +120,8 @@ public class PlainHighlighter implements Highlighter {
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
-                if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
+                if (tokenStream.hasAttribute(CharTermAttribute.class) == false
+                        || tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
                 }
@@ -183,7 +184,7 @@ public class PlainHighlighter implements Highlighter {
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents)
             throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
-            if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
+            if (tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                 // Can't split on term boundaries without offsets
                 return -1;
             }

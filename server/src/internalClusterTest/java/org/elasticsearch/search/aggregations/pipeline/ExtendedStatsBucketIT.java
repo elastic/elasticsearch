@@ -458,10 +458,10 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         } else if (cause instanceof SearchPhaseExecutionException) {
             SearchPhaseExecutionException spee = (SearchPhaseExecutionException) ex;
             Throwable rootCause = spee.getRootCause();
-            if (!(rootCause instanceof IllegalArgumentException)) {
+            if ((rootCause instanceof IllegalArgumentException) == false) {
                 throw ex;
             }
-        } else if (!(cause instanceof IllegalArgumentException)) {
+        } else if ((cause instanceof IllegalArgumentException) == false) {
             throw ex;
         }
     }

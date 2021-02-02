@@ -73,7 +73,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                     @Override
                     public void run() {
                         try {
-                            while (!stop.get()) {
+                            while (stop.get() == false) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
                                 if (sr.getHits().getTotalHits().value != numDocs) {
                                     // if we did not search all shards but had no failures that is potentially fine
@@ -96,7 +96,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                         } catch (SearchPhaseExecutionException ex) {
                             // it's possible that all shards fail if we have a small number of shards.
                             // with replicas this should not happen
-                            if (numberOfReplicas == 1 || !ex.getMessage().contains("all shards failed")) {
+                            if (numberOfReplicas == 1 || ex.getMessage().contains("all shards failed") == false) {
                                 throw ex;
                             }
                         }
@@ -117,7 +117,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                     .setWaitForNoRelocatingShards(true).setWaitForEvents(Priority.LANGUID).setTimeout("5m").get();
             assertNoTimeout(resp);
             // if we hit only non-critical exceptions we make sure that the post search works
-            if (!nonCriticalExceptions.isEmpty()) {
+            if (nonCriticalExceptions.isEmpty() == false) {
                 logger.info("non-critical exceptions: {}", nonCriticalExceptions);
                 for (int j = 0; j < 10; j++) {
                     assertHitCount(client().prepareSearch().get(), numDocs);

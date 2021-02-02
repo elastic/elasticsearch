@@ -108,7 +108,7 @@ public class CorsHandler {
     }
 
     public void setCorsResponseHeaders(final HttpRequest httpRequest, final HttpResponse httpResponse) {
-        if (!config.isCorsSupportEnabled()) {
+        if (config.isCorsSupportEnabled() == false) {
             return;
         }
         if (setOrigin(httpRequest, httpResponse)) {
@@ -154,7 +154,7 @@ public class CorsHandler {
 
     private boolean setOrigin(final HttpRequest request, final HttpResponse response) {
         String origin = getOrigin(request);
-        if (!Strings.isNullOrEmpty(origin)) {
+        if (Strings.isNullOrEmpty(origin) == false) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     setAllowOrigin(response, origin);

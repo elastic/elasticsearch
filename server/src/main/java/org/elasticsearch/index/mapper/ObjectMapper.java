@@ -19,6 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,17 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -97,7 +98,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public void merge(Nested mergeWith, MergeReason reason) {
             if (isNested()) {
-                if (!mergeWith.isNested()) {
+                if (mergeWith.isNested() == false) {
                     throw new IllegalArgumentException("cannot change object mapping from nested to non-nested");
                 }
             } else {
@@ -245,14 +246,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
                     // nothing to do here, empty (to support "properties: []" case)
-                } else if (!(fieldNode instanceof Map)) {
+                } else if ((fieldNode instanceof Map) == false) {
                     throw new ElasticsearchParseException("properties must be a map type");
                 } else {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecate("include_in_all",
+                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
@@ -478,7 +479,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        if (!(mergeWith instanceof ObjectMapper)) {
+        if ((mergeWith instanceof ObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
@@ -494,12 +495,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
-        if (reason == MergeReason.INDEX_TEMPLATE) {
-            if (mergeWith.enabled.explicit()) {
+        if (mergeWith.enabled.explicit()) {
+            if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
+            } else if (isEnabled() != mergeWith.isEnabled()){
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
         }
 
         for (Mapper mergeWithMapper : mergeWith) {
@@ -569,7 +570,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            if (!(mapper instanceof MetadataFieldMapper)) {
+            if ((mapper instanceof MetadataFieldMapper) == false) {
                 if (count++ == 0) {
                     builder.startObject("properties");
                 }

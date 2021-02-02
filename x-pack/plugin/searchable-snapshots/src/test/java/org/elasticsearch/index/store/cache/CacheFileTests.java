@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.index.store.cache;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheFile.EvictionListener;
 import org.elasticsearch.index.store.cache.TestUtils.FSyncTrackingFileSystemProvider;
@@ -25,13 +25,15 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
@@ -39,6 +41,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -46,7 +49,14 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class CacheFileTests extends ESTestCase {
 
-    private static final Runnable NOOP = () -> {};
+    private static final CacheFile.ModificationListener NOOP = new CacheFile.ModificationListener() {
+        @Override
+        public void onCacheFileNeedsFsync(CacheFile cacheFile) {}
+
+        @Override
+        public void onCacheFileDelete(CacheFile cacheFile) {}
+    };
+
     private static final CacheKey CACHE_KEY = new CacheKey("_snap_uuid", "_snap_index", new ShardId("_name", "_uuid", 0), "_filename");
 
     public void testGetCacheKey() throws Exception {
@@ -63,7 +73,9 @@ public class CacheFileTests extends ESTestCase {
 
     public void testAcquireAndRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
+        final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, updatesListener);
+        assertFalse(updatesListener.containsDelete(cacheFile));
 
         assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
@@ -94,15 +106,18 @@ public class CacheFileTests extends ESTestCase {
         assertThat("Cache file is evicted but not fully released: channel still exists", cacheFile.getChannel(), notNullValue());
         assertThat("Cache file is evicted but not fully released: channel is open", cacheFile.getChannel().isOpen(), is(true));
         assertThat("Channel didn't change after eviction", cacheFile.getChannel(), sameInstance(fileChannel));
+        assertFalse(updatesListener.containsDelete(cacheFile));
 
         cacheFile.release(listener);
         assertThat("Cache file evicted and fully released: channel does not exist", cacheFile.getChannel(), nullValue());
         assertThat("Cache file has been deleted", Files.exists(file), is(false));
+        assertTrue(updatesListener.containsDelete(cacheFile));
     }
 
     public void testCacheFileNotAcquired() throws IOException {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
+        final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, updatesListener);
 
         assertThat(Files.exists(file), is(false));
         assertThat(cacheFile.getChannel(), nullValue());
@@ -117,14 +132,20 @@ public class CacheFileTests extends ESTestCase {
             cacheFile.release(listener);
         }
 
+        assertFalse(updatesListener.containsUpdate(cacheFile));
+        assertFalse(updatesListener.containsDelete(cacheFile));
+
         cacheFile.startEviction();
+
         assertThat(cacheFile.getChannel(), nullValue());
         assertFalse(Files.exists(file));
+        assertTrue(updatesListener.containsDelete(cacheFile));
     }
 
     public void testDeleteOnCloseAfterLastRelease() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
+        final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, updatesListener);
 
         final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
@@ -151,12 +172,14 @@ public class CacheFileTests extends ESTestCase {
         acquiredListeners.forEach(l -> assertTrue("Released listeners after cache file eviction are called", l.isCalled()));
         acquiredListeners.forEach(cacheFile::release);
 
+        assertTrue(updatesListener.containsDelete(cacheFile));
         assertFalse(Files.exists(file));
     }
 
     public void testConcurrentAccess() throws Exception {
         final Path file = createTempDir().resolve("file.cache");
-        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
+        final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
+        final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, updatesListener);
 
         final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);
@@ -191,28 +214,32 @@ public class CacheFileTests extends ESTestCase {
         deterministicTaskQueue.scheduleNow(() -> cacheFile.release(evictionListener));
         deterministicTaskQueue.runAllRunnableTasks();
         if (populateAndReadFuture != null) {
-            assertTrue(populateAndReadFuture.isDone());
+            try {
+                assertTrue(populateAndReadFuture.isDone());
+                populateAndReadFuture.get();
+                assertTrue(updatesListener.containsUpdate(cacheFile));
+            } catch (ExecutionException e) {
+                assertThat(e.getCause(), instanceOf(AlreadyClosedException.class));
+                assertFalse(updatesListener.containsUpdate(cacheFile));
+                assertTrue(updatesListener.containsDelete(cacheFile));
+            }
         }
         if (readIfAvailableFuture != null) {
             assertTrue(readIfAvailableFuture.isDone());
         }
         if (evicted) {
             assertFalse(Files.exists(file));
+            assertTrue(updatesListener.containsDelete(cacheFile));
         }
     }
 
     public void testFSync() throws Exception {
         final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
         try {
-            final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
-            final CacheFile cacheFile = new CacheFile(
-                CACHE_KEY,
-                randomLongBetween(0L, 1000L),
-                fileSystem.resolve("test"),
-                () -> assertFalse(needsFSyncCalled.getAndSet(true))
-            );
+            final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
+            final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(0L, 1000L), fileSystem.resolve("test"), updatesListener);
             assertFalse(cacheFile.needsFsync());
-            assertFalse(needsFSyncCalled.get());
+            assertFalse(updatesListener.containsUpdate(cacheFile));
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
@@ -223,23 +250,24 @@ public class CacheFileTests extends ESTestCase {
                     assertNumberOfFSyncs(cacheFile.getFile(), equalTo(0));
                     assertThat(completedRanges, hasSize(0));
                     assertFalse(cacheFile.needsFsync());
-                    assertFalse(needsFSyncCalled.get());
+                    assertFalse(updatesListener.containsUpdate(cacheFile));
                 }
 
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
-                    assertTrue(needsFSyncCalled.getAndSet(false));
+                    assertTrue(updatesListener.containsUpdate(cacheFile));
+                    updatesListener.reset();
                 } else {
                     assertFalse(cacheFile.needsFsync());
-                    assertFalse(needsFSyncCalled.get());
+                    assertFalse(updatesListener.containsUpdate(cacheFile));
                 }
 
                 final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
                 assertFalse(cacheFile.needsFsync());
-                assertFalse(needsFSyncCalled.get());
+                assertFalse(updatesListener.containsUpdate(cacheFile));
             } finally {
                 cacheFile.release(listener);
             }
@@ -251,49 +279,55 @@ public class CacheFileTests extends ESTestCase {
     public void testFSyncOnEvictedFile() throws Exception {
         final FSyncTrackingFileSystemProvider fileSystem = setupFSyncCountingFileSystem();
         try {
-            final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
-            final CacheFile cacheFile = new CacheFile(
-                CACHE_KEY,
-                randomLongBetween(0L, 1000L),
-                fileSystem.resolve("test"),
-                () -> assertFalse(needsFSyncCalled.getAndSet(true))
-            );
+            final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
+            final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(0L, 1000L), fileSystem.resolve("test"), updatesListener);
             assertFalse(cacheFile.needsFsync());
-            assertFalse(needsFSyncCalled.get());
+            assertFalse(updatesListener.containsUpdate(cacheFile));
+            assertFalse(updatesListener.containsDelete(cacheFile));
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
-            final RunOnce releaseOnce = new RunOnce(() -> cacheFile.release(listener));
+            boolean released = false;
             try {
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
-                    assertTrue(needsFSyncCalled.getAndSet(false));
+                    assertTrue(updatesListener.containsUpdate(cacheFile));
+                    updatesListener.reset();
 
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
                     assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
                     assertNumberOfFSyncs(cacheFile.getFile(), equalTo(1));
                 }
                 assertFalse(cacheFile.needsFsync());
-                assertFalse(needsFSyncCalled.get());
+                assertFalse(updatesListener.containsUpdate(cacheFile));
+                updatesListener.reset();
 
                 cacheFile.startEviction();
+                assertFalse(updatesListener.containsDelete(cacheFile));
 
                 if (rarely()) {
                     assertThat("New ranges should not be written after cache file eviction", randomPopulateAndReads(cacheFile), hasSize(0));
                 }
                 if (randomBoolean()) {
-                    releaseOnce.run();
+                    cacheFile.release(listener);
+                    assertTrue(updatesListener.containsDelete(cacheFile));
+                    released = true;
                 }
+                updatesListener.reset();
 
                 final SortedSet<Tuple<Long, Long>> completedRangesAfterEviction = cacheFile.fsync();
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertThat(completedRangesAfterEviction, hasSize(0));
                 assertFalse(cacheFile.needsFsync());
-                assertFalse(needsFSyncCalled.get());
+                assertFalse(updatesListener.containsUpdate(cacheFile));
+                updatesListener.reset();
             } finally {
-                releaseOnce.run();
+                if (released == false) {
+                    cacheFile.release(listener);
+                    assertTrue(updatesListener.containsDelete(cacheFile));
+                }
             }
         } finally {
             fileSystem.tearDown();
@@ -305,15 +339,11 @@ public class CacheFileTests extends ESTestCase {
         try {
             fileSystem.failFSyncs(true);
 
-            final AtomicBoolean needsFSyncCalled = new AtomicBoolean();
-            final CacheFile cacheFile = new CacheFile(
-                CACHE_KEY,
-                randomLongBetween(0L, 1000L),
-                fileSystem.resolve("test"),
-                () -> assertFalse(needsFSyncCalled.getAndSet(true))
-            );
+            final TestCacheFileModificationListener updatesListener = new TestCacheFileModificationListener();
+            final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(0L, 1000L), fileSystem.resolve("test"), updatesListener);
             assertFalse(cacheFile.needsFsync());
-            assertFalse(needsFSyncCalled.get());
+            assertFalse(updatesListener.containsUpdate(cacheFile));
+            assertFalse(updatesListener.containsDelete(cacheFile));
 
             final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
@@ -322,11 +352,14 @@ public class CacheFileTests extends ESTestCase {
                 final SortedSet<Tuple<Long, Long>> expectedCompletedRanges = randomPopulateAndReads(cacheFile);
                 if (expectedCompletedRanges.isEmpty() == false) {
                     assertTrue(cacheFile.needsFsync());
-                    assertTrue(needsFSyncCalled.getAndSet(false));
+                    assertTrue(updatesListener.containsUpdate(cacheFile));
+                    updatesListener.reset();
+
                     IOException exception = expectThrows(IOException.class, cacheFile::fsync);
                     assertThat(exception.getMessage(), containsString("simulated"));
                     assertTrue(cacheFile.needsFsync());
-                    assertTrue(needsFSyncCalled.getAndSet(false));
+                    assertTrue(updatesListener.containsUpdate(cacheFile));
+                    updatesListener.reset();
                 } else {
                     assertFalse(cacheFile.needsFsync());
                     final SortedSet<Tuple<Long, Long>> completedRanges = cacheFile.fsync();
@@ -340,7 +373,9 @@ public class CacheFileTests extends ESTestCase {
                 assertArrayEquals(completedRanges.toArray(Tuple[]::new), expectedCompletedRanges.toArray(Tuple[]::new));
                 assertNumberOfFSyncs(cacheFile.getFile(), equalTo(expectedCompletedRanges.isEmpty() ? 0 : 1));
                 assertFalse(cacheFile.needsFsync());
-                assertFalse(needsFSyncCalled.get());
+                assertFalse(updatesListener.containsUpdate(cacheFile));
+                assertFalse(updatesListener.containsDelete(cacheFile));
+                updatesListener.reset();
             } finally {
                 cacheFile.release(listener);
             }
@@ -364,6 +399,35 @@ public class CacheFileTests extends ESTestCase {
         @Override
         public void onEviction(CacheFile evictedCacheFile) {
             evicted.set(Objects.requireNonNull(evictedCacheFile));
+        }
+    }
+
+    private static class TestCacheFileModificationListener implements CacheFile.ModificationListener {
+
+        private final Set<CacheFile> updates = new HashSet<>();
+        private final Set<CacheFile> deletes = new HashSet<>();
+
+        @Override
+        public synchronized void onCacheFileNeedsFsync(CacheFile cacheFile) {
+            assertTrue(updates.add(cacheFile));
+        }
+
+        synchronized boolean containsUpdate(CacheFile cacheFile) {
+            return updates.contains(cacheFile);
+        }
+
+        @Override
+        public synchronized void onCacheFileDelete(CacheFile cacheFile) {
+            assertTrue(deletes.add(cacheFile));
+        }
+
+        synchronized boolean containsDelete(CacheFile cacheFile) {
+            return deletes.contains(cacheFile);
+        }
+
+        synchronized void reset() {
+            updates.clear();
+            deletes.clear();
         }
     }
 

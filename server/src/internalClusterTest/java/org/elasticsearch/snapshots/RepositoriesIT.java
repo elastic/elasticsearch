@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.containsString;
@@ -185,7 +186,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                 .put("location", randomRepoPath())
                 .put("random_control_io_exception_rate", 1.0).build();
         Settings readonlySettings = Settings.builder().put(settings)
-            .put("readonly", true).build();
+            .put(READONLY_SETTING_KEY, true).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
         assertRequestBuilderThrows(client.admin().cluster().preparePutRepository("test-repo-1")
                         .setType("mock").setSettings(settings),

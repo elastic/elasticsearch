@@ -347,7 +347,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 }
                 Metric m = valueToEnum.get(metric);
                 if (m == null) {
-                    if (!ignoreUnknown) {
+                    if (ignoreUnknown == false) {
                         throw new IllegalArgumentException("Unknown metric [" + metric + "]");
                     }
                 } else {
@@ -382,7 +382,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (metrics.contains(Metric.BLOCKS)) {
             builder.startObject("blocks");
 
-            if (!blocks().global().isEmpty()) {
+            if (blocks().global().isEmpty() == false) {
                 builder.startObject("global");
                 for (ClusterBlock block : blocks().global()) {
                     block.toXContent(builder, params);
@@ -390,7 +390,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 builder.endObject();
             }
 
-            if (!blocks().indices().isEmpty()) {
+            if (blocks().indices().isEmpty() == false) {
                 builder.startObject("indices");
                 for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
                     builder.startObject(entry.key);

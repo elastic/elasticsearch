@@ -171,7 +171,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
                     "invalid number of points in LinearRing (found [" + points.size() + "] - must be >= 4)");
         }
 
-        if (!points.get(0).equals(points.get(points.size() - 1))) {
+        if (points.get(0).equals(points.get(points.size() - 1)) == false) {
                 throw new IllegalArgumentException("invalid LinearRing found (coordinates are not closed)");
         }
     }
@@ -438,7 +438,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
                         prev.component = visitID;
                         prev = visitedEdge.get(prev.coordinate).v1();
                         ++splitIndex;
-                    } while (!current.coordinate.equals(prev.coordinate));
+                    } while (current.coordinate.equals(prev.coordinate) == false);
                     ++connectedComponents;
                 } else {
                     visitedEdge.put(current.coordinate, new Tuple<Edge, Edge>(prev, current));

@@ -375,7 +375,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         // can either fail directly with an exception or the response contains exceptions (depending on client)
         try {
             BulkResponse response = client.bulk(bulkRequest).actionGet();
-            if (!response.hasFailures()) {
+            if (response.hasFailures() == false) {
                 fail("Should have thrown CircuitBreakingException");
             } else {
                 // each item must have failed with CircuitBreakingException

@@ -1192,7 +1192,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 return false;
             }
         }, 30, TimeUnit.SECONDS));
-        assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
+
+        // wait for **both** the restored and the original managed index to not exist anymore
+        // (making sure the ILM policy finished - asserting only on the restored index has the
+        // problem of a fast executing test code that will have the
+        // `assertFalse(indexExists(restoredIndexName))` assertion pass before the restored index
+        // ever existed)
+        assertBusy(() -> {
+            assertFalse(indexExists(index));
+            assertFalse(indexExists(restoredIndexName));
+        }, 90, TimeUnit.SECONDS);
 
         assertTrue("the snapshot we generate in the cold phase should not be deleted by the delete phase", waitUntil(() -> {
             try {

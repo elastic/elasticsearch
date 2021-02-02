@@ -76,11 +76,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
         // run a snapshot including global state
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
-            .setWaitForCompletion(true)
-            .setIncludeGlobalState(true)
-            .get();
-        assertSnapshotSuccess(createSnapshotResponse);
+        createFullSnapshot(REPO_NAME, "test-snap");
 
         // add another document
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");

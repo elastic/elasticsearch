@@ -173,18 +173,24 @@ file is generated automatically after IntelliJ finishes syncing. You can
 manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
-   1. Open **Preferences > Tools > Checkstyle**
-   2. Change the "Scan Scope" to "Only Java sources (including tests)"
-   3. Check the "+" under "Configuration file"
-   4. Set "Description" to "Elasticsearch" (or whatever you want)
-   5. Select "Use a local Checkstyle file"
-   6. For the "File", enter `checkstyle_ide.xml`
-   7. Tick "Store relative to project location"
-   8. Click "Next", then "Finish".
-   9. Click the box next to the new configuration to make it "Active". Without doing this,
-      you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
-      tool window and run the check manually. You can still do this with an active config.
-   10. Click "OK" to apply the new preferences
+   1. We have some custom Checkstyle rules. In order to use them, you need
+      to make sure the rules are built, by running: `./gradlew build-tools:assemble`
+   2. Open **Preferences > Tools > Checkstyle**
+   3. Change the "Scan Scope" to "Only Java sources (including tests)"
+   4. Click the "+" under "Configuration file"
+   5. Set "Description" to "Elasticsearch" (or whatever you want)
+   6. Select "Use a local Checkstyle file"
+   7. For the "File", enter `checkstyle_ide.xml`
+   8. Tick "Store relative to project location"
+   9. Click "Next", then "Finish".
+   10. Click the box next to the new configuration to make it "Active".
+       Without doing this, you'll have to explicitly choose the
+       "Elasticsearch" configuration in the Checkstyle tool window and run
+       the check manually. You can still do this with an active config.
+   11. Now we need to tell Checkstyle where to find the custom rules. Under
+       the "Third-Party Checks" section, click the "+" button.
+   12. Navigate to `buildSrc/build/distributions/build-tools-$VERSION.jar`
+   13. Click "OK" to apply the new preferences
 
 #### Formatting
 

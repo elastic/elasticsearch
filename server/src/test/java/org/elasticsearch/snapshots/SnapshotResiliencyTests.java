@@ -1578,7 +1578,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         mapperRegistry,
                         indexScopedSettings,
                         null),
-                    clusterSettings,
                         shardLimitValidator
                 );
                 actions.put(PutMappingAction.INSTANCE,

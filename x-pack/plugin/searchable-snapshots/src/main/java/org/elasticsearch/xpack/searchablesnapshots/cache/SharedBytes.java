@@ -69,6 +69,7 @@ public class SharedBytes extends AbstractRefCounted {
             // TODO: maybe make this faster by allocating a larger direct buffer if this is too slow for very large files
             // We fill either the full file or the bytes between its current size and the desired size once with zeros to fully allocate
             // the file up front
+            logger.info("creating shared snapshot cache file [size={}, path={}]", fileSize, cacheFile);
             final ByteBuffer fillBytes = ByteBuffer.allocate(Channels.WRITE_CHUNK_SIZE);
             this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
             long written = fileChannel.size();

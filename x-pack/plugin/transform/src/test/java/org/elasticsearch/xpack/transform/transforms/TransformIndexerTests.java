@@ -504,7 +504,7 @@ public class TransformIndexerTests extends ESTestCase {
         auditor.assertAllExpectationsMatched();
     }
 
-    public void testInitializeFunction_WithWarning() {
+    public void testInitializeFunction_WithWarnings() {
         String transformId = randomAlphaOfLength(10);
         SourceConfig sourceConfig =
             new SourceConfig(
@@ -514,8 +514,9 @@ public class TransformIndexerTests extends ESTestCase {
                     put("field-A", singletonMap("script", "some script"));
                     put("field-B", singletonMap("script", "some script"));
                     put("field-C", singletonMap("script", "some script"));
+                    put("field-t", singletonMap("script", "some script"));
                 }});
-        SyncConfig syncConfig = new TimeSyncConfig("field", null);
+        SyncConfig syncConfig = new TimeSyncConfig("field-t", null);
         LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
         TransformConfig config =
             new TransformConfig(
@@ -528,6 +529,12 @@ public class TransformIndexerTests extends ESTestCase {
                 Level.WARNING,
                 transformId,
                 "all the group-by fields are script-based runtime fields"));
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "warn when the sync time field is a script-based runtime field",
+                Level.WARNING,
+                transformId,
+                "sync time field is a script-based runtime field"));
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
         createMockIndexer(config, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);

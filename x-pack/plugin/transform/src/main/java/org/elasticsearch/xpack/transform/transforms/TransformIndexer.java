@@ -377,6 +377,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 auditor.warning(getJobId(), message);
             }
 
+            if (scriptBasedRuntimeFieldNames.containsKey(transformConfig.getSyncConfig().getField())) {
+                String message = "sync time field is a script-based runtime field, "
+                    + "this transform might run slowly, please check your configuration.";
+                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
+                auditor.warning(getJobId(), message);
+            }
+
             changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
             if (changeCollector.isOptimized() == false) {
                 String message = "could not find any optimizations for continuous execution, "

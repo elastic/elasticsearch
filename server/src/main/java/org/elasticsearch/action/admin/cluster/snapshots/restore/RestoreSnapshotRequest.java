@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.FEATURE_STATES_VERSION;
+import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;

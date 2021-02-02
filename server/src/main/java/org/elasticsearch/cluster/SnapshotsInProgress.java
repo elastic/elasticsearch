@@ -54,7 +54,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.FEATURE_STATES_VERSION;
+import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
 
 /**
  * Meta data about snapshots that are currently executing

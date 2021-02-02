@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,7 +65,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         implements IndicesRequest.Replaceable, ToXContentObject {
 
     public static final Version SETTINGS_IN_REQUEST_VERSION = Version.V_8_0_0;
-    public static final Version FEATURE_STATES_VERSION = Version.V_8_0_0;
 
     public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
@@ -109,7 +109,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (in.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             readSettingsFromStream(in);
         }
-        if (in.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+        if (in.getVersion().onOrAfter(SnapshotsService.FEATURE_STATES_VERSION)) {
             featureStates = in.readStringArray();
         }
         includeGlobalState = in.readBoolean();
@@ -128,7 +128,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (out.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             writeSettingsToStream(Settings.EMPTY, out);
         }
-        if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+        if (out.getVersion().onOrAfter(SnapshotsService.FEATURE_STATES_VERSION)) {
             out.writeStringArray(featureStates);
         }
         out.writeBoolean(includeGlobalState);

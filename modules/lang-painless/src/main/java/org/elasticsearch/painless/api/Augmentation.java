@@ -172,11 +172,9 @@ public class Augmentation {
         StringBuilder sb = new StringBuilder();
         boolean firstToken = false;
         for (T t : receiver) {
-            if (firstToken) {
-            	
+            if (firstToken) {            	
             	firstToken=false;
-            }
-            else {
+            } else {
                 sb.append(separator);
             }
             sb.append(t);

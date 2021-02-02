@@ -31,15 +31,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
@@ -77,11 +68,23 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+/**
+ * This class tests the Elasticsearch Docker images. We have more than one because we build
+ * an image with a custom, small base image, and an image based on RedHat's UBI.
+ */
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
 
@@ -453,16 +456,23 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67097")
-    public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
+    public void test085EnvironmentVariablesAreRespectedUnderDockerExec() throws Exception {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());
 
-        runContainer(distribution(), null, singletonMap("http.host", "this.is.not.valid"));
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("xpack.security.enabled", "true");
+        envVars.put("ELASTIC_PASSWORD", "hunter2");
+        installation = runContainer(distribution(), null, envVars);
 
-        // This will fail if the env var above is passed as a -E argument
-        final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
+        // The tool below requires a keystore, so ensure that ES is fully initialised before proceeding.
+        waitForElasticsearch("green", null, installation, "elastic", "hunter2");
+
+        sh.getEnv().put("http.host", "this.is.not.valid");
+
+        // This will fail because of the extra env var
+        final Result result = sh.runIgnoreExitCode("bash -c 'echo y | elasticsearch-setup-passwords auto'");
 
         assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
         assertThat(result.stdout, containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known"));

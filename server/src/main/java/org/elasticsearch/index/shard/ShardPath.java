@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
@@ -172,8 +173,13 @@ public final class ShardPath {
      * This method tries to delete left-over shards where the index name has been reused but the UUID is different
      * to allow the new shard to be allocated.
      */
-    public static void deleteLeftoverShardDirectory(Logger logger, NodeEnvironment env,
-                                                            ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public static void deleteLeftoverShardDirectory(
+        final Logger logger,
+        final NodeEnvironment env,
+        final ShardLock lock,
+        final IndexSettings indexSettings,
+        final Consumer<Path[]> listener
+    ) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(lock.getShardId());
         for (Path path : paths) {
@@ -183,7 +189,8 @@ public final class ShardPath {
                 if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
                     logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
                     assert Files.isDirectory(path) : path + " is not a directory";
-                    NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);
+                    NodeEnvironment.acquireFSLockForPaths(indexSettings, path);
+                    listener.accept(new Path[]{path});
                     IOUtils.rm(path);
                 }
             }

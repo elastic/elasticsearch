@@ -124,11 +124,11 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param listener Returns {@code true} if the resource is available for use. {@code false} to stop.
      */
     @Override
-    protected final void doCheckAndPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected final void doCheckAndPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         doCheck(client, ActionListener.wrap(exists -> {
             if (exists) {
                 // it already exists, so we can skip publishing it
-                listener.onResponse(true);
+                listener.onResponse(ResourcePublishResult.ready());
             } else {
                 doPublish(client, listener);
             }
@@ -290,7 +290,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param client The REST client to make the request(s).
      * @param listener Returns {@code true} if the resource is available to use. Otherwise {@code false}.
      */
-    protected abstract void doPublish(RestClient client, ActionListener<Boolean> listener);
+    protected abstract void doPublish(RestClient client, ActionListener<ResourcePublishResult> listener);
 
     /**
      * Upload the {@code resourceName} to the {@code resourceBasePath} endpoint.
@@ -307,7 +307,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      */
     protected void putResource(final RestClient client,
-                               final ActionListener<Boolean> listener,
+                               final ActionListener<ResourcePublishResult> listener,
                                final Logger logger,
                                final String resourceBasePath,
                                final String resourceName,
@@ -334,7 +334,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                 if (statusCode == RestStatus.OK.getStatus() || statusCode == RestStatus.CREATED.getStatus()) {
                     logger.debug("{} [{}] uploaded to the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-                    listener.onResponse(true);
+                    listener.onResponse(ResourcePublishResult.ready());
                 } else {
                     onFailure(new RuntimeException("[" + resourceBasePath + "/" + resourceName + "] responded with [" + statusCode + "]"));
                 }

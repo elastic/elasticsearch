@@ -81,6 +81,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     static final TimeValue GRACE_PERIOD_DURATION = days(7);
 
+    /**
+     * Period before the license expires when warning starts being added to the response header
+     */
+    static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = days(7);
+
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS =
         XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
 
@@ -124,7 +129,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final String LICENSE_JOB = "licenseJob";
 
-    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
+    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
         "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
@@ -475,7 +480,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     protected void updateLicenseState(final License license, Version mostRecentTrialVersion) {
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, mostRecentTrialVersion);
+            licenseState.update(License.OperationMode.MISSING, false, license.expiryDate(), mostRecentTrialVersion);
             return;
         }
         if (license != null) {
@@ -488,7 +493,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // date that is near Long.MAX_VALUE
                 active = time >= license.issueDate() && time - GRACE_PERIOD_DURATION.getMillis() < license.expiryDate();
             }
-            licenseState.update(license.operationMode(), active, mostRecentTrialVersion);
+            licenseState.update(license.operationMode(), active, license.expiryDate(), mostRecentTrialVersion);
 
             if (active) {
                 if (time < license.expiryDate()) {

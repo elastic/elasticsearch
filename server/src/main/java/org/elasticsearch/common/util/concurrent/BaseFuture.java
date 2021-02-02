@@ -107,7 +107,7 @@ public abstract class BaseFuture<V> implements Future<V> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        if (!sync.cancel()) {
+        if (sync.cancel() == false) {
             return false;
         }
         done(false);
@@ -239,7 +239,7 @@ public abstract class BaseFuture<V> implements Future<V> {
                 ExecutionException, InterruptedException {
 
             // Attempt to acquire the shared lock with a timeout.
-            if (!tryAcquireSharedNanos(-1, nanos)) {
+            if (tryAcquireSharedNanos(-1, nanos) == false) {
                 throw new TimeoutException("Timeout waiting for task.");
             }
 

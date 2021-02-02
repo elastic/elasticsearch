@@ -8,21 +8,14 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.List;
 import java.util.Map;
 
 public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_script_field", Factory.class);
-
-    static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "double_whitelist.txt"));
-    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -34,6 +27,28 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
     public interface LeafFactory {
         DoubleFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new DoubleFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v instanceof Number) {
+                    emit(((Number) v).doubleValue());
+                } else if (v instanceof String) {
+                    try {
+                        emit(Double.parseDouble((String) v));
+                    } catch (NumberFormatException e) {
+                        // ignore
+                    }
+                }
+            }
+        }
+    };
 
     private double[] values = new double[1];
     private int count;

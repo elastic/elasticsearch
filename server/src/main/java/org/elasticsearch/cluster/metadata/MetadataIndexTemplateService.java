@@ -75,11 +75,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
@@ -601,7 +603,7 @@ public class MetadataIndexTemplateService {
     static Map<String, List<String>> findConflictingV2Templates(final ClusterState state, final String candidateName,
                                                                 final List<String> indexPatterns, boolean checkPriority, long priority) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
-        Map<String, List<String>> overlappingTemplates = new HashMap<>();
+        Map<String, List<String>> overlappingTemplates = new TreeMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
@@ -1062,6 +1064,13 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::aliases)
             .ifPresent(aliases::add);
+
+        // A template that creates data streams can't also create aliases.
+        // (otherwise we end up with aliases pointing to backing indices of data streams)
+        if (aliases.size() > 0 && template.getDataStreamTemplate() != null) {
+            throw new IllegalArgumentException("template [" + templateName + "] has alias and data stream definitions");
+        }
+
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order
         // of precedence (with the index template first)
@@ -1117,7 +1126,7 @@ public class MetadataIndexTemplateService {
                     new AliasValidator(),
                     // the context is only used for validation so it's fine to pass fake values for the
                     // shard id and the current timestamp
-                    xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
+                    xContentRegistry, tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()));
 
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;

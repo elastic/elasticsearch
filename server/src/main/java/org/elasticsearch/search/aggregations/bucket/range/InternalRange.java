@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -113,7 +112,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -129,13 +128,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (!Double.isInfinite(from)) {
+            if (Double.isInfinite(from) == false) {
                 builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
                 }
             }
-            if (!Double.isInfinite(to)) {
+            if (Double.isInfinite(to) == false) {
                 builder.field(CommonFields.TO.getPreferredName(), to);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));

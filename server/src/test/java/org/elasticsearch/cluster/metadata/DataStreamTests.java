@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +32,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
@@ -52,16 +52,28 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     }
 
     public void testRollover() {
-        DataStream ds = DataStreamTestHelper.randomInstance();
-        Index newWriteIndex = new Index(getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1), UUIDs.randomBase64UUID(random()));
-        DataStream rolledDs = ds.rollover(newWriteIndex);
+        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
+        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
-        assertTrue(rolledDs.getIndices().contains(newWriteIndex));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+    }
+
+    public void testRolloverWithLegacyBackingIndexNames() {
+        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
+        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), Version.V_7_10_0);
+
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertThat(rolledDs.getWriteIndex().getName(),
+            equalTo(DataStream.getLegacyDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1)));
     }
 
     public void testRemoveBackingIndex() {
@@ -89,8 +101,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         // will also require changing a lot of hard-coded values in REST tests and docs
         long backingIndexNum = randomLongBetween(1, 1000001);
         String dataStreamName = randomAlphaOfLength(6);
-        String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum);
-        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%06d", dataStreamName, backingIndexNum);
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
+        String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
+        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
         assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
     }
 

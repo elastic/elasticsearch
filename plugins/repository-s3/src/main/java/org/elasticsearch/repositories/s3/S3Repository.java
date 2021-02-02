@@ -126,10 +126,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_PART_SIZE_USING_MULTIPART);
 
     /**
-     * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
+     * Big files can be broken down into chunks during snapshotting if needed. Defaults to 5tb.
      */
-    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
-            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", MAX_FILE_SIZE_USING_MULTIPART,
+            new ByteSizeValue(5, ByteSizeUnit.MB), MAX_FILE_SIZE_USING_MULTIPART);
 
     /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,

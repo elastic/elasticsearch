@@ -23,6 +23,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
+import java.util.Map;
+
 public class FieldHighlightContext {
 
     public final String fieldName;
@@ -32,6 +34,7 @@ public class FieldHighlightContext {
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
     public final boolean forceSource;
+    public final Map<String, Object> cache;
 
     public FieldHighlightContext(String fieldName,
                                  SearchHighlightContext.Field field,
@@ -39,7 +42,8 @@ public class FieldHighlightContext {
                                  FetchContext context,
                                  FetchSubPhase.HitContext hitContext,
                                  Query query,
-                                 boolean forceSource) {
+                                 boolean forceSource,
+                                 Map<String, Object> cache) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;
@@ -47,5 +51,6 @@ public class FieldHighlightContext {
         this.hitContext = hitContext;
         this.query = query;
         this.forceSource = forceSource;
+        this.cache = cache;
     }
 }

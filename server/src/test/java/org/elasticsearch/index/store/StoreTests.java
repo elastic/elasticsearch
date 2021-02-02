@@ -469,8 +469,8 @@ public class StoreTests extends ESTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) &&
-                    !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && file.startsWith("extra") == false) {
+            if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false &&
+                    IndexFileNames.OLD_SEGMENTS_GEN.equals(file) == false && file.startsWith("extra") == false) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " +
                     store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
@@ -1007,7 +1007,7 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
 
-            store.createEmpty(Version.LATEST);
+            store.createEmpty();
 
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));

@@ -116,7 +116,7 @@ public class MoveAllocationCommand implements AllocationCommand {
         }
 
         for (ShardRouting shardRouting : fromRoutingNode) {
-            if (!shardRouting.shardId().getIndexName().equals(index)) {
+            if (shardRouting.shardId().getIndexName().equals(index) == false) {
                 continue;
             }
             if (shardRouting.shardId().id() != shardId) {
@@ -125,7 +125,7 @@ public class MoveAllocationCommand implements AllocationCommand {
             found = true;
 
             // TODO we can possibly support also relocating cases, where we cancel relocation and move...
-            if (!shardRouting.started()) {
+            if (shardRouting.started() == false) {
                 if (explain) {
                     return new RerouteExplanation(this, allocation.decision(Decision.NO, "move_allocation_command",
                             "shard " + shardId + " has not been started"));
@@ -149,7 +149,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                 allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
         }
 
-        if (!found) {
+        if (found == false) {
             if (explain) {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO,
                         "move_allocation_command", "shard " + shardId + " not found"));

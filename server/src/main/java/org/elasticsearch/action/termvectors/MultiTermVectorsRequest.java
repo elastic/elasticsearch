@@ -118,7 +118,7 @@ public class MultiTermVectorsRequest extends ActionRequest
                         }
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (!token.isValue()) {
+                            if (token.isValue() == false) {
                                 throw new IllegalArgumentException("ids array element should only contain ids");
                             }
                             ids.add(parser.text());

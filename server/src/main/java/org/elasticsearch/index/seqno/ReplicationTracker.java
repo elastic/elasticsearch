@@ -1430,7 +1430,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Whether the are shards blocking global checkpoint advancement.
+     * Whether there are shards blocking global checkpoint advancement.
      */
     public synchronized boolean pendingInSync() {
         assert primaryMode;

@@ -19,9 +19,11 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.gradle.api.DefaultTask;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,7 +33,7 @@ public class PrecommitTask extends DefaultTask {
 
     @OutputFile
     public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + this.getName());
+        return new File(getProjectLayout().getBuildDirectory().getAsFile().get(), "markers/" + this.getName());
     }
 
     @TaskAction
@@ -39,4 +41,8 @@ public class PrecommitTask extends DefaultTask {
         Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
     }
 
+    @Inject
+    protected ProjectLayout getProjectLayout() {
+        throw new UnsupportedOperationException();
+    }
 }

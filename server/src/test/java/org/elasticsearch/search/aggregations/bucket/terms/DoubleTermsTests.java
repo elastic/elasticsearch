@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,7 +60,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedDoubleTerms> implementationClass() {
         return ParsedDoubleTerms.class;
     }
 

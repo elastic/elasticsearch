@@ -30,8 +30,8 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
         collectionEnabled = in.readOptionalBoolean();
     }
 
-    public MonitoringFeatureSetUsage(boolean available, boolean collectionEnabled, Map<String, Object> exporters) {
-        super(XPackField.MONITORING, available, true);
+    public MonitoringFeatureSetUsage(boolean collectionEnabled, Map<String, Object> exporters) {
+        super(XPackField.MONITORING, true, true);
         this.exporters = exporters;
         this.collectionEnabled = collectionEnabled;
     }

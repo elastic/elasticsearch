@@ -24,6 +24,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -76,9 +77,7 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(CustomScriptPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

@@ -75,12 +75,6 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
     
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (right() != null && newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        } else if (right() == null && newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
-
         return replacedChildrenInstance(newChildren);
     }
     

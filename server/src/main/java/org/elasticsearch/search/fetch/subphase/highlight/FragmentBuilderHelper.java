@@ -46,7 +46,7 @@ public final class FragmentBuilderHelper {
      */
     public static WeightedFragInfo fixWeightedFragInfo(WeightedFragInfo fragInfo) {
         assert fragInfo != null : "FragInfo must not be null";
-        if (!fragInfo.getSubInfos().isEmpty()) {
+        if (fragInfo.getSubInfos().isEmpty() == false) {
             /* This is a special case where broken analysis like WDF is used for term-vector creation at index-time
              * which can potentially mess up the offsets. To prevent a SAIIOBException we need to resort
              * the fragments based on their offsets rather than using solely the positions as it is done in

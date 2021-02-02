@@ -44,6 +44,11 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     }
 
     @Override
+    public void persistState(long timestamp, String id, String description) {
+        // Nothing to persist
+    }
+
+    @Override
     public void writeEndOfDataMessage() throws IOException {
         new AnalyticsControlMessageWriter(recordWriter(), numberOfFields()).writeEndOfData();
     }
@@ -51,5 +56,20 @@ abstract class AbstractNativeAnalyticsProcess<Result> extends AbstractNativeProc
     @Override
     public Iterator<Result> readAnalyticsResults() {
         return resultsParser.parseResults(processOutStream());
+    }
+
+    @Override
+    public void close() throws IOException {
+        try {
+            super.close();
+        } finally {
+            // Unlike autodetect where closing the process input stream initiates
+            // termination and additional output from the process which forces us
+            // to close the output stream after we've finished processing its results,
+            // in analytics we wait until we've read all results and then we close the
+            // process. Thus, we can take care of consuming and closing the output
+            // stream within close itself.
+            consumeAndCloseOutputStream();
+        }
     }
 }

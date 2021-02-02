@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -66,7 +66,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         DoubleBounds extendedBounds,
         DoubleBounds hardBounds,
         DocValueFormat formatter,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata
@@ -84,7 +84,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         this.formatter = formatter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinalityUpperBound);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinalityUpperBound);
     }
 
     @Override

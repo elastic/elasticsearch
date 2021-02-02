@@ -26,14 +26,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -63,14 +60,6 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
-    }
-
-    @Override
-    protected Settings createTestIndexSettings() {
-        return Settings.builder()
-            .put(super.createTestIndexSettings())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
     }
 
     @Override
@@ -115,7 +104,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(ParentIdQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(ParentIdQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, Matchers.instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.clauses().size(), Matchers.equalTo(2));
@@ -148,23 +137,23 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     public void testIgnoreUnmapped() throws IOException {
         final ParentIdQueryBuilder queryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(createShardContext());
+        Query query = queryBuilder.toQuery(createSearchExecutionContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final ParentIdQueryBuilder failingQueryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no relation found for child [unmapped]"));
     }
 
     public void testDisallowExpensiveQueries() {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);
 
         ParentIdQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> queryBuilder.toQuery(queryShardContext));
+                () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());
     }

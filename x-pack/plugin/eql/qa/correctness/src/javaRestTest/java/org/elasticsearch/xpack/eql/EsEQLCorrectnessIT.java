@@ -150,6 +150,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
         eqlSearchRequest.tiebreakerField("serial_id");
         eqlSearchRequest.size(Integer.parseInt(CFG.getProperty("size")));
         eqlSearchRequest.fetchSize(Integer.parseInt(CFG.getProperty("fetch_size")));
+        eqlSearchRequest.resultPosition(CFG.getProperty("result_position"));
         EqlSearchResponse response = highLevelClient().eql().search(eqlSearchRequest, RequestOptions.DEFAULT);
         long responseTime = response.took();
         LOGGER.info("QueryNo: {}, took: {}ms", queryNo, responseTime);

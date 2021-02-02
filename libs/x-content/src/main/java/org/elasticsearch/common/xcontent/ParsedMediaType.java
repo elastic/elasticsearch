@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A raw result of parsing media types from Accept or Content-Type headers.
@@ -33,21 +33,18 @@ import java.util.regex.Pattern;
  * @see MediaTypeRegistry
  */
 public class ParsedMediaType {
-    // TODO this should be removed once strict parsing is implemented https://github.com/elastic/elasticsearch/issues/63080
-    // sun.net.www.protocol.http.HttpURLConnection sets a default Accept header if it was not provided on a request.
-    // For this value Parsing returns null.
-    public static final String DEFAULT_ACCEPT_STRING = "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2";
-
+    private final String originalHeaderValue;
     private final String type;
     private final String subType;
     private final Map<String, String> parameters;
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
-    private ParsedMediaType(String type, String subType, Map<String, String> parameters) {
+    private ParsedMediaType(String originalHeaderValue, String type, String subType, Map<String, String> parameters) {
+        this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
-        this.parameters = Collections.unmodifiableMap(parameters);
+        this.parameters = Map.copyOf(parameters);
     }
 
     /**
@@ -63,27 +60,28 @@ public class ParsedMediaType {
 
     /**
      * Parses a header value into it's parts.
-     * follows https://tools.ietf.org/html/rfc7231#section-3.1.1.1 but allows only single media type and do not support quality factors
+     * follows https://tools.ietf.org/html/rfc7231#section-3.1.1.1
+     * but allows only single media type. Media ranges will be ignored (treated as not provided)
      * Note: parsing can return null, but it will throw exceptions once https://github.com/elastic/elasticsearch/issues/63080 is done
-     * Do not rely on nulls
+     * TODO Do not rely on nulls
      *
      * @return a {@link ParsedMediaType} if the header could be parsed.
      * @throws IllegalArgumentException if the header is malformed
      */
     public static ParsedMediaType parseMediaType(String headerValue) {
-        if (DEFAULT_ACCEPT_STRING.equals(headerValue) || "*/*".equals(headerValue)) {
-            return null;
-        }
         if (headerValue != null) {
+            if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
+                return null;
+            }
             final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
 
             final String[] splitMediaType = elements[0].split("/");
             if ((splitMediaType.length == 2 && TCHAR_PATTERN.matcher(splitMediaType[0].trim()).matches()
                 && TCHAR_PATTERN.matcher(splitMediaType[1].trim()).matches()) == false) {
-                throw new IllegalArgumentException("invalid media type [" + headerValue + "]");
+                throw new IllegalArgumentException("invalid media-type [" + headerValue + "]");
             }
             if (elements.length == 1) {
-                return new ParsedMediaType(splitMediaType[0].trim(), splitMediaType[1].trim(), Collections.emptyMap());
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim(), splitMediaType[1].trim(), new HashMap<>());
             } else {
                 Map<String, String> parameters = new HashMap<>();
                 for (int i = 1; i < elements.length; i++) {
@@ -100,11 +98,23 @@ public class ParsedMediaType {
                     String parameterValue = keyValueParam[1].toLowerCase(Locale.ROOT).trim();
                     parameters.put(parameterName, parameterValue);
                 }
-                return new ParsedMediaType(splitMediaType[0].trim().toLowerCase(Locale.ROOT),
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim().toLowerCase(Locale.ROOT),
                     splitMediaType[1].trim().toLowerCase(Locale.ROOT), parameters);
             }
         }
         return null;
+    }
+
+    public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
+        ParsedMediaType parsedMediaType = requestContentType.toParsedMediaType();
+
+        return new ParsedMediaType(parsedMediaType.originalHeaderValue,
+            parsedMediaType.type, parsedMediaType.subType, parameters);
+    }
+
+    // simplistic check for media ranges. do not validate if this is a correct header
+    private static boolean isMediaRange(String headerValue) {
+        return headerValue.contains(",");
     }
 
     private static boolean hasTrailingSpace(String s) {
@@ -143,4 +153,26 @@ public class ParsedMediaType {
         //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
         return true;
     }
+
+    @Override
+    public String toString() {
+        return originalHeaderValue;
+    }
+
+    public String responseContentTypeHeader() {
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    //used in testing
+    public String responseContentTypeHeader(Map<String,String> parameters) {
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    private String formatParameters(Map<String, String> parameters) {
+        String joined = parameters.entrySet().stream()
+            .map(e -> e.getKey() + "=" + e.getValue())
+            .collect(Collectors.joining(";"));
+        return joined.isEmpty() ? "" : ";" + joined;
+    }
+
 }

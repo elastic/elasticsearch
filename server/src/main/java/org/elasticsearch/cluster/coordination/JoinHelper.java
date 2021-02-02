@@ -36,7 +36,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,7 +87,7 @@ public class JoinHelper {
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
-    JoinHelper(AllocationService allocationService, MasterService masterService, TransportService transportService,
+    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService, TransportService transportService,
                LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
                BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
                Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService,
@@ -132,15 +134,20 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&
-                    localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
-                        " than local cluster uuid " + localState.metadata().clusterUUID() + ", rejecting");
+                        localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "]. This is forbidden and usually indicates an incorrect " +
+                            "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                            "can only be changed by deleting the contents of the node's data " +
+                            (dataPaths.size() == 1 ? "path " : "paths ") + dataPaths +
+                            " which will also remove any data held by this node.");
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);

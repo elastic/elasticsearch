@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
+
 public abstract class WatchExecutionContext {
 
     private final Wid id;
@@ -261,6 +263,7 @@ public abstract class WatchExecutionContext {
      */
     public static String getUsernameFromWatch(Watch watch) throws IOException {
         if (watch != null && watch.status() != null && watch.status().getHeaders() != null) {
+            assertNoAuthorizationHeader(watch.status().getHeaders());
             String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
             if (header != null) {
                 Authentication auth = AuthenticationContextSerializer.decode(header);

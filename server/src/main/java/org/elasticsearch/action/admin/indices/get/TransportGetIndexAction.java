@@ -38,7 +38,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -81,24 +80,19 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         for (Feature feature : features) {
             switch (feature) {
             case MAPPINGS:
-                    if (!doneMappings) {
-                        try {
-                            mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
-                            doneMappings = true;
-                        } catch (IOException e) {
-                            listener.onFailure(e);
-                            return;
-                        }
+                    if (doneMappings == false) {
+                        mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
+                        doneMappings = true;
                     }
                     break;
             case ALIASES:
-                    if (!doneAliases) {
+                    if (doneAliases == false) {
                         aliasesResult = state.metadata().findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;
             case SETTINGS:
-                    if (!doneSettings) {
+                    if (doneSettings == false) {
                         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
                         ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
                         for (String index : concreteIndices) {
@@ -123,8 +117,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(
-            new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams)
-        );
+        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
     }
 }

@@ -61,10 +61,10 @@ final class Spawner implements Closeable {
      * @throws IOException if an I/O error occurs reading the module or spawning a native process
      */
     void spawnNativeControllers(final Environment environment, final boolean inheritIo) throws IOException {
-        if (!spawned.compareAndSet(false, true)) {
+        if (spawned.compareAndSet(false, true) == false) {
             throw new IllegalStateException("native controllers already spawned");
         }
-        if (!Files.exists(environment.modulesFile())) {
+        if (Files.exists(environment.modulesFile()) == false) {
             throw new IllegalStateException("modules directory [" + environment.modulesFile() + "] not found");
         }
         /*
@@ -75,10 +75,10 @@ final class Spawner implements Closeable {
         for (final Path modules : paths) {
             final PluginInfo info = PluginInfo.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);
-            if (!Files.isRegularFile(spawnPath)) {
+            if (Files.isRegularFile(spawnPath) == false) {
                 continue;
             }
-            if (!info.hasNativeController()) {
+            if (info.hasNativeController() == false) {
                 final String message = String.format(
                     Locale.ROOT,
                     "module [%s] does not have permission to fork native controller",

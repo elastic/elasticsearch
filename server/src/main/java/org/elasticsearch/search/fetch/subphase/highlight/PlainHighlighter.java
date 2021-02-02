@@ -34,9 +34,9 @@ import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -61,12 +61,12 @@ public class PlainHighlighter implements Highlighter {
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
-        if (!hitContext.cache().containsKey(CACHE_KEY)) {
-            hitContext.cache().put(CACHE_KEY, new HashMap<>());
+        if (fieldContext.cache.containsKey(CACHE_KEY) == false) {
+            fieldContext.cache.put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
         Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter> cache =
-            (Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
+            (Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter>) fieldContext.cache.get(CACHE_KEY);
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(fieldType);
         if (entry == null) {
@@ -100,21 +100,15 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.getQueryShardContext().getFieldNameIndexAnalyzer();
-        Integer keywordIgnoreAbove = null;
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            keywordIgnoreAbove = ((KeywordFieldMapper.KeywordFieldType)fieldType).ignoreAbove();
-        }
-        final int maxAnalyzedOffset = context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        Analyzer analyzer = context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER);
+        final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
 
-        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, hitContext, fieldContext.forceSource);
+        textsToHighlight
+            = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext, fieldContext.forceSource);
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if (keywordIgnoreAbove != null && textLength > keywordIgnoreAbove) {
-                continue; // skip highlighting keyword terms that were ignored during indexing
-            }
             if (textLength > maxAnalyzedOffset) {
                 throw new IllegalArgumentException(
                     "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
@@ -126,7 +120,8 @@ public class PlainHighlighter implements Highlighter {
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
-                if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
+                if (tokenStream.hasAttribute(CharTermAttribute.class) == false
+                        || tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
                 }
@@ -189,7 +184,7 @@ public class PlainHighlighter implements Highlighter {
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents)
             throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
-            if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
+            if (tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                 // Can't split on term boundaries without offsets
                 return -1;
             }

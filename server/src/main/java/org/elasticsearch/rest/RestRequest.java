@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
@@ -71,6 +73,7 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
+    private final Version compatibleVersion;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -90,12 +93,16 @@ public class RestRequest implements ToXContent.Params {
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
         try {
             this.parsedAccept = parseHeaderWithMediaType(httpRequest.getHeaders(), "Accept");
+        } catch (IllegalArgumentException e) {
+            throw new MediaTypeHeaderException(e, "Accept");
+        }
+        try {
             this.parsedContentType = parseHeaderWithMediaType(httpRequest.getHeaders(), "Content-Type");
             if (parsedContentType != null) {
                 this.xContentType.set(parsedContentType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY));
             }
         } catch (IllegalArgumentException e) {
-            throw new MediaTypeHeaderException(e);
+            throw new MediaTypeHeaderException(e, "Content-Type");
         }
         this.xContentRegistry = xContentRegistry;
         this.httpRequest = httpRequest;
@@ -104,6 +111,7 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
+        this.compatibleVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
     }
 
     private static @Nullable ParsedMediaType parseHeaderWithMediaType(Map<String, List<String>> headers, String headerName) {
@@ -441,7 +449,12 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return xContentType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
+        XContent xContent = xContentType.get().xContent();
+        if (compatibleVersion == Version.CURRENT.minimumRestCompatibilityVersion()) {
+            return xContent.createParserForCompatibility(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
+        } else {
+            return xContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
+        }
     }
 
     /**
@@ -549,12 +562,27 @@ public class RestRequest implements ToXContent.Params {
         throw new IllegalArgumentException("empty Content-Type header");
     }
 
+    public Version getCompatibleVersion() {
+        return compatibleVersion;
+    }
+
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        MediaTypeHeaderException(final IllegalArgumentException cause) {
+        private String failedHeaderName;
+
+        MediaTypeHeaderException(final IllegalArgumentException cause, String failedHeaderName) {
             super(cause);
+            this.failedHeaderName = failedHeaderName;
         }
 
+        public String getFailedHeaderName() {
+            return failedHeaderName;
+        }
+
+        @Override
+        public String getMessage() {
+            return "Invalid media-type value on header [" + failedHeaderName + "]";
+        }
     }
 
     public static class BadParameterException extends RuntimeException {

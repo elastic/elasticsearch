@@ -35,7 +35,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -50,25 +52,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
-
-    /**
-     * For each provided field type, we also register an alias with name {@code <field>-alias}.
-     */
-    @Override
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Arrays.stream(fieldTypes).collect(Collectors.toMap(
-            ft -> ft.name() + "-alias",
-            Function.identity()));
-    }
-
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         return new SignificantTextAggregationBuilder("foo", fieldName);
@@ -78,7 +67,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
             CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.BYTES
+            CoreValuesSourceType.KEYWORD
         );
     }
 
@@ -359,5 +348,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
             }
         }
+    }
+
+    @Override
+    protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
+        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().getSearchAnalyzer()));
     }
 }

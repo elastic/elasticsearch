@@ -60,6 +60,17 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
     }
 
+    public void testEqualsOnEmptyRoles() {
+        RoleDescriptor nullRoleDescriptor = new RoleDescriptor("null_role", randomFrom((String[]) null, new String[0]),
+                randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
+                randomFrom((RoleDescriptor.ApplicationResourcePrivileges[])null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+                randomFrom((ConfigurableClusterPrivilege[])null, new ConfigurableClusterPrivilege[0]),
+                randomFrom((String[])null, new String[0]),
+                randomFrom((Map<String, Object>)null, Map.of()),
+                Map.of("transient", "meta", "is", "ignored"));
+        assertTrue(nullRoleDescriptor.equals(new RoleDescriptor("null_role", null, null, null, null, null, null, null)));
+    }
+
     public void testToString() {
         RoleDescriptor.IndicesPrivileges[] groups = new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()

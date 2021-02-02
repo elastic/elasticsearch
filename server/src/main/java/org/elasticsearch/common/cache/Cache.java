@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -648,6 +649,31 @@ public class Cache<K, V> {
                 iterator.remove();
             }
         };
+    }
+
+    /**
+     * Performs an action for each cache entry in the cache. While iterating over the cache entries this method is protected from mutations
+     * that occurs within the same cache segment by acquiring the segment's read lock during all the iteration. As such, the specified
+     * consumer should not try to modify the cache. Modifications that occur in already traveled segments won't been seen by the consumer
+     * but modification that occur in non yet traveled segments should be.
+     *
+     * @param consumer the {@link Consumer}
+     */
+    public void forEach(BiConsumer<K, V> consumer) {
+        for (CacheSegment<K, V> segment : segments) {
+            try (ReleasableLock ignored = segment.readLock.acquire()) {
+                for (CompletableFuture<Entry<K, V>> future : segment.map.values()) {
+                    try {
+                        if (future != null && future.isDone()) {
+                            final Entry<K, V> entry = future.get();
+                            consumer.accept(entry.key, entry.value);
+                        }
+                    } catch (ExecutionException | InterruptedException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            }
+        }
     }
 
     private class CacheIterator implements Iterator<Entry<K, V>> {

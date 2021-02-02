@@ -1,3 +1,25 @@
+ifdef::permanently-unreleased-branch[]
+
+[role="xpack"]
+[testenv="basic"]
+[[rollup-put-job]]
+=== Create legacy {rollup-jobs} API
+[subs="attributes"]
+++++
+<titleabbrev>Create legacy {rollup-jobs}</titleabbrev>
+++++
+
+// tag::legacy-rollup-admon[]
+WARNING: This documentation is about legacy rollups. Legacy rollups are
+deprecated and will be replaced by <<xpack-rollup,new rollup functionality>>
+introduced in {es} 7.x.
+// end::legacy-rollup-admon[]
+
+Creates a legacy {rollup-job}.
+
+endif::[]
+ifndef::permanently-unreleased-branch[]
+
 [role="xpack"]
 [testenv="basic"]
 [[rollup-put-job]]
@@ -10,6 +32,8 @@
 Creates a {rollup-job}.
 
 experimental[]
+
+endif::[]
 
 [[rollup-put-job-api-request]]
 ==== {api-request-title}
@@ -101,7 +125,7 @@ hourly (`60m`) intervals are configured, <<rollup-search,rollup search>>
 can execute aggregations with 60m or greater (weekly, monthly, etc) intervals.
 So define the interval as the smallest unit that you wish to later query. For
 more information about the difference between calendar and fixed time
-intervals, see <<rollup-understanding-group-intervals>>.
+intervals, see <<calendar_and_fixed_intervals>>.
 +
 --
 NOTE: Smaller, more granular intervals take up proportionally more space.
@@ -236,6 +260,10 @@ the indexer.
 (Required, string) The index that contains the rollup results. The index can
 be shared with other {rollup-jobs}. The data is stored so that it doesn't
 interfere with unrelated jobs.
+
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).
 
 [[rollup-put-job-api-example]]
 ==== {api-example-title}

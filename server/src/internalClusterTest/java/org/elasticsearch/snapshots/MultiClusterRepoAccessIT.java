@@ -39,8 +39,11 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
@@ -83,8 +86,6 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         secondCluster.startMasterOnlyNode();
         secondCluster.startDataOnlyNode();
-        secondCluster.client().admin().cluster().preparePutRepository(repoNameOnSecondCluster).setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath)).get();
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoNameOnFirstCluster, "snap-1");
@@ -93,6 +94,8 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-idx-3", randomIntBetween(1, 100));
         createFullSnapshot(repoNameOnFirstCluster, "snap-3");
 
+        secondCluster.client().admin().cluster().preparePutRepository(repoNameOnSecondCluster).setType("fs")
+                .setSettings(Settings.builder().put("location", repoPath)).get();
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-1").get();
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-2").get();
 
@@ -102,9 +105,45 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
         assertThat(cause.getMessage(), containsString("[" + repoNameOnFirstCluster +
-                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository"));
+                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository."
+                + " The last cluster to write to this repository was ["
+                + secondCluster.client().admin().cluster().prepareState().get().getState().metadata().clusterUUID()
+                + "] at generation [4]."));
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");
+    }
+
+    public void testConcurrentWipeAndRecreateFromOtherCluster() throws InterruptedException, IOException {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs", repoPath);
+
+        createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
+        createFullSnapshot(repoName, "snap-1");
+        final String repoUuid = client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
+                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid();
+
+        secondCluster.startMasterOnlyNode();
+        secondCluster.startDataOnlyNode();
+        assertAcked(secondCluster.client().admin().cluster().preparePutRepository(repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", repoPath).put(READONLY_SETTING_KEY, true)));
+        assertThat(secondCluster.client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
+                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid(), equalTo(repoUuid));
+
+        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+        IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoFile(repoPath.toString()));
+        createRepository(repoName, "fs", repoPath);
+        createFullSnapshot(repoName, "snap-1");
+
+        final String newRepoUuid = client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
+                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid();
+        assertThat(newRepoUuid, not(equalTo((repoUuid))));
+
+        secondCluster.client().admin().cluster().prepareGetSnapshots(repoName).get(); // force another read of the repo data
+        assertThat(secondCluster.client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
+                .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid(), equalTo(newRepoUuid));
     }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -64,6 +65,7 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -601,4 +603,10 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
          * buckets we should have left after each reduction.
          */
     }
+
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return List.of(NestedAggregatorTests.nestedObject("nested_object"));
+    }
+
 }

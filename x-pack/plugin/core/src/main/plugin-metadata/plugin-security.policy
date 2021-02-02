@@ -23,11 +23,6 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };
 
-grant codeBase "${codebase.elasticsearch-rest-client}" {
-  // rest client uses system properties which gets the default proxy
-  permission java.net.NetPermission "getProxySelector";
-};
-
 grant codeBase "${codebase.httpasyncclient}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";

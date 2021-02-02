@@ -127,8 +127,6 @@ final class CsvParser {
             char c = currentChar();
             if (c == LF || c == CR || c == quote) {
                 throw new IllegalArgumentException("Illegal character inside unquoted field at " + currentIndex);
-            } else if (trim && isWhitespace(c)) {
-                spaceCount++;
             } else if (c == separator) {
                 state = State.START;
                 if (setField(currentIndex - spaceCount)) {
@@ -136,6 +134,8 @@ final class CsvParser {
                 }
                 startIndex = currentIndex + 1;
                 return false;
+            } else if (trim && isWhitespace(c)) {
+                spaceCount++;
             } else {
                 spaceCount = 0;
             }
@@ -163,20 +163,20 @@ final class CsvParser {
         boolean shouldSetField = true;
         for (; currentIndex < length; currentIndex++) {
             c = currentChar();
-            if (isWhitespace(c)) {
-                if (shouldSetField) {
-                    if (setField(currentIndex - 1)) {
-                        return true;
-                    }
-                    shouldSetField = false;
-                }
-            } else if (c == separator) {
+            if (c == separator) {
                 if (shouldSetField && setField(currentIndex - 1)) {
                     return true;
                 }
                 startIndex = currentIndex + 1;
                 state = State.START;
                 return false;
+            } else if (isWhitespace(c)) {
+                if (shouldSetField) {
+                    if (setField(currentIndex - 1)) {
+                        return true;
+                    }
+                    shouldSetField = false;
+                }
             } else {
                 throw new IllegalArgumentException("character '" + c + "' after quoted field at " + currentIndex);
             }

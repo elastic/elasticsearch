@@ -101,7 +101,7 @@ public class RestTable {
                 DisplayHeader header = headers.get(col);
                 boolean isLastColumn = col == lastHeader;
                 pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out, isLastColumn);
-                if (!isLastColumn) {
+                if (isLastColumn == false) {
                     out.append(" ");
                 }
             }
@@ -115,7 +115,7 @@ public class RestTable {
                 DisplayHeader header = headers.get(col);
                 boolean isLastColumn = col == lastHeader;
                 pad(table.getAsMap().get(header.name).get(row), width[col], request, out, isLastColumn);
-                if (!isLastColumn) {
+                if (isLastColumn == false) {
                     out.append(" ");
                 }
             }
@@ -334,7 +334,7 @@ public class RestTable {
                 out.append(sValue);
             }
             // Ignores the leftover spaces if the cell is the last of the column.
-            if (!isLast) {
+            if (isLast == false) {
                 for (byte i = 0; i < leftOver; i++) {
                     out.append(" ");
                 }

@@ -144,7 +144,7 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
-                if (!(enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce()) {
+                if (enforceLimits == false && enforceBootstrapChecks == false && check.alwaysEnforce() == false) {
                     ignoredErrors.add(result.getMessage());
                 } else {
                     errors.add(result.getMessage());
@@ -152,15 +152,16 @@ final class BootstrapChecks {
             }
         }
 
-        if (!ignoredErrors.isEmpty()) {
+        if (ignoredErrors.isEmpty() == false) {
             ignoredErrors.forEach(error -> log(logger, error));
         }
 
-        if (!errors.isEmpty()) {
+        if (errors.isEmpty() == false) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("[" + errors.size() + "] bootstrap checks failed");
+            messages.add("[" + errors.size() + "] bootstrap checks failed. You must address the points described in the following ["
+                    + errors.size() + "] lines before starting Elasticsearch.");
             for (int i = 0; i < errors.size(); i++) {
-                messages.add("[" + (i + 1) + "]: " + errors.get(i));
+                messages.add("bootstrap check failure [" + (i + 1) + "] of [" + errors.size() + "]: " + errors.get(i));
             }
             final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);

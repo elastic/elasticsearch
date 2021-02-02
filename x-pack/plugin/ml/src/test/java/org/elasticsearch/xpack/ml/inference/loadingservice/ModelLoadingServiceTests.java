@@ -654,22 +654,20 @@ public class ModelLoadingServiceTests extends ESTestCase {
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             synchronized (this) {
                 if (bytes + currentBytes >= maxBytes) {
                     trippedCount++;
                     circuitBreak(label, bytes);
                 }
                 currentBytes += bytes;
-                return currentBytes;
             }
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
+        public void addWithoutBreaking(long bytes) {
             synchronized (this) {
                 currentBytes += bytes;
-                return currentBytes;
             }
         }
 

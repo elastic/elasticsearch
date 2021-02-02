@@ -61,7 +61,13 @@ public class CliSecurityIT extends SqlSecurityTestCase {
             if (user == null) {
                 return admin;
             }
-            return new SecurityConfig(RestSqlIT.SSL_ENABLED, user, "testpass", admin.keystoreLocation(), admin.keystorePassword());
+            return new SecurityConfig(
+                RestSqlIT.SSL_ENABLED,
+                user,
+                "test-user-password",
+                admin.keystoreLocation(),
+                admin.keystorePassword()
+            );
         }
 
         @Override

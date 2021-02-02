@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -49,14 +50,14 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
 
     private void putRepository(String repositoryName) {
         ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);
-        PlainActionFuture<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
         client.execute(PutInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }
 
     private void deleteRepository(String repositoryName) {
         DeleteInternalCcrRepositoryRequest request = new DeleteInternalCcrRepositoryRequest(repositoryName);
-        PlainActionFuture<DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
         client.execute(DeleteInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }

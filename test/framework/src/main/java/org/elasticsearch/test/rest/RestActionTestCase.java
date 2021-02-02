@@ -37,7 +37,9 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 /**
@@ -84,20 +86,25 @@ public abstract class RestActionTestCase extends ESTestCase {
      * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
      *
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
-     * {@link #setExecuteVerifier(BiFunction)} or {@link #setExecuteLocallyVerifier(BiFunction)}.
+     * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
     public static class VerifyingClient extends NoOpNodeClient {
-        AtomicReference<BiFunction> executeVerifier = new AtomicReference<>();
-        AtomicReference<BiFunction> executeLocallyVerifier = new AtomicReference<>();
+        AtomicReference<BiConsumer<ActionType<?>, ActionRequest>> executeVerifier = new AtomicReference<>();
+        AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
         public VerifyingClient(String testName) {
             super(testName);
             reset();
         }
 
+        @Override
+        public String getLocalNodeId() {
+            return "test_node_id";
+        }
+
         /**
-         * Clears any previously set verifier functions set by {@link #setExecuteVerifier(BiFunction)} and/or
-         * {@link #setExecuteLocallyVerifier(BiFunction)}. These functions are replaced with functions which will throw an
+         * Clears any previously set verifier functions set by {@link #setExecuteVerifier} and/or
+         * {@link #setExecuteLocallyVerifier}. These functions are replaced with functions which will throw an
          * {@link AssertionError} if called.
          */
         public void reset() {
@@ -114,15 +121,15 @@ public abstract class RestActionTestCase extends ESTestCase {
          * function should return either a subclass of {@link ActionResponse} or {@code null}.
          * @param verifier A function which is called in place of {@link #doExecute(ActionType, ActionRequest, ActionListener)}
          */
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        void setExecuteVerifier(BiFunction<ActionType<Response>, Request, Void> verifier) {
+        public void setExecuteVerifier(BiConsumer<ActionType<?>, ActionRequest> verifier) {
             executeVerifier.set(verifier);
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-            listener.onResponse((Response) executeVerifier.get().apply(action, request));
+            executeVerifier.get().accept(action, request);
+            listener.onResponse(null);
         }
 
         /**
@@ -130,22 +137,28 @@ public abstract class RestActionTestCase extends ESTestCase {
          * function should return either a subclass of {@link ActionResponse} or {@code null}.
          * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
          */
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        void setExecuteLocallyVerifier(BiFunction<ActionType<Response>, Request, Void> verifier) {
+        public void setExecuteLocallyVerifier(BiFunction<ActionType<?>, ActionRequest, ActionResponse> verifier) {
             executeLocallyVerifier.set(verifier);
         }
+
+        private static final AtomicLong taskIdGenerator = new AtomicLong(0L);
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-            listener.onResponse((Response) executeLocallyVerifier.get().apply(action, request));
-            return null;
+            @SuppressWarnings("unchecked") // Callers are responsible for lining this up
+            Response response = (Response) executeLocallyVerifier.get().apply(action, request);
+            listener.onResponse(response);
+            return new Task(taskIdGenerator.incrementAndGet(), "transport", action.name(), "", request.getParentTask(),
+                    Collections.emptyMap());
         }
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
-            listener.onResponse(null, (Response) executeLocallyVerifier.get().apply(action, request));
+            @SuppressWarnings("unchecked") // Callers are responsible for lining this up
+            Response response = (Response) executeLocallyVerifier.get().apply(action, request);
+            listener.onResponse(null, response);
             return null;
         }
 

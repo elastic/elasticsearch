@@ -26,9 +26,6 @@ public class LengthFunctionPipe extends Pipe {
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0));
     }
 

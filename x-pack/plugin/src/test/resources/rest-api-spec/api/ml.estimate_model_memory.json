@@ -5,6 +5,11 @@
       "description":"Estimates the model memory"
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

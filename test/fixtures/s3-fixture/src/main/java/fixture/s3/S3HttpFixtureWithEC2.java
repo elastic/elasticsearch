@@ -79,7 +79,7 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
             + "\"AccessKeyId\": \"" + ec2AccessKey + "\","
             + "\"Expiration\": \"" + ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME) + "\","
             + "\"RoleArn\": \"arn\","
-            + "\"SecretAccessKey\": \"secret\","
+            + "\"SecretAccessKey\": \"secret_access_key\","
             + "\"Token\": \"" + ec2SessionToken + "\""
             + "}";
     }

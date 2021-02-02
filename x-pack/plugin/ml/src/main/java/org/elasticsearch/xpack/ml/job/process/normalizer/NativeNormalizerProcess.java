@@ -39,6 +39,10 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
     }
 
     @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
+    }
+
+    @Override
     public NormalizerResultHandler createNormalizedResultsHandler() {
         return new NormalizerResultHandler(processOutStream());
     }

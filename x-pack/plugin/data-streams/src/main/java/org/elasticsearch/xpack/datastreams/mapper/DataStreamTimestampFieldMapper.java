@@ -22,8 +22,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,17 +51,17 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support term queries");
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support exists queries");
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
     }
@@ -201,5 +200,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return NAME;
+    }
+
+    boolean isEnabled() {
+        return enabled;
     }
 }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 /**
  * Implemented by {@link org.elasticsearch.index.mapper.MappedFieldType} that support
@@ -16,5 +16,5 @@ import org.elasticsearch.index.query.QueryShardContext;
 */
 public interface ShapeQueryable {
 
-    Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
+    Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context);
 }

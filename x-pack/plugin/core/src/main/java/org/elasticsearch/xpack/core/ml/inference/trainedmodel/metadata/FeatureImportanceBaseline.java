@@ -59,7 +59,7 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
         this.classBaselines = in.readList(ClassBaseline::new);
     }
 
-    FeatureImportanceBaseline(Double baseline, List<ClassBaseline> classBaselines) {
+    public FeatureImportanceBaseline(Double baseline, List<ClassBaseline> classBaselines) {
         this.baseline = baseline;
         this.classBaselines = classBaselines == null ? Collections.emptyList() : classBaselines;
     }

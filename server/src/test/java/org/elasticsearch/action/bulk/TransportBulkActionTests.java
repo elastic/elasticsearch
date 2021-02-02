@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
@@ -73,12 +75,13 @@ public class TransportBulkActionTests extends ESTestCase {
     /** Services needed by bulk action */
     private TransportService transportService;
     private ClusterService clusterService;
-    private ThreadPool threadPool;
+    private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
 
     class TestTransportBulkAction extends TransportBulkAction {
 
+        volatile boolean failIndexCreation = false;
         boolean indexCreated = false; // set when the "real" index is created
 
         TestTransportBulkAction() {
@@ -90,7 +93,11 @@ public class TransportBulkActionTests extends ESTestCase {
         @Override
         void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
-            listener.onResponse(null);
+            if (failIndexCreation) {
+                listener.onFailure(new ResourceAlreadyExistsException("index already exists"));
+            } else {
+                listener.onResponse(null);
+            }
         }
     }
 
@@ -259,6 +266,20 @@ public class TransportBulkActionTests extends ESTestCase {
 
         List<String> mixed = List.of(".foo", ".test", "other");
         assertFalse(bulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
+    }
+
+    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        bulkAction.failIndexCreation = randomBoolean();
+
+        try {
+            threadPool.startForcingRejections();
+            PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        } finally {
+            threadPool.stopForcingRejections();
+        }
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -342,6 +343,44 @@ public class GrokPatternCreatorTests extends ESTestCase {
             "Killing job [tweets_by_location]",
             "[count_tweets] Killing job",
             "[tweets_by_location] Killing job");
+        assertThat(GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples), equalTo(regex));
+    }
+
+    public void testFindBestGrokMatchFromExamplesGivenTruncated() {
+        String regex = ".*?BST.+?dave.+?bank3.+?CONTEXT.+?SQL.+?statement.+?SELECT.+?time_series_ids_tmp\\.evidence_id" +
+            ".+?time_series_ids_tmp\\.time_series_id.+?is_delta.+?GREATEST.+?usual_interval.+?FROM.+?time_series_ids_tmp.+?" +
+            "WHERE.+?found_peak_value.+?FALSE.+?ORDER.+?BY.+?time_series_ids_tmp\\.magnitude.+?DESC.+?" +
+            "time_series_ids_tmp\\.scaling_factor.+?DESC.+?time_series_ids_tmp\\.significance.+?DESC.+?" +
+            "time_series_ids_tmp\\.evidence_id.+?DESC.+?LIMIT.+?PL.+?pgSQL.+?function.+?probable_cause_list_common.+?" +
+            "integer.+?integer.+?integer.+?line.+?at.+?SQL.+?statement.+?SQL.+?statement.+?SELECT.+?" +
+            "probable_cause_list_common.+?evidenceIdIn.+?linkGroupId.+?timeSpanSeconds.+?PL.+?pgSQL.+?function.+?" +
+            "probable_cause_list.+?integer.+?integer.+?line.+?at.+?PERFORM.*";
+        Collection<String> examples = Collections.singletonList("2013-05-16 12:13:45 BST:192.168.61.59(51438):dave:@bank3:[19084]: " +
+            "CONTEXT:  SQL statement \"SELECT\n" +
+            "                    time_series_ids_tmp.evidence_id,\n" +
+            "                    time_series_ids_tmp.time_series_id,\n" +
+            "                    is_delta,\n" +
+            "                    GREATEST(usual_interval, 1)\n" +
+            "                FROM\n" +
+            "                    time_series_ids_tmp\n" +
+            "                WHERE\n" +
+            "                    found_peak_value = FALSE\n" +
+            "                ORDER BY\n" +
+            "                    \n" +
+            "                    \n" +
+            "                    \n" +
+            "                    time_series_ids_tmp.magnitude DESC,\n" +
+            "                    time_series_ids_tmp.scaling_factor DESC,\n" +
+            "                    time_series_ids_tmp.significance DESC,\n" +
+            "                    time_series_ids_tmp.evidence_id DESC\n" +
+            "                LIMIT\n" +
+            "                    1\"\n" +
+            "        PL/pgSQL function probable_cause_list_common(integer,integer,integer) line 255 at SQL statement\n" +
+            "        SQL statement \"SELECT probable_cause_list_common(evidenceIdIn, linkGroupId, timeSpanSeconds)\"\n" +
+            "        PL/pgSQL function probable_cause_list...");
+        // Our algorithm for converting examples to Grok patterns that pick out useful fields doesn't work in
+        // this case because the regex doesn't match the example (because the example has been truncated and
+        // the regex contains pieces that would match parts of the original message beyond the truncation point)
         assertThat(GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples), equalTo(regex));
     }
 }

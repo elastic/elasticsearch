@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.node.NodeClient;
@@ -71,8 +72,9 @@ public class RestTasksAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
         return channel ->
-                client.admin().cluster().listTasks(generateListTasksRequest(request), new RestResponseListener<ListTasksResponse>(channel) {
+                client.admin().cluster().listTasks(listTasksRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, listTasksResponse), channel);

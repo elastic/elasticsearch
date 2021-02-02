@@ -19,13 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -34,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This mapper add a new sub fields
@@ -51,6 +54,12 @@ public class ExternalMapper extends FieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
+    private static final IndexAnalyzers INDEX_ANALYZERS = new IndexAnalyzers(
+        Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+        Map.of(),
+        Map.of()
+    );
+
     public static class Builder extends FieldMapper.Builder {
 
         private final BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
@@ -63,7 +72,7 @@ public class ExternalMapper extends FieldMapper {
 
         public Builder(String name, String generatedValue, String mapperName) {
             super(name);
-            this.stringBuilder = new TextFieldMapper.Builder(name, () -> Lucene.STANDARD_ANALYZER).store(false);
+            this.stringBuilder = new TextFieldMapper.Builder(name, INDEX_ANALYZERS).store(false);
             this.generatedValue = generatedValue;
             this.mapperName = mapperName;
         }
@@ -104,7 +113,7 @@ public class ExternalMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
     }

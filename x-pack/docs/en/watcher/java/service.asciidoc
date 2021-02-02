@@ -1,6 +1,6 @@
 [discrete]
 [[api-java-service]]
-=== Service API
+=== {watcher} service API
 
 The {watcher} `service` API allows the control the lifecycle of the {watcher}
 service. The following example starts the watcher service:

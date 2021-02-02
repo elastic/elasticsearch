@@ -186,8 +186,13 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
             throw new IllegalArgumentException("3/4 of " + SHARD_SIZE_FIELD.getPreferredName() + " must be at least "
                 + NUM_BUCKETS_FIELD.getPreferredName() + " but was [" + mergePhaseInit + "<" + numBuckets + "] for [" + name + "]");
         }
+
+        VariableWidthHistogramAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new VariableWidthHistogramAggregatorFactory(name, config, numBuckets, shardSize, initialBuffer,
-            context, parent, subFactoriesBuilder, metadata);
+            context, parent, subFactoriesBuilder, metadata,
+            aggregatorSupplier);
     }
 
     @Override

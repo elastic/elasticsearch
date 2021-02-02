@@ -39,9 +39,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.Profilers;
-import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,7 +84,7 @@ public class AggregatorFactories {
                         "Unexpected token " + token + " in [aggs]: aggregations definitions must start with the name of the aggregation.");
             }
             final String aggregationName = parser.currentName();
-            if (!validAggMatcher.reset(aggregationName).matches()) {
+            if (validAggMatcher.reset(aggregationName).matches() == false) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid aggregation name [" + aggregationName
                         + "]. Aggregation names can contain any character except '[', ']', and '>'");
             }
@@ -169,16 +166,22 @@ public class AggregatorFactories {
         return factories;
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0]);
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(null, new AggregatorFactory[0]);
 
-    private AggregatorFactory[] factories;
+    private final AggregationContext context;
+    private final AggregatorFactory[] factories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories) {
+    private AggregatorFactories(AggregationContext context, AggregatorFactory[] factories) {
+        this.context = context;
         this.factories = factories;
+    }
+
+    public AggregationContext context() {
+        return context;
     }
 
     /**
@@ -188,36 +191,21 @@ public class AggregatorFactories {
      *                    that {@link Aggregator}s created by this method will
      *                    be asked to collect.
      */
-    public Aggregator[] createSubAggregators(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality)
+    public Aggregator[] createSubAggregators(Aggregator parent, CardinalityUpperBound cardinality)
                 throws IOException {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
-            Aggregator factory = factories[i].create(searchContext, parent, cardinality);
-            Profilers profilers = searchContext.getProfilers();
-            if (profilers != null) {
-                factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
-            }
-            aggregators[i] = factory;
+            aggregators[i] = context.profileIfEnabled(factories[i].create(parent, cardinality));
         }
         return aggregators;
     }
 
-    public Aggregator[] createTopLevelAggregators(SearchContext searchContext) throws IOException {
-        // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
-        Aggregator[] aggregators = new Aggregator[factories.length];
-        for (int i = 0; i < factories.length; i++) {
-            /*
-             * Top level aggs only collect from owningBucketOrd 0 which is
-             * *exactly* what CardinalityUpperBound.ONE *means*.  
-             */
-            Aggregator factory = factories[i].create(searchContext, null, CardinalityUpperBound.ONE);
-            Profilers profilers = searchContext.getProfilers();
-            if (profilers != null) {
-                factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
-            }
-            aggregators[i] = factory;
-        }
-        return aggregators;
+    public Aggregator[] createTopLevelAggregators() throws IOException {
+        /*
+         * Top level aggs only collect from owningBucketOrd 0 which is
+         * *exactly* what CardinalityUpperBound.ONE *means*.
+         */
+        return createSubAggregators(null, CardinalityUpperBound.ONE);
     }
 
     /**
@@ -225,6 +213,27 @@ public class AggregatorFactories {
      */
     public int countAggregators() {
         return factories.length;
+    }
+
+    /**
+     * This returns a copy of {@link AggregatorFactories} modified so that
+     * calls to {@link #createSubAggregators} will ignore the provided parent
+     * aggregator and always use {@code fixedParent} provided in to this
+     * method.
+     * <p>
+     * {@link AdaptingAggregator} uses this to make sure that sub-aggregators
+     * get the {@link AdaptingAggregator} aggregator itself as the parent.
+     */
+    public AggregatorFactories fixParent(Aggregator fixedParent) {
+        AggregatorFactories previous = this;
+        return new AggregatorFactories(context, factories) {
+            @Override
+            public Aggregator[] createSubAggregators(Aggregator parent, CardinalityUpperBound cardinality)
+                throws IOException {
+                // Note that we're throwing out the "parent" passed in to this method and using the parent passed to fixParent
+                return previous.createSubAggregators(fixedParent, cardinality);
+            }
+        };
     }
 
     /**
@@ -286,7 +295,7 @@ public class AggregatorFactories {
         }
 
         public Builder addAggregator(AggregationBuilder factory) {
-            if (!names.add(factory.name)) {
+            if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
             }
             aggregationBuilders.add(factory);
@@ -347,7 +356,7 @@ public class AggregatorFactories {
                 aggFactories[i] = agg.build(context, parent);
                 ++i;
             }
-            return new AggregatorFactories(aggFactories);
+            return new AggregatorFactories(context, aggFactories);
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
@@ -363,7 +372,7 @@ public class AggregatorFactories {
             List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
             List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
             Collection<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
-            while (!unmarkedBuilders.isEmpty()) {
+            while (unmarkedBuilders.isEmpty() == false) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,
                         temporarilyMarked, builder);
@@ -405,7 +414,7 @@ public class AggregatorFactories {
                                     }
                                 }
                                 // Check the pipeline sub-aggregator factories
-                                if (!foundSubBuilder && (i == bucketsPathElements.size() - 1)) {
+                                if (foundSubBuilder == false && (i == bucketsPathElements.size() - 1)) {
                                     Collection<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder
                                             .pipelineAggregatorBuilders;
                                     for (PipelineAggregationBuilder subFactory : subPipelineBuilders) {
@@ -415,7 +424,7 @@ public class AggregatorFactories {
                                         }
                                     }
                                 }
-                                if (!foundSubBuilder) {
+                                if (foundSubBuilder == false) {
                                     throw new IllegalArgumentException("No aggregation [" + aggName + "] found for path [" + bucketsPath
                                             + "]");
                                 }
@@ -467,6 +476,18 @@ public class AggregatorFactories {
             return builder;
         }
 
+        /**
+         * Bytes to preallocate on the "request" breaker for these aggregations. The
+         * goal is to request a few more bytes than we expect to use at first to
+         * cut down on contention on the "request" breaker when we are constructing
+         * the aggs. Underestimating what we allocate up front will fail to
+         * accomplish the goal. Overestimating will cause requests to fail for no
+         * reason.
+         */
+        public long bytesToPreallocate() {
+            return aggregationBuilders.stream().mapToLong(b -> b.bytesToPreallocate() + b.factoriesBuilder.bytesToPreallocate()).sum();
+        }
+
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
@@ -485,9 +506,9 @@ public class AggregatorFactories {
                 return false;
             Builder other = (Builder) obj;
 
-            if (!Objects.equals(aggregationBuilders, other.aggregationBuilders))
+            if (Objects.equals(aggregationBuilders, other.aggregationBuilders) == false)
                 return false;
-            if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders))
+            if (Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders) == false)
                 return false;
             return true;
         }

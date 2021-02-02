@@ -85,13 +85,21 @@ public abstract class SamlTestCase extends ESTestCase {
                 keySize = randomFrom(256, 384);
                 break;
             case "RSA":
-                keySize = randomFrom(1024, 2048, 4096);
+                if (inFipsJvm()) {
+                    keySize = randomFrom(2048, 4096);
+                } else {
+                    keySize = randomFrom(1024, 2048, 4096);
+                }
                 break;
             case "DSA":
-                keySize = randomFrom(1024, 2048, 3072);
+                if (inFipsJvm()) {
+                    keySize = randomFrom(2048, 3072);
+                } else {
+                    keySize = randomFrom(1024, 2048, 3072);
+                }
                 break;
             default:
-                keySize = randomFrom(1024, 2048);
+                keySize = 2048;
         }
         Path keyPath = PathUtils.get(SamlTestCase.class.getResource
                 ("/org/elasticsearch/xpack/security/authc/saml/saml_" + algorithm + "_" + keySize + ".key").toURI());

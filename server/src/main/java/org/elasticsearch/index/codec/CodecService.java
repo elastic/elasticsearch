@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec;
-import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat.Mode;
+import org.apache.lucene.codecs.lucene87.Lucene87Codec.Mode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 

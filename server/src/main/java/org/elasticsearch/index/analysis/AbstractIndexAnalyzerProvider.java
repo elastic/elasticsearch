@@ -40,7 +40,7 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     public AbstractIndexAnalyzerProvider(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings);
         this.name = name;
-        this.version = Analysis.parseAnalysisVersion(this.indexSettings.getSettings(), settings, logger);
+        this.version = Analysis.parseAnalysisVersion(this.indexSettings, settings, logger);
     }
 
     /**

@@ -171,9 +171,9 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
         MappingMetadata that = (MappingMetadata) o;
 
-        if (!Objects.equals(this.routingRequired, that.routingRequired)) return false;
-        if (!source.equals(that.source)) return false;
-        if (!type.equals(that.type)) return false;
+        if (Objects.equals(this.routingRequired, that.routingRequired) == false) return false;
+        if (source.equals(that.source) == false) return false;
+        if (type.equals(that.type) == false) return false;
 
         return true;
     }

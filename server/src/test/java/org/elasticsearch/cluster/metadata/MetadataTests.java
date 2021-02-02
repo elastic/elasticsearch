@@ -1148,8 +1148,22 @@ public class MetadataTests extends ESTestCase {
 
             )
             .build();
-        // don't expect any exception when validating against non-backing indinces that don't conform to the backing indices naming
+        // don't expect any exception when validating against non-backing indices that don't conform to the backing indices naming
         // convention
+        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+    }
+
+    public void testValidateDataStreamsAllowsNamesThatStartsWithPrefix() {
+        String dataStreamName = "foo-datastream";
+        Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
+            .put(
+                new IndexMetadata.Builder(DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-something-100012")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            ).build();
+        // don't expect any exception when validating against (potentially backing) indices that can't create conflict because of
+        // additional text before number
         validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public abstract class IRNode {
@@ -36,7 +37,7 @@ public abstract class IRNode {
         private final V value;
 
         public IRDecoration(V value) {
-            this.value = value;
+            this.value = Objects.requireNonNull(value);
         }
 
         public V getValue() {
@@ -59,10 +60,6 @@ public abstract class IRNode {
 
     public <T extends IRDecoration<?>> T removeDecoration(Class<T> type) {
         return type.cast(decorations.remove(type));
-    }
-
-    public boolean hasDecoration(Class<? extends IRDecoration<?>> type) {
-        return decorations.containsKey(type);
     }
 
     public <T extends IRDecoration<?>> T getDecoration(Class<T> type) {

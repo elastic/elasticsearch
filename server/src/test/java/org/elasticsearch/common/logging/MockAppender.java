@@ -28,7 +28,7 @@ public class MockAppender extends AbstractAppender {
     public LogEvent lastEvent;
 
     public MockAppender(final String name) throws IllegalAccessException {
-        super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
     }
 
     @Override

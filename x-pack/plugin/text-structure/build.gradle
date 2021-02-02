@@ -1,0 +1,20 @@
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'x-pack-text-structure'
+  description 'Elasticsearch Expanded Pack Plugin - Text Structure'
+  classname 'org.elasticsearch.xpack.textstructure.TextStructurePlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-text-structure'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  api project(':libs:elasticsearch-grok')
+  api "com.ibm.icu:icu4j:${versions.icu4j}"
+  api "net.sf.supercsv:super-csv:${versions.supercsv}"
+}
+
+addQaCheckDependencies()
+
+tasks.named("testingConventions").configure { enabled = false }

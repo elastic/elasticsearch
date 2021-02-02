@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -148,8 +149,8 @@ public class MetadataIndexAliasesService {
                         }
                         // the context is only used for validation so it's fine to pass fake values for the shard id,
                         // but the current timestamp should be set to real value as we may use `now` in a filtered alias
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null,
-                            () -> System.currentTimeMillis(), null), xContentRegistry);
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newSearchExecutionContext(0, 0,
+                                null, () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
                     }
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {
@@ -172,7 +173,7 @@ public class MetadataIndexAliasesService {
                 ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).build();
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
-                if (!updatedState.metadata().equalsAliases(currentState.metadata())) {
+                if (updatedState.metadata().equalsAliases(currentState.metadata()) == false) {
                     return updatedState;
                 }
             }
@@ -188,7 +189,7 @@ public class MetadataIndexAliasesService {
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {
-            throw new IllegalArgumentException("The provided index [ " + action.getIndex()
+            throw new IllegalArgumentException("The provided index [" + action.getIndex()
                 + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
                 + "]. Data streams and their backing indices don't support alias operations.");
         }

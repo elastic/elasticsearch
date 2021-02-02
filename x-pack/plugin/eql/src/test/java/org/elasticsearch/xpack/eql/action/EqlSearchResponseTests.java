@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class EqlSearchResponseTests extends AbstractSerializingTestCase<EqlSearchResponse> {
+public class EqlSearchResponseTests extends AbstractBWCSerializationTestCase<EqlSearchResponse> {
 
     private static class RandomSource implements ToXContentObject {
 

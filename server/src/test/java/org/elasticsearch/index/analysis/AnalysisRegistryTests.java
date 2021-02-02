@@ -31,6 +31,7 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -324,7 +325,8 @@ public class AnalysisRegistryTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
-                        deprecationLogger.deprecate("deprecated_token_filter", "Using deprecated token filter [deprecated]");
+                        deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "deprecated_token_filter",
+                            "Using deprecated token filter [deprecated]");
                     }
                     return tokenStream;
                 }
@@ -352,7 +354,8 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecate("unused_token_filter", "Using deprecated token filter [unused]");
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "unused_token_filter",
+                        "Using deprecated token filter [unused]");
                     return tokenStream;
                 }
             }
@@ -365,7 +368,8 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecate("deprecated_normalizer", "Using deprecated token filter [deprecated_normalizer]");
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "deprecated_normalizer",
+                        "Using deprecated token filter [deprecated_normalizer]");
                     return tokenStream;
                 }
 

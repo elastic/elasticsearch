@@ -196,10 +196,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 threadPool.generic().execute(() -> listener.onResponse(newResponse(request, responses)));
                 return;
             }
-            TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-            if (request.timeout() != null) {
-                builder.withTimeout(request.timeout());
-            }
+            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
             for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
                 final DiscoveryNode node = nodes[i];
@@ -210,7 +207,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
 
-                    transportService.sendRequest(node, getTransportNodeAction(node), nodeRequest, builder.build(),
+                    transportService.sendRequest(node, getTransportNodeAction(node), nodeRequest, transportRequestOptions,
                             new TransportResponseHandler<NodeResponse>() {
                                 @Override
                                 public NodeResponse read(StreamInput in) throws IOException {

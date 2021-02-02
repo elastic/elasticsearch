@@ -75,16 +75,17 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
+                SearchLookup searchLookup = new SearchLookup(null, null);
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(null, null),
+                    searchLookup,
                     null,
                     ctx
                 ) {
                     @Override
                     public void execute() {
-                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
+                        for (Object timestamp : (List<?>) searchLookup.source().get("timestamp")) {
                             emit(((Number) timestamp).longValue());
                         }
                     }

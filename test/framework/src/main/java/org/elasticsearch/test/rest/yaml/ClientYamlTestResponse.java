@@ -126,7 +126,8 @@ public class ClientYamlTestResponse {
     public String getBodyAsString() {
         if (bodyAsString == null && body != null) {
             //content-type null means that text was returned
-            if (bodyContentType == null || bodyContentType == XContentType.JSON || bodyContentType == XContentType.YAML) {
+            if (bodyContentType == null || bodyContentType.canonical() == XContentType.JSON ||
+                bodyContentType.canonical() == XContentType.YAML) {
                 bodyAsString = new String(body, StandardCharsets.UTF_8);
             } else {
                 //if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json

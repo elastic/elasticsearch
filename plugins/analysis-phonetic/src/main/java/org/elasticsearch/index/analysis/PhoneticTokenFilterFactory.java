@@ -24,6 +24,7 @@ import org.apache.commons.codec.language.Caverphone1;
 import org.apache.commons.codec.language.Caverphone2;
 import org.apache.commons.codec.language.ColognePhonetic;
 import org.apache.commons.codec.language.Metaphone;
+import org.apache.commons.codec.language.Nysiis;
 import org.apache.commons.codec.language.RefinedSoundex;
 import org.apache.commons.codec.language.Soundex;
 import org.apache.commons.codec.language.bm.Languages.LanguageSet;
@@ -40,7 +41,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
-import org.elasticsearch.index.analysis.phonetic.Nysiis;
 
 import java.util.HashSet;
 import java.util.List;

@@ -1,0 +1,23 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  name 'x-pack-fleet'
+  description 'Elasticsearch Expanded Pack Plugin - Plugin exposing APIs for Fleet system indices'
+  classname 'org.elasticsearch.xpack.fleet.Fleet'
+}
+
+dependencies {
+  api project(path: ':modules:reindex')
+}
+
+testClusters.all {
+  module ':modules:reindex'
+}
+
+addQaCheckDependencies()

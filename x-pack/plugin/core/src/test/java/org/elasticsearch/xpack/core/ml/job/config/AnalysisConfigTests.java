@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -788,9 +789,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setSummaryCountFieldName(instance.getSummaryCountFieldName() + randomAlphaOfLengthBetween(1, 5));
             break;
         case 7:
-            List<String> influencers = new ArrayList<>(instance.getInfluencers());
-            influencers.add(randomAlphaOfLengthBetween(5, 10));
-            builder.setInfluencers(influencers);
+            builder.setInfluencers(CollectionUtils.appendToCopy(instance.getInfluencers(), randomAlphaOfLengthBetween(5, 10)));
             break;
         case 8:
             if (instance.getMultivariateByFields() == null) {

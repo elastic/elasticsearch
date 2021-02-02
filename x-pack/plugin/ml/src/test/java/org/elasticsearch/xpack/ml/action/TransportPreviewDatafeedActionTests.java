@@ -52,7 +52,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         doAnswer(new Answer<Void>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+            public Void answer(InvocationOnMock invocationOnMock) {
                 PreviewDatafeedAction.Response response = (PreviewDatafeedAction.Response) invocationOnMock.getArguments()[0];
                 capturedResponse = response.toString();
                 return null;
@@ -61,7 +61,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         doAnswer(new Answer<Void>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+            public Void answer(InvocationOnMock invocationOnMock) {
                 capturedFailure = (Exception) invocationOnMock.getArguments()[0];
                 return null;
             }

@@ -38,6 +38,7 @@ public class DockerRun {
     private Integer uid;
     private Integer gid;
     private final List<String> extraArgs = new ArrayList<>();
+    private String memory = "2g"; // default to 2g memory limit
 
     private DockerRun() {}
 
@@ -75,6 +76,13 @@ public class DockerRun {
         return this;
     }
 
+    public DockerRun memory(String memoryLimit) {
+        if (memoryLimit != null) {
+            this.memory = memoryLimit;
+        }
+        return this;
+    }
+
     public DockerRun extraArgs(String... args) {
         Collections.addAll(this.extraArgs, args);
         return this;
@@ -87,6 +95,9 @@ public class DockerRun {
 
         // Run the container in the background
         cmd.add("--detach");
+
+        // Limit container memory
+        cmd.add("--memory " + memory);
 
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 

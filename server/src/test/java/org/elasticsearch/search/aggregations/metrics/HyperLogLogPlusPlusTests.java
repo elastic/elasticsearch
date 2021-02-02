@@ -156,7 +156,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
             private int countDown = whenToBreak;
             @Override
-            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 if (countDown-- == 0) {
                     throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
                 }
@@ -165,7 +165,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             }
 
             @Override
-            public long addWithoutBreaking(long bytes) {
+            public void addWithoutBreaking(long bytes) {
                 total.addAndGet(bytes);
                 return total.get();
             }
@@ -185,20 +185,6 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         assertThat(total.get(), equalTo(0L));
     }
 
-    public void testAdjustHashPrecision() {
-        final int precisionHigh = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
-        final int precisionLow = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, precisionHigh);
-        HyperLogLogPlusPlus high = new HyperLogLogPlusPlus(precisionHigh, BigArrays.NON_RECYCLING_INSTANCE, 1);
-        HyperLogLogPlusPlus low = new HyperLogLogPlusPlus(precisionLow, BigArrays.NON_RECYCLING_INSTANCE, 1);
-        final int n = randomInt();
-        final long hash = BitMixer.mix64(n);
-        high.collect(0, hash);
-        low.collect(0, hash);
-        HyperLogLogPlusPlus merge = new HyperLogLogPlusPlus(precisionLow, BigArrays.NON_RECYCLING_INSTANCE, 1);
-        merge.merge(0, high, 0);
-        assertThat(true, equalTo(low.equals(0, merge, 0)));
-    }
-
     public void testRetrieveCardinality() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
         final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
@@ -209,4 +195,15 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             assertEquals(cardinality, counts.cardinality(i));
         }
     }
+
+
+    public void testAllocation() {
+        int precision = between(MIN_PRECISION, MAX_PRECISION);
+        long initialBucketCount = between(0, 100);
+        MockBigArrays.assertFitsIn(
+            ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
+            bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
+        );
+    }
+
 }

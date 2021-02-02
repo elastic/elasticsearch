@@ -36,12 +36,14 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+
+import static java.util.Collections.emptyMap;
 
 public class NestedHelperTests extends ESSingleNodeTestCase {
 
@@ -182,7 +184,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testRangeQuery() {
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         Query rangeQuery = mapperService.fieldType("foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
@@ -333,7 +335,14 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testNested() throws IOException {
-        QueryShardContext context = indexService.newQueryShardContext(0, new IndexSearcher(new MultiReader()), () -> 0, null);
+        SearchExecutionContext context = indexService.newSearchExecutionContext(
+            0,
+            0,
+            new IndexSearcher(new MultiReader()),
+            () -> 0,
+            null,
+            emptyMap()
+        );
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 

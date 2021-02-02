@@ -83,7 +83,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         this.transportShardAction = actionName + "[s]";
         this.executor = executor;
 
-        if (!isSubAction()) {
+        if (isSubAction() == false) {
             transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, request, new TransportHandler());
         }
         transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, request, new ShardTransportHandler());

@@ -17,8 +17,9 @@ teardown:
   - match: { defaults.anomaly_detectors.daily_model_snapshot_retention_after_days: 1 }
   - match: { defaults.datafeeds.scroll_size: 1000 }
   - is_false: limits.max_model_memory_limit
-  # We cannot assert an exact value for the next one as it will vary depending on the test machine
+  # We cannot assert an exact value for the next two as they will vary depending on the test machine
   - match: { limits.effective_max_model_memory_limit: "/\\d+[kmg]?b/" }
+  - match: { limits.total_ml_memory: "/\\d+mb/" }
   - match: { upgrade_mode: false }
 
   - do:
@@ -36,8 +37,9 @@ teardown:
   - match: { defaults.anomaly_detectors.daily_model_snapshot_retention_after_days: 1 }
   - match: { defaults.datafeeds.scroll_size: 1000 }
   - match: { limits.max_model_memory_limit: "512mb" }
-  # We cannot assert an exact value for the next one as it will vary depending on the test machine
+  # We cannot assert an exact value for the next two as they will vary depending on the test machine
   - match: { limits.effective_max_model_memory_limit: "/\\d+[kmg]?b/" }
+  - match: { limits.total_ml_memory: "/\\d+mb/" }
   - match: { upgrade_mode: false }
 
   - do:
@@ -55,8 +57,9 @@ teardown:
   - match: { defaults.anomaly_detectors.daily_model_snapshot_retention_after_days: 1 }
   - match: { defaults.datafeeds.scroll_size: 1000 }
   - match: { limits.max_model_memory_limit: "6gb" }
-  # We cannot assert an exact value for the next one as it will vary depending on the test machine
+  # We cannot assert an exact value for the next two as they will vary depending on the test machine
   - match: { limits.effective_max_model_memory_limit: "/\\d+[kmg]?b/" }
+  - match: { limits.total_ml_memory: "/\\d+mb/" }
   - match: { upgrade_mode: false }
 
   - do:
@@ -74,8 +77,9 @@ teardown:
   - match: { defaults.anomaly_detectors.daily_model_snapshot_retention_after_days: 1 }
   - match: { defaults.datafeeds.scroll_size: 1000 }
   - match: { limits.max_model_memory_limit: "6gb" }
-  # We cannot assert an exact value for the next one as it will vary depending on the test machine
+  # We cannot assert an exact value for the next two as they will vary depending on the test machine
   - match: { limits.effective_max_model_memory_limit: "/\\d+[kmg]?b/" }
+  - match: { limits.total_ml_memory: "/\\d+mb/" }
   - match: { upgrade_mode: false }
 
   - do:
@@ -95,4 +99,5 @@ teardown:
   - match: { limits.max_model_memory_limit: "1mb" }
   # This time we can assert an exact value for the next one because the hard limit is so low
   - match: { limits.effective_max_model_memory_limit: "1mb" }
+  - match: { limits.total_ml_memory: "/\\d+mb/" }
   - match: { upgrade_mode: false }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import java.text.MessageFormat.Field;
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -165,5 +167,10 @@ public class BasicAPITests extends ScriptTestCase {
                     )
                 ).matches()
         );
+    }
+
+    public void testStaticInnerClassResolution() {
+        assertEquals(Field.ARGUMENT, exec("MessageFormat.Field.ARGUMENT"));
+        assertEquals(Normalizer.Form.NFD, exec("Normalizer.Form.NFD"));
     }
 }

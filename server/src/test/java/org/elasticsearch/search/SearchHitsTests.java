@@ -44,7 +44,7 @@ import java.util.function.Predicate;
 public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
-        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+        return createTestItem(randomFrom(XContentType.values()).canonical(), withOptionalInnerHits, withShardTarget);
     }
 
     private static SearchHit[] createSearchHitArray(int size, XContentType xContentType, boolean withOptionalInnerHits,
@@ -105,7 +105,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         switch (randomIntBetween(0, 5)) {
             case 0:
                 return new SearchHits(createSearchHitArray(instance.getHits().length + 1,
-                    randomFrom(XContentType.values()), false, randomBoolean()),
+                    randomFrom(XContentType.values()).canonical(), false, randomBoolean()),
                     instance.getTotalHits(), instance.getMaxScore());
             case 1:
                 final TotalHits totalHits;
@@ -176,7 +176,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         // This instance is used to test the transport serialization so it's fine
         // to produce shard targets (withShardTarget is true) since they are serialized
         // in this layer.
-        return createTestItem(randomFrom(XContentType.values()), true, true);
+        return createTestItem(randomFrom(XContentType.values()).canonical(), true, true);
     }
 
     @Override
@@ -240,7 +240,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
             long totalHits = 1000;
             float maxScore = 1.5f;
             SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
-            XContentType xContentType = randomFrom(XContentType.values());
+            XContentType xContentType = randomFrom(XContentType.values()).canonical();
             BytesReference bytes = toShuffledXContent(searchHits, xContentType, ToXContent.EMPTY_PARAMS, false);
             try (XContentParser parser = xContentType.xContent()
                     .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {

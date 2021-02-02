@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -46,7 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.function.Predicate;
 
 public class TransportClearVotingConfigExclusionsAction
-    extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ClearVotingConfigExclusionsResponse> {
+    extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
 
@@ -55,13 +56,13 @@ public class TransportClearVotingConfigExclusionsAction
                                                       ThreadPool threadPool, ActionFilters actionFilters,
                                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClearVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver, ClearVotingConfigExclusionsResponse::new,
+            ClearVotingConfigExclusionsRequest::new, indexNameExpressionResolver, in -> ActionResponse.Empty.INSTANCE,
                 ThreadPool.Names.SAME);
     }
 
     @Override
     protected void masterOperation(Task task, ClearVotingConfigExclusionsRequest request, ClusterState initialState,
-                                   ActionListener<ClearVotingConfigExclusionsResponse> listener) throws Exception {
+                                   ActionListener<ActionResponse.Empty> listener) throws Exception {
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
 
@@ -104,7 +105,7 @@ public class TransportClearVotingConfigExclusionsAction
     }
 
     private void submitClearVotingConfigExclusionsTask(ClearVotingConfigExclusionsRequest request, long startTimeMillis,
-                                                       ActionListener<ClearVotingConfigExclusionsResponse> listener) {
+                                                       ActionListener<ActionResponse.Empty> listener) {
         clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT,
                 TimeValue.timeValueMillis(
                         Math.max(0, request.getTimeout().millis() + startTimeMillis - threadPool.relativeTimeInMillis()))) {
@@ -124,7 +125,7 @@ public class TransportClearVotingConfigExclusionsAction
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new ClearVotingConfigExclusionsResponse());
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         });
     }

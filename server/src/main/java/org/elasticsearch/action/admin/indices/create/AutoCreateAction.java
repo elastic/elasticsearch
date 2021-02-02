@@ -18,13 +18,16 @@
  */
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,17 +43,23 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
  */
 public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
+
+    private static final Logger logger = LogManager.getLogger(AutoCreateAction.class);
 
     public static final AutoCreateAction INSTANCE = new AutoCreateAction();
     public static final String NAME = "indices:admin/auto_create";
@@ -65,15 +74,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
         private final AutoCreateIndex autoCreateIndex;
+        private final SystemIndices systemIndices;
 
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                MetadataCreateIndexService createIndexService,
                                MetadataCreateDataStreamService metadataCreateDataStreamService,
-                               AutoCreateIndex autoCreateIndex) {
+                               AutoCreateIndex autoCreateIndex, SystemIndices systemIndices) {
             super(NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new, indexNameExpressionResolver,
                     CreateIndexResponse::new, ThreadPool.Names.SAME);
+            this.systemIndices = systemIndices;
             this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
@@ -141,11 +152,50 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             return currentState;
                         }
 
-                        CreateIndexClusterStateUpdateRequest updateRequest =
-                            new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
-                                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+                        final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
+                        CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
+                            ? buildSystemIndexUpdateRequest(descriptor)
+                            : buildUpdateRequest(indexName);
+
                         return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                     }
+                }
+
+                private CreateIndexClusterStateUpdateRequest buildUpdateRequest(String indexName) {
+                    CreateIndexClusterStateUpdateRequest updateRequest =
+                        new CreateIndexClusterStateUpdateRequest(request.cause(), indexName, request.index())
+                            .ackTimeout(request.timeout())
+                            .masterNodeTimeout(request.masterNodeTimeout());
+                    logger.debug("Auto-creating index {}", indexName);
+                    return updateRequest;
+                }
+
+                private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(SystemIndexDescriptor descriptor) {
+                    String mappings = descriptor.getMappings();
+                    Settings settings = descriptor.getSettings();
+                    String aliasName = descriptor.getAliasName();
+                    String concreteIndexName = descriptor.getPrimaryIndex();
+
+                    CreateIndexClusterStateUpdateRequest updateRequest =
+                        new CreateIndexClusterStateUpdateRequest(request.cause(), concreteIndexName, request.index())
+                            .ackTimeout(request.timeout())
+                            .masterNodeTimeout(request.masterNodeTimeout());
+
+                    updateRequest.waitForActiveShards(ActiveShardCount.ALL);
+
+                    if (mappings != null) {
+                        updateRequest.mappings(mappings);
+                    }
+                    if (settings != null) {
+                        updateRequest.settings(settings);
+                    }
+                    if (aliasName != null) {
+                        updateRequest.aliases(Set.of(new Alias(aliasName)));
+                    }
+
+                    logger.debug("Auto-creating system index {}", concreteIndexName);
+
+                    return updateRequest;
                 }
             });
         }

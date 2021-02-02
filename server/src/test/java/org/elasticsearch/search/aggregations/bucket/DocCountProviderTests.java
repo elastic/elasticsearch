@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -48,11 +48,11 @@ public class DocCountProviderTests extends AggregatorTestCase {
     public void testDocsWithDocCount() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(List.of(
-                new NumericDocValuesField(DOC_COUNT_FIELD, 4),
+                new CustomTermFreqField(DOC_COUNT_FIELD, DOC_COUNT_FIELD, 4),
                 new SortedNumericDocValuesField(NUMBER_FIELD, 1)
             ));
             iw.addDocument(List.of(
-                new NumericDocValuesField(DOC_COUNT_FIELD, 5),
+                new CustomTermFreqField(DOC_COUNT_FIELD, DOC_COUNT_FIELD, 5),
                 new SortedNumericDocValuesField(NUMBER_FIELD, 7)
             ));
             iw.addDocument(List.of(
@@ -77,11 +77,11 @@ public class DocCountProviderTests extends AggregatorTestCase {
     public void testQueryFiltering() throws IOException {
         testAggregation(IntPoint.newRangeQuery(NUMBER_FIELD, 4, 5), iw -> {
             iw.addDocument(List.of(
-                new NumericDocValuesField(DOC_COUNT_FIELD, 4),
+                new CustomTermFreqField(DOC_COUNT_FIELD, DOC_COUNT_FIELD, 4),
                 new IntPoint(NUMBER_FIELD, 6)
             ));
             iw.addDocument(List.of(
-                new NumericDocValuesField(DOC_COUNT_FIELD, 2),
+                new CustomTermFreqField(DOC_COUNT_FIELD, DOC_COUNT_FIELD, 2),
                 new IntPoint(NUMBER_FIELD, 5)
             ));
             iw.addDocument(List.of(

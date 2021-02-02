@@ -65,7 +65,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     @Override
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.isDataNodeBasedOnNamingConvention(settings)) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_CLEANUP);
             return false;
         }
@@ -75,7 +75,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        assert DiscoveryNode.isDataNode(env.settings()) == false;
+        assert DiscoveryNode.isDataNodeBasedOnNamingConvention(env.settings()) == false;
 
         if (DiscoveryNode.isMasterNode(env.settings()) == false) {
             processNoMasterNoDataNode(terminal, dataPaths, env);

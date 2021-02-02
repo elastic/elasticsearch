@@ -158,7 +158,7 @@ The API returns the following result:
     "lang" : "mustache",
     "source" : """{"query":{"match":{"title":"{{query_string}}"}}}""",
     "options": {
-      "content_type" : "application/json; charset=UTF-8"
+      "content_type" : "application/json;charset=utf-8"
     }
   },
   "_id": "<templateid>",

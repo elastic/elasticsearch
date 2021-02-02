@@ -27,8 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
 
@@ -79,12 +78,12 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists() query against the nested field path");
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }

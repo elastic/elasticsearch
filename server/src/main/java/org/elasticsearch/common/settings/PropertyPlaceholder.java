@@ -78,7 +78,7 @@ class PropertyPlaceholder {
             int endIndex = findPlaceholderEndIndex(buf, startIndex);
             if (endIndex != -1) {
                 String placeholder = buf.substring(startIndex + this.placeholderPrefix.length(), endIndex);
-                if (!visitedPlaceholders.add(placeholder)) {
+                if (visitedPlaceholders.add(placeholder) == false) {
                     throw new IllegalArgumentException(
                             "Circular placeholder reference '" + placeholder + "' in property definitions");
                 }

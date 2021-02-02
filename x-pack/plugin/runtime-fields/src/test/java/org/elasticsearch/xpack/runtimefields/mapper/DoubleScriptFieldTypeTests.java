@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -52,6 +52,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1.2), equalTo("1.2"));
@@ -126,7 +127,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -135,7 +136,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
@@ -181,7 +182,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
@@ -201,7 +202,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomLong(), ctx);
     }
 
@@ -222,7 +223,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(List.of(randomLong()), ctx);
     }
 
@@ -237,7 +238,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "double";
     }
 
@@ -278,7 +279,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                                 return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(((Number) foo).doubleValue());
                                         }
                                     }
@@ -287,7 +288,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                                 return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                        for (Object foo : (List<?>) lookup.source().get("foo")) {
                                             emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                                         }
                                     }
@@ -305,10 +306,10 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 };
             }
         };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY)));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);
-            return new DoubleScriptFieldType("test", script, factory, emptyMap());
+            return new DoubleScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
         }
     }
 }

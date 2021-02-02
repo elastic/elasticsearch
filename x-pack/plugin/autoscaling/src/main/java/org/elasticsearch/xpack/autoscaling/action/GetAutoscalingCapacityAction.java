@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -83,6 +84,10 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
             out.writeMap(results, StreamOutput::writeString, (o, decision) -> decision.writeTo(o));
         }
 
+        public SortedMap<String, AutoscalingDeciderResults> results() {
+            return results;
+        }
+
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
@@ -112,6 +117,14 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
             return Objects.hash(results);
         }
 
+        public Map<String, AutoscalingDeciderResults> getResults() {
+            return results;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
     }
 
 }

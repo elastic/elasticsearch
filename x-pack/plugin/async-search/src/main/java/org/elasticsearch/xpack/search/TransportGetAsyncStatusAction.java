@@ -17,7 +17,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -58,8 +57,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
         if (node == null || Objects.equals(node, clusterService.localNode())) {
             retrieveStatus(request, listener);
         } else {
-            TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-            transportService.sendRequest(node, GetAsyncStatusAction.NAME, request, builder.build(),
+            transportService.sendRequest(node, GetAsyncStatusAction.NAME, request,
                 new ActionListenerResponseHandler<>(listener, AsyncStatusResponse::new, ThreadPool.Names.SAME));
         }
     }

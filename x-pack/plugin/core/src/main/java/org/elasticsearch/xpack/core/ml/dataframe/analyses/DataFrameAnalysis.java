@@ -51,7 +51,7 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * @param fieldCapabilitiesResponse field capabilities fetched for this analysis' required fields
      * @return {@link Map} containing fields for which the mappings should be handled explicitly
      */
-    Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse);
+    Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse);
 
     /**
      * @return {@code true} if this analysis supports data frame rows with missing values

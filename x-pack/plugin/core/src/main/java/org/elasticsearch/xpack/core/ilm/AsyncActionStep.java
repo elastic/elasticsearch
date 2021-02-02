@@ -18,7 +18,7 @@ import java.util.Objects;
  */
 public abstract class AsyncActionStep extends Step {
 
-    private Client client;
+    private final Client client;
 
     public AsyncActionStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey);

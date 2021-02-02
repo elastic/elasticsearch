@@ -154,7 +154,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             success = true;
             return data;
         } finally {
-            if (!success) {
+            if (success == false) {
                 // If something went wrong, unwind any current estimations we've made
                 estimator.afterLoad(termsEnum, 0);
             } else {

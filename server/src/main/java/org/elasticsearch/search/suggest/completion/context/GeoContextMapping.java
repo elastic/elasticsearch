@@ -314,7 +314,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         GeoContextMapping that = (GeoContextMapping) o;
         if (precision != that.precision) return false;
         return !(fieldName != null ? !fieldName.equals(that.fieldName) : that.fieldName != null);

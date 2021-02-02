@@ -90,7 +90,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
     public static PointInTimeBuilder fromXContent(XContentParser parser) throws IOException {
         final XContentParams params = PARSER.parse(parser, null);
         if (params.encodedId == null) {
-            throw new IllegalArgumentException("point int time id is not provided");
+            throw new IllegalArgumentException("point in time id is not provided");
         }
         return new PointInTimeBuilder(params.encodedId).setKeepAlive(params.keepAlive);
     }

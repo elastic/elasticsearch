@@ -462,7 +462,7 @@ license header unless instructed otherwise:
      */
 
 The top-level `x-pack` directory contains code covered by the [Elastic
-license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+license](licenses/ELASTIC-LICENSE-2.0.txt). Community contributions to this code are
 welcome, and should have the following license header unless instructed
 otherwise:
 

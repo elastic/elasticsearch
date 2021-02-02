@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
+
 /*
  * Limited security policy for scripts.
  * This is what is needed for basic functionality to work.

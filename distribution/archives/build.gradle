@@ -61,7 +61,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         include 'README.asciidoc'
       }
       from(rootProject.file('licenses')) {
-        include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+        include oss ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
         rename { 'LICENSE.txt' }
       }
 

@@ -24,7 +24,7 @@ esplugin {
   description 'An example whitelisting additional classes and methods in painless'
   classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
   extendedPlugins = ['lang-painless']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 

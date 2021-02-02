@@ -27,6 +27,9 @@ sourceCompatibility = JavaVersion.VERSION_1_8
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client'
 
+// REST client is published under the Elastic License
+ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
+
 dependencies {
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"

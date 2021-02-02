@@ -119,7 +119,7 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType valued = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "foo");
         fetcher = valued.valueFetcher(null, null);
 
-        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, null));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, null));
+        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, Collections.emptySet()));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, Collections.emptySet()));
     }
 }

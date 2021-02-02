@@ -121,7 +121,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
      * Allowed license families for this project.
      */
     @Input
-    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("Apache", "Generated", "Vendored"));
+    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored"));
     /**
      * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
      * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
@@ -169,6 +169,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         matchers.add(subStringMatcher("GEN  ", "Generated", "ANTLR GENERATED CODE"));
         // Vendored Code
         matchers.add(subStringMatcher("VEN  ", "Vendored", "@notice"));
+        // Dual SSPLv1 and Elastic
+        matchers.add(subStringMatcher("DUAL", "SSPL+Elastic License", "the Elastic License 2.0 or the Server"));
 
         for (Map.Entry<String, String> additional : additionalLicenses.entrySet()) {
             String category = additional.getKey().substring(0, 5);
@@ -187,8 +189,9 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         boolean unknownLicenses = stats.getNumUnknown() > 0;
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
+            getLogger().error("The following files contain unapproved license headers:");
             unapprovedFiles(getReportFile()).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
-            throw new GradleException("License header problems were found! Full details: " + reportFile.getAbsolutePath());
+            throw new GradleException("Check failed. License header problems were found. Full details: " + reportFile.getAbsolutePath());
         }
     }
 

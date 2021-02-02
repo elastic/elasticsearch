@@ -96,36 +96,6 @@ must explicitly enable the repository as indicated in the sample commands above.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
-
-[NOTE]
-==================================================
-
-An alternative package which contains only features that are available under the
-Apache 2.0 license is also available. To install it, use the following `baseurl` in your `elasticsearch.repo` file:
-
-ifeval::["{release-state}"=="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-baseurl=https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/yum
---------------------------------------------------
-
-endif::[]
-
-ifeval::["{release-state}"!="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-baseurl=https://artifacts.elastic.co/packages/oss-{major-version}/yum
---------------------------------------------------
-
-endif::[]
-
-==================================================
-
-endif::[]
-
 [[install-rpm]]
 ==== Download and install the RPM manually
 
@@ -148,10 +118,6 @@ sudo rpm --install elasticsearch-{version}-x86_64.rpm
 --------------------------------------------
 <1> Compares the SHA of the downloaded RPM and the published checksum, which should output
     `elasticsearch-{version}-x86_64.rpm: OK`.
-    
-Alternatively, you can download the following package, which contains only 
-features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-x86_64.rpm    
 
 endif::[]
 

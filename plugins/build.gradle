@@ -30,7 +30,7 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
 
-    licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+    licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
     noticeFile rootProject.file('NOTICE.txt')
   }
 }

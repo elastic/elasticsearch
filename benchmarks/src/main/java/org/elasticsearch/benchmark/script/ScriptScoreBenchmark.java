@@ -102,7 +102,7 @@ public class ScriptScoreBenchmark {
     @Param({ "expression", "metal", "painless_cast", "painless_def" })
     private String script;
 
-    @Param({"16"})
+    @Param({ "16" })
     private double indexingBufferMb;
 
     private ScoreScript.Factory factory;

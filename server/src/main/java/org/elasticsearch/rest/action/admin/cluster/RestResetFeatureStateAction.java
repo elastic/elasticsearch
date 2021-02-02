@@ -19,9 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +43,11 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        // TODO[wrb]
-        return null;
+        final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
+        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
+
+        return restChannel -> {
+            client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
+        };
     }
 }

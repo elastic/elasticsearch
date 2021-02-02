@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
@@ -48,5 +50,9 @@ public interface SystemIndexPlugin extends ActionPlugin {
      */
     default Collection<String> getAssociatedIndexPatterns() {
         return Collections.emptyList();
+    }
+
+    default void cleanUpFeature(ClusterService clusterService, Client client) {
+        // do nothing
     }
 }

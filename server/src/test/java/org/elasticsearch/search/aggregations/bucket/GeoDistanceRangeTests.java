@@ -94,8 +94,6 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
 
     @Override
     public void testFromXContentMulti() throws IOException {
-        /*
-        check if this is causing fail in elasticsearch-ci/1
         try {
             super.testFromXContentMulti();
             assertWarnings(true,
@@ -104,12 +102,12 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
             if (assertionError.getMessage().startsWith("Expected 1 warnings but found ") &&
                 assertionError.getMessage().contains(
                     "Deprecated field [distance_type] used, this field is unused and will be removed entirely")) {
-                // expect number of warnings to be a random number > 2 where each warning comprises a repetition of this message
+                // expect number of warnings to be a random number >= 2 where each warning comprises a repetition of this message
+                // check for at least one match as can't preempt message set in assertWarnings
             } else {
                 throw assertionError;
             }
         }
-         */
     }
 
     @Override

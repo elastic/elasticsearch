@@ -40,13 +40,13 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.Add
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse.AddBlockShardResult;
 import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -69,6 +69,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -759,6 +760,7 @@ public class MetadataIndexStateService {
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
                 metadata.put(updatedMetadata
+                        .timestampRange(IndexLongFieldRange.NO_SHARDS)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder()
                                 .put(indexMetadata.getSettings())
@@ -777,7 +779,7 @@ public class MetadataIndexStateService {
     }
 
     public void openIndex(final OpenIndexClusterStateUpdateRequest request,
-                          final ActionListener<OpenIndexClusterStateUpdateResponse> listener) {
+                          final ActionListener<ShardsAcknowledgedResponse> listener) {
         onlyOpenIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
@@ -787,28 +789,23 @@ public class MetadataIndexStateService {
                             logger.debug("[{}] indices opened, but the operation timed out while waiting for " +
                                 "enough shards to be started.", Arrays.toString(indexNames));
                         }
-                        listener.onResponse(new OpenIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
+                        listener.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
                     }, listener::onFailure);
             } else {
-                listener.onResponse(new OpenIndexClusterStateUpdateResponse(false, false));
+                listener.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
             }
         }, listener::onFailure));
     }
 
     private void onlyOpenIndex(final OpenIndexClusterStateUpdateRequest request,
-                               final ActionListener<ClusterStateUpdateResponse> listener) {
+                               final ActionListener<AcknowledgedResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
 
         final String indicesAsString = Arrays.toString(request.indices());
         clusterService.submitStateUpdateTask("open-indices " + indicesAsString,
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
                     final ClusterState updatedState = openIndices(request.indices(), currentState);
@@ -852,6 +849,7 @@ public class MetadataIndexStateService {
                     .state(IndexMetadata.State.OPEN)
                     .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                     .settings(updatedSettings)
+                    .timestampRange(IndexLongFieldRange.NO_SHARDS)
                     .build();
 
                 // The index might be closed because we couldn't import it due to old incompatible version

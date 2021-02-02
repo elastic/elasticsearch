@@ -30,4 +30,4 @@ restResources {
   }
 }
 // no unit tests
-test.enabled = false
+tasks.named("test").configure { enabled = false }

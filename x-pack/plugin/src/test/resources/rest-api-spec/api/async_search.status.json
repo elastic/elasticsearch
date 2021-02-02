@@ -1,0 +1,29 @@
+{
+  "async_search.status":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html",
+      "description": "Retrieves the status of a previously submitted async search request given its ID."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_async_search/status/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The async search ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

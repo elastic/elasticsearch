@@ -254,7 +254,7 @@ public class RelocationIT extends ESIntegTestCase {
                         IntHashSet set = IntHashSet.from(hitIds);
                         for (SearchHit hit : hits.getHits()) {
                             int id = Integer.parseInt(hit.getId());
-                            if (!set.remove(id)) {
+                            if (set.remove(id) == false) {
                                 logger.error("Extra id [{}]", id);
                             }
                         }
@@ -266,7 +266,7 @@ public class RelocationIT extends ESIntegTestCase {
                     logger.info("--> DONE search test round {}", i + 1);
 
             }
-            if (!ranOnce) {
+            if (ranOnce == false) {
                 fail();
             }
         }
@@ -404,7 +404,7 @@ public class RelocationIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, p_node);
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
         for (DiscoveryNode node : clusterService.state().nodes()) {
-            if (!node.equals(clusterService.localNode())) {
+            if (node.equals(clusterService.localNode()) == false) {
                 mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, node.getName()),
                         new RecoveryCorruption(corruptionCount));
             }

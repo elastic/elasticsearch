@@ -73,7 +73,7 @@ required in order to use the token service.
 In particular, if `xpack.security.authc.token.enabled` is
 set to `true` in the `elasticsearch.yml` file, you must also set
 `xpack.security.http.ssl.enabled` to `true`. For more information about these
-settings, see <<security-settings>> and <<modules-http>>.
+settings, see <<security-settings>> and <<http-settings>>.
 
 To pass this bootstrap check, you must enable HTTPS or disable the built-in
 token service.

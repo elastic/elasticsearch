@@ -121,7 +121,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (!event.routingTableChanged()) {
+        if (event.routingTableChanged() == false) {
             return;
         }
 
@@ -260,11 +260,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             }
         }
 
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
         private void allNodesResponded() {
             if (activeCopies.get() != expectedActiveCopies) {
                 logger.trace("not deleting shard {}, expected {} active copies, but only {} found active copies",
@@ -369,7 +364,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         private IndexShard getShard(ShardActiveRequest request) {
             ClusterName thisClusterName = clusterService.getClusterName();
-            if (!thisClusterName.equals(request.clusterName)) {
+            if (thisClusterName.equals(request.clusterName) == false) {
                 logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request",
                     request.clusterName, thisClusterName);
                 return null;

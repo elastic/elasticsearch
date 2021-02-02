@@ -46,14 +46,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -90,10 +89,10 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.aggregateIndexSettings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
@@ -115,18 +114,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private AliasValidator aliasValidator;
     private CreateIndexClusterStateUpdateRequest request;
-    private QueryShardContext queryShardContext;
+    private SearchExecutionContext searchExecutionContext;
 
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
         aliasValidator = new AliasValidator();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        queryShardContext = new QueryShardContext(0,
+        searchExecutionContext = new SearchExecutionContext(0, 0,
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> randomNonNegativeLong(), null, null, () -> true, null);
+            null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap());
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
@@ -599,7 +598,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         expectThrows(InvalidAliasNameException.class, () ->
             resolveAndValidateAliases(request.index(), request.aliases(), List.of(), Metadata.builder().build(),
-                aliasValidator, xContentRegistry(), queryShardContext)
+                aliasValidator, xContentRegistry(), searchExecutionContext)
         );
     }
 
@@ -621,7 +620,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             List.of(templateMetadata.mappings()), xContentRegistry());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext);
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),
             Collections.emptySet());
@@ -674,7 +673,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(), Collections.emptySet());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
-            Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), searchExecutionContext);
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
         AliasMetadata alias = resolvedAliases.get(0);
         assertThat(alias.getSearchRouting(), equalTo("3"));
@@ -900,7 +899,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         if (randomBoolean()) {
-            settings.put(SETTING_INDEX_VERSION_CREATED.getKey(),
+            settings.put(SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT));
         }
         request.settings(settings.build());
@@ -920,7 +919,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
-        settings.put(SETTING_INDEX_VERSION_CREATED.getKey(), VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
+        settings.put(SETTING_VERSION_CREATED, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
         request.settings(settings.build());
         aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService(),

@@ -1623,7 +1623,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(backingIndices, equalTo(1));
         ByteSizeValue byteSizeValue = dataStreamsStatsResponse.getTotalStoreSize();
         assertThat(byteSizeValue, notNullValue());
-        assertThat(byteSizeValue.getBytes(), not(equalTo(0L)));
         Map<String, DataStreamStats> dataStreamsStats = dataStreamsStatsResponse.getDataStreams();
         assertThat(dataStreamsStats, notNullValue());
         assertThat(dataStreamsStats.size(), equalTo(1));

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -52,7 +53,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class TransportAddVotingConfigExclusionsAction extends TransportMasterNodeAction<AddVotingConfigExclusionsRequest,
-    AddVotingConfigExclusionsResponse> {
+        ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(TransportAddVotingConfigExclusionsAction.class);
 
@@ -66,7 +67,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                                                     ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                                     IndexNameExpressionResolver indexNameExpressionResolver) {
         super(AddVotingConfigExclusionsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            AddVotingConfigExclusionsRequest::new, indexNameExpressionResolver, AddVotingConfigExclusionsResponse::new,
+            AddVotingConfigExclusionsRequest::new, indexNameExpressionResolver, in -> ActionResponse.Empty.INSTANCE,
                 ThreadPool.Names.SAME);
 
         maxVotingConfigExclusions = MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.get(settings);
@@ -79,7 +80,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
 
     @Override
     protected void masterOperation(Task task, AddVotingConfigExclusionsRequest request, ClusterState state,
-                                   ActionListener<AddVotingConfigExclusionsResponse> listener) throws Exception {
+                                   ActionListener<ActionResponse.Empty> listener) throws Exception {
 
         resolveVotingConfigExclusionsAndCheckMaximum(request, state, maxVotingConfigExclusions);
         // throws IAE if no nodes matched or maximum exceeded
@@ -124,7 +125,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                 final Listener clusterStateListener = new Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        listener.onResponse(new AddVotingConfigExclusionsResponse());
+                        listener.onResponse(ActionResponse.Empty.INSTANCE);
                     }
 
                     @Override

@@ -57,7 +57,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
         Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
         Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
@@ -106,7 +106,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
 
     @Override
     public void testMustRewrite() {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         ExistsQueryBuilder queryBuilder = new ExistsQueryBuilder("foo");
         IllegalStateException e = expectThrows(IllegalStateException.class,

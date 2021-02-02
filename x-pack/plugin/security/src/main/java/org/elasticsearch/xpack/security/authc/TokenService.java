@@ -34,6 +34,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -42,7 +43,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -1178,6 +1178,8 @@ public final class TokenService {
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
                             try {
+                                logger.debug("Found superseding document: index=[{}] id=[{}] primTerm=[{}] seqNo=[{}]",
+                                    response.getIndex(), response.getId(), response.getPrimaryTerm(), response.getSeqNo());
                                 listener.onResponse(
                                     new CreateTokenResult(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(),
                                         decryptedTokens[0]),
@@ -1657,7 +1659,18 @@ public final class TokenService {
                                 }
                             }
                         } else {
-                            onFailure.accept(new IllegalStateException("token document is missing and must be present"));
+                            // This shouldn't happen (if we have a valid `UserToken` object, then should mean that we loaded it from the
+                            // index in a prior operation (e.g. #getUserTokenFromId), however this error can happen if either:
+                            // 1. The document was deleted just after we read it
+                            // 2. This Get used a different replica to the previous one, and they were out of sync.
+                            logger.warn(
+                                "Could not find token document (index=[{}] id=[{}]) in order to validate user token [{}] for [{}]",
+                                response.getIndex(),
+                                response.getId(),
+                                userToken.getId(),
+                                userToken.getAuthentication().getUser().principal());
+                            onFailure.accept(traceLog("validate token", userToken.getId(),
+                                new IllegalStateException("token document is missing and must be present")));
                         }
                     }, e -> {
                         // if the index or the shard is not there / available we assume that
@@ -2123,7 +2136,7 @@ public final class TokenService {
         return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
     }
 
-    void rotateKeysOnMaster(ActionListener<ClusterStateUpdateResponse> listener) {
+    void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
         clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
@@ -2139,11 +2152,11 @@ public final class TokenService {
                 }, listener::onFailure)));
     }
 
-    private final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
+    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask {
 
         private final TokenMetadata tokenMetadata;
 
-        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<ClusterStateUpdateResponse> listener) {
+        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<AcknowledgedResponse> listener) {
             super(new AckedRequest() {
                 @Override
                 public TimeValue ackTimeout() {
@@ -2167,12 +2180,6 @@ public final class TokenService {
             }
             return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, tokenMetadata).build();
         }
-
-        @Override
-        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-            return new ClusterStateUpdateResponse(acknowledged);
-        }
-
     }
 
     private void initialize(ClusterService clusterService) {

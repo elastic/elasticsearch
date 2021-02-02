@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
@@ -318,7 +321,7 @@ class DatafeedJob {
             try {
                 extractedData = dataExtractor.next();
             } catch (Exception e) {
-                LOGGER.debug("[" + jobId + "] error while extracting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -350,7 +353,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.debug("[" + jobId + "] error while posting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.
@@ -469,7 +472,7 @@ class DatafeedJob {
         return lastEndTimeMs;
     }
 
-    static class AnalysisProblemException extends RuntimeException {
+    static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {
 
         final boolean shouldStop;
         final long nextDelayInMsSinceEpoch;
@@ -481,7 +484,7 @@ class DatafeedJob {
         }
     }
 
-    static class ExtractionProblemException extends RuntimeException {
+    static class ExtractionProblemException extends ElasticsearchException implements ElasticsearchWrapperException {
 
         final long nextDelayInMsSinceEpoch;
 

@@ -18,6 +18,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.Collections;
 import java.util.Set;

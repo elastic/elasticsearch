@@ -33,6 +33,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesRequestCache.Key;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -287,7 +288,8 @@ public class IndicesServiceCloseTests extends ESTestCase {
             @Override
             public void onRemoval(RemovalNotification<Key, BytesReference> notification) {}
         };
-        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), searcher.getDirectoryReader(), new BytesArray("foo"));
+        MappingLookup.CacheKey mappingCacheKey = indexService.mapperService().mappingLookup().cacheKey();
+        cache.getOrCompute(cacheEntity, () -> new BytesArray("bar"), mappingCacheKey, searcher.getDirectoryReader(), new BytesArray("foo"));
         assertEquals(1L, cache.count());
 
         searcher.close();

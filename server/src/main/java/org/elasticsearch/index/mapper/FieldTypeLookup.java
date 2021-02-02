@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
-final class FieldTypeLookup implements Iterable<MappedFieldType> {
-
+final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-    private final Map<String, String> aliasToConcreteName = new HashMap<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -45,10 +44,16 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+    private final String type;
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
-    FieldTypeLookup(Collection<FieldMapper> fieldMappers,
-                    Collection<FieldAliasMapper> fieldAliasMappers) {
+    FieldTypeLookup(
+        String type,
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<RuntimeFieldType> runtimeFieldTypes
+    ) {
+        this.type = type;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -70,10 +75,17 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
+        final Map<String, String> aliasToConcreteName = new HashMap<>();
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
             aliasToConcreteName.put(aliasName, path);
+            fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
+        }
+
+        for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
+            //this will override concrete fields with runtime fields that have the same name
+            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
@@ -83,8 +95,11 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
-        String concreteField = aliasToConcreteName.getOrDefault(field, field);
-        MappedFieldType fieldType = fullNameToFieldType.get(concreteField);
+        if (field.equals(TypeFieldType.NAME)) {
+            return new TypeFieldType(type);
+        }
+
+        MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;
         }
@@ -98,15 +113,14 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     Set<String> simpleMatchToFullName(String pattern) {
-        Set<String> fields = new HashSet<>();
-        for (MappedFieldType fieldType : this) {
-            if (Regex.simpleMatch(pattern, fieldType.name())) {
-                fields.add(fieldType.name());
-            }
+        if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcards
+            return Collections.singleton(pattern);
         }
-        for (String aliasName : aliasToConcreteName.keySet()) {
-            if (Regex.simpleMatch(pattern, aliasName)) {
-                fields.add(aliasName);
+        Set<String> fields = new HashSet<>();
+        for (String field : fullNameToFieldType.keySet()) {
+            if (Regex.simpleMatch(pattern, field)) {
+                fields.add(field);
             }
         }
         return fields;
@@ -125,6 +139,9 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
      * @return A set of paths in the _source that contain the field's values.
      */
     Set<String> sourcePaths(String field) {
+        if (fullNameToFieldType.isEmpty()) {
+            return Set.of();
+        }
         String resolvedField = field;
         int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {
@@ -139,10 +156,14 @@ final class FieldTypeLookup implements Iterable<MappedFieldType> {
             : Set.of(resolvedField);
     }
 
-    @Override
-    public Iterator<MappedFieldType> iterator() {
-        Iterator<MappedFieldType> concreteFieldTypes = fullNameToFieldType.values().iterator();
-        Iterator<MappedFieldType> keyedFieldTypes = dynamicKeyLookup.fieldTypes();
-        return Iterators.concat(concreteFieldTypes, keyedFieldTypes);
+    /**
+     * Returns an {@link Iterable} over all the distinct field types matching the provided predicate.
+     * When a field alias is present, {@link #get(String)} returns the same {@link MappedFieldType} no matter if it's  looked up
+     * providing the field name or the alias name. In this case the {@link Iterable} returned by this method will contain only one
+     * instance of the field type. Note that filtering by name is not reliable as it does not take into account field aliases.
+     */
+    Iterable<MappedFieldType> filter(Predicate<MappedFieldType> predicate) {
+        return () -> Stream.concat(fullNameToFieldType.values().stream(), dynamicKeyLookup.fieldTypes())
+            .distinct().filter(predicate).iterator();
     }
 }

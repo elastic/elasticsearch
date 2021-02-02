@@ -20,14 +20,17 @@
 package org.elasticsearch.bootstrap;
 
 import java.net.URL;
+import java.nio.file.Path;
 import java.security.Policy;
 import java.util.Set;
 
 public class PluginPolicyInfo {
+    public final Path file;
     public final Set<URL> jars;
     public final Policy policy;
 
-    PluginPolicyInfo(Set<URL> jars, Policy policy) {
+    PluginPolicyInfo(Path file, Set<URL> jars, Policy policy) {
+        this.file = file;
         this.jars = jars;
         this.policy = policy;
     }

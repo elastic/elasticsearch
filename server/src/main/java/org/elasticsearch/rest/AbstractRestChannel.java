@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.rest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -38,7 +38,6 @@ import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
 
-    private static final Logger logger = LogManager.getLogger(AbstractRestChannel.class);
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
 
@@ -100,11 +99,12 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
+
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
                 responseContentType = XContentType.fromFormat(format);
             }
-            if (responseContentType == null) {
+            if (responseContentType == null && Strings.hasText(acceptHeader)) {
                 responseContentType = XContentType.fromMediaType(acceptHeader);
             }
         }
@@ -130,8 +130,14 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
+
+        Map<String, String> parameters = request.getParsedAccept() != null ?
+            request.getParsedAccept().getParameters() : Collections.emptyMap();
+        ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
+
         XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
+                includes, excludes, responseMediaType);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

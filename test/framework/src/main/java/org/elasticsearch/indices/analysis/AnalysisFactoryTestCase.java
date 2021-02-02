@@ -202,7 +202,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             "patternreplace", MovedToAnalysisCommon.class,
             // TODO: these charfilters are not yet exposed: useful?
             // handling of zwnj for persian
-            "persian", Void.class);
+            "persian", Void.class,
+            // LUCENE-9413 : it might useful for dictionary-based CJK analyzers
+            "cjkwidth", Void.class);
 
     /**
      * The plugin being tested. Core uses an "empty" plugin so we don't have to throw null checks all over the place.

@@ -604,7 +604,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     private static void assertSameIndices(IndicesRequest originalRequest, boolean optional, String... actions) {
         for (String action : actions) {
             List<TransportRequest> requests = consumeTransportRequests(action);
-            if (!optional) {
+            if (optional == false) {
                 assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
             }
             for (TransportRequest internalRequest : requests) {

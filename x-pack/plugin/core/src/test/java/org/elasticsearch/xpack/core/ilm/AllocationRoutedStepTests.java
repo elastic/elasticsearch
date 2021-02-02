@@ -121,6 +121,42 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
 
+    public void testClusterExcludeFiltersConditionMetOnlyOneCopyAllocated() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+
+        boolean primaryOnNode1 = randomBoolean();
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+                ShardRoutingState.STARTED));
+
+        AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(existingSettings).numberOfShards(1)
+            .numberOfReplicas(1).build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder().fPut(index.getName(),
+            indexMetadata);
+
+        Settings clusterSettings = Settings.builder()
+            .put("cluster.routing.allocation.exclude._id", "node1")
+            .build();
+        Settings.Builder nodeSettingsBuilder = Settings.builder();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().indices(indices.build()).transientSettings(clusterSettings))
+            .nodes(DiscoveryNodes.builder()
+                .add(DiscoveryNode.createLocal(nodeSettingsBuilder.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                    "node1"))
+                .add(DiscoveryNode.createLocal(nodeSettingsBuilder.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                    "node2")))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+        Result actualResult = step.isConditionMet(index, clusterState);
+
+        Result expectedResult = new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(1, 1));
+        assertEquals(expectedResult.isComplete(), actualResult.isComplete());
+        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
+    }
+
     public void testExcludeConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> excludes = Collections.singletonMap(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "foo", "bar");

@@ -30,7 +30,7 @@ dependencies {
   testImplementation project(':modules:reindex')
 }
 
-testingConventions {
+tasks.named("testingConventions").configure {
   naming {
     IT {
       baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'

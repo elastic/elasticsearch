@@ -30,10 +30,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
 
 public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 
@@ -45,7 +48,8 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         Actions actions = new Actions(testedActions, taskManager);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, taskManager, () -> "test", null, new NamedWriteableRegistry(List.of()));
+        client.initialize(actions, taskManager, () -> "test",
+            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));
         return client;
     }
 

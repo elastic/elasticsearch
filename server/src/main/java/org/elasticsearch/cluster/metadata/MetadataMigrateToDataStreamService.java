@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -69,7 +68,7 @@ public class MetadataMigrateToDataStreamService {
     public void migrateToDataStream(MigrateToDataStreamClusterStateUpdateRequest request,
                                     ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> writeIndexRef = new AtomicReference<>();
-        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
             response -> {
                 if (response.isAcknowledged()) {
                     String writeIndexName = writeIndexRef.get();
@@ -89,7 +88,7 @@ public class MetadataMigrateToDataStreamService {
             finalListener::onFailure
         );
         clusterService.submitStateUpdateTask("migrate-to-data-stream [" + request.aliasName + "]",
-            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
+            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -106,19 +105,14 @@ public class MetadataMigrateToDataStreamService {
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
             });
     }
 
     static ClusterState migrateToDataStream(ClusterState currentState,
                                             Function<IndexMetadata, MapperService> mapperSupplier,
                                             MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
-            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_8_0_0);
+        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_11_0)) {
+            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_7_11_0);
         }
 
         validateRequest(currentState, request);
@@ -148,14 +142,12 @@ public class MetadataMigrateToDataStreamService {
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] does not exist");
         }
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-
-        if (alias.getWriteIndex() == null) {
+        if (ia.getWriteIndex() == null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] must specify a write index");
         }
 
         // check for "clean" alias without routing or filter query
-        AliasMetadata aliasMetadata = alias.getFirstAliasMetadata();
+        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(ia);
         assert aliasMetadata != null : "alias metadata may not be null";
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");

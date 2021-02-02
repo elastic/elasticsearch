@@ -27,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
@@ -571,8 +572,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // Cache should be cleared if indexUpToDate changed
         final boolean isIndexUpToDate = randomBoolean();
-        final ArrayList<ClusterHealthStatus> allPossibleHealthStatus = new ArrayList<>(Arrays.asList(ClusterHealthStatus.values()));
-        allPossibleHealthStatus.add(null);
+        final List<ClusterHealthStatus> allPossibleHealthStatus =
+                CollectionUtils.appendToCopy(Arrays.asList(ClusterHealthStatus.values()), null);
         store.onSecurityIndexStateChange(
             dummyState(securityIndexName, isIndexUpToDate, randomFrom(allPossibleHealthStatus)),
             dummyState(securityIndexName, !isIndexUpToDate, randomFrom(allPossibleHealthStatus)));

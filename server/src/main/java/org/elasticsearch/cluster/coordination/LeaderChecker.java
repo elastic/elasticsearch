@@ -217,17 +217,11 @@ public class LeaderChecker {
             logger.trace("checking {} with [{}] = {}", leader, LEADER_CHECK_TIMEOUT_SETTING.getKey(), leaderCheckTimeout);
 
             transportService.sendRequest(leader, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(transportService.getLocalNode()),
-                TransportRequestOptions.builder().withTimeout(leaderCheckTimeout).withType(Type.PING).build(),
-
-                new TransportResponseHandler<TransportResponse.Empty>() {
-
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+                TransportRequestOptions.of(leaderCheckTimeout, Type.PING),
+                new TransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (isClosed.get()) {
                             logger.debug("closed check scheduler received a response, doing nothing");
                             return;
@@ -268,11 +262,6 @@ public class LeaderChecker {
                         logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) with leader [{}]",
                             failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount, leader), exp);
                         scheduleNextWakeUp();
-                    }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
         }

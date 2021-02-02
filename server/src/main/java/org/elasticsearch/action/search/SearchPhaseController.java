@@ -275,7 +275,7 @@ public final class SearchPhaseController {
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
         if (reducedQueryPhase.suggest != null) {
-            if (!fetchResults.isEmpty()) {
+            if (fetchResults.isEmpty() == false) {
                 int currentOffset = hits.getHits().length;
                 for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
                     final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
@@ -330,7 +330,7 @@ public final class SearchPhaseController {
         numSearchHits = Math.min(sortedTopDocs.scoreDocs.length, numSearchHits);
         // merge hits
         List<SearchHit> hits = new ArrayList<>();
-        if (!fetchResults.isEmpty()) {
+        if (fetchResults.isEmpty() == false) {
             for (int i = 0; i < numSearchHits; i++) {
                 ScoreDoc shardDoc = sortedTopDocs.scoreDocs[i];
                 SearchPhaseResult fetchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
@@ -428,9 +428,8 @@ public final class SearchPhaseController {
             throw new IllegalStateException(errorMsg);
         }
         validateMergeSortValueFormats(queryResults);
-        final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
-        final boolean hasSuggest = firstResult.suggest() != null;
-        final boolean hasProfileResults = firstResult.hasProfileResults();
+        final boolean hasSuggest = queryResults.stream().anyMatch(res -> res.queryResult().suggest() != null);
+        final boolean hasProfileResults =  queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
@@ -438,11 +437,16 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        DocValueFormat[] sortValueFormats = null;
         for (SearchPhaseResult entry : queryResults) {
             QuerySearchResult result = entry.queryResult();
             from = result.from();
             // sorted queries can set the size to 0 if they have enough competitive hits.
             size = Math.max(result.size(), size);
+            if (result.sortValueFormats() != null) {
+                sortValueFormats = result.sortValueFormats();
+            }
+
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
@@ -477,7 +481,7 @@ public final class SearchPhaseController {
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
             topDocsStats.timedOut, topDocsStats.terminatedEarly, reducedSuggest, aggregations, shardResults, sortedTopDocs,
-            firstResult.sortValueFormats(), numReducePhases, size, from, false);
+            sortValueFormats, numReducePhases, size, from, false);
     }
 
     private static InternalAggregations reduceAggs(InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
@@ -655,7 +659,7 @@ public final class SearchPhaseController {
                 }
             }
             fetchHits += topDocs.topDocs.scoreDocs.length;
-            if (!Float.isNaN(topDocs.maxScore)) {
+            if (Float.isNaN(topDocs.maxScore) == false) {
                 maxScore = Math.max(maxScore, topDocs.maxScore);
             }
             if (timedOut) {

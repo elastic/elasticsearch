@@ -27,6 +27,7 @@ import org.apache.tools.zip.ZipFile
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.Unroll
 
 class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncTest {
 
@@ -158,6 +159,40 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         file("producer-tar/build/install/someFile.txt").exists()
         !file("producer-tar/build/install/snapshot-1.0.txt").exists()
         file("producer-tar/build/install/snapshot-2.0.txt").exists()
+    }
+
+    def "builds extracted distribution via extractedAssemble"() {
+        given:
+        file('someFile.txt') << "some content"
+        settingsFile << """
+            include ':producer-tar'
+        """
+
+        buildFile << """
+        import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+        import org.gradle.api.internal.artifacts.ArtifactAttributes;
+
+        def snapshotFile = file("snapshot.txt")
+        snapshotFile << 'some snapshot content'
+        distribution_archives {
+            producerTar {
+                content {
+                    project.copySpec {
+                        from 'someFile.txt'
+                        from snapshotFile
+                    }
+                }
+            }
+        }
+        """
+        when:
+        def result = gradleRunner(":producer-tar:extractedAssemble").build()
+
+        then: "tar task executed and target folder contains plain tar"
+        result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
+
+        file("producer-tar/build/install").exists()
+        file("producer-tar/build/distributions/elasticsearch.tar.gz").exists() == false
     }
 
     private static boolean assertTarPermissionDefaults(File tarArchive) {

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -47,7 +47,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), true, request.indices());
         clusterService.submitStateUpdateTask("remove-lifecycle-for-index",
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
+                new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
                     private final List<String> failedIndexes = new ArrayList<>();
 
@@ -62,8 +62,8 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
                     }
 
                     @Override
-                    protected Response newResponse(boolean acknowledged) {
-                        return new Response(failedIndexes);
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        listener.onResponse(new Response(failedIndexes));
                     }
                 });
     }

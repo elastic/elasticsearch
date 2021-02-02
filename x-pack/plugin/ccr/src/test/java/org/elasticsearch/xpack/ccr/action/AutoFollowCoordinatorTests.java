@@ -12,6 +12,8 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -74,6 +76,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -148,6 +151,93 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
+                successHandler.run();
+            }
+
+            @Override
+            void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
+                                          Consumer<Exception> handler) {
+                ClusterState resultCs = updateFunction.apply(currentState);
+                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
+                assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
+                handler.accept(null);
+            }
+
+            @Override
+            void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
+                // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
+            }
+        };
+        autoFollower.start();
+        assertThat(invoked[0], is(true));
+    }
+
+    public void testAutoFollower_dataStream() {
+        Client client = mock(Client.class);
+        when(client.getRemoteClusterClient(anyString())).thenReturn(client);
+
+        ClusterState remoteState = createRemoteClusterStateWithDataStream("logs-foobar");
+
+        AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            "remote",
+            Collections.singletonList("logs-*"),
+            null,
+            Settings.EMPTY,
+            true,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        Map<String, AutoFollowPattern> patterns = new HashMap<>();
+        patterns.put("remote", autoFollowPattern);
+        Map<String, List<String>> followedLeaderIndexUUIDS = new HashMap<>();
+        followedLeaderIndexUUIDS.put("remote", new ArrayList<>());
+        Map<String, Map<String, String>> autoFollowHeaders = new HashMap<>();
+        autoFollowHeaders.put("remote", Map.of("key", "val"));
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(patterns, followedLeaderIndexUUIDS, autoFollowHeaders);
+
+        ClusterState currentState = ClusterState.builder(new ClusterName("name"))
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
+            .build();
+
+        boolean[] invoked = new boolean[]{false};
+        Consumer<List<AutoFollowCoordinator.AutoFollowResult>> handler = results -> {
+            invoked[0] = true;
+
+            assertThat(results.size(), equalTo(1));
+            assertThat(results.get(0).clusterStateFetchException, nullValue());
+            List<Map.Entry<Index, Exception>> entries = new ArrayList<>(results.get(0).autoFollowExecutionResults.entrySet());
+            assertThat(entries.size(), equalTo(1));
+            assertThat(entries.get(0).getKey().getName(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
+            assertThat(entries.get(0).getValue(), nullValue());
+        };
+        AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L, Runnable::run) {
+            @Override
+            void getRemoteClusterState(String remoteCluster,
+                                       long metadataVersion,
+                                       BiConsumer<ClusterStateResponse, Exception> handler) {
+                assertThat(remoteCluster, equalTo("remote"));
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
+            }
+
+            @Override
+            void createAndFollow(Map<String, String> headers,
+                                 PutFollowAction.Request followRequest,
+                                 Runnable successHandler,
+                                 Consumer<Exception> failureHandler) {
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
+                assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
+                assertThat(followRequest.getFollowerIndex(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
                 assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 successHandler.run();
             }
@@ -1955,9 +2045,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ShardRouting shardRouting =
             TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
-        csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
-
-        return csBuilder.build();
+        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
 
     private static ClusterState createRemoteClusterState(final ClusterState previous, final String... indices) {
@@ -2007,6 +2095,30 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
+    }
+
+    private static ClusterState createRemoteClusterStateWithDataStream(String dataStreamName) {
+        Settings.Builder indexSettings = settings(Version.CURRENT);
+        indexSettings.put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()));
+        indexSettings.put("index.hidden", true);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DataStream dataStream = new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp"),
+            List.of(indexMetadata.getIndex()));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
+            .metadata(Metadata.builder()
+                .put(indexMetadata, true)
+                .put(dataStream)
+                .version(0L));
+
+        ShardRouting shardRouting =
+            TestShardRouting.newShardRouting(dataStreamName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
+        return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
 
 }

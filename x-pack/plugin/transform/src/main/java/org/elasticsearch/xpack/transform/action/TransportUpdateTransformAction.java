@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -38,7 +37,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
@@ -150,8 +148,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
-                ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
-                : null,
+                /* transforms are BASIC so always allowed, no need to check license */
+                ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
@@ -162,11 +160,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (!licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
-            return;
-        }
-
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 

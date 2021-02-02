@@ -24,9 +24,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -93,13 +93,14 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public FieldNamesFieldMapper build(BuilderContext context) {
+        public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
                         + "removed. Please remove it from your mappings and templates.");
                 } else {
-                    deprecationLogger.deprecate("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecate(DeprecationCategory.TEMPLATES,
+                        "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
                 }
             }
             FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType(enabled.getValue().value());
@@ -131,21 +132,21 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists query on _field_names");
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            deprecationLogger.deprecate("terms_query_on_field_names",
+            deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "terms_query_on_field_names",
                 "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
             return super.termQuery(value, context);
         }

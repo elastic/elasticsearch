@@ -30,7 +30,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public abstract class SingleObjectCache<T>{
 
     private volatile T cached;
-    private Lock refreshLock = new ReentrantLock();
+    private final Lock refreshLock = new ReentrantLock();
     private final TimeValue refreshInterval;
     protected long lastRefreshTimestamp = 0;
 

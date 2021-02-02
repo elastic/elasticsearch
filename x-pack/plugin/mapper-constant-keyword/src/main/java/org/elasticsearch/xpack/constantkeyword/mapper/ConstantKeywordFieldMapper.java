@@ -26,15 +26,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -88,9 +88,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ConstantKeywordFieldMapper build(BuilderContext context) {
+        public ConstantKeywordFieldMapper build(ContentPath contentPath) {
             return new ConstantKeywordFieldMapper(
-                    name, new ConstantKeywordFieldType(buildFullName(context), value.getValue(), meta.getValue()));
+                    name, new ConstantKeywordFieldType(buildFullName(contentPath), value.getValue(), meta.getValue()));
         }
     }
 
@@ -126,11 +126,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -141,7 +141,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             if (value == null) {
                 return false;
             }
@@ -149,7 +149,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
         }
 
@@ -158,7 +158,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 Object lowerTerm, Object upperTerm,
                 boolean includeLower, boolean includeUpper,
                 ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
-                QueryShardContext context) {
+                SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -175,7 +175,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                boolean transpositions, QueryShardContext context) {
+                boolean transpositions, SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -205,7 +205,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }

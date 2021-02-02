@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.LocationMode;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +31,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -58,7 +58,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
 
     public void testReadonlyDefaultAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
@@ -71,35 +71,35 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     public void testReadonlyWithPrimaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name())
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
     public void testReadonlyWithSecondaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
     public void testReadonlyWithSecondaryOnlyAndReadonlyOff() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
-            .put("readonly", false)
+            .put(READONLY_SETTING_KEY, false)
             .build()).isReadOnly(), is(false));
     }
 
     public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
     public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOff() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
-            .put("readonly", false)
+            .put(READONLY_SETTING_KEY, false)
             .build()).isReadOnly(), is(false));
     }
 

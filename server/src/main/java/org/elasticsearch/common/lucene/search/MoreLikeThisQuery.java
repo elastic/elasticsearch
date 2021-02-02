@@ -35,6 +35,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -57,6 +58,7 @@ public class MoreLikeThisQuery extends Query {
     private Fields[] unlikeFields;
     private String[] moreLikeFields;
     private Analyzer analyzer;
+    private String analyzerName;    // used for equals/hashcode
     private String minimumShouldMatch = DEFAULT_MINIMUM_SHOULD_MATCH;
     private int minTermFrequency = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
     private int maxQueryTerms = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
@@ -73,10 +75,11 @@ public class MoreLikeThisQuery extends Query {
 
     }
 
-    public MoreLikeThisQuery(String likeText, String[] moreLikeFields, Analyzer analyzer) {
+    public MoreLikeThisQuery(String likeText, String[] moreLikeFields, NamedAnalyzer analyzer) {
         this.likeText = new String[]{likeText};
         this.moreLikeFields = moreLikeFields;
         this.analyzer = analyzer;
+        this.analyzerName = analyzer.name();
     }
 
     @Override
@@ -92,13 +95,13 @@ public class MoreLikeThisQuery extends Query {
             return false;
         }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
-        if (!analyzer.equals(other.analyzer))
+        if (Objects.equals(analyzerName, other.analyzerName) == false)
             return false;
         if (boostTerms != other.boostTerms)
             return false;
         if (boostTermsFactor != other.boostTermsFactor)
             return false;
-        if (!(Arrays.equals(likeText, other.likeText)))
+        if ((Arrays.equals(likeText, other.likeText)) == false)
             return false;
         if (maxDocFreq != other.maxDocFreq)
             return false;
@@ -112,19 +115,19 @@ public class MoreLikeThisQuery extends Query {
             return false;
         if (minWordLen != other.minWordLen)
             return false;
-        if (!Arrays.equals(moreLikeFields, other.moreLikeFields))
+        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false)
             return false;
-        if (!minimumShouldMatch.equals(other.minimumShouldMatch))
+        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false)
             return false;
         if (similarity == null) {
             if (other.similarity != null)
                 return false;
-        } else if (!similarity.equals(other.similarity))
+        } else if (similarity.equals(other.similarity) == false)
             return false;
         if (stopWords == null) {
             if (other.stopWords != null)
                 return false;
-        } else if (!stopWords.equals(other.stopWords))
+        } else if (stopWords.equals(other.stopWords) == false)
             return false;
         return true;
     }
@@ -206,7 +209,7 @@ public class MoreLikeThisQuery extends Query {
                 }
             }
         }
-        if (!skipTerms.isEmpty()) {
+        if (skipTerms.isEmpty() == false) {
             mlt.setSkipTerms(skipTerms);
         }
     }
@@ -271,8 +274,9 @@ public class MoreLikeThisQuery extends Query {
         return analyzer;
     }
 
-    public void setAnalyzer(Analyzer analyzer) {
+    public void setAnalyzer(String analyzerName, Analyzer analyzer) {
         this.analyzer = analyzer;
+        this.analyzerName = analyzerName;
     }
 
     /**

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ssl;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
@@ -16,9 +17,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,9 +55,7 @@ public final class RestrictedTrustConfig extends TrustConfig {
 
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
-        List<Path> files = new ArrayList<>(delegate.filesToMonitor(environment));
-        files.add(resolveGroupConfigPath(environment));
-        return Collections.unmodifiableList(files);
+        return CollectionUtils.appendToCopy(delegate.filesToMonitor(environment), resolveGroupConfigPath(environment));
     }
 
     @Override

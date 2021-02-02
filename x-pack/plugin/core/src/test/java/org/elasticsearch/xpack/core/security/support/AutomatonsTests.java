@@ -9,12 +9,15 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
@@ -62,6 +65,13 @@ public class AutomatonsTests extends ESTestCase {
         assertMismatch(wildcard("*st"), "tet");
         assertMismatch(wildcard("t\\*st"), "test");
         assertMatch(wildcard("t\\*st"), "t*st");
+    }
+
+    public void testUnicode() throws Exception {
+        assertMatch(wildcard("*ξη"), "λέξη");
+        assertMatch(wildcard("сл*во"), "слово");
+        assertMatch(wildcard("စကာ*"), "စကားလုံး");
+        assertMatch(wildcard("וואָרט"), "וואָרט");
     }
 
     public void testPredicateToString() throws Exception {
@@ -207,5 +217,22 @@ public class AutomatonsTests extends ESTestCase {
         final String pattern = randomAlphaOfLengthBetween(5, 10);
         final Automaton automaton = Automatons.pattern(pattern);
         assertThat(Automatons.pattern(pattern), not(sameInstance(automaton)));
+    }
+
+    // This isn't use directly in the code, but it's sometimes needed when debugging failing tests
+    // (and it is annoying to have to rewrite it each time it's needed)
+    public static <A extends Appendable> A debug(Automaton a, A out) throws IOException {
+        out.append("Automaton {");
+        out.append(String.format(Locale.ROOT, "States:%d  Deterministic:%s", a.getNumStates(), a.isDeterministic()));
+        for (int s = 0; s < a.getNumStates(); s++) {
+            out.append(String.format(Locale.ROOT, " [State#%d %s", s, a.isAccept(s) ? "(accept)" : ""));
+            for (int t = 0; t < a.getNumTransitions(s); t++) {
+                Transition transition = new Transition();
+                a.getTransition(s, t, transition);
+                out.append(String.format(Locale.ROOT, " (%05d - %05d => %s)", transition.min, transition.max, transition.dest));
+            }
+            out.append("]");
+        }
+        return out;
     }
 }

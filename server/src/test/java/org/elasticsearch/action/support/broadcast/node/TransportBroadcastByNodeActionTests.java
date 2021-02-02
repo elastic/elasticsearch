@@ -343,7 +343,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {
-            if (!shard.currentNodeId().equals(masterNode.getId())) {
+            if (shard.currentNodeId().equals(masterNode.getId()) == false) {
                 set.add(shard.currentNodeId());
             }
         }
@@ -389,7 +389,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int successfulShards = 0;
         int failedShards = 0;
         for (Object result : action.getResults().values()) {
-            if (!(result instanceof ElasticsearchException)) {
+            if ((result instanceof ElasticsearchException) == false) {
                 successfulShards++;
             } else {
                 failedShards++;
@@ -429,7 +429,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
         Map<String, List<ShardRouting>> map = new HashMap<>();
         for (ShardRouting shard : shardIt) {
-            if (!map.containsKey(shard.currentNodeId())) {
+            if (map.containsKey(shard.currentNodeId()) == false) {
                 map.put(shard.currentNodeId(), new ArrayList<>());
             }
             map.get(shard.currentNodeId()).add(shard);

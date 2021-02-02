@@ -29,12 +29,13 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -94,10 +95,10 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BooleanFieldMapper build(BuilderContext context) {
-            MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), stored.getValue(),
+        public BooleanFieldMapper build(ContentPath contentPath) {
+            MappedFieldType ft = new BooleanFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
                 docValues.getValue(), nullValue.getValue(), meta.getValue());
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -127,12 +128,12 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), mapperService, nullValue) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {
@@ -204,7 +205,8 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                                SearchExecutionContext context) {
             failIfNotIndexed();
             return new TermRangeQuery(name(),
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
@@ -220,7 +222,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();

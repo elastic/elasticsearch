@@ -41,7 +41,8 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Override
-    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         Query innerQuery = queryBuilder.innerQuery().rewrite(context).toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());
@@ -107,13 +108,13 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
 
     public void testRewriteToMatchNone() throws IOException {
         ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(new MatchNoneQueryBuilder());
-        QueryBuilder rewrite = constantScoreQueryBuilder.rewrite(createShardContext());
+        QueryBuilder rewrite = constantScoreQueryBuilder.rewrite(createSearchExecutionContext());
         assertEquals(rewrite, new MatchNoneQueryBuilder());
     }
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
         IllegalStateException e = expectThrows(IllegalStateException.class,

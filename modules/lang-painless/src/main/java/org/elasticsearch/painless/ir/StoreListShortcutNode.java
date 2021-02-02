@@ -20,24 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
-public class StoreListShortcutNode extends StoreNode {
+public class StoreListShortcutNode extends UnaryNode {
 
-    /* ---- begin node data ---- */
-
-    private PainlessMethod setter;
-
-    public void setSetter(PainlessMethod setter) {
-        this.setter = setter;
-    }
-
-    public PainlessMethod getSetter() {
-        return setter;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

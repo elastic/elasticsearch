@@ -25,9 +25,11 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -41,7 +43,9 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         }
     }
 
-    public static List<String> metricNames = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toList());
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
+    );
 
     protected final long count;
     protected final double min;
@@ -149,7 +153,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     public Iterable<String> valueNames() {
-        return metricNames;
+        return METRIC_NAMES;
     }
 
     @Override

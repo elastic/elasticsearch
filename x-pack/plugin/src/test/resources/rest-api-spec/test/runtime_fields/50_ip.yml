@@ -8,14 +8,9 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            properties:
-              timestamp:
-                type: date
-              message:
-                type: keyword
+            runtime:
               ip:
-                type: runtime
-                runtime_type: ip
+                type: ip
                 script:
                   source: |
                     Matcher m = /([^ ]+) .+/.matcher(doc["message"].value);
@@ -24,8 +19,7 @@ setup:
                     }
               # Test fetching from _source
               ip_from_source:
-                type: runtime
-                runtime_type: ip
+                type: ip
                 script:
                   source: |
                     Matcher m = /([^ ]+) .+/.matcher(params._source.message);
@@ -34,8 +28,7 @@ setup:
                     }
               # Test emitting many values
               ip_many:
-                type: runtime
-                runtime_type: ip
+                type: ip
                 script:
                   source: |
                     String m = doc["message"].value;
@@ -45,6 +38,11 @@ setup:
                     for (int i = 0; i < 5; i++) {
                       emit(stem + i);
                     }
+            properties:
+              timestamp:
+                type: date
+              message:
+                type: keyword
   - do:
       bulk:
         index: http_logs
@@ -69,15 +67,14 @@ setup:
   - do:
       indices.get_mapping:
         index: http_logs
-  - match: {http_logs.mappings.properties.ip.type: runtime }
-  - match: {http_logs.mappings.properties.ip.runtime_type: ip }
+  - match: {http_logs.mappings.runtime.ip.type: ip }
   - match:
-      http_logs.mappings.properties.ip.script.source: |
+      http_logs.mappings.runtime.ip.script.source: |
         Matcher m = /([^ ]+) .+/.matcher(doc["message"].value);
         if (m.matches()) {
           emit(m.group(1));
         }
-  - match: {http_logs.mappings.properties.ip.script.lang: painless }
+  - match: {http_logs.mappings.runtime.ip.script.lang: painless }
 
 ---
 "fetch fields":

@@ -169,7 +169,7 @@ public abstract class TransportReplicationAction<
         transportService.registerRequestHandler(transportReplicaAction, executor, true, true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), this::handleReplicaRequest);
 
-        this.transportOptions = transportOptions(settings);
+        this.transportOptions = transportOptions();
 
         this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
 
@@ -248,7 +248,7 @@ public abstract class TransportReplicationAction<
         return null;
     }
 
-    protected TransportRequestOptions transportOptions(Settings settings) {
+    protected TransportRequestOptions transportOptions() {
         return TransportRequestOptions.EMPTY;
     }
 
@@ -424,7 +424,7 @@ public abstract class TransportReplicationAction<
                     }, e -> handleException(primaryShardReference, e));
 
                     new ReplicationOperation<>(primaryRequest.getRequest(), primaryShardReference,
-                        ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
+                        responseListener.map(result -> result.finalResponseIfSuccessful),
                         newReplicasProxy(), logger, threadPool, actionName, primaryRequest.getPrimaryTerm(), initialRetryBackoffBound,
                         retryTimeout)
                         .execute();
@@ -802,11 +802,6 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
                 public void handleResponse(Response response) {
                     finishOnSuccess(response);
                 }
@@ -959,7 +954,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
             if (Assertions.ENABLED) {
-                listener = ActionListener.map(listener, result -> {
+                listener = listener.map(result -> {
                     assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
                         + "] with a primary failure [" + result.finalFailure + "]";
                     return result;

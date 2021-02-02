@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
@@ -25,8 +26,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -78,7 +77,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseSearchableS
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(TestPlugin.class)).collect(Collectors.toList());
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestPlugin.class);
     }
 
     public void testMountFailsIfSnapshotChanged() throws Exception {

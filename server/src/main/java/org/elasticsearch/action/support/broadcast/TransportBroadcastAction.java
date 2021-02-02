@@ -83,7 +83,7 @@ public abstract class TransportBroadcastAction<
         new AsyncBroadcastAction(task, request, listener).start();
     }
 
-    protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
+    protected abstract Response newResponse(Request request, AtomicReferenceArray<?> shardsResponses, ClusterState clusterState);
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
@@ -103,15 +103,15 @@ public abstract class TransportBroadcastAction<
 
     protected class AsyncBroadcastAction {
 
-        private final Task task;
-        private final Request request;
-        private final ActionListener<Response> listener;
-        private final ClusterState clusterState;
-        private final DiscoveryNodes nodes;
-        private final GroupShardsIterator<ShardIterator> shardsIts;
-        private final int expectedOps;
-        private final AtomicInteger counterOps = new AtomicInteger();
-        private final AtomicReferenceArray shardsResponses;
+        final Task task;
+        final Request request;
+        final ActionListener<Response> listener;
+        final ClusterState clusterState;
+        final DiscoveryNodes nodes;
+        final GroupShardsIterator<ShardIterator> shardsIts;
+        final int expectedOps;
+        final AtomicInteger counterOps = new AtomicInteger();
+        protected final AtomicReferenceArray shardsResponses;
 
         protected AsyncBroadcastAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -184,11 +184,6 @@ public abstract class TransportBroadcastAction<
                                 }
 
                                 @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
-                                }
-
-                                @Override
                                 public void handleResponse(ShardResponse response) {
                                     onOperation(shard, shardIndex, response);
                                 }
@@ -222,7 +217,7 @@ public abstract class TransportBroadcastAction<
             if (nextShard != null) {
                 if (e != null) {
                     if (logger.isTraceEnabled()) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
+                        if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.trace(new ParameterizedMessage(
                                 "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
@@ -232,7 +227,7 @@ public abstract class TransportBroadcastAction<
             } else {
                 if (logger.isDebugEnabled()) {
                     if (e != null) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
+                        if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.debug(new ParameterizedMessage(
                                 "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
@@ -242,6 +237,10 @@ public abstract class TransportBroadcastAction<
                     finishHim();
                 }
             }
+        }
+
+        protected AtomicReferenceArray shardsResponses() {
+            return shardsResponses;
         }
 
         protected void finishHim() {
@@ -258,7 +257,7 @@ public abstract class TransportBroadcastAction<
                 return;
             }
 
-            if (!(e instanceof BroadcastShardOperationFailedException)) {
+            if ((e instanceof BroadcastShardOperationFailedException) == false) {
                 e = new BroadcastShardOperationFailedException(shardIt.shardId(), e);
             }
 
@@ -268,7 +267,7 @@ public abstract class TransportBroadcastAction<
                 shardsResponses.set(shardIndex, e);
             }
 
-            if (!(response instanceof Throwable)) {
+            if ((response instanceof Throwable) == false) {
                 // we should never really get here...
                 return;
             }

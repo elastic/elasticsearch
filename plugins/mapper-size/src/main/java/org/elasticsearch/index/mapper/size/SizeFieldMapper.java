@@ -52,7 +52,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public SizeFieldMapper build(BuilderContext context) {
+        public SizeFieldMapper build() {
             return new SizeFieldMapper(enabled.getValue(), new NumberFieldType(NAME, NumberType.INTEGER));
         }
     }

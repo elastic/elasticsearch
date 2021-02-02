@@ -89,11 +89,15 @@ public class PercentileRanksAggregationBuilder extends AbstractPercentilesAggreg
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                                     ValuesSourceConfig config,
-                                                                     AggregatorFactory parent,
-                                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+
+        PercentilesAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new PercentileRanksAggregatorFactory(name, config, values, configOrDefault(), keyed, context,
-                    parent, subFactoriesBuilder, metadata);
+                    parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure per-action conditions are honored.
@@ -106,7 +107,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
@@ -151,7 +152,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
@@ -201,7 +202,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // all actions should be successful
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
@@ -242,7 +243,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @param input The input to use for the Watch
      * @param actionConditions The conditions to add to the Watch
      */
-    private void putAndTriggerWatch(final String id, final Input input, final Condition... actionConditions) {
+    private void putAndTriggerWatch(final String id, final Input input, final Condition... actionConditions) throws Exception {
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(input)

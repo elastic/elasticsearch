@@ -85,24 +85,9 @@ public class CancellableThreads {
      * @param interruptible code to run
      */
     public void execute(Interruptible interruptible) {
-        try {
-            executeIO(interruptible);
-        } catch (IOException e) {
-            assert false : "the passed interruptible can not result in an IOException";
-            throw new RuntimeException("unexpected IO exception", e);
-        }
-    }
-    /**
-     * run the Interruptible, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
-     * causing the call to prematurely return.
-     *
-     * @param interruptible code to run
-     */
-    public void executeIO(IOInterruptible interruptible) throws IOException {
         boolean wasInterrupted = add();
         boolean cancelledByExternalInterrupt = false;
         RuntimeException runtimeException = null;
-        IOException ioException = null;
 
         try {
             interruptible.run();
@@ -114,8 +99,6 @@ public class CancellableThreads {
             cancelledByExternalInterrupt = !cancelled;
         } catch (RuntimeException t) {
             runtimeException = t;
-        } catch (IOException e) {
-            ioException = e;
         } finally {
             remove();
         }
@@ -127,11 +110,7 @@ public class CancellableThreads {
             // clear the flag interrupted flag as we are checking for failure..
             Thread.interrupted();
         }
-        checkForCancel(ioException != null ? ioException : runtimeException);
-        if (ioException != null) {
-            // if we're not canceling, we throw the original exception
-            throw ioException;
-        }
+        checkForCancel(runtimeException);
         if (runtimeException != null) {
             // if we're not canceling, we throw the original exception
             throw runtimeException;
@@ -141,9 +120,7 @@ public class CancellableThreads {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead");
         }
-
     }
-
 
     private synchronized void remove() {
         threads.remove(Thread.currentThread());
@@ -166,12 +143,8 @@ public class CancellableThreads {
     }
 
 
-    public interface Interruptible extends IOInterruptible {
+    public interface Interruptible {
         void run() throws InterruptedException;
-    }
-
-    public interface IOInterruptible {
-        void run() throws IOException, InterruptedException;
     }
 
     public static class ExecutionCancelledException extends ElasticsearchException {

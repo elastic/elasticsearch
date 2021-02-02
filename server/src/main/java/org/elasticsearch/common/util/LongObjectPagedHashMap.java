@@ -41,8 +41,17 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
     public LongObjectPagedHashMap(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        keys = bigArrays.newLongArray(capacity(), false);
-        values = bigArrays.newObjectArray(capacity());
+        boolean success = false;
+        try {
+            // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
+            keys = bigArrays.newLongArray(capacity(), false);
+            values = bigArrays.newObjectArray(capacity());
+            success = true;
+        } finally {
+            if (false == success) {
+                close();
+            }
+        }
     }
 
     /**
@@ -131,7 +140,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public boolean hasNext() {
-                if (!cached) {
+                if (cached == false) {
                     while (true) {
                         ++cursor.index;
                         if (cursor.index >= capacity()) {
@@ -149,7 +158,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public Cursor<T> next() {
-                if (!hasNext()) {
+                if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
                 cached = false;

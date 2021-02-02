@@ -52,13 +52,13 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
          */
         List<DocValueField> fields = new ArrayList<>();
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
-            MappedFieldType ft = context.mapperService().fieldType(fieldAndFormat.field);
+            MappedFieldType ft = context.getSearchExecutionContext().getFieldType(fieldAndFormat.field);
             if (ft == null) {
                 continue;
             }
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().doc().getForField(ft)
+                context.searchLookup().getForField(ft)
             );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }

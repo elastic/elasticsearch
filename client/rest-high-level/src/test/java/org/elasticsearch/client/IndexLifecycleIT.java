@@ -62,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.ilm.LifecyclePolicyTests.createRandomPolicy;
@@ -155,7 +156,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(UnfollowAction.NAME, new UnfollowAction());
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1000));
         lifecyclePhases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(1000), warmActions));
 
@@ -219,7 +220,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             assertFalse(squashResponse.managedByILM());
             assertEquals("squash", squashResponse.getIndex());
 
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testDeleteLifecycle() throws IOException {

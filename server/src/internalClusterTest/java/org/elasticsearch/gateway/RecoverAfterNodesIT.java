@@ -46,8 +46,7 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         do {
             blocks = nodeClient.admin().cluster().prepareState().setLocal(true).execute().actionGet()
                     .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE);
-        }
-        while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
+        } while (blocks.isEmpty() == false && (System.currentTimeMillis() - start) < timeout.millis());
         return blocks;
     }
 

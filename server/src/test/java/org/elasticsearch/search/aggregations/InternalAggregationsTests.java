@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -109,7 +110,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        assertThat(aggregations.getSerializedSize(),
+        assertThat(DelayableWriteable.getSerializedSize(aggregations),
             equalTo((long) serialize(aggregations, Version.CURRENT).length));
     }
 

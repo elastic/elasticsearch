@@ -1609,11 +1609,19 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(2); // <1>
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::shrink-index-request-waitForActiveShards
-        // tag::shrink-index-request-settings
-        request.getTargetIndexRequest().settings(Settings.builder()
+        if (randomBoolean()) {
+            // tag::shrink-index-request-settings
+            request.getTargetIndexRequest().settings(Settings.builder()
                 .put("index.number_of_shards", 2) // <1>
                 .putNull("index.routing.allocation.require._name")); // <2>
-        // end::shrink-index-request-settings
+            // end::shrink-index-request-settings
+        } else {
+            request.getTargetIndexRequest().settings(Settings.builder()
+                .putNull("index.routing.allocation.require._name"));
+            // tag::shrink-index-request-maxSinglePrimarySize
+            request.setMaxSinglePrimarySize(new ByteSizeValue(50, ByteSizeUnit.GB)); // <1>
+            // end::shrink-index-request-maxSinglePrimarySize
+        }
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
         // end::shrink-index-request-aliases

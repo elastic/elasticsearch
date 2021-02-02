@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -73,9 +73,9 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), stored.getValue(),
-                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public BinaryFieldMapper build(ContentPath contentPath) {
+            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(contentPath), stored.getValue(),
+                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -97,8 +97,8 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
@@ -128,11 +128,11 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Binary fields do not support searching");
         }
     }

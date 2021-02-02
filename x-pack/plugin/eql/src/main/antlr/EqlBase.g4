@@ -99,7 +99,9 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/780
 //   https://github.com/antlr/antlr4/issues/781
 predicate
-    : NOT? kind=IN LP expression (COMMA expression)* RP
+    : NOT? kind=(IN | IN_INSENSITIVE) LP expression (COMMA expression)* RP
+    | kind=SEQ constant
+    | kind=SEQ LP constant (COMMA constant)* RP
     ;
 
 primaryExpression
@@ -115,6 +117,7 @@ functionExpression
 
 functionName
     : IDENTIFIER
+    | TILDE_IDENTIFIER
     ;
 
 constant
@@ -125,7 +128,7 @@ constant
     ;
 
 comparisonOperator
-    : SEQ | EQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 booleanValue
@@ -159,6 +162,7 @@ ANY: 'any';
 BY: 'by';
 FALSE: 'false';
 IN: 'in';
+IN_INSENSITIVE : 'in~';
 JOIN: 'join';
 MAXSPAN: 'maxspan';
 NOT: 'not';
@@ -222,6 +226,10 @@ IDENTIFIER
 
 QUOTED_IDENTIFIER
     : '`' ( ~'`' | '``' )* '`'
+    ;
+
+TILDE_IDENTIFIER
+    : LETTER (LETTER | DIGIT | '_')* '~'
     ;
 
 eventValue

@@ -417,7 +417,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
             CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
             CoreValuesSourceType.IP,

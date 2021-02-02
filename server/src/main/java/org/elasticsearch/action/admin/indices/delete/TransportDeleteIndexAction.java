@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
@@ -88,11 +87,11 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
 
-        deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        deleteIndexService.deleteIndices(deleteRequest, new ActionListener<>() {
 
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(AcknowledgedResponse.of(response.isAcknowledged()));
+            public void onResponse(AcknowledgedResponse response) {
+                listener.onResponse(response);
             }
 
             @Override

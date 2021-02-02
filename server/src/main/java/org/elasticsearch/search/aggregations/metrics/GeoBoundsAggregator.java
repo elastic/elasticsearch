@@ -29,9 +29,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -51,13 +51,13 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
     GeoBoundsAggregator(
         String name,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         ValuesSourceConfig valuesSourceConfig,
         boolean wrapLongitude,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, aggregationContext, parent, metadata);
+        super(name, context, parent, metadata);
         // TODO: stop expecting nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource() : null;
         this.wrapLongitude = wrapLongitude;

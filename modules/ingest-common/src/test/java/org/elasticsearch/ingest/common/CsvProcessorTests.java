@@ -24,33 +24,36 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public class CsvProcessorTests extends ESTestCase {
 
-    private static final Character[] SEPARATORS = new Character[]{',', ';', '|', '.'};
+    private static final Character[] SEPARATORS = new Character[]{',', ';', '|', '.', '\t'};
+    private static final String[] QUOTES = new String[]{"'", "\"", ""};
     private final String quote;
-    private char separator;
+    private final char separator;
 
 
-    public CsvProcessorTests(@Name("quote") String quote) {
+    public CsvProcessorTests(@Name("quote") String quote, @Name("separator") char separator) {
         this.quote = quote;
+        this.separator = separator;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return Arrays.asList(new Object[]{"'"}, new Object[]{"\""}, new Object[]{""});
-    }
-
-    @Before
-    public void setup() {
-        separator = randomFrom(SEPARATORS);
+        LinkedList<Object[]> list = new LinkedList<>();
+        for (Character separator : SEPARATORS) {
+            for (String quote : QUOTES) {
+                list.add(new Object[]{quote, separator});
+            }
+        }
+        return list;
     }
 
     public void testExactNumberOfFields() {

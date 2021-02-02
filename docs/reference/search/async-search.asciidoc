@@ -138,7 +138,7 @@ set to `false`.
 ==== Get async search
 
 The get async search API retrieves the results of a previously submitted
-async search request given its id. If the {es} {security-features} are enabled.
+async search request given its id. If the {es} {security-features} are enabled,
 the access to the results of a specific async search is restricted to the user
 that submitted it in the first place.
 
@@ -161,8 +161,8 @@ GET /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsd
     "timed_out" : false,
     "num_reduce_phases" : 46, <4>
     "_shards" : {
-      "total" : 562, <5>
-      "successful" : 188,
+      "total" : 562,
+      "successful" : 188, <5>
       "skipped" : 0,
       "failed" : 0
     },
@@ -221,6 +221,87 @@ corresponding submit async request will be used. Otherwise, it is possible to
 override such value and extend the validity of the request. When this period
 expires, the search, if still running, is cancelled. If the search is
 completed, its saved results are deleted.
+
+
+[[get-async-search-status]]
+==== Get async search status
+The get async search status API, without retrieving search results, shows
+only the status of a previously submitted async search request given its `id`.
+If the {es} {security-features} are enabled, the access to the get async
+search status API is restricted to the
+<<built-in-roles, monitoring_user role>>.
+
+[source,console,id=get-async-search-status-example]
+--------------------------------------------------
+GET /_async_search/status/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=
+--------------------------------------------------
+// TEST[continued s/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=/\${body.id}/]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
+  "is_running" : true,
+  "is_partial" : true,
+  "start_time_in_millis" : 1583945890986,
+  "expiration_time_in_millis" : 1584377890986,
+  "_shards" : {
+      "total" : 562,
+      "successful" : 188, <1>
+      "skipped" : 0,
+      "failed" : 0
+  }
+}
+--------------------------------------------------
+// TEST[skip: a sample output of a status of a running async search]
+
+<1> Indicates how many shards have executed the query so far.
+
+For an async search that has been completed, the status response has
+an additional `completion_status` field that shows the status
+code of the completed async search.
+[source,console-result]
+--------------------------------------------------
+{
+  "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
+  "is_running" : false,
+  "is_partial" : false,
+  "start_time_in_millis" : 1583945890986,
+  "expiration_time_in_millis" : 1584377890986,
+  "_shards" : {
+      "total" : 562,
+      "successful" : 562,
+      "skipped" : 0,
+      "failed" : 0
+  },
+ "completion_status" : 200 <1>
+}
+--------------------------------------------------
+// TEST[skip: a sample output of a status of a completed async search]
+
+<1> Indicates that the async search was successfully completed
+
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id" : "FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=",
+  "is_running" : false,
+  "is_partial" : true,
+  "start_time_in_millis" : 1583945890986,
+  "expiration_time_in_millis" : 1584377890986,
+  "_shards" : {
+      "total" : 562,
+      "successful" : 450,
+      "skipped" : 0,
+      "failed" : 112
+  },
+ "completion_status" : 503 <1>
+}
+--------------------------------------------------
+// TEST[skip: a sample output of a status of a completed async search]
+
+<1> Indicates that the async search was completed with an error
 
 [[delete-async-search]]
 ==== Delete async search

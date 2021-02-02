@@ -974,11 +974,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final CountDownLatch requestFailed = new CountDownLatch(1);
 
         if (randomBoolean()) {
+            final StubbableTransport.SendRequestBehavior sendRequestBehavior = (connection, requestId, action, request, options) -> {
+                if (recoveryActionToBlock.equals(action) || requestFailed.getCount() == 0) {
+                    requestFailed.countDown();
+                    logger.info("--> preventing {} request by throwing ConnectTransportException", action);
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            };
             // Fail on the sending side
-            blueMockTransportService.addSendBehavior(redTransportService,
-                new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestFailed));
-            redMockTransportService.addSendBehavior(blueTransportService,
-                new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestFailed));
+            blueMockTransportService.addSendBehavior(redTransportService, sendRequestBehavior);
+            redMockTransportService.addSendBehavior(blueTransportService, sendRequestBehavior);
         } else {
             // Fail on the receiving side.
             blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
@@ -1011,34 +1017,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
         assertHitCount(searchResponse, numDocs);
-    }
-
-    private class RecoveryActionBlocker implements StubbableTransport.SendRequestBehavior {
-        private final boolean dropRequests;
-        private final String recoveryActionToBlock;
-        private final CountDownLatch requestBlocked;
-
-        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, CountDownLatch requestBlocked) {
-            this.dropRequests = dropRequests;
-            this.recoveryActionToBlock = recoveryActionToBlock;
-            this.requestBlocked = requestBlocked;
-        }
-
-        @Override
-        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException {
-            if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
-                requestBlocked.countDown();
-                if (dropRequests) {
-                    logger.info("--> preventing {} request by dropping request", action);
-                    return;
-                } else {
-                    logger.info("--> preventing {} request by throwing ConnectTransportException", action);
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
-                }
-            }
-            connection.sendRequest(requestId, action, request, options);
-        }
     }
 
     /**

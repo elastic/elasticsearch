@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -15,7 +16,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 /**
  * Subtraction function ({@code a - b}).
  */
-public class Sub extends DateTimeArithmeticOperation {
+public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
 
     public Sub(Source source, Expression left, Expression right) {
         super(source, left, right, SqlBinaryArithmeticOperation.SUB);
@@ -42,5 +43,10 @@ public class Sub extends DateTimeArithmeticOperation {
                 right().dataType().typeName(), right().source().text(), left().source().text()));
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Add::new;
     }
 }

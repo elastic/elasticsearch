@@ -38,13 +38,19 @@ public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTest
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings repositorySettings(String repoName) {
         return Settings.builder()
             .put("uri", "hdfs:///")
             .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
             .put("path", "foo")
             .put("chunk_size", randomIntBetween(100, 1000) + "k")
             .put("compress", randomBoolean()).build();
+    }
+
+    @Override
+    public void testSnapshotAndRestore() throws Exception {
+        // the HDFS mockup doesn't preserve the repository contents after removing the repository
+        testSnapshotAndRestore(false);
     }
 
     @Override

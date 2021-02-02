@@ -17,8 +17,8 @@
  * under the License.
  */
 
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 
 // test depend on ES core...
 disableTasks('forbiddenApisMain')
-jarHell.enabled = false
+tasks.named("jarHell").configure { enabled = false }

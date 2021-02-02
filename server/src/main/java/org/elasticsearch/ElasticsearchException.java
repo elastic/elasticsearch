@@ -1047,7 +1047,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.transport.NoSeedNodeLeftException.class,
                 org.elasticsearch.transport.NoSeedNodeLeftException::new,
                 160,
-                Version.V_7_10_0);
+                Version.V_7_10_0),
+        VERSION_MISMATCH_EXCEPTION(
+                org.elasticsearch.action.search.VersionMismatchException.class,
+                org.elasticsearch.action.search.VersionMismatchException::new,
+                161,
+                Version.V_7_12_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
@@ -1160,7 +1165,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
             if (Character.isUpperCase(c)) {
-                if (!changed) {
+                if (changed == false) {
                     // copy it over here
                     for (int j = 0; j < i; j++) {
                         sb.append(value.charAt(j));
@@ -1182,7 +1187,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
             }
         }
-        if (!changed) {
+        if (changed == false) {
             return value;
         }
         return sb.toString();

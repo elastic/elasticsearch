@@ -30,13 +30,14 @@ import org.elasticsearch.client.tasks.CancelTasksResponse;
 import org.elasticsearch.client.tasks.GetTaskRequest;
 import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.client.tasks.TaskId;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Optional;
 
 import static java.util.Collections.emptyList;
@@ -74,7 +75,6 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
     public void testGetValidTask() throws Exception {
 
         // Run a Reindex to create a task
-
         final String sourceIndex = "source1";
         final String destinationIndex = "dest";
         Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
@@ -86,28 +86,13 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
 
-        // (need to use low level client because currently high level client
-        // doesn't support async return of task id - needs
-        // https://github.com/elastic/elasticsearch/pull/35202 )
-        RestClient lowClient = highLevelClient().getLowLevelClient();
-        Request request = new Request("POST", "_reindex");
-        request.addParameter("wait_for_completion", "false");
-        request.setJsonEntity(
-            "{"
-                + "  \"source\": {\n"
-                + "    \"index\": \"source1\"\n"
-                + "  },\n"
-                + "  \"dest\": {\n"
-                + "    \"index\": \"dest\"\n"
-                + "  }"
-                + "}"
-        );
-        Response response = lowClient.performRequest(request);
-        Map<String, Object> map = entityAsMap(response);
-        Object taskId = map.get("task");
+        final ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices(sourceIndex).setDestIndex(destinationIndex);
+        final TaskSubmissionResponse taskSubmissionResponse = highLevelClient().submitReindexTask(reindexRequest, RequestOptions.DEFAULT);
+
+        final String taskId = taskSubmissionResponse.getTask();
         assertNotNull(taskId);
 
-        TaskId childTaskId = new TaskId(taskId.toString());
+        TaskId childTaskId = new TaskId(taskId);
         GetTaskRequest gtr = new GetTaskRequest(childTaskId.getNodeId(), childTaskId.getId());
         gtr.setWaitForCompletion(randomBoolean());
         Optional<GetTaskResponse> getTaskResponse = execute(gtr, highLevelClient().tasks()::get, highLevelClient().tasks()::getAsync);
@@ -121,7 +106,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         assertEquals("reindex from [source1] to [dest]", info.getDescription());
         assertEquals("indices:data/write/reindex", info.getAction());
         if (taskResponse.isCompleted() == false) {
-            assertBusy(checkTaskCompletionStatus(client(), taskId.toString()));
+            assertBusy(checkTaskCompletionStatus(client(), taskId));
         }
     }
 

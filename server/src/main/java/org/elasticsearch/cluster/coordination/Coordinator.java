@@ -168,7 +168,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
-        this.joinHelper = new JoinHelper(allocationService, masterService, transportService, this::getCurrentTerm,
+        this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService, this::getCurrentTerm,
             this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators, rerouteService,
             nodeHealthService);
         this.persistedStateSupplier = persistedStateSupplier;

@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,21 +39,19 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality,
                                      Map<String, Object> metadata) throws IOException {
         if (config.hasValues() == false) {
-            return createUnmapped(searchContext, parent, metadata);
+            return createUnmapped(parent, metadata);
         }
-        return doCreateInternal(searchContext, parent, cardinality, metadata);
+        return doCreateInternal(parent, cardinality, metadata);
     }
 
     /**
      * Create the {@linkplain Aggregator} for a {@link ValuesSource} that
      * doesn't have values.
      */
-    protected abstract Aggregator createUnmapped(SearchContext searchContext,
-                                                 Aggregator parent,
-                                                 Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException;
 
     /**
      * Create the {@linkplain Aggregator} for a {@link ValuesSource} that has
@@ -64,10 +61,8 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
      *                    that the {@link Aggregator} created by this method
      *                    will be asked to collect.
      */
-    protected abstract Aggregator doCreateInternal(SearchContext searchContext,
-                                                   Aggregator parent,
-                                                   CardinalityUpperBound cardinality,
-                                                   Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException;
 
     @Override
     public String getStatsSubtype() {

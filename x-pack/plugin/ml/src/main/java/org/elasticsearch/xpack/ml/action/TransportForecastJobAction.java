@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -48,20 +50,23 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     private final JobManager jobManager;
     private final NativeStorageProvider nativeStorageProvider;
     private final AnomalyDetectionAuditor auditor;
+    private final long cppMinAvailableDiskSpaceBytes;
 
     @Inject
-    public TransportForecastJobAction(TransportService transportService,
+    public TransportForecastJobAction(TransportService transportService, Settings settings,
                                       ClusterService clusterService, ActionFilters actionFilters,
                                       JobResultsProvider jobResultsProvider, AutodetectProcessManager processManager,
                                       JobManager jobManager, NativeStorageProvider nativeStorageProvider, AnomalyDetectionAuditor auditor) {
         super(ForecastJobAction.NAME, clusterService, transportService, actionFilters,
             ForecastJobAction.Request::new, ForecastJobAction.Response::new,
-                ThreadPool.Names.SAME, processManager);
+            // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
+            ThreadPool.Names.SAME, processManager);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.nativeStorageProvider = nativeStorageProvider;
         this.auditor = auditor;
-        // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
+        // The C++ enforces 80% of the free disk space that the Java enforces
+        this.cppMinAvailableDiskSpaceBytes = MachineLearning.MIN_DISK_SPACE_OFF_HEAP.get(settings).getBytes() / 5 * 4;
     }
 
     @Override
@@ -90,6 +95,10 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     Path tmpStorage = nativeStorageProvider.tryGetLocalTmpStorage(task.getDescription(), FORECAST_LOCAL_STORAGE_LIMIT);
                     if (tmpStorage != null) {
                         paramsBuilder.tmpStorage(tmpStorage.toString());
+                    }
+
+                    if (cppMinAvailableDiskSpaceBytes >= 0) {
+                        paramsBuilder.minAvailableDiskSpace(cppMinAvailableDiskSpaceBytes);
                     }
 
                     ForecastParams params = paramsBuilder.build();

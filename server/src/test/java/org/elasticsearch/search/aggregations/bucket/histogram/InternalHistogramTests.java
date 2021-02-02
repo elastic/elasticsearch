@@ -23,7 +23,6 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -149,7 +148,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedHistogram> implementationClass() {
         return ParsedHistogram.class;
     }
 

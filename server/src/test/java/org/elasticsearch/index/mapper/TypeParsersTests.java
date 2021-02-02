@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,7 +56,6 @@ public class TypeParsersTests extends ESTestCase {
     }
 
     public void testMultiFieldWithinMultiField() throws IOException {
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .field("type", "keyword")
@@ -79,16 +77,16 @@ public class TypeParsersTests extends ESTestCase {
         Map<String, Object> fieldNode = XContentHelper.convertToMap(
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
         MapperService mapperService = mock(MapperService.class);
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(defaultAnalyzers(), Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         Version olderVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(null, type -> typeParser, olderVersion, null,
-            null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+        Mapper.TypeParser.ParserContext olderContext = new Mapper.TypeParser.ParserContext(null, type -> typeParser, type -> null,
+            olderVersion, null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        });
+        }, false);
 
-        builder.parse("some-field", olderContext, fieldNode);
+        TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);
         assertWarnings("At least one multi-field, [sub-field], " +
             "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
             "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
@@ -100,14 +98,13 @@ public class TypeParsersTests extends ESTestCase {
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
-        Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(null, type -> typeParser, version, null, null,
-            null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+        Mapper.TypeParser.ParserContext context = new Mapper.TypeParser.ParserContext(null, type -> typeParser, type -> null, version,
+            null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        });
+        }, false);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            TextFieldMapper.Builder bad = new TextFieldMapper.Builder("textField", () -> Lucene.STANDARD_ANALYZER);
-            bad.parse("some-feld", context, fieldNodeCopy);
+            TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context);
         });
         assertThat(e.getMessage(), equalTo("Encountered a multi-field [sub-field] which itself contains a " +
             "multi-field. Defining chained multi-fields is not supported."));

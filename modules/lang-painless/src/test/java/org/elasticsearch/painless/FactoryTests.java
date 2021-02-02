@@ -282,6 +282,9 @@ public class FactoryTests extends ScriptTestCase {
         IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("void_return_test", "1 + 1", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
         assertEquals(iae.getMessage(), "not a statement: result not used from addition operation [+]");
+        ClassCastException cce = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile("void_return_test", "def x = 1; return x;", VoidReturnTestScript.CONTEXT, Collections.emptyMap()));
+        assertEquals(cce.getMessage(), "Cannot cast from [def] to [void].");
     }
 
     public abstract static class FactoryTestConverterScript {

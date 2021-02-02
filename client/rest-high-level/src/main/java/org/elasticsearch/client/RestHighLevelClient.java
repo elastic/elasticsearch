@@ -131,8 +131,11 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
+import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
@@ -140,6 +143,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
@@ -270,6 +274,7 @@ public class RestHighLevelClient implements Closeable {
     private final EnrichClient enrichClient = new EnrichClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
     private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
+    private final TextStructureClient textStructureClient = new TextStructureClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -448,6 +453,16 @@ public class RestHighLevelClient implements Closeable {
      */
     public AsyncSearchClient asyncSearch() {
         return asyncSearchClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Text Structure APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html"> X-Pack APIs on elastic.co</a>
+     * for more information.
+     */
+    public TextStructureClient textStructure() {
+        return textStructureClient;
     }
 
     /**
@@ -1953,6 +1968,8 @@ public class RestHighLevelClient implements Closeable {
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
+        map.put(LongRareTerms.NAME, (p, c) -> ParsedLongRareTerms.fromXContent(p, (String) c));
+        map.put(StringRareTerms.NAME, (p, c) -> ParsedStringRareTerms.fromXContent(p, (String) c));
         map.put(MissingAggregationBuilder.NAME, (p, c) -> ParsedMissing.fromXContent(p, (String) c));
         map.put(NestedAggregationBuilder.NAME, (p, c) -> ParsedNested.fromXContent(p, (String) c));
         map.put(ReverseNestedAggregationBuilder.NAME, (p, c) -> ParsedReverseNested.fromXContent(p, (String) c));

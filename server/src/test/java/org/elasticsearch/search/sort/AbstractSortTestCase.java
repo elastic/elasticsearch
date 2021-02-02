@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,14 +40,13 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
@@ -71,6 +69,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
@@ -154,7 +153,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      * we would get when parsing the xContent the sort builder is rendering out
      */
     public void testBuildSortField() throws IOException {
-        QueryShardContext mockShardContext = createMockShardContext();
+        SearchExecutionContext mockShardContext = createMockSearchExecutionContext();
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
             SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext)
@@ -187,11 +186,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    protected final QueryShardContext createMockShardContext() {
-        return createMockShardContext(null);
+    protected final SearchExecutionContext createMockSearchExecutionContext() {
+        return createMockSearchExecutionContext(null);
     }
 
-    protected final QueryShardContext createMockShardContext(IndexSearcher searcher) {
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
@@ -201,9 +200,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
-                null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
-                () -> randomNonNegativeLong(), null, null, () -> true, null) {
+        return new SearchExecutionContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
+                null, null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
+                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -212,8 +211,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
-                BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
-                return new ObjectMapper.Builder(name).nested(Nested.newNested()).build(context);
+                return new ObjectMapper.Builder(name, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
             }
         };
     }

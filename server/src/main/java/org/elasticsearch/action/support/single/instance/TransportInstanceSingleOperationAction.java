@@ -184,7 +184,7 @@ public abstract class TransportInstanceSingleOperationAction<
             ShardRouting shard = shardIt.nextOrNull();
             assert shard != null;
 
-            if (!shard.active()) {
+            if (shard.active() == false) {
                 retry(null);
                 return;
             }
@@ -196,11 +196,6 @@ public abstract class TransportInstanceSingleOperationAction<
                 @Override
                 public Response read(StreamInput in) throws IOException {
                     return newResponse(in);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
 
                 @Override

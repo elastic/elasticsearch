@@ -199,15 +199,16 @@ public class RestRequestTests extends ESTestCase {
 
     public void testMalformedContentTypeHeader() {
         final String type = randomFrom("text", "text/:ain; charset=utf-8", "text/plain\";charset=utf-8", ":", "/", "t:/plain");
-        final RestRequest.ContentTypeHeaderException e = expectThrows(
-                RestRequest.ContentTypeHeaderException.class,
+        final RestRequest.MediaTypeHeaderException e = expectThrows(
+                RestRequest.MediaTypeHeaderException.class,
                 () -> {
                     final Map<String, List<String>> headers = Collections.singletonMap("Content-Type", Collections.singletonList(type));
                     contentRestRequest("", Collections.emptyMap(), headers);
                 });
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header [" + type + "]"));
+        assertThat(e.getCause().getMessage(), equalTo("invalid media-type [" + type + "]"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
     }
 
     public void testNoContentTypeHeader() {
@@ -217,12 +218,13 @@ public class RestRequestTests extends ESTestCase {
 
     public void testMultipleContentTypeHeaders() {
         List<String> headers = new ArrayList<>(randomUnique(() -> randomAlphaOfLengthBetween(1, 16), randomIntBetween(2, 10)));
-        final RestRequest.ContentTypeHeaderException e = expectThrows(
-                RestRequest.ContentTypeHeaderException.class,
+        final RestRequest.MediaTypeHeaderException e = expectThrows(
+                RestRequest.MediaTypeHeaderException.class,
                 () -> contentRestRequest("", Collections.emptyMap(), Collections.singletonMap("Content-Type", headers)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf((IllegalArgumentException.class)));
-        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: only one Content-Type header should be provided"));
+        assertThat(e.getCause().getMessage(), equalTo("Incorrect header [Content-Type]. Only one value should be provided"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
     }
 
     public void testRequiredContent() {

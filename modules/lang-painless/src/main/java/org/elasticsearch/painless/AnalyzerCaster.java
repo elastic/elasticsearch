@@ -400,7 +400,7 @@ public final class AnalyzerCaster {
         }
 
         if (
-                actual == def.class                             ||
+                (actual == def.class && expected != void.class) ||
                 (actual != void.class && expected == def.class) ||
                 expected.isAssignableFrom(actual)               ||
                 (actual.isAssignableFrom(expected) && explicit)

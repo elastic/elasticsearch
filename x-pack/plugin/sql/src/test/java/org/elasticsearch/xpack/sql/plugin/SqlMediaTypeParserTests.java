@@ -30,48 +30,49 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     SqlMediaTypeParser parser = new SqlMediaTypeParser();
 
     public void testPlainTextDetection() {
-        MediaType text = parser.getMediaType(reqWithAccept("text/plain"), createTestInstance(false, Mode.PLAIN, false));
+        MediaType text = parser.getResponseMediaType(reqWithAccept("text/plain"), createTestInstance(false, Mode.PLAIN, false));
         assertThat(text, is(PLAIN_TEXT));
     }
 
     public void testCsvDetection() {
-        MediaType text = parser.getMediaType(reqWithAccept("text/csv"), createTestInstance(false, Mode.PLAIN, false));
+        MediaType text = parser.getResponseMediaType(reqWithAccept("text/csv"), createTestInstance(false, Mode.PLAIN, false));
         assertThat(text, is(CSV));
 
-        text = parser.getMediaType(reqWithAccept("text/csv; delimiter=x"), createTestInstance(false, Mode.PLAIN, false));
+        text = parser.getResponseMediaType(reqWithAccept("text/csv; delimiter=x"), createTestInstance(false, Mode.PLAIN, false));
         assertThat(text, is(CSV));
     }
 
     public void testTsvDetection() {
-        MediaType text = parser.getMediaType(reqWithAccept("text/tab-separated-values"), createTestInstance(false, Mode.PLAIN, false));
+        MediaType text = parser.getResponseMediaType(reqWithAccept("text/tab-separated-values"),
+            createTestInstance(false, Mode.PLAIN, false));
         assertThat(text, is(TSV));
     }
 
     public void testMediaTypeDetectionWithParameters() {
-        assertThat(parser.getMediaType(reqWithAccept("text/plain; charset=utf-8"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/plain; charset=utf-8"),
             createTestInstance(false, Mode.PLAIN, false)), is(PLAIN_TEXT));
-        assertThat(parser.getMediaType(reqWithAccept("text/plain; header=present"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/plain; header=present"),
             createTestInstance(false, Mode.PLAIN, false)), is(PLAIN_TEXT));
-        assertThat(parser.getMediaType(reqWithAccept("text/plain; charset=utf-8; header=present"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/plain; charset=utf-8; header=present"),
             createTestInstance(false, Mode.PLAIN, false)), is(PLAIN_TEXT));
 
-        assertThat(parser.getMediaType(reqWithAccept("text/csv; charset=utf-8"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/csv; charset=utf-8"),
             createTestInstance(false, Mode.PLAIN, false)), is(CSV));
-        assertThat(parser.getMediaType(reqWithAccept("text/csv; header=present"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/csv; header=present"),
             createTestInstance(false, Mode.PLAIN, false)), is(CSV));
-        assertThat(parser.getMediaType(reqWithAccept("text/csv; charset=utf-8; header=present"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/csv; charset=utf-8; header=present"),
             createTestInstance(false, Mode.PLAIN, false)), is(CSV));
 
-        assertThat(parser.getMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8"),
             createTestInstance(false, Mode.PLAIN, false)), is(TSV));
-        assertThat(parser.getMediaType(reqWithAccept("text/tab-separated-values; header=present"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/tab-separated-values; header=present"),
             createTestInstance(false, Mode.PLAIN, false)), is(TSV));
-        assertThat(parser.getMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8; header=present"),
+        assertThat(parser.getResponseMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8; header=present"),
             createTestInstance(false, Mode.PLAIN, false)), is(TSV));
     }
 
     public void testInvalidFormat() {
-        MediaType mediaType = parser.getMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false));
+        MediaType mediaType = parser.getResponseMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false));
         assertThat(mediaType, is(nullValue()));
     }
 

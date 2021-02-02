@@ -19,8 +19,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,7 +49,7 @@ public class StringStatsAggregator extends MetricsAggregator {
     Map<Character, LongArray> charOccurrences;
 
     StringStatsAggregator(String name, ValuesSource valuesSource, boolean showDistribution, DocValueFormat format,
-                          SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+                          AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.showDistribution = showDistribution;
         this.valuesSource = (ValuesSource.Bytes) valuesSource;

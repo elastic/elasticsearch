@@ -137,7 +137,14 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final NodeValidationException e =
                 expectThrows(NodeValidationException.class,
                     () -> BootstrapChecks.check(emptyContext, true, checks));
-        assertThat(e, hasToString(allOf(containsString("bootstrap checks failed"), containsString("first"), containsString("second"))));
+        assertThat(e, hasToString(allOf(
+                containsString("[2] bootstrap checks failed"),
+                containsString("You must address the points described in the following [2] lines before starting Elasticsearch"),
+                containsString("bootstrap check failure [1] of [2]:"),
+                containsString("first"),
+                containsString("bootstrap check failure [2] of [2]:"),
+                containsString("second")
+        )));
         final Throwable[] suppressed = e.getSuppressed();
         assertThat(suppressed.length, equalTo(2));
         assertThat(suppressed[0], instanceOf(IllegalStateException.class));

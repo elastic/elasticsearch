@@ -87,9 +87,9 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
         this(DEFAULT_MODEL_MEMORY_LIMIT_MB, categorizationExamplesLimit);
     }
 
-    public AnalysisLimits(Long modelMemoryLimit, Long categorizationExamplesLimit) {
-        if (modelMemoryLimit != null && modelMemoryLimit < 1) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit, "1 MiB");
+    public AnalysisLimits(Long modelMemoryLimitMb, Long categorizationExamplesLimit) {
+        if (modelMemoryLimitMb != null && modelMemoryLimitMb < 1) {
+            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimitMb, "1 MiB");
             throw ExceptionsHelper.badRequestException(msg);
         }
         if (categorizationExamplesLimit != null && categorizationExamplesLimit < 0) {
@@ -97,7 +97,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
                     categorizationExamplesLimit);
             throw ExceptionsHelper.badRequestException(msg);
         }
-        this.modelMemoryLimit = modelMemoryLimit;
+        this.modelMemoryLimit = modelMemoryLimitMb;
         this.categorizationExamplesLimit = categorizationExamplesLimit;
     }
 

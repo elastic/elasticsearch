@@ -25,7 +25,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +34,7 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -120,28 +119,28 @@ public class RangeFieldMapper extends FieldMapper {
             return List.of(index, hasDocValues, store, coerce, format, locale, meta);
         }
 
-        protected RangeFieldType setupFieldType(BuilderContext context) {
+        protected RangeFieldType setupFieldType(ContentPath contentPath) {
             if (format.isConfigured()) {
                 if (type != RangeType.DATE) {
                     throw new IllegalArgumentException("field [" + name() + "] of type [range]"
                         + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
                 }
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue()),
                     coerce.getValue().value(), meta.getValue());
             }
             if (type == RangeType.DATE) {
-                return new RangeFieldType(buildFullName(context), index.getValue(), store.getValue(), hasDocValues.getValue(),
+                return new RangeFieldType(buildFullName(contentPath), index.getValue(), store.getValue(), hasDocValues.getValue(),
                     Defaults.DATE_FORMATTER, coerce.getValue().value(), meta.getValue());
             }
-            return new RangeFieldType(buildFullName(context), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
+            return new RangeFieldType(buildFullName(contentPath), type, index.getValue(), store.getValue(), hasDocValues.getValue(),
                 coerce.getValue().value(), meta.getValue());
         }
 
         @Override
-        public RangeFieldMapper build(BuilderContext context) {
-            RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
+        public RangeFieldMapper build(ContentPath contentPath) {
+            RangeFieldType ft = setupFieldType(contentPath);
+            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(), type, this);
         }
     }
 
@@ -158,7 +157,6 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
             dateMathParser = null;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.coerce = coerce;
         }
 
@@ -172,7 +170,6 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.coerce = coerce;
         }
 
@@ -189,19 +186,19 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(name(), mapperService) {
+            return new SourceValueFetcher(name(), context) {
 
                 @Override
                 @SuppressWarnings("unchecked")
                 protected Object parseSourceValue(Object value) {
                     RangeType rangeType = rangeType();
-                    if (!(value instanceof Map)) {
+                    if ((value instanceof Map) == false) {
                         assert rangeType == RangeType.IP;
                         Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
                         return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
@@ -250,13 +247,13 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
             failIfNotIndexed();
             if (parser == null) {
                 parser = dateMathParser();

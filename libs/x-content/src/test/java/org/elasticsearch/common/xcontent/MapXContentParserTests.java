@@ -91,7 +91,7 @@ public class MapXContentParserTests extends ESTestCase {
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 try (XContentParser mapParser = new MapXContentParser(
                     xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
-                    assertEquals(parser.contentType(), mapParser.contentType());
+                    assertEquals(parser.contentType(), mapParser.contentType().canonical());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
                     assertEquals(parser.currentName(), mapParser.currentName());
@@ -101,7 +101,8 @@ public class MapXContentParserTests extends ESTestCase {
                         assertEquals(token, mapToken);
                         assertEquals(parser.currentName(), mapParser.currentName());
                         if (token != null && (token.isValue() || token == XContentParser.Token.VALUE_NULL)) {
-                            if (xContentType != XContentType.YAML || token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            if ((xContentType.canonical() != XContentType.YAML) ||
+                                token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 // YAML struggles with converting byte arrays into text, because it
                                 // does weird base64 decoding to the values. We don't do this
                                 // weirdness in the MapXContentParser, so don't try to stringify it.

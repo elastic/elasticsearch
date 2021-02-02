@@ -62,7 +62,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
             "  * org.elasticsearch.gradle.testkit.LooksLikeATestWithoutNamingConvention2",
             "  * org.elasticsearch.gradle.testkit.LooksLikeATestWithoutNamingConvention3"
         );
-        assertOutputDoesNotContain(result.getOutput(), "LooksLikeTestsButAbstract");
+        assertOutputMissing(result.getOutput(), "LooksLikeTestsButAbstract");
     }
 
     public void testNoEmptyTasks() {

@@ -72,11 +72,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (BuildParams.isInternal()) {
-            project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        } else {
-            project.getPlugins().apply(DistributionDownloadPlugin.class);
-        }
+        BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
+            .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
 
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 

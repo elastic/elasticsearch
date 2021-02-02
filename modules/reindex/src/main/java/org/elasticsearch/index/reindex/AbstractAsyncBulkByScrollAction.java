@@ -81,7 +81,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
- * their tests can use them. Most methods run in the listener thread pool because the are meant to be fast and don't expect to block.
+ * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>,
     Action extends TransportAction<Request, ?>> {
@@ -102,7 +102,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final AtomicLong startTime = new AtomicLong(-1);
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private final ParentTaskAssigningClient client;
+    private final ParentTaskAssigningClient searchClient;
+    private final ParentTaskAssigningClient bulkClient;
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
@@ -119,16 +120,25 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
                                     @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
+        this(task, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, logger, client, client, threadPool, mainRequest,
+            listener, scriptService, sslConfig);
+    }
+    AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
+                                    boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient searchClient,
+                                    ParentTaskAssigningClient bulkClient, ThreadPool threadPool, Request mainRequest,
+                                    ActionListener<BulkByScrollResponse> listener, @Nullable ScriptService scriptService,
+                                    @Nullable ReindexSslConfig sslConfig) {
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
-        if (!task.isWorker()) {
+        if (task.isWorker() == false) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
         this.worker = task.getWorkerState();
 
         this.logger = logger;
-        this.client = client;
+        this.searchClient = searchClient;
+        this.bulkClient = bulkClient;
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.listener = listener;
@@ -214,7 +224,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
         return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
-            this::onScrollResponse, this::finishHim, client,
+            this::onScrollResponse, this::finishHim, searchClient,
                 mainRequest.getSearchRequest());
     }
 
@@ -348,7 +358,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        bulkRetry.withBackoff(client::bulk, request, new ActionListener<BulkResponse>() {
+        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 onBulkResponse(response, onSuccess);
@@ -450,7 +460,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         RefreshRequest refresh = new RefreshRequest();
         refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
         logger.debug("[{}]: refreshing", task.getId());
-        client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
+        bulkClient.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse response) {
                 finishHim(null, indexingFailures, searchFailures, timedOut);

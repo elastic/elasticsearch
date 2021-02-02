@@ -282,6 +282,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(each -> each.jvmArgs(values));
     }
 
+    @Internal
+    public boolean isPreserveDataDir() {
+        return nodes.stream().anyMatch(node -> node.isPreserveDataDir());
+    }
+
+    @Override
+    public void setPreserveDataDir(boolean preserveDataDir) {
+        nodes.all(each -> each.setPreserveDataDir(preserveDataDir));
+    }
+
     @Override
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);

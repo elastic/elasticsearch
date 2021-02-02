@@ -420,9 +420,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
-                new ActionListener<PutLifecycleAction.Response>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(PutLifecycleAction.Response response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
                             logger.error("error adding lifecycle policy [{}] for [{}], request was not acknowledged",

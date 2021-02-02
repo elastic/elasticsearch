@@ -8,21 +8,15 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
-
-    static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "date_whitelist.txt"));
-    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -34,6 +28,25 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
     public interface LeafFactory {
         DateFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup, formatter) -> (LeafFactory) ctx -> new DateFieldScript(
+        field,
+        params,
+        lookup,
+        formatter,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                try {
+                    emit(formatter.parseMillis(Objects.toString(v)));
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }
+    };
 
     private final DateFormatter formatter;
 

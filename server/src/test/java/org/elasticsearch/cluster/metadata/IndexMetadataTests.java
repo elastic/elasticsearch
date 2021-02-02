@@ -315,6 +315,15 @@ public class IndexMetadataTests extends ESTestCase {
             equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1"));
     }
 
+    public void testMissingCreatedVersion() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            IndexMetadata.builder("test").settings(settings).build());
+        assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
+    }
+
     public void testMissingNumberOfReplicas() {
         final Settings settings =
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8)).build();

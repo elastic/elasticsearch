@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -388,7 +389,7 @@ public abstract class StreamOutput extends OutputStream {
     private final BytesRefBuilder spare = new BytesRefBuilder();
 
     public void writeText(Text text) throws IOException {
-        if (!text.hasBytes()) {
+        if (text.hasBytes() == false) {
             final String string = text.string();
             spare.copyChars(string);
             writeInt(spare.length());
@@ -1273,6 +1274,7 @@ public abstract class StreamOutput extends OutputStream {
      * Writes an enum with type E based on its ordinal value
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
+        assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
         writeVInt(enumValue.ordinal());
     }
 

@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -55,10 +55,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public RankFeaturesFieldMapper build(BuilderContext context) {
+        public RankFeaturesFieldMapper build(ContentPath contentPath) {
             return new RankFeaturesFieldMapper(
-                    name, new RankFeaturesFieldType(buildFullName(context), meta.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build());
+                    name, new RankFeaturesFieldType(buildFullName(contentPath), meta.getValue()),
+                    multiFieldsBuilder.build(this, contentPath), copyTo.build());
         }
     }
 
@@ -68,7 +68,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         public RankFeaturesFieldType(String name, Map<String, String> meta) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -77,7 +76,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new IllegalArgumentException("[rank_features] fields do not support [exists] queries");
         }
 
@@ -87,19 +86,19 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("Queries on [rank_features] fields are not supported");
         }
     }
 
     private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
     }
 
     @Override

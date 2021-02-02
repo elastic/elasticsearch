@@ -186,7 +186,7 @@ public class TermVectorsService  {
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
             MappedFieldType fieldType = indexShard.mapperService().fieldType(field);
-            if (!isValidField(fieldType)) {
+            if (isValidField(fieldType) == false) {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
@@ -218,17 +218,13 @@ public class TermVectorsService  {
 
     private static Analyzer getAnalyzerAtField(IndexShard indexShard, String field, @Nullable Map<String, String> perFieldAnalyzer) {
         MapperService mapperService = indexShard.mapperService();
-        Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
-            analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
+            return mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field));
         } else {
-            MappedFieldType fieldType = mapperService.fieldType(field);
-            analyzer = fieldType.indexAnalyzer();
+            return mapperService.indexAnalyzer(field, f -> {
+                throw new IllegalArgumentException("No analyzer configured for field " + f);
+            });
         }
-        if (analyzer == null) {
-            analyzer = mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer();
-        }
-        return analyzer;
     }
 
     private static Set<String> getFieldsToGenerate(Map<String, String> perAnalyzerField, Fields fieldsObject) {
@@ -293,10 +289,10 @@ public class TermVectorsService  {
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
             MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
-            if (!isValidField(fieldType)) {
+            if (isValidField(fieldType) == false) {
                 continue;
             }
-            if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {
+            if (request.selectedFields() != null && request.selectedFields().contains(field.name()) == false) {
                 continue;
             }
             if (seenFields.contains(field.name())) {

@@ -198,6 +198,9 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
                                                        AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        AutoDateHistogramAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
@@ -211,9 +214,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
                 " must be less than " + bucketCeiling);
         }
-        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent,
-            subFactoriesBuilder,
-            metadata);
+        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context,
+                                                      parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {
@@ -263,7 +265,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             this.unitAbbreviation = unitAbbreviation;
             this.innerIntervals = innerIntervals;
             Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
-            if (!ALLOWED_INTERVALS.containsKey(dateTimeUnit)) {
+            if (ALLOWED_INTERVALS.containsKey(dateTimeUnit) == false) {
                 throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
             }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);

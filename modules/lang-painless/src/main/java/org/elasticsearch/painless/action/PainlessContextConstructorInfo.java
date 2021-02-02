@@ -63,7 +63,9 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
     public PainlessContextConstructorInfo(PainlessConstructor painlessConstructor) {
         this (
                 painlessConstructor.javaConstructor.getDeclaringClass().getName(),
-                painlessConstructor.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+                painlessConstructor.typeParameters.stream()
+                        .map(c -> PainlessContextTypeInfo.getType(c.getName()))
+                        .collect(Collectors.toList())
         );
     }
 

@@ -223,7 +223,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         matchAssertion = (MatchAssertion)testSection.getExecutableSections().get(4);
         assertThat(matchAssertion.getField(), equalTo("_source"));
         assertThat(matchAssertion.getExpectedValue(), instanceOf(Map.class));
-        Map map = (Map) matchAssertion.getExpectedValue();
+        Map<?, ?> map = (Map<?, ?>) matchAssertion.getExpectedValue();
         assertThat(map.size(), equalTo(1));
         assertThat(map.get("foo").toString(), equalTo("Hello: 中文"));
 

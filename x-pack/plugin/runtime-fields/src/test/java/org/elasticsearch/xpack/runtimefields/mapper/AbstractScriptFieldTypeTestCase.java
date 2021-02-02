@@ -313,7 +313,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new RuntimeFields(), new TestScriptPlugin());
+        return List.of(new RuntimeFields(Settings.EMPTY), new TestScriptPlugin());
     }
 
     private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -347,7 +347,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 }
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.copyOf(new RuntimeFields().getContexts());
+                    return Set.copyOf(new RuntimeFields(Settings.EMPTY).getContexts());
                 }
             };
         }

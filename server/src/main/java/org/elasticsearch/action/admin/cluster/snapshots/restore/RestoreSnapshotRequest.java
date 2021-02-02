@@ -485,7 +485,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     throw new IllegalArgumentException("malformed rename_replacement");
                 }
             } else if (name.equals("index_settings")) {
-                if (!(entry.getValue() instanceof Map)) {
+                if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("malformed index_settings section");
                 }
                 indexSettings((Map<String, Object>) entry.getValue());

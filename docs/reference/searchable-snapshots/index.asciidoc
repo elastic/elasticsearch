@@ -100,3 +100,23 @@ fraction of the total shard data so the performance penalty is typically small.
 Replicas of {search-snaps} shards are restored by copying data from the
 snapshot repository. In contrast, replicas of regular indices are restored by
 copying data from the primary.
+
+[discrete]
+[[back-up-restore-searchable-snapshots]]
+=== Back up and restore {search-snaps}
+
+You can use <<snapshot-lifecycle-management,regular snapshots>> to back up a
+cluster containing {search-snap} indices. When you restore a snapshot
+containing {search-snap} indices, these indices are restored as {search-snap}
+indices again.
+
+Before you restore a snapshot containing a {search-snap} index, you must first
+<<snapshots-register-repository,register the repository>> containing the
+original index snapshot. When restored, the {search-snap} index mounts the
+original index snapshot from its original repository repository. If wanted, you
+can use separate repositories for regular snapshots and {search-snaps}.
+
+A snapshot of a {search-snap} index contains only a small amount of metadata
+which identifies its original index snapshot. It does not contain any data from
+the original index. The restore of a backup will fail to restore any
+{search-snap} indices whose original index snapshot is unavailable.

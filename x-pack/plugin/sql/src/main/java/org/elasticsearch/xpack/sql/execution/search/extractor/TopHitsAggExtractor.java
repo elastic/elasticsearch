@@ -80,7 +80,11 @@ public class TopHitsAggExtractor implements BucketExtractor {
 
         Object value = agg.getHits().getAt(0).getFields().values().iterator().next().getValue();
         if (fieldDataType == DATETIME || fieldDataType == DATE) {
-            return DateUtils.asDateTimeWithMillis(Long.parseLong(value.toString()), zoneId);
+            try {
+                return DateUtils.asDateTimeWithMillis(Long.parseLong(value.toString()), zoneId);
+            } catch (NumberFormatException e) {
+                return DateUtils.asDateTimeWithNanos(value.toString()).withZoneSameInstant(zoneId);
+            }
         } else if (fieldDataType == DATETIME_NANOS) {
             return DateUtils.asDateTimeWithNanos(value.toString());
         } else if (SqlDataTypes.isTimeBased(fieldDataType)) {

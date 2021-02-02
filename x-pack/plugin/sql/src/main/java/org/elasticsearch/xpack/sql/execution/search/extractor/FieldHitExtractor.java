@@ -127,7 +127,11 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         }
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                return DateUtils.asDateTimeWithMillis(Long.parseLong(values.toString()), zoneId());
+                try {
+                    return DateUtils.asDateTimeWithMillis(Long.parseLong(values.toString()), zoneId());
+                } catch (NumberFormatException e) {
+                    return DateUtils.asDateTimeWithNanos(values.toString()).withZoneSameInstant(zoneId());
+                }
             }
         }
         if (dataType == DATETIME_NANOS) {

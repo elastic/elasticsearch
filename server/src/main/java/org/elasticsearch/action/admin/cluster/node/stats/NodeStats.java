@@ -278,7 +278,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         builder.endArray();
 
-        if (!getNode().getAttributes().isEmpty()) {
+        if (getNode().getAttributes().isEmpty() == false) {
             builder.startObject("attributes");
             for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
                 builder.field(attrEntry.getKey(), attrEntry.getValue());

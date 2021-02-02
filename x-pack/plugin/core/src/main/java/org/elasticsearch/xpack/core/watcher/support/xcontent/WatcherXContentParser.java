@@ -287,6 +287,11 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
+    public boolean useCompatibility() {
+        return false;
+    }
+
+    @Override
     public DeprecationHandler getDeprecationHandler() {
         return parser.getDeprecationHandler();
     }

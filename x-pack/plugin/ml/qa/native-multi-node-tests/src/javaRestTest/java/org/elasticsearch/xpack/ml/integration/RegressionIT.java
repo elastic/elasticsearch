@@ -78,7 +78,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler", "DEBUG"))
+                .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG"))
             .get();
     }
 
@@ -88,7 +88,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().cluster()
         .prepareUpdateSettings()
         .setTransientSettings(Settings.builder()
-            .putNull("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler"))
+            .putNull("logger.org.elasticsearch.xpack.ml.process"))
         .get();
     }
 
@@ -110,6 +110,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Regression(
                 DEPENDENT_VARIABLE_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -251,7 +252,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), null, 50.0, null, null, null, null));
+                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), 
+                                null, 50.0, null, null, null, null, null));
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -305,7 +307,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67581")
     public void testStopAndRestart() throws Exception {
         initialize("regression_stop_and_restart");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -371,7 +372,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, null, null, null, null));
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, 
+                            null, null, null, null, null));
         putAnalytics(firstJob);
         startAnalytics(firstJobId);
         waitUntilAnalyticsIsStopped(firstJobId);
@@ -381,7 +383,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Regression) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, randomizeSeed, null, null, null));
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, 
+                            randomizeSeed, null, null, null, null));
 
         putAnalytics(secondJob);
         startAnalytics(secondJobId);
@@ -438,7 +441,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(), null, null, null, null, null, null));
+                new Regression(DISCRETE_NUMERICAL_FEATURE_FIELD, BoostedTreeParams.builder().build(),
+                                 null, null, null, null, null, null, null));
         putAnalytics(config);
 
         assertIsStopped(jobId);
@@ -460,6 +464,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new Regression(
                 DEPENDENT_VARIABLE_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+                null,
                 null,
                 null,
                 null,
@@ -562,6 +567,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             null,
             null,
             null,
+            null,
             null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
             .setId(jobId)
@@ -635,7 +641,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 Arrays.asList(
                     new OneHotEncoding(DISCRETE_NUMERICAL_FEATURE_FIELD,
                         Collections.singletonMap(DISCRETE_NUMERICAL_FEATURE_VALUES.get(0).toString(), "tenner"), true)
-                ))
+                ),
+                null)
         );
         putAnalytics(config);
 

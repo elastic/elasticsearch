@@ -216,11 +216,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             if (partBytes != fileInfo.partBytes) {
                 return false;
             }
-            if (!name.equals(fileInfo.name)) {
+            if (name.equals(fileInfo.name) == false) {
                 return false;
             }
             if (partSize != null) {
-                if (!partSize.equals(fileInfo.partSize)) {
+                if (partSize.equals(fileInfo.partSize) == false) {
                     return false;
                 }
             } else {

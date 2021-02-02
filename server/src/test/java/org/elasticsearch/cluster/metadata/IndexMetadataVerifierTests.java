@@ -75,7 +75,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             .build());
         String message = expectThrows(IllegalStateException.class, () -> service.verifyIndexMetadata(metadata,
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
-        assertEquals(message, "The index [[foo/BOOM]] was created with version [" + indexCreated + "] " +
+        assertEquals(message, "The index [foo/BOOM] was created with version [" + indexCreated + "] " +
              "but the minimum compatible version is [" + minCompat + "]." +
             " It should be re-indexed in Elasticsearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + ".");
 

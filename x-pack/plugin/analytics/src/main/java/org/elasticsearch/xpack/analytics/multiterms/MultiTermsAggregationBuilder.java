@@ -254,9 +254,9 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
      * the response.
      */
     public MultiTermsAggregationBuilder minDocCount(long minDocCount) {
-        if (minDocCount < 0) {
+        if (minDocCount < 1) {
             throw new IllegalArgumentException(
-                "[minDocCount] must be greater than or equal to 0. Found [" + minDocCount + "] in [" + name + "]"
+                "[minDocCount] must be greater than or equal to 1. Found [" + minDocCount + "] in [" + name + "]"
             );
         }
         bucketCountThresholds.setMinDocCount(minDocCount);

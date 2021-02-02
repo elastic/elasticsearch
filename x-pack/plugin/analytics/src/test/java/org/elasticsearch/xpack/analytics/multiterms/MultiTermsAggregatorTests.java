@@ -539,6 +539,29 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testMinDocCount() throws IOException {
+        testCase(
+            new MatchAllDocsQuery(),
+            List.of(
+                new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build(),
+                new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setFormat("0000").build()
+            ),
+            ab -> ab.minDocCount(2),
+            iw -> {
+                iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 3)));
+                iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 4)));
+                iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 3)));
+                iw.addDocument(docWithDate("2020-01-02", new NumericDocValuesField(INT_FIELD, 5)));
+
+            },
+            h -> {
+                assertThat(h.getBuckets(), hasSize(1));
+                assertThat(h.getBuckets().get(0).getKeyAsString(), equalTo("2020-01-01|0003"));
+                assertThat(h.getBuckets().get(0).getDocCount(), equalTo(2L));
+            }
+        );
+    }
+
     public void testNoTerms() {
         for (List<MultiValuesSourceFieldConfig> terms : Arrays.<List<MultiValuesSourceFieldConfig>>asList(
             Collections.singletonList(randomTermConfig()),

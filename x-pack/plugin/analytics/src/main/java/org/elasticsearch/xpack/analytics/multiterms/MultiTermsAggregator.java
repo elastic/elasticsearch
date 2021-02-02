@@ -191,45 +191,33 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 List<List<Object>> terms = docTerms(termValuesList, doc);
                 if (terms != null) {
-                    termsIterator(terms, owningBucketOrd, bucketOrd -> {
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
+                    List<Object> path = new ArrayList<>(terms.size());
+                    new CheckedConsumer<Integer, IOException>() {
+                        @Override
+                        public void accept(Integer start) throws IOException {
+                            for (Object term : terms.get(start)) {
+                                if (start == path.size()) {
+                                    path.add(term);
+                                } else {
+                                    path.set(start, term);
+                                }
+                                if (start < terms.size() - 1) {
+                                    this.accept(start + 1);
+                                } else {
+                                    long bucketOrd = bucketOrds.add(owningBucketOrd, packKey(path));
+                                    if (bucketOrd < 0) { // already seen
+                                        bucketOrd = -1 - bucketOrd;
+                                        collectExistingBucket(sub, doc, bucketOrd);
+                                    } else {
+                                        collectBucket(sub, doc, bucketOrd);
+                                    }
+                                }
+                            }
                         }
-                    });
+                    }.accept(0);
                 }
             }
         };
-    }
-
-    /**
-     * Iterates through a list of terms and generates an n-ary Cartesian product of all terms that is passed to consumer.
-     *
-     * This is needed so we can generate all permutations.
-     */
-    private void termsIterator(List<List<Object>> terms, long owningBucketOrd, CheckedConsumer<Long, IOException> consumer)
-        throws IOException {
-        List<Object> path = new ArrayList<>(terms.size());
-        new CheckedConsumer<Integer, IOException>() {
-            @Override
-            public void accept(Integer start) throws IOException {
-                for (Object term : terms.get(start)) {
-                    if (start == path.size()) {
-                        path.add(term);
-                    } else {
-                        path.set(start, term);
-                    }
-                    if (start < terms.size() - 1) {
-                        this.accept(start + 1);
-                    } else {
-                        long bucketOrd = bucketOrds.add(owningBucketOrd, packKey(path));
-                        consumer.accept(bucketOrd);
-                    }
-                }
-            }
-        }.accept(0);
     }
 
     @Override
@@ -237,7 +225,6 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[owningBucketOrds.length][];
         long[] otherDocCounts = new long[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
             long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
             int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
@@ -303,26 +290,6 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             keyConverters,
             metadata()
         );
-    }
-
-    /**
-     * Collect extra entries for "zero" hit documents if they were requested
-     * and required.
-     */
-    final void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
-        if (bucketCountThresholds.getMinDocCount() != 0) {
-            return;
-        }
-        if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
-            return;
-        }
-        // we need to fill-in the blanks
-        for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
-            List<TermValues> termValuesList = termValuesList(ctx);
-            for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                termsIterator(docTerms(termValuesList, docId), owningBucketOrd, l -> {});
-            }
-        }
     }
 
     @Override

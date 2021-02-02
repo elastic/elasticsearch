@@ -23,12 +23,14 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -77,6 +79,9 @@ public class SystemIndexDescriptor {
     /** The index type to use when creating an index. */
     private final String indexType;
 
+    /** The minimum cluster node version required for this descriptor, or null if there is no restriction */
+    private final Version minimumNodeVersion;
+
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
@@ -84,7 +89,7 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME);
+        this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME, null);
     }
 
     /**
@@ -99,9 +104,10 @@ public class SystemIndexDescriptor {
      * @param aliasName An alias for the index, or null
      * @param indexFormat A value for the `index.format` setting. Pass 0 or higher.
      * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
-     *                       Elasticsearch version when the index was created.
+    *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
      * @param indexType the index type. Should be {@link MapperService#SINGLE_MAPPING_NAME} for any new system indices.
+     * @param minimumNodeVersion the minimum cluster node version required for this descriptor, or null if there is no restriction
      */
     SystemIndexDescriptor(
         String indexPattern,
@@ -113,7 +119,8 @@ public class SystemIndexDescriptor {
         int indexFormat,
         String versionMetaKey,
         String origin,
-        String indexType
+        String indexType,
+        Version minimumNodeVersion
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -175,6 +182,7 @@ public class SystemIndexDescriptor {
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
         this.indexType = indexType;
+        this.minimumNodeVersion = minimumNodeVersion;
     }
 
     /**
@@ -245,6 +253,29 @@ public class SystemIndexDescriptor {
         return indexType;
     }
 
+    /**
+     * Checks that this descriptor can be used within this cluster, by comparing the supplied minimum
+     * node version to this descriptor's minimum version.
+     *
+     * @param cause the action being attempted that triggered the check. Used in the error message.
+     * @param actualMinimumNodeVersion the lower node version in the cluster
+     * @return an error message if the lowest node version is lower that the version in this descriptor,
+     * or <code>null</code> if the supplied version is acceptable or this descriptor has no minimum version.
+     */
+    public String checkMinimumNodeVersion(String cause, Version actualMinimumNodeVersion) {
+        Objects.requireNonNull(cause);
+        if (this.minimumNodeVersion != null && this.minimumNodeVersion.after(actualMinimumNodeVersion)) {
+            return String.format(
+                Locale.ROOT,
+                "[%s] failed - system index [%s] requires all cluster nodes to be at least version [%s]",
+                cause,
+                this.getPrimaryIndex(),
+                minimumNodeVersion
+            );
+        }
+        return null;
+    }
+
     // TODO: getThreadpool()
     // TODO: Upgrade handling (reindex script?)
 
@@ -252,6 +283,9 @@ public class SystemIndexDescriptor {
         return new Builder();
     }
 
+    /**
+     * Provides a fluent API for building a {@link SystemIndexDescriptor}. Validation still happens in that class.
+     */
     public static class Builder {
         private String indexPattern;
         private String primaryIndex;
@@ -263,6 +297,7 @@ public class SystemIndexDescriptor {
         private String versionMetaKey = null;
         private String origin = null;
         private String indexType = MapperService.SINGLE_MAPPING_NAME;
+        private Version minimumNodeVersion = null;
 
         private Builder() {}
 
@@ -321,6 +356,15 @@ public class SystemIndexDescriptor {
             return this;
         }
 
+        public Builder setMinimumNodeVersion(Version version) {
+            this.minimumNodeVersion = version;
+            return this;
+        }
+
+        /**
+         * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
+         * @return a populated descriptor.
+         */
         public SystemIndexDescriptor build() {
             String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
@@ -334,7 +378,8 @@ public class SystemIndexDescriptor {
                 indexFormat,
                 versionMetaKey,
                 origin,
-                indexType
+                indexType,
+                minimumNodeVersion
             );
         }
     }
@@ -364,6 +409,7 @@ public class SystemIndexDescriptor {
      * {@link RegExp} instance. This exists because although
      * {@link org.elasticsearch.common.regex.Regex#simpleMatchToAutomaton(String)} is useful
      * for simple patterns, it doesn't support character ranges.
+     *
      * @param input the string to translate
      * @return the translate string
      */

@@ -48,7 +48,7 @@ public class FilterXContentTests extends ESTestCase {
             boolean added;
             do {
                 added = keys.add("key" + randomInt(7));
-            } while (!added);
+            } while (added == false);
         }
 
         Map<String, Object> filteredData = XContentFilterKeysUtils.filterMapOrdered(keys, parser);

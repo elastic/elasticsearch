@@ -98,7 +98,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
-        if (!CollectionUtils.isEmpty(potentialMatches)) {
+        if (CollectionUtils.isEmpty(potentialMatches) == false) {
             msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0)
                     + "]": "any of " + potentialMatches.toString()) + "?";
         }

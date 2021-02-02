@@ -180,7 +180,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     public AttributeMap<E> subtract(AttributeMap<E> other) {
         AttributeMap<E> diff = new AttributeMap<>();
         for (Entry<AttributeWrapper, E> entry : this.delegate.entrySet()) {
-            if (!other.delegate.containsKey(entry.getKey())) {
+            if (other.delegate.containsKey(entry.getKey()) == false) {
                 diff.delegate.put(entry.getKey(), entry.getValue());
             }
         }
@@ -207,7 +207,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
             return false;
         }
         for (AttributeWrapper aw : delegate.keySet()) {
-            if (!other.delegate.containsKey(aw)) {
+            if (other.delegate.containsKey(aw) == false) {
                 return false;
             }
         }

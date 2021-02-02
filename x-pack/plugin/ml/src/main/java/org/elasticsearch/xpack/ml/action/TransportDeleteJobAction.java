@@ -284,7 +284,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                         if (bulkByScrollResponse.isTimedOut()) {
                             logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
                         }
-                        if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
+                        if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
                             logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
                                     jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
                                     String.join(", ", indexNames.get()));

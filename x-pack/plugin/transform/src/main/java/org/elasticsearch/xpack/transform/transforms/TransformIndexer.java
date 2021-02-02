@@ -368,22 +368,31 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function = FunctionFactory.create(getConfig());
 
         if (isContinuous()) {
-            changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
-
-            if (changeCollector.isOptimized() == false) {
-                logger.warn(
-                    new ParameterizedMessage(
-                        "[{}] could not find any optimizations for continuous execution, "
-                            + "this transform might run slowly, please check your configuration.",
-                        getJobId()
-                    )
-                );
-                auditor.warning(
-                    getJobId(),
-                    "could not find any optimizations for continuous execution, "
-                        + "this transform might run slowly, please check your configuration."
-                );
+            Map<String, Object> scriptBasedRuntimeFieldNames = transformConfig.getSource().getScriptBasedRuntimeMappings();
+            List<String> performanceCriticalFields = function.getPerformanceCriticalFields();
+            if (performanceCriticalFields.stream().allMatch(scriptBasedRuntimeFieldNames::containsKey)) {
+                String message = "all the group-by fields are script-based runtime fields, "
+                    + "this transform might run slowly, please check your configuration.";
+                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
+                auditor.warning(getJobId(), message);
             }
+
+            if (scriptBasedRuntimeFieldNames.containsKey(transformConfig.getSyncConfig().getField())) {
+                String message = "sync time field is a script-based runtime field, "
+                    + "this transform might run slowly, please check your configuration.";
+                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
+                auditor.warning(getJobId(), message);
+            }
+
+            changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
+            if (changeCollector.isOptimized() == false) {
+                String message = "could not find any optimizations for continuous execution, "
+                    + "this transform might run slowly, please check your configuration.";
+                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
+                auditor.warning(getJobId(), message);
+            }
+
+            // TODO: Report warnings in preview
         }
     }
 

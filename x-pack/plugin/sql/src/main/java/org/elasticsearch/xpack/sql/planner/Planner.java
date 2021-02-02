@@ -41,7 +41,7 @@ public class Planner {
     // verify the mapped plan
     public PhysicalPlan verifyMappingPlan(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyMappingPlan(plan);
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new PlanningException(failures);
         }
         return plan;
@@ -54,7 +54,7 @@ public class Planner {
 
     public PhysicalPlan verifyExecutingPlan(PhysicalPlan plan) {
         List<Failure> failures = Verifier.verifyExecutingPlan(plan);
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new PlanningException(failures);
         }
         return plan;

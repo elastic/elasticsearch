@@ -29,14 +29,17 @@ import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggFunction;
 import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -52,11 +55,10 @@ public class Pivot extends AbstractCompositeAggFunction {
     /**
      * Create a new Pivot function
      * @param config A {@link PivotConfig} describing the function parameters
-     * @param transformId The referenced transform
      * @param settings Any miscellaneous settings for the function
      * @param version The version of the transform
      */
-    public Pivot(PivotConfig config, String transformId, SettingsConfig settings, Version version) {
+    public Pivot(PivotConfig config, SettingsConfig settings, Version version) {
         super(createCompositeAggregation(config));
         this.config = config;
         this.settings = settings;
@@ -75,6 +77,11 @@ public class Pivot extends AbstractCompositeAggFunction {
             }
         }
         listener.onResponse(true);
+    }
+
+    @Override
+    public List<String> getPerformanceCriticalFields() {
+        return config.getGroupConfig().getGroups().values().stream().map(SingleGroupSource::getField).collect(toList());
     }
 
     @Override

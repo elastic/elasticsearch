@@ -494,6 +494,24 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testPartialRestoreSnapshotThatIncludesDataStream() {
+        final String snapshot = "test-snapshot";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        createFullSnapshot(REPO, snapshot);
+        assertAcked(client.admin().indices().prepareDelete(indexWithoutDataStream));
+        RestoreInfo restoreInfo = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshot)
+            .setIndices(indexWithoutDataStream)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(randomBoolean())
+            .get()
+            .getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), is(1));
+    }
+
     public void testSnapshotDSDuringRollover() throws Exception {
         // repository consistency check requires at least one snapshot per registered repository
         createFullSnapshot(REPO, "snap-so-repo-checks-pass");

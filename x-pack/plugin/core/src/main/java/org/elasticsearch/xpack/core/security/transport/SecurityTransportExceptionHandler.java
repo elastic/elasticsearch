@@ -25,7 +25,7 @@ public final class SecurityTransportExceptionHandler implements BiConsumer<TcpCh
     }
 
     public void accept(TcpChannel channel, Exception e) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isNotSslRecordException(e)) {

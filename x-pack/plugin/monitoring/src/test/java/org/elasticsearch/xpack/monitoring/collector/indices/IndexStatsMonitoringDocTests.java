@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -390,7 +389,6 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         settings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, primaries);
         settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
         settings.put(IndexMetadata.SETTING_VERSION_CREATED, MonitoringTemplateUtils.LAST_UPDATED_VERSION);
-        settings.put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT.id);
         settings.put(IndexMetadata.SETTING_CREATION_DATE, (new Date()).getTime());
 
         return IndexMetadata.builder(index.getName()).settings(settings).build();

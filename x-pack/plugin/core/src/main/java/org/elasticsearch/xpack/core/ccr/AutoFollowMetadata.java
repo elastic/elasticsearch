@@ -347,7 +347,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (super.equals(o) == false) return false;
             AutoFollowPattern pattern = (AutoFollowPattern) o;
             return active == pattern.active &&
                 remoteCluster.equals(pattern.remoteCluster) &&

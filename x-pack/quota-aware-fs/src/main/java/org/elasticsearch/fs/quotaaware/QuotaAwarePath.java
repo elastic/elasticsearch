@@ -186,8 +186,8 @@ public final class QuotaAwarePath implements Path {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         QuotaAwarePath other = (QuotaAwarePath) obj;
-        if (!delegate.equals(other.delegate)) return false;
-        if (!fileSystem.equals(other.fileSystem)) return false;
+        if (delegate.equals(other.delegate) == false) return false;
+        if (fileSystem.equals(other.fileSystem) == false) return false;
         return true;
     }
 

@@ -29,7 +29,7 @@ archivesBaseName = 'elasticsearch-benchmarks'
 tasks.named("test").configure { enabled = false }
 
 dependencies {
-  api( project(":server")) {
+  api(project(":server")) {
     // JMH ships with the conflicting version 4.6. This prevents us from using jopt-simple in benchmarks (which should be ok) but allows
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
@@ -61,12 +61,6 @@ tasks.named("dependenciesGraph").configure {  enabled = false }
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
           // these classes intentionally use JDK internal API (and this is ok since the project is maintained by Oracle employees)
-          'org.openjdk.jmh.profile.AbstractHotspotProfiler',
-          'org.openjdk.jmh.profile.HotspotThreadProfiler',
-          'org.openjdk.jmh.profile.HotspotClassloadingProfiler',
-          'org.openjdk.jmh.profile.HotspotCompilationProfiler',
-          'org.openjdk.jmh.profile.HotspotMemoryProfiler',
-          'org.openjdk.jmh.profile.HotspotRuntimeProfiler',
           'org.openjdk.jmh.util.Utils'
   )
 }

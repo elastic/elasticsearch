@@ -394,7 +394,7 @@ public class ActionStatus implements ToXContentObject {
         public static void writeTo(Execution execution, StreamOutput out) throws IOException {
             out.writeLong(execution.timestamp.toInstant().toEpochMilli());
             out.writeBoolean(execution.successful);
-            if (!execution.successful) {
+            if (execution.successful == false) {
                 out.writeString(execution.reason);
             }
         }

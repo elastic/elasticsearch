@@ -58,7 +58,7 @@ public class QuotaAwareFileSystemTests extends MockFileSystemTestCase {
             int count = 0;
             for (Path path : stream) {
                 assertTrue(path instanceof QuotaAwarePath);
-                if (!path.getFileName().toString().startsWith("extra")) {
+                if (path.getFileName().toString().startsWith("extra") == false) {
                     count++;
                 }
             }

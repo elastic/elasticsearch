@@ -1281,7 +1281,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 entry.partial() ? entry.dataStreams().stream()
                                         .filter(metaForSnapshot.dataStreams()::containsKey)
                                         .collect(Collectors.toList()) : entry.dataStreams(),
-                                entry.featureStates(), // TODO: Fix this
+                                entry.partial() ? entry.featureStates().stream()
+                                    .filter(state -> state.getIndices().stream().allMatch(metaForSnapshot::hasIndex))
+                                    .collect(Collectors.toList()) : entry.featureStates(),
                                 failure, threadPool.absoluteTimeInMillis(),
                                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
                                 entry.includeGlobalState(), entry.userMetadata(), entry.startTime());

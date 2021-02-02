@@ -189,7 +189,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
         from(rootProject.file('licenses')) {
-          include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+          include oss ? 'SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
         fileMode 0644
@@ -505,11 +505,11 @@ subprojects {
           if (project.name.contains('oss-')) {
             copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
             expectedLicense = "ASL-2.0"
-            licenseFilename = "APACHE-LICENSE-2.0.txt"
+            licenseFilename = "SSPL-1.0+ELASTIC-LICENSE-2.0.txt"
           } else {
             copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch/copyright")
             expectedLicense = "Elastic-License"
-            licenseFilename = "ELASTIC-LICENSE.txt"
+            licenseFilename = "ELASTIC-LICENSE-2.0.txt"
           }
           final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
             "Copyright: Elasticsearch B.V. <info@elastic.co>",
@@ -526,9 +526,9 @@ subprojects {
         doLast {
           String licenseFilename
           if (project.name.contains('oss-')) {
-            licenseFilename = "APACHE-LICENSE-2.0.txt"
+            licenseFilename = "SSPL-1.0+ELASTIC-LICENSE-2.0.txt"
           } else {
-            licenseFilename = "ELASTIC-LICENSE.txt"
+            licenseFilename = "ELASTIC-LICENSE-2.0.txt"
           }
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
           final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/LICENSE.txt")
@@ -543,7 +543,7 @@ subprojects {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {
-        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch")
+        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2021 Elasticsearch")
         final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }

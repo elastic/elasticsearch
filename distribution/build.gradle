@@ -551,9 +551,9 @@ subprojects {
 
     String licenseText
     if (oss) {
-      licenseText = rootProject.file('licenses/APACHE-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
-      licenseText = rootProject.file('licenses/ELASTIC-LICENSE.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     }
     // license text needs to be indented with a single space
     licenseText = ' ' + licenseText.replace('\n', '\n ')

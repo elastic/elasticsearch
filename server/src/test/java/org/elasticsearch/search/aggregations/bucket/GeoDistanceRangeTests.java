@@ -110,7 +110,6 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
             }
         }
          */
-        super.testFromXContentMulti();
     }
 
     @Override

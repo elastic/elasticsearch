@@ -34,7 +34,9 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -108,8 +110,8 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = randomCacheRangeSize();
-        final ByteSizeValue cacheSize = new ByteSizeValue(1, ByteSizeUnit.GB);
+        final ByteSizeValue rangeSize = new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES);
+        final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
@@ -536,9 +538,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     private void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             randomCacheService(),
+            randomFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -550,18 +554,28 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
         executeTestCase(
             defaultCacheService(),
+            defaultFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
     }
 
     private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
-        executeTestCaseWithCache(
-            CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY),
-            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getDefault(Settings.EMPTY),
+        executeTestCase(
+            defaultCacheService(),
+            createFrozenCacheService(
+                ByteSizeValue.ofMb(10),
+                new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES)
+            ),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .build(),
             test
         );
     }
@@ -573,9 +587,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
         executeTestCase(
             createCacheService(cacheSize, cacheRangeSize),
+            createFrozenCacheService(cacheSize, cacheRangeSize),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -583,6 +599,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     private void executeTestCase(
         final CacheService cacheService,
+        final FrozenCacheService frozenCacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
@@ -609,6 +626,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
         try (
             CacheService ignored = cacheService;
+            FrozenCacheService ignored2 = frozenCacheService;
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
@@ -623,7 +641,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 cacheDir,
                 shardPath,
                 threadPool,
-                null
+                frozenCacheService
             ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long fileLength) {

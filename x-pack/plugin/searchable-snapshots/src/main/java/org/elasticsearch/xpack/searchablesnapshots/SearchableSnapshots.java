@@ -256,12 +256,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.isDataNode(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final FrozenCacheService frozenCacheService;
-            try {
-                frozenCacheService = new FrozenCacheService(environment, threadPool);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            final FrozenCacheService frozenCacheService = new FrozenCacheService(environment, threadPool);
             this.frozenCacheService.set(frozenCacheService);
             components.add(cacheService);
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX);

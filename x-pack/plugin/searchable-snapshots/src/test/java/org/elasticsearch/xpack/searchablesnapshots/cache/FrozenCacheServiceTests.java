@@ -173,6 +173,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
             cacheService.get(cacheKey1, 250, 0);
             assertEquals(2, cacheService.getFreq(region0));
+            cacheService.get(cacheKey1, 250, 0);
+            assertEquals(2, cacheService.getFreq(region0));
 
             // advance 2 ticks (decay only starts after 2 ticks)
             taskQueue.advanceTime();
@@ -186,6 +188,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
             assertEquals(0, cacheService.getFreq(region0));
+            assertEquals(0, cacheService.getFreq(region1));
         }
     }
 

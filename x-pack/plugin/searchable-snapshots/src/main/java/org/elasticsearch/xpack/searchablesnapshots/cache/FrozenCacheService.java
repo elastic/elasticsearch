@@ -33,6 +33,7 @@ import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -57,20 +58,18 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "region-size",
-        ByteSizeValue.ofMb(16),
-        Setting.Property.NodeScope
-    );
-
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
 
     public static final Setting<ByteSizeValue> FROZEN_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
         ByteSizeValue.ofMb(16),                                 // default
-        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
-        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "region-size",
+        FROZEN_CACHE_RANGE_SIZE_SETTING,
         Setting.Property.NodeScope
     );
 
@@ -128,7 +127,7 @@ public class FrozenCacheService implements Releasable {
     private final CacheDecayTask decayTask;
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public FrozenCacheService(Environment environment, ThreadPool threadPool) throws IOException {
+    public FrozenCacheService(Environment environment, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         final Settings settings = environment.settings();
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
@@ -151,7 +150,11 @@ public class FrozenCacheService implements Releasable {
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
-        sharedBytes = new SharedBytes(numRegions, regionSize, environment);
+        try {
+            sharedBytes = new SharedBytes(numRegions, regionSize, environment);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         decayTask = new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings));
         decayTask.rescheduleIfNecessary();
         this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);

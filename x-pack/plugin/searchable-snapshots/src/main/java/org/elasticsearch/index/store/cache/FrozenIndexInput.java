@@ -660,6 +660,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                 progressUpdater.accept(bytesCopied);
             }
             final long endTimeNanos = stats.currentTimeNanos();
+            assert bytesCopied == length;
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
         }
     }

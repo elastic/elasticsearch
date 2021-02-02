@@ -71,10 +71,10 @@ public class WeekTimes implements Times {
 
         WeekTimes that = (WeekTimes) o;
 
-        if (!days.equals(that.days)) return false;
+        if (days.equals(that.days) == false) return false;
 
         // we don't care about order
-        if (!newHashSet(times).equals(newHashSet(that.times))) return false;
+        if (newHashSet(times).equals(newHashSet(that.times)) == false) return false;
 
         return true;
     }

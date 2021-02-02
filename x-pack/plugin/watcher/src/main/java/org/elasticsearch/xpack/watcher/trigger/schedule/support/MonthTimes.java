@@ -82,9 +82,9 @@ public class MonthTimes implements Times {
 
         MonthTimes that = (MonthTimes) o;
 
-        if (!Arrays.equals(days, that.days)) return false;
+        if (Arrays.equals(days, that.days) == false) return false;
         // order doesn't matter
-        if (!newHashSet(times).equals(newHashSet(that.times))) return false;
+        if (newHashSet(times).equals(newHashSet(that.times)) == false) return false;
 
         return true;
     }

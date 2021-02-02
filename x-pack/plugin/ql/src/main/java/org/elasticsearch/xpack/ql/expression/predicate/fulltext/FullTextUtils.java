@@ -23,7 +23,7 @@ abstract class FullTextUtils {
     private static final String DELIMITER = ";";
 
     static Map<String, String> parseSettings(String options, Source source) {
-        if (!Strings.hasText(options)) {
+        if (Strings.hasText(options) == false) {
             return emptyMap();
         }
         String[] list = Strings.delimitedListToStringArray(options, DELIMITER);
@@ -49,7 +49,7 @@ abstract class FullTextUtils {
     }
 
     static Map<String, Float> parseFields(String fieldString, Source source) {
-        if (!Strings.hasText(fieldString)) {
+        if (Strings.hasText(fieldString) == false) {
             return emptyMap();
         }
         Set<String> fieldNames = Strings.commaDelimitedListToSet(fieldString);

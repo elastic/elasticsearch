@@ -248,6 +248,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
         final ObjectIntHashMap<String> prettyNames;
+        final ObjectIntHashMap<String> architectures;
         final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
@@ -256,6 +257,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
             this.prettyNames = new ObjectIntHashMap<>();
+            this.architectures = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
@@ -267,6 +269,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 }
                 if (nodeInfo.getInfo(OsInfo.class).getPrettyName() != null) {
                     prettyNames.addTo(nodeInfo.getInfo(OsInfo.class).getPrettyName(), 1);
+                }
+                if (nodeInfo.getInfo(OsInfo.class).getArch() != null) {
+                    architectures.addTo(nodeInfo.getInfo(OsInfo.class).getArch(), 1);
                 }
             }
             this.availableProcessors = availableProcessors;
@@ -308,6 +313,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String NAMES = "names";
             static final String PRETTY_NAME = "pretty_name";
             static final String PRETTY_NAMES = "pretty_names";
+            static final String ARCH = "arch";
+            static final String ARCHITECTURES = "architectures";
             static final String COUNT = "count";
         }
 
@@ -335,6 +342,18 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     {
                         builder.field(Fields.PRETTY_NAME, prettyName.key);
                         builder.field(Fields.COUNT, prettyName.value);
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(Fields.ARCHITECTURES);
+            {
+                for (final ObjectIntCursor<String> arch : architectures) {
+                    builder.startObject();
+                    {
+                        builder.field(Fields.ARCH, arch.key);
+                        builder.field(Fields.COUNT, arch.value);
                     }
                     builder.endObject();
                 }

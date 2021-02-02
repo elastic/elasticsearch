@@ -270,7 +270,7 @@ public class RestoreService implements ClusterStateApplier {
                     metadataBuilder.put(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId), false);
                 }
 
-                final Metadata metadata = metadataBuilder.build();
+                final Metadata metadata = metadataBuilder.dataStreams(dataStreams).build();
 
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name

@@ -97,7 +97,8 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                                     if (token == XContentParser.Token.FIELD_NAME) {
                                         if (parser.currentName().equals("value")) {
                                             token = parser.nextToken();
-                                            if (!op.supportsStructures() && !token.isValue() && token != XContentParser.Token.VALUE_NULL) {
+                                            if (op.supportsStructures() == false && token.isValue() == false
+                                                    && token != XContentParser.Token.VALUE_NULL) {
                                                 throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. " +
                                                         "compared value for [{}] with operation [{}] must either be a numeric, string, " +
                                                         "boolean or null value, but found [{}] instead", TYPE, watchId, path,
@@ -270,7 +271,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
                 for (Object value : values) {
                     Integer compare = LenientCompare.compare(value, configuredValue);
                     boolean comparison = compare != null && op.comparison(compare);
-                    if (!comparison) {
+                    if (comparison == false) {
                         return false;
                     }
                 }

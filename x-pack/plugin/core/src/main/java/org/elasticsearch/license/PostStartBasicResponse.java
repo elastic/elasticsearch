@@ -146,7 +146,7 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         PostStartBasicResponse that = (PostStartBasicResponse) o;
 
         return status == that.status &&

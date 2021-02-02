@@ -147,7 +147,7 @@ public final class DomainSplitFunction {
         if (publicSuffixIndex == 1) {
             return name;
         }
-        if (!(publicSuffixIndex > 0)) {
+        if (publicSuffixIndex <= 0) {
             throw new IllegalArgumentException("Not under a public suffix: " + name);
         }
         return ancestor(parts, publicSuffixIndex - 1);
@@ -178,9 +178,9 @@ public final class DomainSplitFunction {
         }
         boolean tentativeIP = true;
         for(int i = 0; i < host.length(); i++) {
-            if (!(Character.isDigit(host.charAt(i)) || host.charAt(i) == '.')) {
+            if ((Character.isDigit(host.charAt(i)) || host.charAt(i) == '.') == false) {
                 tentativeIP = false;
-            break;
+                break;
             }
         }
         if (tentativeIP) {
@@ -200,7 +200,7 @@ public final class DomainSplitFunction {
         String highestRegistered = "";
         /* for the case where the host is internal like .local so is not a recognised public suffix */
         if (publicSuffixIndex == -1) {
-            if (!parts.isEmpty()) {
+            if (parts.isEmpty() == false) {
                 if (parts.size() == 1) {
                     return Arrays.asList("", host);
                 }
@@ -208,7 +208,7 @@ public final class DomainSplitFunction {
                     boolean allNumeric = true;
                     String value = parts.get(parts.size() - 1);
                     for (int i = 0; i < value.length(); i++) {
-                        if (!Character.isDigit(value.charAt(i))) {
+                        if (Character.isDigit(value.charAt(i)) == false) {
                             allNumeric = false;
                             break;
                         }

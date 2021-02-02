@@ -30,6 +30,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -518,7 +519,7 @@ public class License implements ToXContentObject {
         if (licenseSpecMode && restViewMode) {
             throw new IllegalArgumentException("can have either " + REST_VIEW_MODE + " or " + LICENSE_SPEC_VIEW_MODE);
         } else if (restViewMode) {
-            if (!previouslyHumanReadable) {
+            if (previouslyHumanReadable == false) {
                 builder.humanReadable(true);
             }
         }
@@ -554,7 +555,7 @@ public class License implements ToXContentObject {
 
         builder.field(Fields.ISSUED_TO, issuedTo);
         builder.field(Fields.ISSUER, issuer);
-        if (!licenseSpecMode && !restViewMode && signature != null) {
+        if (licenseSpecMode == false && restViewMode == false && signature != null) {
             builder.field(Fields.SIGNATURE, signature);
         }
         if (restViewMode) {
@@ -692,7 +693,7 @@ public class License implements ToXContentObject {
                                     break;
                                 }
                             }
-                            if (license == null && !pre20Licenses.isEmpty()) {
+                            if (license == null && pre20Licenses.isEmpty() == false) {
                                 license = pre20Licenses.get(0);
                             }
                         } else {
@@ -724,15 +725,13 @@ public class License implements ToXContentObject {
         if (startDate != license.startDate) return false;
         if (maxNodes != license.maxNodes) return false;
         if (version != license.version) return false;
-        if (uid != null ? !uid.equals(license.uid) : license.uid != null) return false;
-        if (issuer != null ? !issuer.equals(license.issuer) : license.issuer != null) return false;
-        if (issuedTo != null ? !issuedTo.equals(license.issuedTo) : license.issuedTo != null) return false;
-        if (type != null ? !type.equals(license.type) : license.type != null) return false;
-        if (subscriptionType != null ? !subscriptionType.equals(license.subscriptionType) : license.subscriptionType != null)
-            return false;
-        if (feature != null ? !feature.equals(license.feature) : license.feature != null) return false;
-        return !(signature != null ? !signature.equals(license.signature) : license.signature != null);
-
+        return Objects.equals(uid, license.uid)
+            && Objects.equals(issuer, license.issuer)
+            && Objects.equals(issuedTo, license.issuedTo)
+            && Objects.equals(type, license.type)
+            && Objects.equals(subscriptionType, license.subscriptionType)
+            && Objects.equals(feature, license.feature)
+            && Objects.equals(signature, license.signature);
     }
 
     @Override

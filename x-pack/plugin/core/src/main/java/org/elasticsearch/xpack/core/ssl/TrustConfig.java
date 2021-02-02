@@ -196,7 +196,7 @@ abstract class TrustConfig {
             if (this == o) {
                 return true;
             }
-            if (!(o instanceof CombiningTrustConfig)) {
+            if ((o instanceof CombiningTrustConfig) == false) {
                 return false;
             }
 

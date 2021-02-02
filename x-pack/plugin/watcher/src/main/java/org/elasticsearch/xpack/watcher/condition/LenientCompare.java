@@ -35,7 +35,7 @@ public class LenientCompare {
 
         // special case for numbers. If v1 is not a number, we'll try to convert it to a number
         if (v2 instanceof Number) {
-            if (!(v1 instanceof Number)) {
+            if ((v1 instanceof Number) == false) {
                 try {
                     v1 = Double.valueOf(String.valueOf(v1));
                 } catch (NumberFormatException nfe) {

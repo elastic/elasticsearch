@@ -36,7 +36,7 @@ public final class StringUtils {
 
     //CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {
-        if (!Strings.hasText(string)) {
+        if (Strings.hasText(string) == false) {
             return EMPTY;
         }
         StringBuilder sb = new StringBuilder();
@@ -66,7 +66,7 @@ public final class StringUtils {
 
     //CAMEL_CASE to camelCase
     public static String underscoreToLowerCamelCase(String string) {
-        if (!Strings.hasText(string)) {
+        if (Strings.hasText(string) == false) {
             return EMPTY;
         }
         StringBuilder sb = new StringBuilder();
@@ -102,7 +102,7 @@ public final class StringUtils {
         regex.append('^');
         for (int i = 0; i < pattern.length(); i++) {
             char curr = pattern.charAt(i);
-            if (!escaped && (curr == escape) && escape != 0) {
+            if (escaped == false && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
                     throw new QlIllegalArgumentException(
@@ -167,7 +167,7 @@ public final class StringUtils {
         for (int i = 0; i < pattern.length(); i++) {
             char curr = pattern.charAt(i);
 
-            if (!escaped && (curr == escape) && escape != 0) {
+            if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
                     throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
                 }
@@ -213,7 +213,7 @@ public final class StringUtils {
         for (int i = 0; i < pattern.length(); i++) {
             char curr = pattern.charAt(i);
 
-            if (!escaped && (curr == escape) && escape != 0) {
+            if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
                     throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
                 }

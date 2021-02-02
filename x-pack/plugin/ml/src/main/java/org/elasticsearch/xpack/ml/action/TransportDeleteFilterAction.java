@@ -55,7 +55,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
         jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(
                 jobs-> {
                     List<String> currentlyUsedBy = findJobsUsingFilter(jobs, filterId);
-                    if (!currentlyUsedBy.isEmpty()) {
+                    if (currentlyUsedBy.isEmpty() == false) {
                         listener.onFailure(ExceptionsHelper.conflictStatusException(
                                 Messages.getMessage(Messages.FILTER_CANNOT_DELETE, filterId, currentlyUsedBy)));
                     } else {

@@ -97,7 +97,7 @@ public class TriggeredWatch implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         TriggeredWatch entry = (TriggeredWatch) o;
-        if (!id.equals(entry.id)) return false;
+        if (id.equals(entry.id) == false) return false;
 
         return true;
     }

@@ -149,7 +149,7 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
             return;
         }
 
-        if (!Regex.isSimpleMatchPattern(transformIdsExpression)) {
+        if (Regex.isSimpleMatchPattern(transformIdsExpression) == false) {
             if (configs.containsKey(transformIdsExpression)) {
                 foundIdsListener.onResponse(new Tuple<>(1L, Collections.singletonList(transformIdsExpression)));
             } else {

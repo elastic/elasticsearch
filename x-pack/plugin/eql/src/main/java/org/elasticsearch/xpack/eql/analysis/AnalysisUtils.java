@@ -38,7 +38,7 @@ public final class AnalysisUtils {
         boolean qualified = u.qualifier() != null;
 
         for (Attribute attribute : attrList) {
-            if (!attribute.synthetic()) {
+            if (attribute.synthetic() == false) {
                 boolean match = qualified ? Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
                 // if the field is unqualified
                 // first check the names directly

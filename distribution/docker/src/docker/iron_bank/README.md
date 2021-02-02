@@ -29,7 +29,7 @@ visiting [Elastic Community](https://www.elastic.co/community).
 
 
 This software is governed by the [Elastic
-License](https://github.com/elastic/elasticsearch/blob/${major_minor_version}/licenses/ELASTIC-LICENSE.txt),
+License](https://github.com/elastic/elasticsearch/blob/${major_minor_version}/licenses/ELASTIC-LICENSE-2.0.txt),
 and includes the full set of [free
 features](https://www.elastic.co/subscriptions).
 

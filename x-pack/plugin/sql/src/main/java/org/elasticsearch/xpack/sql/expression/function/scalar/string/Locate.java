@@ -94,11 +94,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Object fold() {
-        if (start == null) {
-            return doProcess(pattern.fold(), input.fold());
-        } else {
-            return doProcess(pattern.fold(), input.fold(), start.fold());
-        }
+        return doProcess(pattern.fold(), input.fold(), start == null ? null : start.fold());
     }
     
     @Override

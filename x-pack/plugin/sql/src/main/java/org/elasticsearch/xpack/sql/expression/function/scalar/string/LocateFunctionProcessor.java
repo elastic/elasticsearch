@@ -40,23 +40,12 @@ public class LocateFunctionProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        if (start() == null) {
-            return doProcess(pattern().process(input), input().process(input));
-        } else {
-            return doProcess(pattern().process(input), input().process(input), start().process(input));
-        }
-    }
-
-    public static Integer doProcess(Object pattern, Object input) {
-        return doProcess(pattern, input, 1);
+        return doProcess(pattern().process(input), input().process(input), start() == null ? null : start().process(input));
     }
     
     public static Integer doProcess(Object pattern, Object input, Object start) {
         if (pattern == null || input == null) {
             return null;
-        }
-        if (start == null) {
-            return 0;
         }
         if (!(input instanceof String || input instanceof Character)) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
@@ -66,13 +55,15 @@ public class LocateFunctionProcessor implements Processor {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
 
-        Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
+        if (start != null) {
+            Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
+        }
 
         String stringInput = input instanceof Character ? input.toString() : (String) input;
         String stringPattern = pattern instanceof Character ? pattern.toString() : (String) pattern;
 
         
-        int startIndex = ((Number) start).intValue() - 1;
+        int startIndex = start == null ? 0 : ((Number) start).intValue() - 1;
         return 1 + stringInput.indexOf(stringPattern, startIndex);
     }
 

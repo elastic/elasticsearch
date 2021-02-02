@@ -33,8 +33,8 @@ import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 /**
- * <p>This test was introduced because of the inconsistencies regarding NULL argument handling. NULL literal vs NULL field value as function 
- * arguments in some case result in different function return values.</p>
+ * <p>This test was introduced because of the inconsistencies regarding NULL argument handling. NULL literal vs NULL field 
+ * value as function arguments in some case result in different function return values.</p>
  *
  * <p>Functions should return with the same value no matter if the argument(s) came from a field or from a literal.</p>
  * 
@@ -94,7 +94,7 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
         private List<String> aliases = new ArrayList<>();
         private boolean ignored = false;
         
-        public Fn(String name, Object... arguments) {
+        private Fn(String name, Object... arguments) {
             this.name = name;
             this.arguments = new ArrayList<>();
             for (Object a : arguments) {
@@ -122,7 +122,7 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
         private final Object exampleValue;
         private final Source[] acceptedSources;
 
-        public Argument(Object exampleValue, Source... acceptedSources) {
+        private Argument(Object exampleValue, Source... acceptedSources) {
             this.exampleValue = exampleValue;
             this.acceptedSources = acceptedSources.length == 0 ? Source.values() : acceptedSources;
         }

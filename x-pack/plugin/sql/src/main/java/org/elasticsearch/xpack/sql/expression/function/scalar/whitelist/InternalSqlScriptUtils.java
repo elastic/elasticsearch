@@ -394,7 +394,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Integer locate(String s1, String s2) {
-        return LocateFunctionProcessor.doProcess(s1, s2);
+        return locate(s1, s2, null);
     }
 
     public static Integer locate(String s1, String s2, Number pos) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
@@ -106,8 +107,14 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  */
 public class SearchableSnapshots extends Plugin implements IndexStorePlugin, EnginePlugin, ActionPlugin, ClusterPlugin, SystemIndexPlugin {
 
-    public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
+    public static final Setting<String> SNAPSHOT_REPOSITORY_NAME_SETTING = Setting.simpleString(
         "index.store.snapshot.repository_name",
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
+    );
+    public static final Setting<String> SNAPSHOT_REPOSITORY_UUID_SETTING = Setting.simpleString(
+        "index.store.snapshot.repository_uuid",
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex,
         Setting.Property.NotCopyableOnResize
@@ -191,7 +198,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_REPOSITORY_UUID_SETTING,
+            SNAPSHOT_REPOSITORY_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_ID_SETTING,
             SNAPSHOT_INDEX_NAME_SETTING,
@@ -248,6 +256,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
             indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(settings, cacheService.get()));
             indexModule.addIndexEventListener(failShardsListener.get());
+
+            indexModule.addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
+                if (write == false) {
+                    throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
+                }
+            });
         }
     }
 

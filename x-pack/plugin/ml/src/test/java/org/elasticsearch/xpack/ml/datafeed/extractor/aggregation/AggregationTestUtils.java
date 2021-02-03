@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
@@ -104,7 +105,7 @@ public final class AggregationTestUtils {
                 for (Map.Entry<String, Double> keyValue : term.values.entrySet()) {
                     numericAggs.add(createSingleValue(keyValue.getKey(), keyValue.getValue()));
                 }
-                if (!numericAggs.isEmpty()) {
+                if (numericAggs.isEmpty() == false) {
                     Aggregations aggs = createAggs(numericAggs);
                     when(bucket.getAggregations()).thenReturn(aggs);
                 }

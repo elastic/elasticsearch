@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.whitelist;
 
@@ -324,11 +325,11 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         }
         if (false == lenient) {
             if (dateTime instanceof Number) {
-                return DateUtils.asDateTime(((Number) dateTime).longValue());
+                return DateUtils.asDateTimeWithMillis(((Number) dateTime).longValue());
             }
 
             if (dateTime instanceof String) {
-                return DateUtils.asDateTime(dateTime.toString());
+                return DateUtils.asDateTimeWithNanos(dateTime.toString());
             }
             throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }

@@ -18,16 +18,22 @@ HEAD /my-index-000001
 [[indices-exists-api-request]]
 ==== {api-request-title}
 
-`HEAD /<index>`
+`HEAD /<target>`
 
+[[indices-exists-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
 
 [[indices-exists-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-+
-IMPORTANT: This parameter does not distinguish between an index name and <<indices-aliases,alias>>,
-i.e. status code `200` is also returned if an alias exists with that name.
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
 
 
 [[indices-exists-api-query-params]]

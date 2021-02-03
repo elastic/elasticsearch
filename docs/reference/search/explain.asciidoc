@@ -1,5 +1,8 @@
 [[search-explain]]
 === Explain API
+++++
+<titleabbrev>Explain</titleabbrev>
+++++
 
 Returns information about why a specific document matches (or doesn't match) a 
 query.

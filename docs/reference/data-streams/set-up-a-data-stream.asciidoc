@@ -75,6 +75,42 @@ include::{es-repo-dir}/indices/create-data-stream.asciidoc[tag=data-stream-name]
 +
 include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
 
+[[elastic-data-stream-naming-scheme]]
+.The Elastic data stream naming scheme
+****
+The {agent} uses the Elastic data stream naming scheme to name its data streams.
+To help you organize your data consistently and avoid naming collisions, we
+recommend you also use the Elastic naming scheme for your other data streams.
+
+The naming scheme splits data into different data streams based on the following
+components. Each component corresponds to a
+<<constant-keyword-field-type,constant keyword>> field defined in the
+{ecs-ref}[Elastic Common Schema (ECS)].
+
+`type`::
+Generic type describing the data, such as `logs`, `metrics`, or `synthetics`.
+Corresponds to the `data_stream.type` field.
+
+`dataset`::
+Describes the ingested data and its structure. Corresponds to the
+`data_stream.dataset` field. Defaults to `generic`.
+
+`namespace`::
+User-configurable arbitrary grouping. Corresponds to the `data_stream.dataset`
+field. Defaults to `default`.
+
+The naming scheme separates these components with a `-` character:
+
+```
+<type>-<dataset>-<namespace>
+```
+
+For example, the {agent} uses the `logs-nginx.access-production` data
+stream to store data with a type of `logs`, a dataset of `nginx.access`, and a
+namespace of `production`. If you use the {agent} to ingest a log file, it
+stores the data in the `logs-generic-default` data stream.
+****
+
 include::{es-repo-dir}/data-streams/data-streams.asciidoc[tag=timestamp-reqs]
 
 If using {ilm-init}, specify your lifecycle policy in the `index.lifecycle.name`

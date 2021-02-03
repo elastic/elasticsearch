@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -61,14 +62,14 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
             }
         },
         TO_CHAR {
-            @Override 
+            @Override
             protected Function<TemporalAccessor, String> formatterFor(String pattern) {
                 return ToCharFormatter.ofPattern(pattern);
             }
         };
 
         protected abstract Function<TemporalAccessor, String> formatterFor(String pattern);
-        
+
         public Object format(Object timestamp, Object pattern, ZoneId zoneId) {
             if (timestamp == null || pattern == null) {
                 return null;

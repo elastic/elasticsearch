@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils;
 
@@ -122,7 +123,7 @@ public class NamedPipeHelper {
         // it's still not available throw the exception from FileInputStream
         while (true) {
             // On Windows Files.isRegularFile() will render a genuine named pipe unusable
-            if (!Constants.WINDOWS && Files.isRegularFile(file)) {
+            if (Constants.WINDOWS == false && Files.isRegularFile(file)) {
                 throw new IOException(file + " is not a named pipe");
             }
             try {
@@ -186,7 +187,7 @@ public class NamedPipeHelper {
         long timeoutMillisRemaining = timeout.toMillis();
 
         // Can't use File.isFile() on Windows, but luckily there's an even simpler check (that's not possible on *nix)
-        if (!file.toString().startsWith(WIN_PIPE_PREFIX)) {
+        if (file.toString().startsWith(WIN_PIPE_PREFIX) == false) {
             throw new IOException(file + " is not a named pipe");
         }
 
@@ -245,7 +246,7 @@ public class NamedPipeHelper {
             throw new IOException(file + " is not a named pipe");
         }
 
-        if (!Files.exists(file)) {
+        if (Files.exists(file) == false) {
             throw new FileNotFoundException("Cannot open " + file + " (No such file or directory)");
         }
 

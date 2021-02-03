@@ -351,7 +351,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
         }
 
-        assert osPrettyNames.size() == 1 : "mixed os cluster found";
+        assert osPrettyNames.size() == 1 : "mixed os cluster found: " + osPrettyNames;
         return osPrettyNames.iterator().next();
     }
 

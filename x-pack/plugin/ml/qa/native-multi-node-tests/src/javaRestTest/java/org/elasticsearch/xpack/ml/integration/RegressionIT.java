@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -252,7 +253,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 sourceIndex,
                 destIndex,
                 null,
-                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(), 
+                new Regression(DEPENDENT_VARIABLE_FIELD, BoostedTreeParams.builder().build(),
                                 null, 50.0, null, null, null, null, null));
         putAnalytics(config);
 
@@ -372,7 +373,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(firstJobId, sourceIndex, firstJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, 
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0,
                             null, null, null, null, null));
         putAnalytics(firstJob);
         startAnalytics(firstJobId);
@@ -383,7 +384,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         long randomizeSeed = ((Regression) firstJob.getAnalysis()).getRandomizeSeed();
         DataFrameAnalyticsConfig secondJob = buildAnalytics(secondJobId, sourceIndex, secondJobDestIndex, null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0, 
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 50.0,
                             randomizeSeed, null, null, null, null));
 
         putAnalytics(secondJob);

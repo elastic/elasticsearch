@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack;
@@ -46,6 +47,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
 import static org.elasticsearch.test.rest.ESRestTestCase.ensureGreen;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -291,5 +293,27 @@ public final class TimeSeriesRestDriver {
         responseEntity = (Map<String, Object>) responseEntity.get("shards");
         List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
         return (Integer) shards.get(0).get("num_search_segments");
+    }
+
+    public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {
+        Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
+        final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
+            ContentType.APPLICATION_JSON);
+        changePolicyRequest.setEntity(changePolicyEntity);
+        assertOK(client.performRequest(changePolicyRequest));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static String getSnapshotState(RestClient client, String snapshot) throws IOException {
+        Response response = client.performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        Map<String, Object> repoResponse = ((List<Map<String, Object>>) responseMap.get("responses")).get(0);
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
+        assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
+        return (String) snapResponse.get("state");
     }
 }

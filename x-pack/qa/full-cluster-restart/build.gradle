@@ -16,10 +16,6 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-tasks.named("licenseHeaders").configure {
-  approvedLicenses << 'Apache'
-}
-
 tasks.named("forbiddenPatterns") {
   exclude '**/system_key'
 }

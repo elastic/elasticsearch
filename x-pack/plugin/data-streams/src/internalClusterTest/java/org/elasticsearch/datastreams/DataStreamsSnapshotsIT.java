@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.datastreams;
 
@@ -497,6 +498,24 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setIndices(indexWithoutDataStream)
                 .get()
         );
+    }
+
+    public void testPartialRestoreSnapshotThatIncludesDataStream() {
+        final String snapshot = "test-snapshot";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        createFullSnapshot(REPO, snapshot);
+        assertAcked(client.admin().indices().prepareDelete(indexWithoutDataStream));
+        RestoreInfo restoreInfo = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshot)
+            .setIndices(indexWithoutDataStream)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(randomBoolean())
+            .get()
+            .getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), is(1));
     }
 
     public void testSnapshotDSDuringRollover() throws Exception {

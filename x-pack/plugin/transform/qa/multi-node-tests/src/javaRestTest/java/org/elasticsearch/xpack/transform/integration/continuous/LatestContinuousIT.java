@@ -43,8 +43,8 @@ public class LatestContinuousIT extends ContinuousTestCase {
     private static final String NAME = "continuous-latest-test";
 
     private static final Map<String, Object> RUNTIME_MAPPINGS =
-        new HashMap<>() {{
-            put("event-upper-at-search", new HashMap<>() {{
+        new HashMap<String, Object>() {{
+            put("event-upper-at-search", new HashMap<String, Object>() {{
                 put("type", "keyword");
                 put("script", singletonMap("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}"));
             }});

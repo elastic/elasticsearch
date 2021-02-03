@@ -161,7 +161,7 @@ idp.metadata.path::
 
 idp.entity_id::
     This is the identifier (SAML EntityID) that your IdP uses.
-    It should match the `entityID` attribute within the metadata file.
+    It should match the `entityID` attribute within the metadata file. If there isn't a match, Elasticsearch won't start successfully.
 
 sp.entity_id::
     This is a unique identifier for your {kib} instance, expressed as a URI.

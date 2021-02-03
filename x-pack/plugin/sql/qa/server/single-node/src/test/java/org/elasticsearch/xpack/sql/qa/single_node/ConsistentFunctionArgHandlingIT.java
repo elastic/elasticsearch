@@ -247,11 +247,7 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
         }
         functions.removeAll(NON_TESTED_FUNCTIONS);
 
-        assertThat(
-            "Some functions are not covered by this test",
-            functions,
-            empty()
-        );
+        assertThat("Some functions are not covered by this test", functions, empty());
     }
 
     private static String asLiteralInQuery(Object argValue) {

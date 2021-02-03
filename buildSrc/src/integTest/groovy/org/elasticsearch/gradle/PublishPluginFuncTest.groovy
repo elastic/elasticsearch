@@ -33,10 +33,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
-
-        def generatedPomFile = file("build/distributions/hello-world-1.0.pom")
-        generatedPomFile.exists()
-        assertXmlEquals(generatedPomFile.text, """
+        file("build/distributions/hello-world-1.0.pom").exists()
+        assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
                      xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -81,7 +79,6 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world-plugin-1.0.pom").exists()
-        generatedPomFile.exists()
         assertXmlEquals(file("build/distributions/hello-world-plugin-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
                      xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 

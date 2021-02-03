@@ -59,17 +59,17 @@ public class PublishPlugin implements Plugin<Project> {
         TaskProvider<Task> generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         project.getTasks()
-                .withType(GenerateMavenPom.class)
-                .configureEach(
-                        pomTask -> pomTask.setDestination(
-                                (Callable<String>) () -> String.format(
-                                        "%s/distributions/%s-%s.pom",
-                                        project.getBuildDir(),
-                                        getArchivesBaseName(project),
-                                        project.getVersion()
-                                )
-                        )
-                );
+            .withType(GenerateMavenPom.class)
+            .configureEach(
+                pomTask -> pomTask.setDestination(
+                    (Callable<String>) () -> String.format(
+                        "%s/distributions/%s-%s.pom",
+                        project.getBuildDir(),
+                        getArchivesBaseName(project),
+                        project.getVersion()
+                    )
+                )
+            );
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);
@@ -80,9 +80,7 @@ public class PublishPlugin implements Plugin<Project> {
             BuildParams.withInternalBuild(() -> publication.getPom().withXml(PublishPlugin::addScmInfo));
             // have to defer this until archivesBaseName is set
             project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
-            generatePomTask.configure(
-                    t -> t.dependsOn(String.format("generatePomFileFor%sPublication", Util.capitalize(publication.getName())))
-            );
+            generatePomTask.configure(t -> t.dependsOn(project.getTasks().withType(GenerateMavenPom.class)));
         });
     }
 

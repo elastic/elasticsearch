@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -605,7 +604,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
 
-        final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
+        final byte[] fileContent = randomByteArrayOfLength(randomIntBetween(10, MAX_FILE_LENGTH));
         final String fileExtension = randomAlphaOfLength(3);
         final String fileName = randomAlphaOfLength(10) + '.' + fileExtension;
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");

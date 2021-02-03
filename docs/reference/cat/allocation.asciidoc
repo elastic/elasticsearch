@@ -58,9 +58,7 @@ those created when <<indices-shrink-index,shrinking>>,
 +
 --
 Total disk space in use. {es} retrieves this metric from the node's operating
-system (OS).
-+
-This metric includes disk space for:
+system (OS). The metric includes disk space for:
 
 - {es}, including the <<index-modules-translog,translog>> and unassigned shards
 - The node's OS

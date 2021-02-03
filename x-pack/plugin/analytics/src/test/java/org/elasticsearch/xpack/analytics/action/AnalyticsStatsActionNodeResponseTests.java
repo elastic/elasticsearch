@@ -47,6 +47,7 @@ public class AnalyticsStatsActionNodeResponseTests extends AbstractWireSerializi
         assertThat(AnalyticsStatsAction.Item.MOVING_PERCENTILES.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.NORMALIZE.ordinal(), equalTo(i++));
         assertThat(AnalyticsStatsAction.Item.RATE.ordinal(), equalTo(i++));
+        assertThat(AnalyticsStatsAction.Item.MULTI_TERMS.ordinal(), equalTo(i++));
         // Please add tests for newly added items here
         assertThat(AnalyticsStatsAction.Item.values().length, equalTo(i));
     }

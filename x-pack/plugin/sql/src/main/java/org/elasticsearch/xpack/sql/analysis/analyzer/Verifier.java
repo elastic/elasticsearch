@@ -110,7 +110,7 @@ public final class Verifier {
             }
 
             // if the children are unresolved, so will this node; counting it will only add noise
-            if (!p.childrenResolved()) {
+            if (p.childrenResolved() == false) {
                 return;
             }
 
@@ -134,7 +134,7 @@ public final class Verifier {
 
                     e.forEachUp(ae -> {
                         // we're only interested in the children
-                        if (!ae.childrenResolved()) {
+                        if (ae.childrenResolved() == false) {
                             return;
                         }
                         // again the usual suspects
@@ -143,7 +143,7 @@ public final class Verifier {
                             if (ae instanceof UnresolvedAttribute) {
                                 UnresolvedAttribute ua = (UnresolvedAttribute) ae;
                                 // only work out the synonyms for raw unresolved attributes
-                                if (!ua.customMessage()) {
+                                if (ua.customMessage() == false) {
                                     boolean useQualifier = ua.qualifier() != null;
                                     List<String> potentialMatches = new ArrayList<>();
                                     for (Attribute a : p.inputSet()) {
@@ -155,7 +155,7 @@ public final class Verifier {
                                     }
 
                                     List<String> matches = StringUtils.findSimilar(ua.qualifiedName(), potentialMatches);
-                                    if (!matches.isEmpty()) {
+                                    if (matches.isEmpty() == false) {
                                         ae = ua.withUnresolvedMessage(UnresolvedAttribute.errorMessage(ua.qualifiedName(), matches));
                                     }
                                 }
@@ -202,7 +202,7 @@ public final class Verifier {
                 }
 
                 // if the children are unresolved, so will this node; counting it will only add noise
-                if (!p.childrenResolved()) {
+                if (p.childrenResolved() == false) {
                     return;
                 }
 
@@ -346,7 +346,7 @@ public final class Verifier {
                     missing.put(e, oe);
                 });
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     // get the location of the first missing expression as the order by might be on a different line
                     localFailures.add(
@@ -375,7 +375,7 @@ public final class Verifier {
                 // variation of checkGroupMatch customized for HAVING, which requires just aggregations
                 condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, attributeRefs));
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
                             fail(condition, "Cannot use HAVING filter on non-aggregate" + plural + " {}; use WHERE instead",
@@ -384,7 +384,7 @@ public final class Verifier {
                     return false;
                 }
 
-                if (!unsupported.isEmpty()) {
+                if (unsupported.isEmpty() == false) {
                     String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
                         fail(condition, "HAVING filter is unsupported for function" + plural + " {}",
@@ -537,7 +537,7 @@ public final class Verifier {
                 }
             });
 
-            if (!localFailures.isEmpty()) {
+            if (localFailures.isEmpty() == false) {
                 return false;
             }
 
@@ -554,7 +554,7 @@ public final class Verifier {
             a.aggregates().forEach(ne ->
                 ne.collectFirstChildren(c -> checkGroupMatch(c, ne, a.groupings(), missing, attributeRefs)));
 
-            if (!missing.isEmpty()) {
+            if (missing.isEmpty() == false) {
                 String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                 localFailures.add(fail(missing.values().iterator().next(), "Cannot use non-grouped column" + plural + " {}, expected {}",
                         Expressions.names(missing.keySet()),
@@ -711,7 +711,7 @@ public final class Verifier {
 
         // nested fields shouldn't be used in aggregates or having (yet)
         p.forEachDown(Aggregate.class, a -> a.groupings().forEach(agg -> agg.forEachUp(checkForNested)));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                     fail(nested.get(0), "Grouping isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
@@ -719,7 +719,7 @@ public final class Verifier {
 
         // check in having
         p.forEachDown(Filter.class, f -> f.forEachDown(Aggregate.class, a -> f.condition().forEachUp(checkForNested)));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                 fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
             nested.clear();
@@ -737,7 +737,7 @@ public final class Verifier {
                 }
             })
         ));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                 fail(nested.get(0), "WHERE isn't (yet) compatible with scalar functions on nested fields " +
                     new AttributeSet(nested).names()));
@@ -748,7 +748,7 @@ public final class Verifier {
         p.forEachDown(OrderBy.class, ob -> ob.order().forEach(o -> o.forEachUp(e ->
             attributeRefs.getOrDefault(e, e).forEachUp(ScalarFunction.class, checkForNestedInFunction)
         )));
-        if (!nested.isEmpty()) {
+        if (nested.isEmpty() == false) {
             localFailures.add(
                 fail(nested.get(0), "ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
                     new AttributeSet(nested).names()));

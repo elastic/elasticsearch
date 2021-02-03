@@ -85,7 +85,7 @@ public class HtmlSanitizer {
     }
 
     public String sanitize(String html) {
-        if (!enabled) {
+        if (enabled == false) {
             return html;
         }
         return sanitizer.apply(html);
@@ -180,7 +180,7 @@ public class HtmlSanitizer {
             }
         }
 
-        if (!images.isEmpty()) {
+        if (images.isEmpty() == false) {
             policyBuilder.allowAttributes("src").onElements("img").allowUrlProtocols("cid");
             if (images.contains(Images.ALL)) {
                 policyBuilder.allowElements("img");
@@ -207,7 +207,7 @@ public class HtmlSanitizer {
 
         @Override
         public String apply(String elementName, List<String> attrs) {
-            if (!"img".equals(elementName) || attrs.size() == 0) {
+            if ("img".equals(elementName) == false || attrs.isEmpty()) {
                 return elementName;
             }
             String attrName = null;

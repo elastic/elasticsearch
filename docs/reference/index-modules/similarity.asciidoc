@@ -540,7 +540,7 @@ request and <<indices-open-close,open>> it again afterwards:
 
 [source,console]
 --------------------------------------------------
-POST /index/_close
+POST /index/_close?wait_for_active_shards=0
 
 PUT /index/_settings
 {

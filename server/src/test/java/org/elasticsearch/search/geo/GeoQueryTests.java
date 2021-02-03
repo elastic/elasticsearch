@@ -1,25 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -27,12 +19,21 @@ import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -87,14 +88,14 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
         client().prepareIndex(defaultIndexName,"_doc").setId("1").setSource(jsonBuilder()
             .startObject()
-              .field("name", "Document 1")
-              .field(defaultGeoFieldName, "POINT(-30 -30)")
+            .field("name", "Document 1")
+            .field(defaultGeoFieldName, "POINT(-30 -30)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         client().prepareIndex(defaultIndexName,"_doc").setId("2").setSource(jsonBuilder()
             .startObject()
-              .field("name", "Document 2")
-              .field(defaultGeoFieldName, "POINT(-45 -50)")
+            .field("name", "Document 2")
+            .field(defaultGeoFieldName, "POINT(-45 -50)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
@@ -232,15 +233,52 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
 
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(mp);
         Geometry geometry = builder.buildGeometry();
-        SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                .relation(ShapeRelation.INTERSECTS))
-            .get();
 
-        assertSearchResponse(searchResponse);
-        assertHitCount(searchResponse, 2);
-        assertThat(searchResponse.getHits().getAt(0).getId(), not(equalTo("2")));
-        assertThat(searchResponse.getHits().getAt(1).getId(), not(equalTo("2")));
+
+        {
+            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                    .relation(ShapeRelation.INTERSECTS))
+                .get();
+
+            assertSearchResponse(searchResponse);
+            assertHitCount(searchResponse, 2);
+            assertThat(searchResponse.getHits().getAt(0).getId(), not(equalTo("2")));
+            assertThat(searchResponse.getHits().getAt(1).getId(), not(equalTo("2")));
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                    .relation(ShapeRelation.WITHIN))
+                .get();
+
+            assertSearchResponse(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+            assertThat(searchResponse.getHits().getAt(0).getId(), not(equalTo("2")));
+            assertThat(searchResponse.getHits().getAt(1).getId(), not(equalTo("2")));
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                    .relation(ShapeRelation.DISJOINT))
+                .get();
+
+            assertSearchResponse(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+            assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
+                    .relation(ShapeRelation.CONTAINS))
+                .get();
+
+            assertSearchResponse(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(0));
+        }
     }
 
     public void testIndexPointsRectangle() throws Exception {
@@ -386,11 +424,11 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         PolygonBuilder polygon = new PolygonBuilder(new CoordinatesBuilder()
-                    .coordinate(-177, 10)
-                    .coordinate(177, 10)
-                    .coordinate(177, 5)
-                    .coordinate(-177, 5)
-                    .coordinate(-177, 10));
+            .coordinate(-177, 10)
+            .coordinate(177, 10)
+            .coordinate(177, 5)
+            .coordinate(-177, 5)
+            .coordinate(-177, 10));
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", polygon.buildGeometry());
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
@@ -446,5 +484,140 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         SearchHits searchHits = response.getHits();
         assertThat(searchHits.getAt(0).getId(),not(equalTo("3")));
         assertThat(searchHits.getAt(1).getId(),not(equalTo("3")));
+    }
+
+
+    public void testWithInQueryLine() throws Exception {
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        ensureGreen();
+
+        Line line = new Line(new double[]{-25, -25}, new double[]{-35, -35});
+
+        try {
+            client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, line).relation(ShapeRelation.WITHIN)).get();
+        } catch (
+            SearchPhaseExecutionException e) {
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [geo] found an unsupported shape Line"));
+        }
+    }
+
+    public void testQueryWithinMultiLine() throws Exception {
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        ensureGreen();
+
+        CoordinatesBuilder coords1 = new CoordinatesBuilder()
+            .coordinate(-35,-35)
+            .coordinate(-25,-25);
+        CoordinatesBuilder coords2 = new CoordinatesBuilder()
+            .coordinate(-15,-15)
+            .coordinate(-5,-5);
+        LineStringBuilder lsb1 = new LineStringBuilder(coords1);
+        LineStringBuilder lsb2 = new LineStringBuilder(coords2);
+        MultiLineStringBuilder mlb = new MultiLineStringBuilder().linestring(lsb1).linestring(lsb2);
+        MultiLine multiline = (MultiLine) mlb.buildGeometry();
+
+        GeoShapeQueryBuilder builder = QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline).relation(ShapeRelation.WITHIN);
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setQuery(builder);
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, searchRequestBuilder::get);
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape Line"));
+    }
+
+    public void testQueryLinearRing() throws Exception {
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        ensureGreen();
+
+        LinearRing linearRing = new LinearRing(new double[]{-25, -35, -25}, new double[]{-25, -35, -25});
+
+        // LinearRing extends Line implements Geometry: expose the build process
+        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder(defaultGeoFieldName, linearRing);
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client(), SearchAction.INSTANCE);
+        searchRequestBuilder.setQuery(queryBuilder);
+        searchRequestBuilder.setIndices("test");
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, searchRequestBuilder::get);
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape LinearRing"));
+    }
+
+    public void testQueryPoint() throws Exception {
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        ensureGreen();
+
+        client().prepareIndex("test", "_doc").setId("1").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-35 -25)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        PointBuilder pb = new PointBuilder().coordinate(-35, -25);
+        Point point = pb.buildGeometry();
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.WITHIN)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.CONTAINS)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.DISJOINT)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(0, searchHits.getTotalHits().value);
+        }
+    }
+
+    public void testQueryMultiPoint() throws Exception {
+        XContentBuilder xcb = createDefaultMapping();
+        client().admin().indices().prepareCreate("test").addMapping("_doc", xcb).get();
+        ensureGreen();
+
+        client().prepareIndex("test", "_doc").setId("1").setSource(jsonBuilder()
+            .startObject()
+            .field(defaultGeoFieldName, "POINT(-35 -25)")
+            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+
+        MultiPointBuilder mpb = new MultiPointBuilder().coordinate(-35,-25).coordinate(-15,-5);
+        MultiPoint multiPoint = mpb.buildGeometry();
+
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.WITHIN)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(1, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.CONTAINS)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(0, searchHits.getTotalHits().value);
+        }
+        {
+            SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.DISJOINT)).get();
+            SearchHits searchHits = response.getHits();
+            assertEquals(0, searchHits.getTotalHits().value);
+        }
     }
 }

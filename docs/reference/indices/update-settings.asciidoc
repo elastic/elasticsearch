@@ -26,6 +26,12 @@ PUT /my-index-000001/_settings
 
 `PUT /<target>/_settings`
 
+[[update-index-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
 
 [[update-index-settings-api-path-params]]
 ==== {api-path-parms-title}
@@ -167,7 +173,7 @@ the following commands add the `content` analyzer to the `my-index-000001` index
 
 [source,console]
 --------------------------------------------------
-POST /my-index-000001/_close
+POST /my-index-000001/_close?wait_for_active_shards=0
 
 PUT /my-index-000001/_settings
 {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -41,6 +30,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
@@ -63,6 +53,7 @@ import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -641,6 +632,22 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomMasterTimeout(closeIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(closeIndexRequest::indicesOptions, closeIndexRequest::indicesOptions,
             expectedParams);
+        switch (between(0, 3)) {
+            case 0:
+                break;
+            case 1:
+                closeIndexRequest.waitForActiveShards(ActiveShardCount.DEFAULT);
+                expectedParams.put("wait_for_active_shards", "index-setting");
+                break;
+            case 2:
+                closeIndexRequest.waitForActiveShards(ActiveShardCount.ALL);
+                expectedParams.put("wait_for_active_shards", "all");
+                break;
+            case 3:
+                closeIndexRequest.waitForActiveShards(ActiveShardCount.from(1));
+                expectedParams.put("wait_for_active_shards", "1");
+                break;
+        }
 
         Request request = IndicesRequestConverters.closeIndex(closeIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_close");
@@ -892,6 +899,9 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         if (resizeType == ResizeType.SPLIT) {
             resizeRequest.setSettings(Settings.builder().put("index.number_of_shards", 2).build());
+        }
+        if (resizeType == ResizeType.SHRINK) {
+            resizeRequest.setMaxSinglePrimarySize(new ByteSizeValue(randomIntBetween(1, 100)));
         }
 
         Request request = function.apply(resizeRequest);

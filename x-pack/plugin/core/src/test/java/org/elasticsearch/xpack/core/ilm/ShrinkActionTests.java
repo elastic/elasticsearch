@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -34,12 +36,20 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     static ShrinkAction randomInstance() {
-        return new ShrinkAction(randomIntBetween(1, 100));
+        if (randomBoolean()) {
+            return new ShrinkAction(randomIntBetween(1, 100), null);
+        } else {
+            return new ShrinkAction(null, new ByteSizeValue(randomIntBetween(1, 100)));
+        }
     }
 
     @Override
     protected ShrinkAction mutateInstance(ShrinkAction action) {
-        return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2));
+        if (action.getNumberOfShards() != null) {
+            return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2), null);
+        } else {
+            return new ShrinkAction(null, new ByteSizeValue(action.getMaxSinglePrimarySize().getBytes() + 1));
+        }
     }
 
     @Override
@@ -48,14 +58,24 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     public void testNonPositiveShardNumber() {
-        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0)));
+        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0), null));
         assertThat(e.getMessage(), equalTo("[number_of_shards] must be greater than 0"));
+    }
+
+    public void testMaxSinglePrimarySize() {
+        ByteSizeValue maxSinglePrimarySize1 = new ByteSizeValue(10);
+        Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxSinglePrimarySize1));
+        assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_single_primary_size]"));
+
+        ByteSizeValue maxSinglePrimarySize2 = new ByteSizeValue(0);
+        Exception e2 = expectThrows(Exception.class, () -> new ShrinkAction(null, maxSinglePrimarySize2));
+        assertThat(e2.getMessage(), equalTo("[max_single_primary_size] must be greater than 0"));
     }
 
     public void testPerformActionWithSkip() {
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         int numberOfShards = randomIntBetween(1, 10);
-        ShrinkAction action = new ShrinkAction(numberOfShards);
+        ShrinkAction action = new ShrinkAction(numberOfShards, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
@@ -90,7 +110,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         int divisor = randomFrom(2, 3, 6);
         int expectedFinalShards = numShards / divisor;
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
-        ShrinkAction action = new ShrinkAction(expectedFinalShards);
+        ShrinkAction action = new ShrinkAction(expectedFinalShards, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));

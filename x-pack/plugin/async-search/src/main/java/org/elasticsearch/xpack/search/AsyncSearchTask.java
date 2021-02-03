@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -62,7 +64,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final List<Runnable> initListeners = new ArrayList<>();
     private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
 
-    private volatile long expirationTimeMillis;
+    private final AtomicLong expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
@@ -93,7 +95,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     ThreadPool threadPool,
                     Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
-        this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
+        this.expirationTimeMillis = new AtomicLong(getStartTime() + keepAlive.getMillis());
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
@@ -127,8 +129,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void setExpirationTime(long expirationTimeMillis) {
-        this.expirationTimeMillis = expirationTimeMillis;
+    public void extendExpirationTime(long newExpirationTimeMillis) {
+        this.expirationTimeMillis.updateAndGet(curr -> Math.max(curr, newExpirationTimeMillis));
     }
 
     @Override
@@ -330,11 +332,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         checkCancellation();
         AsyncSearchResponse asyncSearchResponse;
         try {
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
+            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis.get(), restoreResponseHeaders);
         } catch(Exception e) {
             ElasticsearchException exception = new ElasticsearchStatusException("Async search: error while reducing partial results",
                 ExceptionsHelper.status(e), e);
-            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, exception);
+            asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis.get(), exception);
        }
        return asyncSearchResponse;
     }
@@ -342,7 +344,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     // checks if the search task should be cancelled
     private synchronized void checkCancellation() {
         long now = System.currentTimeMillis();
-        if (hasCompleted == false && expirationTimeMillis < now) {
+        if (hasCompleted == false && expirationTimeMillis.get() < now) {
             // we cancel expired search task even if they are still running
             cancelTask(() -> {}, "async search has expired");
         }
@@ -354,7 +356,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     public AsyncStatusResponse getStatusResponse() {
         MutableSearchResponse mutableSearchResponse = searchResponse.get();
         assert mutableSearchResponse != null;
-        return mutableSearchResponse.toStatusResponse(searchId.getEncoded(), getStartTime(), expirationTimeMillis);
+        return mutableSearchResponse.toStatusResponse(searchId.getEncoded(), getStartTime(), expirationTimeMillis.get());
     }
 
     class Listener extends SearchProgressActionListener {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.autoscaling;
@@ -63,8 +64,11 @@ public class NativeMemoryCapacity  {
             useAuto
         ));
         double inverseScale = memoryPercentForMl <= 0 ? 0 : 100.0 / memoryPercentForMl;
+        long actualTier = (long)Math.ceil(tier * inverseScale);
         return new AutoscalingCapacity(
-            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes((long)Math.ceil(tier * inverseScale))),
+            // Tier should always be AT LEAST the largest node size.
+            // This Math.max catches any strange rounding errors or weird input.
+            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(Math.max(actualTier, actualNodeSize))),
             new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(actualNodeSize))
         );
     }

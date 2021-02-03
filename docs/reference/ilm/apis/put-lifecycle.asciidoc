@@ -21,8 +21,8 @@ definitions of policy components.
 cluster privilege to use this API. You must also have the `manage` index
 privilege on all indices being managed by `policy`. {ilm-init} performs
 operations as the user who last updated the policy. {ilm-init} only has the
-<<security-privileges,privileges>> assigned to the user at the time of the
-last policy update.
+<<defining-roles,roles>> assigned to the user at the time of the last policy
+update.
 
 [[ilm-put-lifecycle-desc]]
 ==== {api-description-title}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -61,7 +50,7 @@ public class PlainHighlighter implements Highlighter {
 
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
-        if (!fieldContext.cache.containsKey(CACHE_KEY)) {
+        if (fieldContext.cache.containsKey(CACHE_KEY) == false) {
             fieldContext.cache.put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
@@ -100,11 +89,11 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER);
-        final int maxAnalyzedOffset = context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        Analyzer analyzer = context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER);
+        final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         textsToHighlight
-            = HighlightUtils.loadFieldValues(fieldType, context.getQueryShardContext(), hitContext, fieldContext.forceSource);
+            = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext, fieldContext.forceSource);
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
@@ -120,7 +109,8 @@ public class PlainHighlighter implements Highlighter {
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
-                if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
+                if (tokenStream.hasAttribute(CharTermAttribute.class) == false
+                        || tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
                 }
@@ -183,7 +173,7 @@ public class PlainHighlighter implements Highlighter {
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents)
             throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
-            if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
+            if (tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                 // Can't split on term boundaries without offsets
                 return -1;
             }

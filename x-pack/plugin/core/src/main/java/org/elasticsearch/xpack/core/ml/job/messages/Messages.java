@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.messages;
 
@@ -69,6 +70,8 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED =
         "Configured model memory limit [{0}] is lower than the expected memory usage [{1}]. " +
             "The analytics job may fail due to configured memory constraints.";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_UNABLE_TO_ESTIMATE_MEMORY_USAGE =
+        "Data frame analytics is unable to provide an accurate estimate. Unable to determine if configured memory [{0}] is adequate.";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX = "Creating destination index [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX = "Using existing destination index [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING = "Started reindexing to destination index [{0}]";

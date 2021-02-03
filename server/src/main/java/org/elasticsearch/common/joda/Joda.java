@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
@@ -75,7 +65,8 @@ public class Joda {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             getDeprecationLogger()
-                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate(DeprecationCategory.PARSING,"camelCaseDateFormat", msg, formatName.getCamelCaseName(),
+                    formatName.getSnakeCaseName());
         }
 
         DateTimeFormatter formatter;
@@ -159,8 +150,8 @@ public class Joda {
             formatter = ISODateTimeFormat.weekDateTimeNoMillis();
         } else if (FormatNames.WEEKYEAR.matches(input)) {
             getDeprecationLogger()
-                .deprecate("week_year_format_name", "Format name \"week_year\" is deprecated and will be removed in a future version. " +
-                    "Use \"weekyear\" format instead");
+                .deprecate(DeprecationCategory.PARSING, "week_year_format_name",
+                    "Format name \"week_year\" is deprecated and will be removed in a future version. Use \"weekyear\" format instead");
             formatter = ISODateTimeFormat.weekyear();
         } else if (FormatNames.WEEK_YEAR.matches(input)) {
             formatter = ISODateTimeFormat.weekyear();
@@ -289,7 +280,7 @@ public class Joda {
     private static void maybeLogJodaDeprecation(String format) {
         if (JodaDeprecationPatterns.isDeprecatedPattern(format)) {
             String suggestion = JodaDeprecationPatterns.formatSuggestion(format);
-            getDeprecationLogger().deprecate("joda-pattern-deprecation",
+            getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "joda-pattern-deprecation",
                 suggestion + " " + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
     }
@@ -399,12 +390,13 @@ public class Joda {
                 long millis = new BigDecimal(text).longValue() * factor;
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
-                    getDeprecationLogger().deprecate("epoch-negative", "Use of negative values" +
+                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-negative", "Use of negative values" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
-                    getDeprecationLogger().deprecate("epoch-scientific-notation", "Use of scientific notation" +
-                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-scientific-notation",
+                        "Use of scientific notation in epoch time formats is deprecated and will not be supported in the "
+                            + "next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());

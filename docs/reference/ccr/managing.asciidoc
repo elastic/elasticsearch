@@ -127,7 +127,7 @@ process. Then, close the follower index and recreate it. For example:
 ----------------------------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 
-POST /follower_index/_close
+POST /follower_index/_close?wait_for_active_shards=0
 
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {

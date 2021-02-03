@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -41,6 +43,8 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.RollupILMAction;
+import org.elasticsearch.xpack.core.ilm.RollupStep;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
@@ -50,12 +54,17 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -110,7 +119,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
         String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
         String secondIndex = index + "-000002";
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.routing.allocation.include._name", "javaRestTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
@@ -182,15 +191,15 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards)));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numShards + randomIntBetween(1, numShards), null));
         updatePolicy(index, policy);
         assertBusy(() -> {
             String failedStep = getFailedStepForIndex(index);
             assertThat(failedStep, equalTo(ShrinkStep.NAME));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // update policy to be correct
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
         updatePolicy(index, policy);
 
         // retry step
@@ -499,7 +508,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-        });
+        }, 30, TimeUnit.SECONDS);
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
@@ -518,7 +527,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null));
         updatePolicy(index, policy);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
@@ -537,7 +546,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numberOfShards));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numberOfShards, null));
         updatePolicy(index, policy);
         assertBusy(() -> {
             assertTrue(indexExists(index));
@@ -567,7 +576,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .endObject()));
         assertOK(client().performRequest(request));
         // create delete policy
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1), TimeValue.timeValueMillis(0));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null), TimeValue.timeValueMillis(0));
         // create index without policy
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
@@ -611,7 +620,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // add a policy
         Map<String, LifecycleAction> hotActions = org.elasticsearch.common.collect.Map.of(
             RolloverAction.NAME, new RolloverAction(null, null, 1L),
-            ShrinkAction.NAME, new ShrinkAction(expectedFinalShards));
+            ShrinkAction.NAME, new ShrinkAction(expectedFinalShards, null));
         Map<String, Phase> phases = org.elasticsearch.common.collect.Map.of(
             "hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
@@ -673,7 +682,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assign the policy that'll attempt to shrink the index (disabling the migrate action as it'll otherwise wait for
         // all shards to be active and we want that to happen as part of the shrink action)
         MigrateAction migrateAction = new MigrateAction(false);
-        ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards);
+        ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null);
         Phase phase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(
             migrateAction.getWriteableName(), migrateAction, shrinkAction.getWriteableName(), shrinkAction)
         );
@@ -1222,7 +1231,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54093")
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, 1L));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
@@ -1252,7 +1260,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "close-follower-index"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "unfollow-follower-index"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "open-follower-index"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-yellow-step"), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-index-color"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "attempt-rollover"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "set-indexing-complete"), 30, TimeUnit.SECONDS);
@@ -1473,6 +1481,40 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 return false;
             }
         }, 30, TimeUnit.SECONDS));
+    }
+
+    public void testRollupIndex() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String rollupIndex = RollupStep.getRollupIndexName(index);
+        index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
+        RollupActionConfig rollupConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
+
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
+        updatePolicy(index, policy);
+
+        assertBusy(() -> assertTrue(indexExists(rollupIndex)));
+        assertBusy(() -> assertFalse(getOnlyIndexSettings(client(), rollupIndex).containsKey(LifecycleSettings.LIFECYCLE_NAME)));
+        assertBusy(() -> assertTrue(indexExists(index)));
+    }
+
+    public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
+        index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
+        RollupActionConfig rollupConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
+
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));
+        updatePolicy(index, policy);
+
+        assertBusy(() -> assertTrue(indexExists(rollupIndex)));
+        assertBusy(() -> assertThat(getOnlyIndexSettings(client(), rollupIndex).get(LifecycleSettings.LIFECYCLE_NAME), equalTo(policy)));
+        assertBusy(() -> assertTrue(indexExists(index)));
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own

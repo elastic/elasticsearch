@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch;
@@ -38,7 +27,7 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
@@ -113,7 +102,7 @@ public class FetchPhase {
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
-        NestedDocuments nestedDocuments = context.getQueryShardContext().getNestedDocuments();
+        NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
@@ -208,7 +197,7 @@ public class FetchPhase {
 
         if (storedFieldsContext == null) {
             // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+            if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
             boolean loadSource = sourceRequired(context);
@@ -224,13 +213,13 @@ public class FetchPhase {
                     context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
-                QueryShardContext queryShardContext = context.getQueryShardContext();
-                Collection<String> fieldNames = queryShardContext.simpleMatchToIndexNames(fieldNameOrPattern);
+                SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
+                Collection<String> fieldNames = searchExecutionContext.simpleMatchToIndexNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = queryShardContext.getFieldType(fieldName);
+                    MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
                     if (fieldType == null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                        if (queryShardContext.getObjectMapper(fieldName) != null) {
+                        if (searchExecutionContext.getObjectMapper(fieldName) != null) {
                             throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                         }
                     } else {
@@ -286,22 +275,22 @@ public class FetchPhase {
                                                   LeafReaderContext subReaderContext,
                                                   CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
-        QueryShardContext queryShardContext = context.getQueryShardContext();
+        SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         if (fieldsVisitor == null) {
-            SearchHit hit = new SearchHit(docId, null, new Text(queryShardContext.getType()), null, null);
+            SearchHit hit = new SearchHit(docId, null, new Text(searchExecutionContext.getType()), null, null);
             return new HitContext(hit, subReaderContext, subDocId);
         } else {
             SearchHit hit;
-            loadStoredFields(context.getQueryShardContext()::getFieldType, queryShardContext.getType(), fieldReader,
+            loadStoredFields(context.getSearchExecutionContext()::getFieldType, searchExecutionContext.getType(), fieldReader,
                 fieldsVisitor, subDocId);
             Uid uid = fieldsVisitor.uid();
             if (fieldsVisitor.fields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
                 fillDocAndMetaFields(context, fieldsVisitor, storedToRequestedFields, docFields, metaFields);
-                hit = new SearchHit(docId, uid.id(), new Text(queryShardContext.getType()), docFields, metaFields);
+                hit = new SearchHit(docId, uid.id(), new Text(searchExecutionContext.getType()), docFields, metaFields);
             } else {
-                hit = new SearchHit(docId, uid.id(), new Text(queryShardContext.getType()), emptyMap(), emptyMap());
+                hit = new SearchHit(docId, uid.id(), new Text(searchExecutionContext.getType()), emptyMap(), emptyMap());
             }
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId);
@@ -310,7 +299,7 @@ public class FetchPhase {
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
                 hitContext.sourceLookup().setSource(fieldsVisitor.source());
 
-                SourceLookup scriptSourceLookup = context.getQueryShardContext().lookup().source();
+                SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                 scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
                 scriptSourceLookup.setSource(fieldsVisitor.source());
             }
@@ -344,21 +333,21 @@ public class FetchPhase {
         Map<String, Object> rootSourceAsMap = null;
         XContentType rootSourceContentType = null;
 
-        QueryShardContext queryShardContext = context.getQueryShardContext();
+        SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         if (context instanceof InnerHitsContext.InnerHitSubContext) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = (InnerHitsContext.InnerHitSubContext) context;
             rootId = innerHitsContext.getRootId();
 
             if (needSource) {
                 SourceLookup rootLookup = innerHitsContext.getRootLookup();
-                rootSourceAsMap = rootLookup.loadSourceIfNeeded();
+                rootSourceAsMap = rootLookup.source();
                 rootSourceContentType = rootLookup.sourceContentType();
             }
         } else {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(queryShardContext::getFieldType, queryShardContext.getType(),
+            loadStoredFields(searchExecutionContext::getFieldType, searchExecutionContext.getType(),
                 storedFieldReader, rootFieldsVisitor, nestedInfo.rootDoc());
-            rootFieldsVisitor.postProcess(queryShardContext::getFieldType, queryShardContext.getType());
+            rootFieldsVisitor.postProcess(searchExecutionContext::getFieldType, searchExecutionContext.getType());
             rootId = rootFieldsVisitor.uid();
 
             if (needSource) {
@@ -376,7 +365,7 @@ public class FetchPhase {
         Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            loadStoredFields(queryShardContext::getFieldType, queryShardContext.getType(),
+            loadStoredFields(searchExecutionContext::getFieldType, searchExecutionContext.getType(),
                 storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
                 docFields = new HashMap<>();
@@ -387,7 +376,7 @@ public class FetchPhase {
 
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
 
-        SearchHit hit = new SearchHit(topDocId, rootId.id(), new Text(queryShardContext.getType()),
+        SearchHit hit = new SearchHit(topDocId, rootId.id(), new Text(searchExecutionContext.getType()),
             nestedIdentity, docFields, metaFields);
         HitContext hitContext = new HitContext(hit, subReaderContext, nestedInfo.doc());
 
@@ -455,14 +444,14 @@ public class FetchPhase {
             List<Object> storedValues = entry.getValue();
             if (storedToRequestedFields.containsKey(storedField)) {
                 for (String requestedField : storedToRequestedFields.get(storedField)) {
-                    if (context.getQueryShardContext().isMetadataField(requestedField)) {
+                    if (context.getSearchExecutionContext().isMetadataField(requestedField)) {
                         metaFields.put(requestedField, new DocumentField(requestedField, storedValues));
                     } else {
                         docFields.put(requestedField, new DocumentField(requestedField, storedValues));
                     }
                 }
             } else {
-                if (context.getQueryShardContext().isMetadataField(storedField)) {
+                if (context.getSearchExecutionContext().isMetadataField(storedField)) {
                     metaFields.put(storedField, new DocumentField(storedField, storedValues));
                 } else {
                     docFields.put(storedField, new DocumentField(storedField, storedValues));

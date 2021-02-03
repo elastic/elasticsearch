@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -35,6 +24,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -366,7 +356,7 @@ final class Bootstrap {
                     + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
                     + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
                 System.getProperty("java.home"));
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
+            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.OTHER, "java_version_11_required", message);
         }
         if (BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection") != null) {
             final String message = String.format(
@@ -374,7 +364,8 @@ final class Bootstrap {
                 "The Java option es.xcontent.strict_duplicate_detection is set to [%s]; " +
                     "this option is deprecated and non-functional and should be removed from Java configuration.",
                 BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection"));
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate("strict_duplicate_detection_setting_removed", message);
+            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.SETTINGS,
+                "strict_duplicate_detection_setting_removed", message);
         }
         if (environment.pidFile() != null) {
             try {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -28,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -127,7 +128,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -136,7 +137,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), qsc.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
@@ -182,7 +183,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
@@ -205,7 +206,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomLong(), ctx);
     }
 
@@ -241,7 +242,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(org.elasticsearch.common.collect.List.of(randomLong()), ctx);
     }
 
@@ -326,7 +327,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         };
         ScriptModule scriptModule = new ScriptModule(
             Settings.EMPTY,
-            org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields())
+            org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY))
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DoubleFieldScript.Factory factory = scriptService.compile(script, DoubleFieldScript.CONTEXT);

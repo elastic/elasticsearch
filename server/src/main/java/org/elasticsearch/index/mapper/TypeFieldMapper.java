@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -26,12 +15,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -48,7 +38,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     public static void emitTypesDeprecationWarning() {
-        deprecationLogger.deprecate("query_with_types", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate(DeprecationCategory.TYPES, "query_with_types", TYPES_DEPRECATION_MESSAGE);
     }
 
     public static final String NAME = "_type";
@@ -98,18 +88,18 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             emitTypesDeprecationWarning();
             return new MatchAllDocsQuery();
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             emitTypesDeprecationWarning();
             if (type == null) {
                 return false;
@@ -119,7 +109,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
             emitTypesDeprecationWarning();
             BytesRef lower = (BytesRef) lowerTerm;
             BytesRef upper = (BytesRef) upperTerm;

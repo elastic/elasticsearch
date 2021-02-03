@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
@@ -60,7 +62,8 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         }
 
         if (metrics.contains("pending_watches")) {
-            deprecationLogger.deprecate("pending_watches", "The pending_watches parameter is deprecated, use queued_watches instead");
+            deprecationLogger.deprecate(DeprecationCategory.API, "pending_watches",
+                "The pending_watches parameter is deprecated, use queued_watches instead");
         }
 
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,6 +27,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.cache.CacheFile;
+import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
@@ -40,9 +44,19 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.SortedSet;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
 
@@ -189,5 +203,52 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 assertEquals(stat.getQueue(), 0);
             }
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Generates one or more cache files using the specified {@link CacheService}. Each cache files have been written at least once.
+     */
+    protected List<CacheFile> randomCacheFiles(CacheService cacheService) throws Exception {
+        final byte[] buffer = new byte[1024];
+        Arrays.fill(buffer, (byte) 0xff);
+
+        final List<CacheFile> cacheFiles = new ArrayList<>();
+        for (int snapshots = 0; snapshots < between(1, 2); snapshots++) {
+            final String snapshotUUID = UUIDs.randomBase64UUID(random());
+            for (int indices = 0; indices < between(1, 2); indices++) {
+                IndexId indexId = new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
+                for (int shards = 0; shards < between(1, 2); shards++) {
+                    ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), shards);
+
+                    final Path cacheDir = Files.createDirectories(
+                        CacheService.resolveSnapshotCache(randomShardPath(shardId)).resolve(snapshotUUID)
+                    );
+
+                    for (int files = 0; files < between(1, 2); files++) {
+                        final CacheKey cacheKey = new CacheKey(snapshotUUID, indexId.getName(), shardId, "file_" + files);
+                        final CacheFile cacheFile = cacheService.get(cacheKey, randomLongBetween(100L, buffer.length), cacheDir);
+
+                        final CacheFile.EvictionListener listener = evictedCacheFile -> {};
+                        cacheFile.acquire(listener);
+                        try {
+                            SortedSet<Tuple<Long, Long>> ranges = Collections.emptySortedSet();
+                            while (ranges.isEmpty()) {
+                                ranges = randomPopulateAndReads(cacheFile, (channel, from, to) -> {
+                                    try {
+                                        channel.write(ByteBuffer.wrap(buffer, Math.toIntExact(from), Math.toIntExact(to)));
+                                    } catch (IOException e) {
+                                        throw new AssertionError(e);
+                                    }
+                                });
+                            }
+                            cacheFiles.add(cacheFile);
+                        } finally {
+                            cacheFile.release(listener);
+                        }
+                    }
+                }
+            }
+        }
+        return cacheFiles;
     }
 }

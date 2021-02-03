@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -473,6 +462,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
+            @SuppressWarnings("rawtypes")
             public void onResponseReceived(long requestId, Transport.ResponseContext context) {
                 if (context.action().equals(ACTION)) {
                     responseReceived.incrementAndGet();
@@ -1022,7 +1012,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.transport.TransportService.tracer:trace",
+        value = "org.elasticsearch.transport.TransportService.tracer:trace,_root:DEBUG",
         reason = "to ensure we log network events on TRACE level")
     public void testTracerLog() throws Exception {
         TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
@@ -1072,6 +1062,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
             .build());
 
+        boolean success = false;
         MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
@@ -1116,9 +1107,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             appender.addExpectation(errorResponseSentExpectation);
             appender.addExpectation(errorResponseReceivedExpectation);
 
+            logger.info("--> [internal:testError] sending message");
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
-
+            logger.info("--> [internal:testError] checking expectations");
             assertBusy(appender::assertAllExpectationsMatched);
+            logger.info("--> [internal:testError] expectations ok");
 
             final String notSeenSent = "*[internal:testNotSeen]*sent to*";
             final MockLogAppender.LoggingExpectation notSeenSentExpectation =
@@ -1133,13 +1126,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             appender.addExpectation(notSeenReceivedExpectation);
 
             PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
+            logger.info("--> [internal:testNotSeen] sending message");
             serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);
+            logger.info("--> [internal:testNotSeen] awaiting response");
             future.txGet();
-
+            logger.info("--> [internal:testNotSeen] checking expectations");
             assertBusy(appender::assertAllExpectationsMatched);
+            logger.info("--> [internal:testNotSeen] expectations ok");
+
+            success = true;
+        } catch (Throwable t) { // TODO remove once https://github.com/elastic/elasticsearch/issues/66630 resolved
+            logger.info("--> test failed", t);
+            throw t;
         } finally {
+            logger.info("--> removing appender [success={}]", success);
             Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            logger.info("--> stopping appender [success={}]", success);
             appender.stop();
+            logger.info("--> all done [success={}]", success);
         }
     }
 
@@ -1565,7 +1569,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         });
 
-        if (!latch.await(10, TimeUnit.SECONDS)) {
+        if (latch.await(10, TimeUnit.SECONDS) == false) {
             fail("message round trip did not complete within a sensible time frame");
         }
 
@@ -2496,12 +2500,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings globalSettings2 = Settings.builder()
-            .put("network.tcp.no_delay", !enable)
-            .put("network.tcp.keep_alive", !enable)
+            .put("network.tcp.no_delay", enable == false)
+            .put("network.tcp.keep_alive", enable == false)
             .put("network.tcp.keep_idle", "43")
             .put("network.tcp.keep_interval", "8")
             .put("network.tcp.keep_count", "14")
-            .put("network.tcp.reuse_address", !enable)
+            .put("network.tcp.reuse_address", enable == false)
             .put("network.tcp.send_buffer_size", "4b")
             .put("network.tcp.receive_buffer_size", "3b")
             .put("network.publish_host", "another_publish_host")
@@ -2524,12 +2528,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings transportSettings2 = Settings.builder()
-            .put("transport.tcp.no_delay", !enable)
-            .put("transport.tcp.keep_alive", !enable)
+            .put("transport.tcp.no_delay", enable == false)
+            .put("transport.tcp.keep_alive", enable == false)
             .put("transport.tcp.keep_idle", "43")
             .put("transport.tcp.keep_interval", "8")
             .put("transport.tcp.keep_count", "14")
-            .put("transport.tcp.reuse_address", !enable)
+            .put("transport.tcp.reuse_address", enable == false)
             .put("transport.tcp.send_buffer_size", "5b")
             .put("transport.tcp.receive_buffer_size", "6b")
             .put("transport.publish_host", "another_publish_host")

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -22,7 +23,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -149,7 +151,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
+    public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return DateFieldType.handleNow(context, now -> {
             long originLong = DateFieldType.parseToLong(
@@ -172,7 +174,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
@@ -185,7 +187,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         boolean includeUpper,
         ZoneId timeZone,
         @Nullable DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         parser = parser == null ? dateTimeFormatter.toDateMathParser() : parser;
         checkAllowExpensiveQueries(context);
@@ -203,7 +205,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         return DateFieldType.handleNow(context, now -> {
             long l = DateFieldType.parseToLong(
                 value,
@@ -219,7 +221,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }

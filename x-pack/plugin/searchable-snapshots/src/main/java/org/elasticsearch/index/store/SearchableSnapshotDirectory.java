@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store;
 
@@ -51,8 +52,10 @@ import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
@@ -85,7 +88,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
@@ -212,7 +216,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
-                    cleanExistingCacheFiles();
+                    waitForPendingEvictions();
                     this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
                     prewarmCache(preWarmListener);
                 }
@@ -428,12 +432,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     /**
-     * Evicts all cache files associated to the current searchable snapshot shard in case a
+     * Waits for the eviction of cache files associated with the current searchable snapshot shard to be processed in case a
      * previous instance of that same shard has been marked as evicted on this node.
      */
-    private void cleanExistingCacheFiles() {
+    private void waitForPendingEvictions() {
         assert Thread.holdsLock(this);
-        cacheService.runIfShardMarkedAsEvictedInCache(snapshotId, indexId, shardId, this::clearCache);
+        cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
     }
 
     private void prewarmCache(ActionListener<Void> listener) {
@@ -480,8 +484,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
                         logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
                         final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                        ((CachedBlobContainerIndexInput) input).prefetchPart(part);
-                        recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                        if (persistentCacheLength == file.length()) {
+                            recoveryState.markIndexFileAsReused(file.physicalName());
+                        } else {
+                            recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                        }
 
                         logger.trace(
                             () -> new ParameterizedMessage(
@@ -532,7 +540,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         BlobStoreCacheService blobStoreCacheService
     ) throws IOException {
 
-        if (SNAPSHOT_REPOSITORY_SETTING.exists(indexSettings.getSettings()) == false
+        if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_INDEX_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_INDEX_ID_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_SNAPSHOT_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -558,8 +566,25 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
         }
 
-        final String repositoryName = SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings());
-        final Repository repository = repositories.repository(repositoryName);
+        Repository repository;
+        final String repositoryName;
+        if (SNAPSHOT_REPOSITORY_UUID_SETTING.exists(indexSettings.getSettings())) {
+            repository = repositoryByUuid(
+                repositories.getRepositories(),
+                SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings.getSettings()),
+                SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings())
+            );
+            repositoryName = repository.getMetadata().name();
+        } else {
+            // repository containing pre-7.12 snapshots has no UUID so we assume it matches by name
+            repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings());
+            repository = repositories.repository(repositoryName);
+            assert repository.getMetadata().name().equals(repositoryName) : repository.getMetadata().name() + " vs " + repositoryName;
+        }
+
+        if (repository instanceof SourceOnlySnapshotRepository) {
+            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
+        }
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }
@@ -630,6 +655,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void putCachedBlob(String name, long offset, BytesReference content, ActionListener<Void> listener) {
         blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
+    }
+
+    private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {
+        for (Repository repository : repositories.values()) {
+            if (repository.getMetadata().uuid().equals(repositoryUuid)) {
+                return repository;
+            }
+        }
+        throw new RepositoryMissingException("uuid [" + repositoryUuid + "], original name [" + originalName + "]");
     }
 
     /**

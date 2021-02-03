@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql;
@@ -11,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -41,7 +43,7 @@ public final class SqlTestUtils {
 
     public static final SqlConfiguration TEST_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
-            null, null, null, false, false);
+            null, null, null, null, false, false);
 
     /**
      * Returns the current UTC date-time with milliseconds precision.
@@ -49,7 +51,7 @@ public final class SqlTestUtils {
      * that the precision of the clock can be milliseconds, microseconds or nanoseconds), whereas in Java 8
      * {@code System.currentTimeMillis()} is always used. To account for these differences, this method defines a new {@code Clock}
      * which will offer a value for {@code ZonedDateTime.now()} set to always have milliseconds precision.
-     * 
+     *
      * @return {@link ZonedDateTime} instance for the current date-time with milliseconds precision in UTC
      */
     public static ZonedDateTime now() {
@@ -58,12 +60,13 @@ public final class SqlTestUtils {
 
     public static SqlConfiguration randomConfiguration() {
         return new SqlConfiguration(randomZone(),
-                randomIntBetween(0,  1000),
+                randomIntBetween(0, 1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
+                null,
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 false,
@@ -72,12 +75,28 @@ public final class SqlTestUtils {
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
         return new SqlConfiguration(providedZoneId,
-                randomIntBetween(0,  1000),
+            randomIntBetween(0, 1000),
+            new TimeValue(randomNonNegativeLong()),
+            new TimeValue(randomNonNegativeLong()),
+            null,
+            randomFrom(Mode.values()),
+            randomAlphaOfLength(10),
+            null,
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            false,
+            randomBoolean());
+    }
+
+    public static SqlConfiguration randomConfiguration(SqlVersion version) {
+        return new SqlConfiguration(randomZone(),
+                randomIntBetween(0, 1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
+                version,
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 false,

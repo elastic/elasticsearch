@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest;
@@ -103,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction.WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1042,7 +1032,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
             }
             Path path = PathUtils.get(keystorePath);
-            if (!Files.exists(path)) {
+            if (Files.exists(path) == false) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
@@ -1060,7 +1050,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         if (certificateAuthorities != null) {
             Path path = PathUtils.get(certificateAuthorities);
-            if (!Files.exists(path)) {
+            if (Files.exists(path) == false) {
                 throw new IllegalStateException(CERTIFICATE_AUTHORITIES + " is set but points to a non-existing file");
             }
             try {
@@ -1251,13 +1241,24 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest(new Request("HEAD", "/" + index));
+        final Request getRequest = new Request("HEAD", "/" + index);
+        getRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in get indices " +
+                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', which means responses will omit the type " +
+                "name in mapping definitions.";
+            v.compatible(typesWarning);
+        }));
+        Response response = client().performRequest(getRequest);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
     protected static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest(new Request("POST", "/" + index + "/_close"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");
+        closeRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
+            v.compatible(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
+        }));
+        assertOK(client().performRequest(closeRequest));
     }
 
     protected static void openIndex(String index) throws IOException {

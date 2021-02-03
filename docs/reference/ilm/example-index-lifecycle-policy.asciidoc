@@ -1,9 +1,9 @@
 [role="xpack"]
 
 [[example-using-index-lifecycle-policy]]
-=== Tutorial: Customize built-in {ilm} policies
+=== Tutorial: Customize built-in {ilm-init} policies
 ++++
-<titleabbrev>Customize built-in {ilm} policies</titleabbrev>
+<titleabbrev>Customize built-in {ilm-init} policies</titleabbrev>
 ++++
 
 {es} includes the following built-in {ilm-init} policies:

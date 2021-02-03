@@ -17,7 +17,7 @@ dependencies {
 tasks.named("integTest").configure{ enabled = false}
 
 //for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.onOrAfter('7.9.0') }) {
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it == Version.fromString("7.11.0") }) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it == Version.fromString("7.10.3") }) {
   if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
     continue;

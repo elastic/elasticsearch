@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -49,6 +51,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
     private static final Logger log = LogManager.getLogger(TransportSqlQueryAction.class);
@@ -168,7 +171,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<List<Object>> rows = new ArrayList<>();
         page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
-            rowView.forEachColumn(row::add);
+            rowView.forEachColumn(r -> row.add(value(r, request.mode())));
             rows.add(unmodifiableList(row));
         });
 
@@ -178,5 +181,16 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 request.columnar(),
                 header,
                 rows);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static Object value(Object r, Mode mode) {
+        // Intervals and GeoShape instances
+        if (r instanceof GeoShape) {
+            return r.toString();
+        } else if (r instanceof Interval && mode != CLI) {
+            return ((Interval) r).value();
+        }
+        return r;
     }
 }

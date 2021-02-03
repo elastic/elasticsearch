@@ -144,6 +144,8 @@ public class SqlSearchIT extends ESRestTestCase {
         BiConsumer<StringBuilder, Map<String, Object>> additionalValues) throws IOException {
         Map<String, Object> expectedResponse = new HashMap<>();
         List<Map<String, Object>> columns = new ArrayList<>();
+        columns.add(columnInfo("interval_year", "interval_year"));
+        columns.add(columnInfo("interval_minute", "interval_minute"));
         columns.add(columnInfo("long_field", "long"));
         columns.add(columnInfo("integer_field", "integer"));
         columns.add(columnInfo("short_field", "short"));
@@ -169,6 +171,9 @@ public class SqlSearchIT extends ESRestTestCase {
         String constantKeywordValue = randomAlphaOfLength(5);
         for (int i = 0; i < numDocs; i++) {
             fieldValues = new LinkedHashMap<>();
+            fieldValues.put("interval_year", "P150Y");
+            fieldValues.put("interval_minute", "PT2H43M");
+
             StringBuilder builder = new StringBuilder();
             builder.append("{");
             builder.append("\"id\":" + i + ",");
@@ -208,11 +213,7 @@ public class SqlSearchIT extends ESRestTestCase {
         Map<String, Object> column = new HashMap<>();
         column.put("name", name);
         column.put("type", type);
-        //if (bwcVersion.onOrAfter(Version.V_7_2_0)) {
         column.put("display_size", SqlDataTypes.displaySize(SqlDataTypes.fromTypeName(type)));
-        //} else {
-            //column.put("display_size", 0);
-        //}
         return unmodifiableMap(column);
     }
 
@@ -226,12 +227,16 @@ public class SqlSearchIT extends ESRestTestCase {
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
-            String fieldsList = columns.stream().map(m -> (String) m.get("name")).collect(Collectors.toList()).stream()
-                .collect(Collectors.joining(", "));
+            String intervalYearMonth = "INTERVAL '150' YEAR AS interval_year, ";
+            String intervalDayTime = "INTERVAL '163' MINUTE AS interval_minute, ";
+
+            // get all fields names from the expected response built earlier, skipping the intervals as they execute locally
+            // and not taken from the index itself
+            String fieldsList = columns.stream().map(m -> (String) m.get("name")).filter(str -> str.startsWith("interval") == false)
+                .collect(Collectors.toList()).stream().collect(Collectors.joining(", "));
+            String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
             request.setJsonEntity(
-                "{\"mode\":\"jdbc\"" + versionSupport + binaryFormatSupport + ",\"query\":\"SELECT " + fieldsList + " FROM "
-                    + index
-                    + " ORDER BY id\"}"
+                "{\"mode\":\"jdbc\"" + versionSupport + binaryFormatSupport + ",\"query\":\"" + query + "\"}"
             );
             assertBusy(() -> { assertResponse(expectedResponse, runSql(client, request)); });
         }

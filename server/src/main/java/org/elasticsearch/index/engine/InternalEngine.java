@@ -2507,6 +2507,12 @@ public class InternalEngine extends Engine {
     public Translog.Snapshot newChangesSnapshot(String source,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         ensureOpen();
+        if (requiredFullRange) {
+            final Translog.Snapshot snapshot = translog.newChangesSnapshot(fromSeqNo, toSeqNo);
+            if (snapshot != null) {
+                return snapshot;
+            }
+        }
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {

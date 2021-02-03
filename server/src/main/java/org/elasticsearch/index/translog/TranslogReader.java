@@ -20,6 +20,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.translog.Translog.getCommitCheckpointFileName;
@@ -32,6 +33,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     private final int totalOperations;
     private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
+    private final Map<Long, Translog.Location> seqNoToLocations;
 
     /**
      * Create a translog writer against the specified translog file channel.
@@ -41,11 +43,13 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param path       the path to the translog
      * @param header     the header of the translog file
      */
-    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header) {
+    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header,
+                   final Map<Long, Translog.Location> seqNoToLocations) {
         super(checkpoint.generation, channel, path, header);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
+        this.seqNoToLocations = seqNoToLocations;
     }
 
     /**
@@ -61,7 +65,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     public static TranslogReader open(
             final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
-        return new TranslogReader(checkpoint, channel, path, header);
+        return new TranslogReader(checkpoint, channel, path, header, Map.of());
     }
 
     /**
@@ -81,9 +85,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                     Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
-                    newReader = new TranslogReader(newCheckpoint, channel, path, header);
+                    newReader = new TranslogReader(newCheckpoint, channel, path, header, Map.of());
                 } else {
-                    newReader = new TranslogReader(checkpoint, channel, path, header);
+                    newReader = new TranslogReader(checkpoint, channel, path, header, Map.of());
                 }
                 toCloseOnFailure = null;
                 return newReader;
@@ -106,6 +110,11 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     @Override
     final Checkpoint getCheckpoint() {
         return checkpoint;
+    }
+
+    @Override
+    protected TranslogSnapshot newSnapshot() {
+        return new TranslogSnapshot(this, seqNoToLocations::get);
     }
 
     /**

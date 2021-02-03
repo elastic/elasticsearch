@@ -79,7 +79,8 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             }
             writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
                 tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, 1L, 1L, () -> 1L,
-                () -> 1L, randomNonNegativeLong(), new TragicExceptionHolder(), seqNo -> {}, BigArrays.NON_RECYCLING_INSTANCE);
+                () -> 1L, randomNonNegativeLong(), new TragicExceptionHolder(), seqNo -> {}, BigArrays.NON_RECYCLING_INSTANCE,
+                ESTestCase::randomBoolean);
             writer = Mockito.spy(writer);
             byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);

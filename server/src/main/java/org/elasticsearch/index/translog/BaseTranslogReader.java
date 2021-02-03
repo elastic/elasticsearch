@@ -78,9 +78,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return size;
     }
 
-    public TranslogSnapshot newSnapshot() {
-        return new TranslogSnapshot(this, sizeInBytes());
-    }
+    protected abstract TranslogSnapshot newSnapshot();
 
     /**
      * reads an operation at the given position and returns it. The buffer length is equal to the number

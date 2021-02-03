@@ -11,6 +11,7 @@ package org.elasticsearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -122,6 +123,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
     private final LongConsumer persistedSequenceNumberConsumer;
+    private final AtomicBoolean trackLocations = new AtomicBoolean(false);
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -500,7 +502,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 initialMinTranslogGen, initialGlobalCheckpoint,
                 globalCheckpointSupplier, this::getMinFileGeneration, primaryTermSupplier.getAsLong(), tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays);
+                bigArrays,
+                trackLocations::get);
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
         }
@@ -593,6 +596,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     // for testing
+    // TODO: Rename this to newRecoverySnapshot?
     public Snapshot newSnapshot() throws IOException {
         return newSnapshot(0, Long.MAX_VALUE);
     }
@@ -604,16 +608,104 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param toSeqNo   the upper bound of the range (inclusive)
      * @return the new snapshot
      */
+    // TODO: Rename this to newRecoverySnapshot?
     public Snapshot newSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
         assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
         assert fromSeqNo >= 0 : "from_seq_no must be non-negative " + fromSeqNo;
+        sync();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
-                .filter(reader -> reader.getCheckpoint().minSeqNo <= toSeqNo && fromSeqNo <= reader.getCheckpoint().maxEffectiveSeqNo())
-                .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
-            final Snapshot snapshot = newMultiSnapshot(snapshots);
-            return new SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
+            final TranslogSnapshot[] snapshots = filterSnapshots(fromSeqNo, toSeqNo);
+            if (snapshots.length == 0) {
+                return new MultiSnapshot(snapshots, () -> {});
+            } else {
+                assert Arrays.stream(snapshots).map(BaseTranslogReader::getGeneration).min(Long::compareTo).get()
+                    == snapshots[0].generation : "first reader generation of " + snapshots + " is not the smallest";
+                final Closeable onClose = acquireTranslogGenFromDeletionPolicy(snapshots[0].generation);
+                boolean success = false;
+                try {
+                    Snapshot snapshot = new MultiSnapshot(snapshots, onClose);
+                    snapshot = new SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
+                    success = true;
+                    return snapshot;
+                } finally {
+                    if (success == false) {
+                        onClose.close();
+                    }
+                }
+            }
+        }
+    }
+
+    public Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
+            throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
+        }
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            final int size = Math.toIntExact(toSeqNo - fromSeqNo + 1);
+            final List<CheckedSupplier<Translog.Operation, IOException>> operationReaders = new ArrayList<>(size);
+            long minGen = Long.MAX_VALUE;
+            final TranslogSnapshot[] snapshots = filterSnapshots(fromSeqNo, toSeqNo);
+            for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
+                boolean found = false;
+                for (int i = snapshots.length - 1; i >= 0; i--) {
+                    final TranslogSnapshot snapshot = snapshots[i];
+                    final Translog.Location loc = snapshot.findLocation(seqNo);
+                    if (loc != null) {
+                        minGen = Math.min(minGen, snapshot.generation);
+                        operationReaders.add(() -> snapshot.read(loc));
+                        found = true;
+                        break;
+                    }
+                }
+                if (found == false) {
+                    trackLocations.set(true);
+                    return null;
+                }
+            }
+            assert operationReaders.size() == size : "from_seq_no=" + fromSeqNo + " to_seq_no=" + toSeqNo + " location=" + operationReaders;
+            assert minGen != Long.MAX_VALUE;
+            final Closeable onClose = acquireTranslogGenFromDeletionPolicy(minGen);
+            return new SequentialSnapshot(operationReaders, onClose);
+        }
+    }
+
+    private TranslogSnapshot[] filterSnapshots(long fromSeqNo, long toSeqNo) {
+        assert readLock.isHeldByCurrentThread();
+        return Stream.concat(readers.stream(), Stream.of(current))
+            .filter(reader -> reader.getCheckpoint().minSeqNo <= toSeqNo && fromSeqNo <= reader.getCheckpoint().maxEffectiveSeqNo())
+            .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
+    }
+
+    private static class SequentialSnapshot implements Translog.Snapshot {
+        private final Iterator<CheckedSupplier<Translog.Operation, IOException>> operations;
+        private final int size;
+        private final Closeable onClose;
+
+        SequentialSnapshot(List<CheckedSupplier<Operation, IOException>> operations, Closeable onClose) {
+            this.operations = operations.iterator();
+            this.size = operations.size();
+            this.onClose = onClose;
+        }
+
+        @Override
+        public int totalOperations() {
+            return size;
+        }
+
+        @Override
+        public Operation next() throws IOException {
+            if (operations.hasNext()) {
+                return operations.next().get();
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            onClose.close();
         }
     }
 
@@ -645,27 +737,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw ex;
         }
         return null;
-    }
-
-    private Snapshot newMultiSnapshot(TranslogSnapshot[] snapshots) throws IOException {
-        final Closeable onClose;
-        if (snapshots.length == 0) {
-            onClose = () -> {};
-        } else {
-            assert Arrays.stream(snapshots).map(BaseTranslogReader::getGeneration).min(Long::compareTo).get()
-                == snapshots[0].generation : "first reader generation of " + snapshots + " is not the smallest";
-            onClose = acquireTranslogGenFromDeletionPolicy(snapshots[0].generation);
-        }
-        boolean success = false;
-        try {
-            Snapshot result = new MultiSnapshot(snapshots, onClose);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                onClose.close();
-            }
-        }
     }
 
     private Stream<? extends BaseTranslogReader> readersAboveMinSeqNo(long minSeqNo) {
@@ -1885,7 +1956,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             new TragicExceptionHolder(),
             seqNo -> {
                 throw new UnsupportedOperationException();
-            }, BigArrays.NON_RECYCLING_INSTANCE);
+            }, BigArrays.NON_RECYCLING_INSTANCE,
+            () -> false);
         writer.close();
         return uuid;
     }

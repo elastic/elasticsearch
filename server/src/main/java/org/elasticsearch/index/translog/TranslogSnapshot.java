@@ -13,36 +13,35 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.function.LongFunction;
 
 final class TranslogSnapshot extends BaseTranslogReader {
 
-    private final int totalOperations;
     private final Checkpoint checkpoint;
-    protected final long length;
 
     private final ByteBuffer reusableBuffer;
     private long position;
     private int skippedOperations;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
+    private final LongFunction<Translog.Location> seqNoToLocations;
 
     /**
      * Create a snapshot of translog file channel.
      */
-    TranslogSnapshot(final BaseTranslogReader reader, final long length) {
+    TranslogSnapshot(final BaseTranslogReader reader, final LongFunction<Translog.Location> seqNoToLocations) {
         super(reader.generation, reader.channel, reader.path, reader.header);
-        this.length = length;
-        this.totalOperations = reader.totalOperations();
         this.checkpoint = reader.getCheckpoint();
         this.reusableBuffer = ByteBuffer.allocate(1024);
         this.readOperations = 0;
         this.position = reader.getFirstOperationOffset();
         this.reuse = null;
+        this.seqNoToLocations = seqNoToLocations;
     }
 
     @Override
     public int totalOperations() {
-        return totalOperations;
+        return checkpoint.numOps;
     }
 
     int skippedOperations(){
@@ -54,8 +53,21 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return checkpoint;
     }
 
+    Translog.Location findLocation(long seqNo) {
+        if (checkpoint.minSeqNo <= seqNo && seqNo <= checkpoint.maxEffectiveSeqNo()) {
+            final Translog.Location location = seqNoToLocations.apply(seqNo);
+            if (location != null) {
+                assert location.generation == generation : location.generation + " != " + getGeneration();
+                if ((location.translogLocation + location.size) <= sizeInBytes()) {
+                    return location;
+                }
+            }
+        }
+        return null;
+    }
+
     public Translog.Operation next() throws IOException {
-        while (readOperations < totalOperations) {
+        while (readOperations < totalOperations()) {
             final Translog.Operation operation = readOperation();
             if (operation.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 return operation;
@@ -75,7 +87,12 @@ final class TranslogSnapshot extends BaseTranslogReader {
     }
 
     public long sizeInBytes() {
-        return length;
+        return checkpoint.offset;
+    }
+
+    @Override
+    protected TranslogSnapshot newSnapshot() {
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -83,8 +100,8 @@ final class TranslogSnapshot extends BaseTranslogReader {
      */
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
         try {
-            if (position >= length) {
-                throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" +
+            if (position >= sizeInBytes()) {
+                throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + sizeInBytes() + "], generation: [" +
                     getGeneration() + "], path: [" + path + "]");
             }
             if (position < getFirstOperationOffset()) {
@@ -102,8 +119,8 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return "TranslogSnapshot{" +
                 "readOperations=" + readOperations +
                 ", position=" + position +
-                ", estimateTotalOperations=" + totalOperations +
-                ", length=" + length +
+                ", estimateTotalOperations=" + totalOperations() +
+                ", length=" + sizeInBytes() +
                 ", generation=" + generation +
                 ", reusableBuffer=" + reusableBuffer +
                 '}';

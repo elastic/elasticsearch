@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -80,6 +82,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private ReleasableBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
+    private final Map<Long, Translog.Location> seqNoToLocations = ConcurrentCollections.newConcurrentMap();
+    private final BooleanSupplier trackLocations;
 
     private TranslogWriter(
         final ShardId shardId,
@@ -92,7 +96,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier, TranslogHeader header,
         final TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays)
+        final BigArrays bigArrays,
+        final BooleanSupplier trackLocations)
             throws
             IOException {
         super(initialCheckpoint.generation, channel, path, header);
@@ -116,13 +121,16 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.bigArrays = bigArrays;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
+        this.trackLocations = trackLocations;
     }
 
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
                                         ByteSizeValue bufferSize, final long initialMinTranslogGen, long initialGlobalCheckpoint,
                                         final LongSupplier globalCheckpointSupplier, final LongSupplier minTranslogGenerationSupplier,
                                         final long primaryTerm, TragicExceptionHolder tragedy,
-                                        final LongConsumer persistedSequenceNumberConsumer, final BigArrays bigArrays)
+                                        final LongConsumer persistedSequenceNumberConsumer,
+                                        final BigArrays bigArrays,
+                                        final BooleanSupplier trackLocations)
         throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -147,7 +155,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 writerGlobalCheckpointSupplier = globalCheckpointSupplier;
             }
             return new TranslogWriter(shardId, checkpoint, channel, checkpointChannel, file, checkpointFile, bufferSize,
-                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer, bigArrays);
+                writerGlobalCheckpointSupplier, minTranslogGenerationSupplier, header, tragedy, persistedSequenceNumberConsumer,
+                bigArrays, trackLocations);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation
@@ -205,6 +214,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             location = new Translog.Location(generation, offset, data.length());
             bufferedBytes = buffer.size();
+            if (trackLocations.getAsBoolean()) {
+                seqNoToLocations.put(seqNo, location);
+            }
         }
 
         return location;
@@ -297,9 +309,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     @Override
     synchronized Checkpoint getCheckpoint() {
-        return new Checkpoint(totalOffset, operationCounter, generation, minSeqNo, maxSeqNo,
-            globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
-            SequenceNumbers.UNASSIGNED_SEQ_NO);
+        return getLastSyncedCheckpoint();
     }
 
     @Override
@@ -340,7 +350,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             closeWithTragicEvent(ex);
                             throw ex;
                         }
-                        return new TranslogReader(getLastSyncedCheckpoint(), channel, path, header);
+                        return new TranslogReader(getLastSyncedCheckpoint(), channel, path, header, new HashMap<>(seqNoToLocations));
                     } else {
                         throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]",
                             tragedy.get());
@@ -350,30 +360,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         }
     }
 
-
     @Override
-    public TranslogSnapshot newSnapshot() {
-        // make sure to acquire the sync lock first, to prevent dead locks with threads calling
-        // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
-        // After the sync lock we acquire the write lock to avoid deadlocks with threads writing where
-        // the write lock is acquired first followed by synchronize(this).
-        synchronized (syncLock) {
-            try (ReleasableLock toClose = writeLock.acquire()) {
-                synchronized (this) {
-                    ensureOpen();
-                    try {
-                        sync();
-                    } catch (IOException e) {
-                        throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
-                    }
-                    // If we reached this point, all of the buffered ops should have been flushed successfully.
-                    assert buffer == null;
-                    assert checkChannelPositionWhileHandlingException(totalOffset);
-                    assert totalOffset == lastSyncedCheckpoint.offset;
-                    return super.newSnapshot();
-                }
-            }
-        }
+    public synchronized TranslogSnapshot newSnapshot() {
+        return new TranslogSnapshot(this, seqNoToLocations::get);
     }
 
     private long getWrittenOffset() throws IOException {
@@ -397,7 +386,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
                             ensureOpen();
-                            checkpointToSync = getCheckpoint();
+                            checkpointToSync = new Checkpoint(totalOffset, operationCounter, generation, minSeqNo, maxSeqNo,
+                                globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
+                                SequenceNumbers.UNASSIGNED_SEQ_NO);
                             toWrite = pollOpsToWrite();
                             flushedSequenceNumbers = nonFsyncedSequenceNumbers;
                             nonFsyncedSequenceNumbers = new LongArrayList(64);
@@ -551,5 +542,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final boolean isClosed() {
         return closed.get();
+    }
+
+    public LongArrayList getNonFsyncedSequenceNumbers() {
+        return nonFsyncedSequenceNumbers;
     }
 }

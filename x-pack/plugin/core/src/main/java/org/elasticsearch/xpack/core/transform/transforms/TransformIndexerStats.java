@@ -250,7 +250,7 @@ public class TransformIndexerStats extends IndexerJobStats {
     }
 
     public void incrementNumDeletedDocuments(long n) {
-        assert(n >= 0);
+        assert (n >= 0);
         numDeletedDocuments += n;
     }
 

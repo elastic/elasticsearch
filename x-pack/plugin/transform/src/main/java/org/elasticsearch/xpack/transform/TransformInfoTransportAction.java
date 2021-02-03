@@ -59,10 +59,7 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
         TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), };
 
     @Inject
-    public TransformInfoTransportAction(
-        TransportService transportService,
-        ActionFilters actionFilters
-    ) {
+    public TransformInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);
     }
 

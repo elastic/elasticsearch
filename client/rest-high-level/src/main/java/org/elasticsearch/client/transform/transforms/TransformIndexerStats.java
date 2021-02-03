@@ -268,7 +268,6 @@ public class TransformIndexerStats {
         return deleteTime;
     }
 
-
     /**
      * Returns the total number of indexing requests that have been processed
      * (Note: this is not the number of _documents_ that have been indexed)

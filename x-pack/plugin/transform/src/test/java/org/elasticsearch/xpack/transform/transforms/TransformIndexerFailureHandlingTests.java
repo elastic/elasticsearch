@@ -503,15 +503,17 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
     public void testInitializeFunction_WithNoWarnings() {
         String transformId = randomAlphaOfLength(10);
-        SourceConfig sourceConfig =
-            new SourceConfig(
-                generateRandomStringArray(10, 10, false, false),
-                QueryConfigTests.randomQueryConfig(),
-                new HashMap<>() {{
+        SourceConfig sourceConfig = new SourceConfig(
+            generateRandomStringArray(10, 10, false, false),
+            QueryConfigTests.randomQueryConfig(),
+            new HashMap<>() {
+                {
                     put("field-A", singletonMap("script", "some script"));
                     put("field-B", emptyMap());
                     put("field-C", singletonMap("script", "some script"));
-                }});
+                }
+            }
+        );
         SyncConfig syncConfig = new TimeSyncConfig("field", null);
         LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
         TransformConfig config = new TransformConfig(
@@ -536,7 +538,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 "warn when all the group-by fields are script-based runtime fields",
                 Level.WARNING,
                 transformId,
-                "all the group-by fields are script-based runtime fields"));
+                "all the group-by fields are script-based runtime fields"
+            )
+        );
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
         createMockIndexer(config, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
@@ -545,16 +549,18 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
     public void testInitializeFunction_WithWarnings() {
         String transformId = randomAlphaOfLength(10);
-        SourceConfig sourceConfig =
-            new SourceConfig(
-                generateRandomStringArray(10, 10, false, false),
-                QueryConfigTests.randomQueryConfig(),
-                new HashMap<>() {{
+        SourceConfig sourceConfig = new SourceConfig(
+            generateRandomStringArray(10, 10, false, false),
+            QueryConfigTests.randomQueryConfig(),
+            new HashMap<>() {
+                {
                     put("field-A", singletonMap("script", "some script"));
                     put("field-B", singletonMap("script", "some script"));
                     put("field-C", singletonMap("script", "some script"));
                     put("field-t", singletonMap("script", "some script"));
-                }});
+                }
+            }
+        );
         SyncConfig syncConfig = new TimeSyncConfig("field-t", null);
         LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
         TransformConfig config = new TransformConfig(
@@ -579,13 +585,17 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 "warn when all the group-by fields are script-based runtime fields",
                 Level.WARNING,
                 transformId,
-                "all the group-by fields are script-based runtime fields"));
+                "all the group-by fields are script-based runtime fields"
+            )
+        );
         auditor.addExpectation(
             new MockTransformAuditor.SeenAuditExpectation(
                 "warn when the sync time field is a script-based runtime field",
                 Level.WARNING,
                 transformId,
-                "sync time field is a script-based runtime field"));
+                "sync time field is a script-based runtime field"
+            )
+        );
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
         createMockIndexer(config, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);

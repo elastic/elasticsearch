@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.action;
 
@@ -14,8 +15,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearchRequest> {
+public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
 
     // TODO: possibly add mutations
     static String defaultTestFilter = "{\n" +

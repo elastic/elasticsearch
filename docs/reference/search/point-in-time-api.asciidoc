@@ -49,7 +49,7 @@ POST /_search <1>
 and {ref}/search-request-body.html#request-body-search-preference[`preference`]
 as these parameters are copied from the point in time.
 <2> The `id` parameter tells Elasticsearch to execute the request using contexts
-from this point int time.
+from this point in time.
 <3> The `keep_alive` parameter tells Elasticsearch how long it should extend
 the time to live of the point in time.
 

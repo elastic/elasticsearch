@@ -88,7 +88,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class TransformIndexerTests extends ESTestCase {
+public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
     private Client client;
     private ThreadPool threadPool;

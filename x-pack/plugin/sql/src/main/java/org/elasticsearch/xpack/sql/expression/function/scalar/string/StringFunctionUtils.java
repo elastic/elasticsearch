@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -23,15 +24,15 @@ final class StringFunctionUtils {
         if (!hasLength(s)) {
             return s;
         }
-        
+
         if (start < 0) {
             start = 0;
         }
-        
+
         if (start + 1 > s.length() || length < 0) {
             return "";
         }
-        
+
         return (start + length > s.length()) ? s.substring(start) : s.substring(start, start + length);
     }
 }

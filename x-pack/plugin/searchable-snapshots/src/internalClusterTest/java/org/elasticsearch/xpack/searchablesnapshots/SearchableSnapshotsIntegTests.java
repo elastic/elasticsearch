@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
@@ -84,6 +85,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DATA_TIERS_PREFERENCE;
@@ -1200,7 +1202,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertAcked(client().admin().cluster().prepareDeleteRepository(repositoryName));
             final Settings.Builder settings = Settings.builder().put(repositoryMetadata.settings());
             if (randomBoolean()) {
-                settings.put("readonly", "true");
+                settings.put(READONLY_SETTING_KEY, "true");
             }
             assertAcked(
                 clusterAdmin().preparePutRepository(newRepositoryName)

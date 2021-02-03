@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions;
 
@@ -232,7 +233,7 @@ public class ActionWrapperTests extends ESTestCase {
             assertThat(map, hasKey("max_iterations"));
             assertThat(map.get("max_iterations"), is(randomMaxIterations));
             assertThat(map, hasKey("number_of_actions_executed"));
-            assertThat(map.get("number_of_actions_executed"), is(randomMaxIterations)); 
+            assertThat(map.get("number_of_actions_executed"), is(randomMaxIterations));
         }
     }
 

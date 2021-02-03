@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
@@ -277,6 +278,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 new SearchableSnapshotIndexEventListener(settings, cacheService.get(), frozenCacheService.get())
             );
             indexModule.addIndexEventListener(failShardsListener.get());
+
+            indexModule.addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
+                if (write == false) {
+                    throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
+                }
+            });
         }
     }
 

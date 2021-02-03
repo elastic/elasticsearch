@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
@@ -197,7 +198,7 @@ public final class SqlDataTypeConverter {
         // fallback to default
         return DataTypeConverter.converterFor(from, to);
     }
-    
+
     private static Converter conversionToString(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_STRING;
@@ -207,7 +208,7 @@ public final class SqlDataTypeConverter {
         }
         return null;
     }
-    
+
     private static Converter conversionToLong(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_LONG;
@@ -354,7 +355,7 @@ public final class SqlDataTypeConverter {
     public enum SqlConverter implements Converter {
         DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
         TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
-        
+
         DATE_TO_LONG(delegate(DATETIME_TO_LONG)),
         TIME_TO_LONG(fromTime(value -> value)),
 
@@ -392,7 +393,7 @@ public final class SqlDataTypeConverter {
         TIME_TO_BOOLEAN(fromTime(value -> value != 0));
 
         public static final String NAME = "dtc-sql";
-        
+
         private final Function<Object, Object> converter;
 
         SqlConverter(Function<Object, Object> converter) {

@@ -49,6 +49,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `false`.
 
+`partial_local_copy`::
++
+experimental::[]
++
+(Optional, Boolean) If `false`, each node holding a shard of the searchable
+snapshot index restores a full copy of the shard to its local storage. If
+`true`, the shard is not fully restored. Defaults to `false`.
+
 [[searchable-snapshots-api-mount-request-body]]
 ==== {api-request-body-title}
 

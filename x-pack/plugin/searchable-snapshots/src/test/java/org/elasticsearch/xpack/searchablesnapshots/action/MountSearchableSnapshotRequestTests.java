@@ -30,6 +30,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             randomBoolean() ? instance.snapshotIndexName() : mutateString(instance.snapshotIndexName()),
             randomBoolean() ? instance.indexSettings() : mutateSettings(instance.indexSettings()),
             randomBoolean() ? instance.ignoreIndexSettings() : mutateStringArray(instance.ignoreIndexSettings()),
+            randomBoolean(),
             randomBoolean()
         ).masterNodeTimeout(randomBoolean() ? instance.masterNodeTimeout() : mutateTimeValue(instance.masterNodeTimeout()));
     }
@@ -44,6 +45,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 randomAlphaOfLength(5),
                 Settings.EMPTY,
                 Strings.EMPTY_ARRAY,
+                randomBoolean(),
                 randomBoolean()
             )
         );
@@ -56,7 +58,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
 
     @Override
     protected MountSearchableSnapshotRequest mutateInstance(MountSearchableSnapshotRequest req) {
-        switch (randomInt(7)) {
+        switch (randomInt(8)) {
             case 0:
                 return new MountSearchableSnapshotRequest(
                     mutateString(req.mountedIndexName()),
@@ -65,7 +67,8 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.snapshotIndexName(),
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
-                    req.waitForCompletion()
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 1:
                 return new MountSearchableSnapshotRequest(
@@ -75,7 +78,8 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.snapshotIndexName(),
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
-                    req.waitForCompletion()
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 2:
                 return new MountSearchableSnapshotRequest(
@@ -85,7 +89,8 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.snapshotIndexName(),
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
-                    req.waitForCompletion()
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 3:
                 return new MountSearchableSnapshotRequest(
@@ -95,7 +100,8 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     mutateString(req.snapshotIndexName()),
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
-                    req.waitForCompletion()
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 4:
                 return new MountSearchableSnapshotRequest(
@@ -105,7 +111,8 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.snapshotIndexName(),
                     mutateSettings(req.indexSettings()),
                     req.ignoreIndexSettings(),
-                    req.waitForCompletion()
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 5:
                 return new MountSearchableSnapshotRequest(
@@ -115,7 +122,8 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.snapshotIndexName(),
                     req.indexSettings(),
                     mutateStringArray(req.ignoreIndexSettings()),
-                    req.waitForCompletion()
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 6:
                 return new MountSearchableSnapshotRequest(
@@ -125,9 +133,20 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.snapshotIndexName(),
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
-                    req.waitForCompletion() == false
+                    req.waitForCompletion() == false,
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(req.masterNodeTimeout());
-
+            case 7:
+                return new MountSearchableSnapshotRequest(
+                    req.mountedIndexName(),
+                    req.repositoryName(),
+                    req.snapshotName(),
+                    req.snapshotIndexName(),
+                    req.indexSettings(),
+                    req.ignoreIndexSettings(),
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy() == false
+                ).masterNodeTimeout(req.masterNodeTimeout());
             default:
                 return new MountSearchableSnapshotRequest(
                     req.mountedIndexName(),
@@ -136,7 +155,8 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.snapshotIndexName(),
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
-                    req.waitForCompletion()
+                    req.waitForCompletion(),
+                    req.isPartialLocalCopy()
                 ).masterNodeTimeout(mutateTimeValue(req.masterNodeTimeout()));
         }
     }
@@ -182,6 +202,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             randomAlphaOfLength(5),
             Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, randomAlphaOfLength(5)).build(),
             Strings.EMPTY_ARRAY,
+            randomBoolean(),
             randomBoolean()
         ).validate();
         assertThat(validationException.getMessage(), containsString(IndexMetadata.SETTING_DATA_PATH));

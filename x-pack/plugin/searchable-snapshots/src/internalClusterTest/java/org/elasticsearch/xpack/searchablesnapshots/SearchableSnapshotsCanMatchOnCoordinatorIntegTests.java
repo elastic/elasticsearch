@@ -133,6 +133,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
+            false,
             false
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
@@ -267,6 +268,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
+            false,
             false
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
@@ -375,6 +377,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexWithinSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
+            false,
             false
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();

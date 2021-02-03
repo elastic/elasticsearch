@@ -39,6 +39,11 @@
         "type":"boolean",
         "description":"Should this request wait until the operation has completed before returning",
         "default":false
+      },
+      "partial_local_copy":{
+        "type":"boolean",
+        "description":"Indicates whether the mounted index will only partially restore the underlying snapshot to local storage. Experimental, and defaults to `false`",
+        "default":false
       }
     },
     "body":{

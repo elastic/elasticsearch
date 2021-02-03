@@ -216,7 +216,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexName,
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            false
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -446,7 +447,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertAcked(client().admin().indices().prepareClose(indexName));
         }
 
-        logger.info("--> restoring partial index [{}] with cache enabled");
+        logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
 
         Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
@@ -478,7 +479,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         } else {
             expectedDataTiersPreference = DATA_TIERS_PREFERENCE;
         }
-        indexSettingsBuilder.put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
@@ -487,6 +487,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexName,
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
+            true,
             true
         );
 
@@ -728,7 +729,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexName,
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            false
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -783,7 +785,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexName,
             Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString()).build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            false
         );
 
         final RestoreSnapshotResponse restore = client().execute(MountSearchableSnapshotAction.INSTANCE, mount).get();
@@ -862,7 +865,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexName,
                 indexSettingsBuilder.build(),
                 Strings.EMPTY_ARRAY,
-                true
+                true,
+                false
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -896,7 +900,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexName,
                 indexSettingsBuilder.build(),
                 Strings.EMPTY_ARRAY,
-                true
+                true,
+                false
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -929,7 +934,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexName,
                 indexSettingsBuilder.build(),
                 Strings.EMPTY_ARRAY,
-                true
+                true,
+                false
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();

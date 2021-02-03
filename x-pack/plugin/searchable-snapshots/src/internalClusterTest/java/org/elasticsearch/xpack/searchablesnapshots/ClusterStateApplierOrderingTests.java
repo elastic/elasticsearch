@@ -73,7 +73,8 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
             indexName,
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            false
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();

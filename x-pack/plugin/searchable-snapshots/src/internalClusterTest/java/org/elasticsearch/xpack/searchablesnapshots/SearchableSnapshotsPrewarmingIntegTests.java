@@ -224,7 +224,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                             indexName,
                             restoredIndexSettings,
                             Strings.EMPTY_ARRAY,
-                            true
+                            true,
+                            false
                         )
                     ).get();
 

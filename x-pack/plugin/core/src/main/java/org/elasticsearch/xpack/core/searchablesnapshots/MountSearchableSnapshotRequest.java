@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,7 +43,8 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             (String)a[0],
             Objects.requireNonNullElse((Settings)a[2], Settings.EMPTY),
             Objects.requireNonNullElse((String[])a[3], Strings.EMPTY_ARRAY),
-            request.paramAsBoolean("wait_for_completion", false)));
+            request.paramAsBoolean("wait_for_completion", false),
+            request.paramAsBoolean("partial_local_copy", false)));
 
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField RENAMED_INDEX_FIELD = new ParseField("renamed_index");
@@ -65,12 +67,20 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     private final Settings indexSettings;
     private final String[] ignoredIndexSettings;
     private final boolean waitForCompletion;
+    private final boolean partialLocalCopy;
 
     /**
      * Constructs a new mount searchable snapshot request, restoring an index with the settings needed to make it a searchable snapshot.
      */
-    public MountSearchableSnapshotRequest(String mountedIndexName, String repositoryName, String snapshotName, String snapshotIndexName,
-                                          Settings indexSettings, String[] ignoredIndexSettings, boolean waitForCompletion) {
+    public MountSearchableSnapshotRequest(
+            String mountedIndexName,
+            String repositoryName,
+            String snapshotName,
+            String snapshotIndexName,
+            Settings indexSettings,
+            String[] ignoredIndexSettings,
+            boolean waitForCompletion,
+            boolean partialLocalCopy) {
         this.mountedIndexName = Objects.requireNonNull(mountedIndexName);
         this.repositoryName = Objects.requireNonNull(repositoryName);
         this.snapshotName = Objects.requireNonNull(snapshotName);
@@ -78,6 +88,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.indexSettings = Objects.requireNonNull(indexSettings);
         this.ignoredIndexSettings = Objects.requireNonNull(ignoredIndexSettings);
         this.waitForCompletion = waitForCompletion;
+        this.partialLocalCopy = partialLocalCopy;
     }
 
     public MountSearchableSnapshotRequest(StreamInput in) throws IOException {
@@ -89,6 +100,11 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.indexSettings = readSettingsFromStream(in);
         this.ignoredIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
+        if (in.getVersion().onOrAfter(SearchableSnapshotsConstants.PARTIAL_LOCAL_COPY_VERSION)) {
+            this.partialLocalCopy = in.readBoolean();
+        } else {
+            this.partialLocalCopy = false;
+        }
     }
 
     @Override
@@ -101,6 +117,12 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoredIndexSettings);
         out.writeBoolean(waitForCompletion);
+        if (out.getVersion().onOrAfter(SearchableSnapshotsConstants.PARTIAL_LOCAL_COPY_VERSION)) {
+            out.writeBoolean(partialLocalCopy);
+        } else if (partialLocalCopy) {
+            throw new UnsupportedOperationException(
+                    "searchable snapshots with partial local copies are not supported on version [" + out.getVersion() + "]");
+        }
     }
 
     @Override
@@ -162,6 +184,13 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         return ignoredIndexSettings;
     }
 
+    /**
+     * @return whether the local copy of the snapshot is partial ({@code true}) or complete ({@code false}).
+     */
+    public boolean isPartialLocalCopy() {
+        return partialLocalCopy;
+    }
+
     @Override
     public String getDescription() {
         return "mount snapshot [" + repositoryName + ":" + snapshotName + ":" + snapshotIndexName + "] as [" + mountedIndexName + "]";
@@ -173,6 +202,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         if (o == null || getClass() != o.getClass()) return false;
         MountSearchableSnapshotRequest that = (MountSearchableSnapshotRequest) o;
         return waitForCompletion == that.waitForCompletion &&
+            partialLocalCopy == that.partialLocalCopy &&
             Objects.equals(mountedIndexName, that.mountedIndexName) &&
             Objects.equals(repositoryName, that.repositoryName) &&
             Objects.equals(snapshotName, that.snapshotName) &&
@@ -185,7 +215,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     @Override
     public int hashCode() {
         int result = Objects.hash(mountedIndexName, repositoryName, snapshotName, snapshotIndexName, indexSettings, waitForCompletion,
-            masterNodeTimeout);
+            masterNodeTimeout, partialLocalCopy);
         result = 31 * result + Arrays.hashCode(ignoredIndexSettings);
         return result;
     }

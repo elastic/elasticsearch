@@ -3,8 +3,7 @@ issues:
   - 64154
 area: Machine Learning
 type: enhancement
-summary: "[Deprecation] add deprecation check for job model snapshots that need
-  upgraded"
+summary: Add deprecation check for job model snapshots that need upgraded
 versions:
   - v7.12.0
   - v8.0.0

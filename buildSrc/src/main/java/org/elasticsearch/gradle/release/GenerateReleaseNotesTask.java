@@ -106,8 +106,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             .filter(
                 // Only process changelogs that are included in this minor version series of ES.
                 // If this change was released in an earlier major or minor version of Elasticsearch, do not
-                // include it in the notes. An absence of versions indicates that this change is only
-                // for the current release. An earlier patch version is OK, the release notes include changes
+                // include it in the notes. An earlier patch version is OK, the release notes include changes
                 // for every patch release in a minor series.
                 log -> {
                     final List<Version> changelogVersions = log.getVersions()

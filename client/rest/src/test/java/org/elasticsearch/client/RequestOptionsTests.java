@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -25,7 +14,9 @@ import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedRes
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -37,6 +28,7 @@ import static org.mockito.Mockito.mock;
 public class RequestOptionsTests extends RestClientTestCase {
     public void testDefault() {
         assertEquals(Collections.<Header>emptyList(), RequestOptions.DEFAULT.getHeaders());
+        assertEquals(Collections.<String, String>emptyMap(), RequestOptions.DEFAULT.getParameters());
         assertEquals(HttpAsyncResponseConsumerFactory.DEFAULT, RequestOptions.DEFAULT.getHttpAsyncResponseConsumerFactory());
         assertEquals(RequestOptions.DEFAULT, RequestOptions.DEFAULT.toBuilder().build());
     }
@@ -89,6 +81,35 @@ public class RequestOptionsTests extends RestClientTestCase {
         builder.setHttpAsyncResponseConsumerFactory(factory);
         RequestOptions options = builder.build();
         assertSame(factory, options.getHttpAsyncResponseConsumerFactory());
+    }
+
+    public void testAddParameters() {
+        try {
+            randomBuilder().addParameter(null, randomAsciiLettersOfLengthBetween(3, 10));
+            fail("expected failure");
+        } catch (NullPointerException e) {
+            assertEquals("parameter key cannot be null", e.getMessage());
+        }
+
+        try {
+            randomBuilder().addParameter(randomAsciiLettersOfLengthBetween(3, 10), null);
+            fail("expected failure");
+        } catch (NullPointerException e) {
+            assertEquals("parameter value cannot be null", e.getMessage());
+        }
+
+        RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        int numParameters = between(0, 5);
+        Map<String, String> parameters = new HashMap<>();
+        for (int i = 0; i < numParameters; i++) {
+            String key = randomAsciiAlphanumOfLengthBetween(5, 10);
+            String value = randomAsciiAlphanumOfLength(3);
+
+            parameters.put(key, value);
+            builder.addParameter(key, value);
+        }
+        RequestOptions options = builder.build();
+        assertEquals(parameters, options.getParameters());
     }
 
     public void testSetRequestBuilder() {

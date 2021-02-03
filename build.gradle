@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import com.avast.gradle.dockercompose.tasks.ComposePull
@@ -63,12 +52,14 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 } else {
   licenseCommit = "v${version}"
 }
-String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE-2.0.txt"
 
 subprojects {
-  // Default to the apache license
-  project.ext.licenseName = 'The Apache Software License, Version 2.0'
-  project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+  // Default to the SSPL+Elastic dual license
+  project.ext.projectLicenses = [
+    'Server Side Public License, v 1': 'https://www.mongodb.com/licensing/server-side-public-license',
+    'Elastic License 2.0': elasticLicenseUrl
+  ]
 
   // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
   project.ext.elasticLicenseUrl = elasticLicenseUrl
@@ -83,10 +74,13 @@ subprojects {
             Node node = xml.asNode()
             node.appendNode('inceptionYear', '2009')
 
-            Node license = node.appendNode('licenses').appendNode('license')
-            license.appendNode('name', project.licenseName)
-            license.appendNode('url', project.licenseUrl)
-            license.appendNode('distribution', 'repo')
+            Node licensesNode = node.appendNode('licenses')
+            project.ext.projectLicenses.forEach { licenseName, licenseUrl ->
+              Node license = licensesNode.appendNode('license')
+              license.appendNode('name', licenseName)
+              license.appendNode('url', licenseUrl)
+              license.appendNode('distribution', 'repo')
+            }
 
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
@@ -104,7 +98,7 @@ subprojects {
   }
 
   plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+    project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 }
@@ -371,9 +365,9 @@ allprojects {
     prefix = prefix.replace(':', '_')
   }
   if (eclipse.project.name.startsWith(prefix)) {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-2.0-header.txt')
   } else {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/sspl+elastic-license-header.txt')
   }
 
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
@@ -329,6 +330,7 @@ public final class ReservedFieldNames {
             Regression.PREDICTION_FIELD_NAME.getPreferredName(),
             Regression.TRAINING_PERCENT.getPreferredName(),
             Regression.FEATURE_PROCESSORS.getPreferredName(),
+            Regression.EARLY_STOPPING_ENABLED.getPreferredName(),
             Classification.NAME.getPreferredName(),
             Classification.DEPENDENT_VARIABLE.getPreferredName(),
             Classification.PREDICTION_FIELD_NAME.getPreferredName(),
@@ -336,6 +338,7 @@ public final class ReservedFieldNames {
             Classification.NUM_TOP_CLASSES.getPreferredName(),
             Classification.TRAINING_PERCENT.getPreferredName(),
             Classification.FEATURE_PROCESSORS.getPreferredName(),
+            Classification.EARLY_STOPPING_ENABLED.getPreferredName(),
             BoostedTreeParams.ALPHA.getPreferredName(),
             BoostedTreeParams.DOWNSAMPLE_FACTOR.getPreferredName(),
             BoostedTreeParams.LAMBDA.getPreferredName(),

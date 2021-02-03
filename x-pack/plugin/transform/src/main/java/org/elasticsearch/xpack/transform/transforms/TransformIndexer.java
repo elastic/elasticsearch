@@ -459,10 +459,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             deleteByQuery,
             deleteByQuery.getSearchRequest()
         );
+        getStats().markStartDelete();
 
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
             logger.trace("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse);
+            getStats().markEndDelete();
             if (bulkByScrollResponse.getDeleted() > 0) {
+                getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());
                 logger.debug("[{}] deleted [{}] documents as part of the retention policy.", getJobId(), bulkByScrollResponse.getDeleted());
             }
 

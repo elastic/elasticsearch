@@ -97,6 +97,8 @@ public class TransformIndexerStats extends IndexerJobStats {
     private long deleteTime;
     private long numDeletedDocuments;
 
+    private long startDeleteTime;
+
     private double expAvgCheckpointDurationMs;
     private double expAvgDocumentsIndexed;
     private double expAvgDocumentsProcessed;
@@ -245,6 +247,19 @@ public class TransformIndexerStats extends IndexerJobStats {
 
     public double getExpAvgDocumentsProcessed() {
         return expAvgDocumentsProcessed;
+    }
+
+    public void incrementNumDeletedDocuments(long n) {
+        assert(n >= 0);
+        numDeletedDocuments += n;
+    }
+
+    public void markStartDelete() {
+        startDeleteTime = System.nanoTime();
+    }
+
+    public void markEndDelete() {
+        deleteTime += ((System.nanoTime() - startDeleteTime) / 1000000);
     }
 
     public void incrementCheckpointExponentialAverages(long checkpointDurationMs, long docsIndexed, long docsProcessed) {

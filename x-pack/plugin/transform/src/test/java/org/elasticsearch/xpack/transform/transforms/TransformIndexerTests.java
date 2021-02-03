@@ -60,6 +60,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 
 public class TransformIndexerTests extends ESTestCase {
@@ -153,10 +154,31 @@ public class TransformIndexerTests extends ESTestCase {
         @Override
         void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
             deleteByQueryCallCount++;
+            try {
+                // yes, I know, a sleep, how dare you, this is to test stats collection and this requires a resolution of a millisecond
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                fail("unexpected exception during sleep: " + e);
+            }
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByScrollTask.Status(
+                        0,
+                        0L,
+                        0L,
+                        0L,
+                        /*deleted*/ 42L,
+                        0,
+                        0L,
+                        0L,
+                        0L,
+                        0L,
+                        TimeValue.ZERO,
+                        0.0f,
+                        null,
+                        TimeValue.ZERO
+                    ),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -270,6 +292,8 @@ public class TransformIndexerTests extends ESTestCase {
 
             // delete by query has been executed
             assertEquals(1, indexer.getDeleteByQueryCallCount());
+            assertEquals(42L, indexer.getStats().getNumDeletedDocuments());
+            assertThat(indexer.getStats().getDeleteTime(), greaterThan(0L));
         }
 
         // test without retention
@@ -311,6 +335,8 @@ public class TransformIndexerTests extends ESTestCase {
 
             // delete by query has _not_ been executed
             assertEquals(0, indexer.getDeleteByQueryCallCount());
+            assertEquals(0L, indexer.getStats().getNumDeletedDocuments());
+            assertEquals(0L, indexer.getStats().getDeleteTime());
         }
     }
 

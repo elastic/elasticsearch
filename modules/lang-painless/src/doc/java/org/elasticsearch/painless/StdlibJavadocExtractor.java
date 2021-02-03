@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -29,7 +18,6 @@ import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.github.javaparser.javadoc.Javadoc;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 
 import java.io.File;
 import java.io.IOException;
@@ -80,8 +68,8 @@ public class StdlibJavadocExtractor {
             constructors = new HashMap<>();
         }
 
-        public ParsedMethod getMethod(PainlessContextMethodInfo info, Map<String, String> javaNamesToDisplayNames) {
-            return methods.get(MethodSignature.fromInfo(info, javaNamesToDisplayNames));
+        public ParsedMethod getMethod(String name, List<String> parameterTypes) {
+            return methods.get(new MethodSignature(name, parameterTypes));
         }
 
         @Override
@@ -137,8 +125,8 @@ public class StdlibJavadocExtractor {
             return type;
         }
 
-        public ParsedMethod getConstructor(List<String> parameters) {
-            return constructors.get(parameters);
+        public ParsedMethod getConstructor(List<String> parameterTypes) {
+            return constructors.get(parameterTypes);
         }
 
         public String getField(String name) {
@@ -159,13 +147,6 @@ public class StdlibJavadocExtractor {
         public MethodSignature(String name, List<String> parameterTypes) {
             this.name = name;
             this.parameterTypes = parameterTypes;
-        }
-
-        public static MethodSignature fromInfo(PainlessContextMethodInfo info,Map<String, String> javaNamesToDisplayNames) {
-            return new MethodSignature(
-                info.getName(),
-                info.getParameters().stream().map(javaNamesToDisplayNames::get).collect(Collectors.toList())
-            );
         }
 
         public static MethodSignature fromDeclaration(MethodDeclaration declaration) {

@@ -40,7 +40,6 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .build();
 
     TestSystemIndexDescriptor() {
-<<<<<<< HEAD
         super(
             INDEX_NAME + "*",
             PRIMARY_INDEX_NAME,
@@ -51,11 +50,9 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             0,
             "version",
             "stack",
-            MapperService.SINGLE_MAPPING_NAME
+            MapperService.SINGLE_MAPPING_NAME,
+            null
         );
-=======
-        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", null, SETTINGS, INDEX_NAME, 0, "version", "stack", null);
->>>>>>> 6ffddf8f018... Move Security to use auto-managed system indices (#67114)
     }
 
     @Override

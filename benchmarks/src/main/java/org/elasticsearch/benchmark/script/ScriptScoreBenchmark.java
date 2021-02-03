@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
-@OperationsPerInvocation(1_000_000)
+@OperationsPerInvocation(1_000_000)   // The index has a million documents in it.
 @State(Scope.Benchmark)
 public class ScriptScoreBenchmark {
     private final PluginsService pluginsService = new PluginsService(
@@ -144,11 +144,12 @@ public class ScriptScoreBenchmark {
     }
 
     @Benchmark
-    public void benchmark() throws IOException {
+    public TopDocs benchmark() throws IOException {
         TopDocs topDocs = new IndexSearcher(reader).search(scriptScoreQuery(factory), 10);
         if (topDocs.scoreDocs[0].score != 1_000_000) {
             throw new AssertionError("Expected score to be 1,000,000 but was [" + topDocs.scoreDocs[0].score + "]");
         }
+        return topDocs;
     }
 
     private Query scriptScoreQuery(ScoreScript.Factory factory) {

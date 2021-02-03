@@ -203,7 +203,8 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
    4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
-   5. Click "OK"
+   5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
+   6. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**

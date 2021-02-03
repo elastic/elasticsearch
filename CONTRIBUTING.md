@@ -176,21 +176,22 @@ it is removed due to a `./gradlew clean` or other action.
    1. We have some custom Checkstyle rules. In order to use them, you need
       to make sure the rules are built, by running: `./gradlew build-tools:assemble`
    2. Open **Preferences > Tools > Checkstyle**
-   3. Change the "Scan Scope" to "Only Java sources (including tests)"
-   4. Click the "+" under "Configuration file"
-   5. Set "Description" to "Elasticsearch" (or whatever you want)
-   6. Select "Use a local Checkstyle file"
-   7. For the "File", enter `checkstyle_ide.xml`
-   8. Tick "Store relative to project location"
-   9. Click "Next", then "Finish".
-   10. Click the box next to the new configuration to make it "Active".
+   3. Tell Checkstyle where to find the custom rules. Under the
+      "Third-Party Checks" section, click the "+" button.
+   4. Select `buildSrc/build/distributions/build-tools-$VERSION.jar`
+   5. Make sure that "Checkstyle version" is set to the highest version
+   6. Change the "Scan Scope" to "Only Java sources (including tests)"
+   7. Click the "+" under "Configuration file"
+   8. Set "Description" to "Elasticsearch"
+   9. Select "Use a local Checkstyle file"
+   10. For the "File", enter `checkstyle_ide.xml`
+   11. Tick "Store relative to project location"
+   12. Click "Next", then "Finish".
+   13. Click the box next to the new configuration to make it "Active".
        Without doing this, you'll have to explicitly choose the
        "Elasticsearch" configuration in the Checkstyle tool window and run
-       the check manually. You can still do this with an active config.
-   11. Now we need to tell Checkstyle where to find the custom rules. Under
-       the "Third-Party Checks" section, click the "+" button.
-   12. Navigate to `buildSrc/build/distributions/build-tools-$VERSION.jar`
-   13. Click "OK" to apply the new preferences
+       the check manually.
+   14. Click "OK" to apply the new preferences
 
 #### Formatting
 

@@ -55,7 +55,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
             request = GetBucketsAction.Request.parseRequest(jobId, parser);
 
             // A timestamp in the URL overrides any timestamp that may also have been set in the body
-            if (!Strings.isNullOrEmpty(timestamp)) {
+            if (Strings.isNullOrEmpty(timestamp) == false) {
                 request.setTimestamp(timestamp);
             }
         } else {
@@ -63,7 +63,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
 
             // Check if the REST param is set first so mutually exclusive
             // options will cause an error if set
-            if (!Strings.isNullOrEmpty(timestamp)) {
+            if (Strings.isNullOrEmpty(timestamp) == false) {
                 request.setTimestamp(timestamp);
             }
             // multiple bucket options

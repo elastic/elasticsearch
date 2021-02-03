@@ -153,7 +153,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         ShardFollowTask that = (ShardFollowTask) o;
         return Objects.equals(remoteCluster, that.remoteCluster) &&
                 Objects.equals(followShardId, that.followShardId) &&

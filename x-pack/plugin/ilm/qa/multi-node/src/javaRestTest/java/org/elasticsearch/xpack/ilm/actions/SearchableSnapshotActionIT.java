@@ -66,6 +66,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        logger.info("--> running [{}] with data stream [{}], snapshot repot [{}] and policy [{}]", getTestName(), dataStream,
+            snapshotRepo, policy);
     }
 
     @Override

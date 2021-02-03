@@ -109,6 +109,10 @@ For example, the {agent} uses the `logs-nginx.access-production` data
 stream to store data with a type of `logs`, a dataset of `nginx.access`, and a
 namespace of `production`. If you use the {agent} to ingest a log file, it
 stores the data in the `logs-generic-default` data stream.
+
+For more information about the naming scheme and its benefits, see our
+https://www.elastic.co/blog/an-introduction-to-the-elastic-data-stream-naming-scheme[An
+introduction to the Elastic data stream naming scheme] blog post.
 ****
 
 include::{es-repo-dir}/data-streams/data-streams.asciidoc[tag=timestamp-reqs]

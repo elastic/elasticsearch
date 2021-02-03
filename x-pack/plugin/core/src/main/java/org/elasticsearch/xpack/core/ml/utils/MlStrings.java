@@ -46,7 +46,7 @@ public final class MlStrings {
      * that contains {@code input} surrounded by double quotes otherwise
      */
     public static String doubleQuoteIfNotAlphaNumeric(String input) {
-        if (!NEEDS_QUOTING.matcher(input).find()) {
+        if (NEEDS_QUOTING.matcher(input).find() == false) {
             return input;
         }
 

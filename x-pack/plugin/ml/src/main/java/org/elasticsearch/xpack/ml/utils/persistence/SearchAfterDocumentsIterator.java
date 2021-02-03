@@ -103,7 +103,7 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
      */
     @Override
     public Deque<T> next() {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 

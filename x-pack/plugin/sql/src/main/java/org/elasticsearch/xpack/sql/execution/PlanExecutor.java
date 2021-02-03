@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution;
 
@@ -44,7 +45,7 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-    
+
     private final Metrics metrics;
 
     public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {
@@ -53,7 +54,7 @@ public class PlanExecutor {
 
         this.indexResolver = indexResolver;
         this.functionRegistry = new SqlFunctionRegistry();
-        
+
         this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
@@ -116,7 +117,7 @@ public class PlanExecutor {
     public void cleanCursor(SqlConfiguration cfg, Cursor cursor, ActionListener<Boolean> listener) {
         cursor.clear(cfg, client, listener);
     }
-    
+
     public Metrics metrics() {
         return this.metrics;
     }

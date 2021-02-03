@@ -1,0 +1,2 @@
+Source code in this folder (rest-api-spec/) is covered by the Apache License
+2.0 unless explicitly noted in the applicable header.

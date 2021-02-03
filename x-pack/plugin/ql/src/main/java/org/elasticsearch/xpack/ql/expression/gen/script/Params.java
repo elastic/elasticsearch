@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
@@ -97,7 +98,7 @@ public class Params {
     private static List<Param<?>> flatten(List<Param<?>> params) {
         List<Param<?>> flatten = emptyList();
 
-        if (!params.isEmpty()) {
+        if (params.isEmpty() == false) {
             flatten = new ArrayList<>();
             for (Param<?> p : params) {
                 if (p instanceof Script) {

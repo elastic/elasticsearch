@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -87,7 +88,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
         checkOpen();
-        if (!autoCommit) {
+        if (autoCommit == false) {
             new SQLFeatureNotSupportedException("Non auto-commit is not supported");
         }
     }
@@ -118,7 +119,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
-        if (!isClosed()) {
+        if (isClosed() == false) {
             closed = true;
             Debug.release(cfg);
         }
@@ -136,7 +137,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
-        if (!readOnly) {
+        if (readOnly == false) {
             throw new SQLFeatureNotSupportedException("Only read-only mode is supported");
         }
     }

@@ -147,7 +147,7 @@ public class PermissionsIT extends ESRestTestCase {
                 assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized" +
                     " for user [test_ilm]" +
                     " on indices [not-ilm]," +
-                    " this action is granted by the privileges [monitor,manage,all]"));
+                    " this action is granted by the index privileges [monitor,manage,all]"));
             }
         });
     }

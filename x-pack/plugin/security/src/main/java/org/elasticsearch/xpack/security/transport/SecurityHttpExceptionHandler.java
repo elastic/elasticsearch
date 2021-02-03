@@ -30,7 +30,7 @@ public final class SecurityHttpExceptionHandler implements BiConsumer<HttpChanne
     }
 
     public void accept(HttpChannel channel, Exception e) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
 

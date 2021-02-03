@@ -43,6 +43,10 @@ dependencies {
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
+tasks.named("processResources").configure {
+  expand versions: versions
+}
+
 tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')

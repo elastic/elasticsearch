@@ -67,7 +67,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      */
     public void testTypeInPath() {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {
             // Ensure we have a fresh context for each request so we don't get duplicate headers
             try (ThreadContext.StoredContext ignore = verifyingClient.threadPool().getThreadContext().stashContext()) {
@@ -87,7 +87,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
      */
     public void testTypeParameter() {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
         for (Method method : Arrays.asList(Method.GET, Method.HEAD)) {

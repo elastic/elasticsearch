@@ -101,7 +101,7 @@ public class MoreLikeThisQuery extends Query {
             return false;
         if (boostTermsFactor != other.boostTermsFactor)
             return false;
-        if (!(Arrays.equals(likeText, other.likeText)))
+        if ((Arrays.equals(likeText, other.likeText)) == false)
             return false;
         if (maxDocFreq != other.maxDocFreq)
             return false;
@@ -115,19 +115,19 @@ public class MoreLikeThisQuery extends Query {
             return false;
         if (minWordLen != other.minWordLen)
             return false;
-        if (!Arrays.equals(moreLikeFields, other.moreLikeFields))
+        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false)
             return false;
-        if (!minimumShouldMatch.equals(other.minimumShouldMatch))
+        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false)
             return false;
         if (similarity == null) {
             if (other.similarity != null)
                 return false;
-        } else if (!similarity.equals(other.similarity))
+        } else if (similarity.equals(other.similarity) == false)
             return false;
         if (stopWords == null) {
             if (other.stopWords != null)
                 return false;
-        } else if (!stopWords.equals(other.stopWords))
+        } else if (stopWords.equals(other.stopWords) == false)
             return false;
         return true;
     }
@@ -209,7 +209,7 @@ public class MoreLikeThisQuery extends Query {
                 }
             }
         }
-        if (!skipTerms.isEmpty()) {
+        if (skipTerms.isEmpty() == false) {
             mlt.setSkipTerms(skipTerms);
         }
     }

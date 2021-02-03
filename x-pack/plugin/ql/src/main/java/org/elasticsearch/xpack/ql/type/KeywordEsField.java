@@ -26,7 +26,7 @@ public class KeywordEsField extends EsField {
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision, boolean normalized) {
         this(name, properties, hasDocValues, precision, normalized, false);
     }
-    
+
     public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
             boolean normalized, boolean isAlias) {
         this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
@@ -56,7 +56,7 @@ public class KeywordEsField extends EsField {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         KeywordEsField that = (KeywordEsField) o;

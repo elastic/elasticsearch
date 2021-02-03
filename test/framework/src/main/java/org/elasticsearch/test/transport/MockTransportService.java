@@ -383,7 +383,7 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // poor mans request cloning...
-                RequestHandlerRegistry reg = MockTransportService.this.getRequestHandler(action);
+                RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
                 final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
@@ -520,6 +520,7 @@ public final class MockTransportService extends TransportService {
         return (StubbableConnectionManager) connectionManager;
     }
 
+    @SuppressWarnings("resource") // Close is handled elsewhere
     public Transport getOriginalTransport() {
         Transport transport = transport();
         while (transport instanceof StubbableTransport) {

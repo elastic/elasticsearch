@@ -5,10 +5,9 @@ Any time that you start an instance of {es}, you are starting a _node_. A
 collection of connected nodes is called a <<modules-cluster,cluster>>. If you
 are running a single node of {es}, then you have a cluster of one node.
 
-Every node in the cluster can handle <<modules-http,HTTP>> and
-<<modules-transport,Transport>> traffic by default. The transport layer is used
-exclusively for communication between nodes; the HTTP layer is used by REST
-clients.
+Every node in the cluster can handle <<modules-network,HTTP and transport>>
+traffic by default. The transport layer is used exclusively for communication
+between nodes; the HTTP layer is used by REST clients.
 [[modules-node-description]]
 // tag::modules-node-description-tag[]
 All nodes know about all the other nodes in the cluster and can forward client

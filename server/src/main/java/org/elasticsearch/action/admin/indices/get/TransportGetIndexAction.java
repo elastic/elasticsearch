@@ -81,7 +81,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         for (Feature feature : features) {
             switch (feature) {
             case MAPPINGS:
-                    if (!doneMappings) {
+                    if (doneMappings == false) {
                         try {
                             mappingsResult = state.metadata().findMappings(concreteIndices, request.types(),
                                     indicesService.getFieldFilter());
@@ -93,13 +93,13 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     }
                     break;
             case ALIASES:
-                    if (!doneAliases) {
+                    if (doneAliases == false) {
                         aliasesResult = state.metadata().findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;
             case SETTINGS:
-                    if (!doneSettings) {
+                    if (doneSettings == false) {
                         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
                         ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
                         for (String index : concreteIndices) {

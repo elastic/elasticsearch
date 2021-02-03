@@ -109,7 +109,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         builder = ImmutableOpenMap.builder();
         builder.put("node1", new DiskUsage("node1","node1", "/foo/bar", 100, 4));
         builder.put("node2", new DiskUsage("node2","node2", "/foo/bar", 100, 5));
-        currentTime.addAndGet(randomLongBetween(60001, 120000));
+        currentTime.addAndGet(randomLongBetween(60000, 120000));
         monitor.onNewInfo(clusterInfo(builder.build()));
         assertTrue(reroute.get());
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
@@ -201,7 +201,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
         // should reroute again when one disk is still over the watermark
         currentTime.addAndGet(randomLongBetween(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis(), 120000));
         monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
         assertNotNull(listenerReference.get());
         final ActionListener<ClusterState> rerouteListener1 = listenerReference.getAndSet(null);
@@ -217,14 +217,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
             currentTime.addAndGet(randomLongBetween(0,
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis()));
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() - 1));
             monitor.onNewInfo(clusterInfo(allDisksOk));
             assertNull(listenerReference.get());
         }
 
         // should reroute again after the reroute interval
         currentTime.addAndGet(randomLongBetween(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis(), 120000));
         monitor.onNewInfo(clusterInfo(allDisksOk));
         assertNotNull(listenerReference.get());
         listenerReference.getAndSet(null).onResponse(null);
@@ -241,7 +241,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpaces = builder.build();
 
         currentTime.addAndGet(randomLongBetween(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() + 1, 120000));
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis(), 120000));
         monitor.onNewInfo(clusterInfo(allDisksOk, reservedSpaces));
         assertNotNull(listenerReference.get());
         listenerReference.getAndSet(null).onResponse(null);

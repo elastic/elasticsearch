@@ -120,7 +120,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
             }
-            if (!isDataNode && !isMasterNode && !isIngestNode && !isRemoteClusterClientNode) {
+            if (isDataNode == false && isMasterNode == false && isIngestNode == false && isRemoteClusterClientNode == false) {
                 incrementCountForRole(ClusterStatsNodes.Counts.COORDINATING_ONLY, expectedCounts);
             }
 

@@ -76,7 +76,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
@@ -102,7 +102,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", dataStream, new Template(null, null, null));
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream, new Template(null, null, null));
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
@@ -164,7 +164,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicyRequest.setEntity(entity);
         assertOK(client().performRequest(createPolicyRequest));
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
@@ -227,7 +227,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null, null
         );
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
@@ -257,7 +257,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME,
@@ -285,7 +285,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null, null
         );
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
@@ -328,7 +328,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction())),

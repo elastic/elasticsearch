@@ -7,14 +7,11 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -26,12 +23,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     public static final long MAX_CHARS = 1024 * 1024;
 
     public static final ScriptContext<Factory> CONTEXT = newContext("string_script_field", Factory.class);
-
-    static List<Whitelist> whitelist() {
-        return Collections.singletonList(
-            WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "string_whitelist.txt")
-        );
-    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

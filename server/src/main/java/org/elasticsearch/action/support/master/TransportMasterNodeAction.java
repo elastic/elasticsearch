@@ -137,7 +137,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     // check for block, if blocked, retry, else, execute locally
                     final ClusterBlockException blockException = checkBlock(request, clusterState);
                     if (blockException != null) {
-                        if (!blockException.retryable()) {
+                        if (blockException.retryable() == false) {
                             listener.onFailure(blockException);
                         } else {
                             logger.debug("can't execute due to a cluster block, retrying", blockException);

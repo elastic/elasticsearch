@@ -120,7 +120,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
                 }
             }
 
-            if (!invalidMetrics.isEmpty()) {
+            if (invalidMetrics.isEmpty() == false) {
                 throw new IllegalArgumentException(unrecognized(request, invalidMetrics, METRICS.keySet(), "metric"));
             }
 
@@ -143,7 +143,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
                         }
                     }
 
-                    if (!invalidIndexMetrics.isEmpty()) {
+                    if (invalidIndexMetrics.isEmpty() == false) {
                         throw new IllegalArgumentException(unrecognized(request, invalidIndexMetrics, FLAGS.keySet(), "index metric"));
                     }
 

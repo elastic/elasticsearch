@@ -472,7 +472,7 @@ public class DatafeedManager {
 
                                 @Override
                                 public void onResponse(CloseJobAction.Response response) {
-                                    if (!response.isClosed()) {
+                                    if (response.isClosed() == false) {
                                         logger.error("[{}] job close action was not acknowledged", getJobId());
                                     }
                                 }

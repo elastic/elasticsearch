@@ -48,7 +48,7 @@ public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteT
       } catch (URISyntaxException e) {
           throw new ElasticsearchException("exception while reading the store", e);
       }
-      if (!Files.exists(certificateAuthorities)) {
+      if (Files.exists(certificateAuthorities) == false) {
           throw new IllegalStateException("Keystore file [" + certificateAuthorities + "] does not exist.");
       }
     }

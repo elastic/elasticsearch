@@ -148,7 +148,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             }
         });
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for ");
         }
 

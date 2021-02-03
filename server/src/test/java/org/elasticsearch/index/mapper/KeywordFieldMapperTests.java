@@ -123,7 +123,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             org.elasticsearch.common.collect.Map.of(
                 "lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
-                "other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
+                "other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
+                "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new LowercaseNormalizer())
             ),
             singletonMap(
                 "lowercase",
@@ -351,6 +352,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
 
+    public void testNormalizerNamedDefault() throws IOException {
+        // you can call a normalizer 'default' but it won't be applied unless you specifically ask for it
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("field2").field("type", "keyword").field("normalizer", "default").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("field", "FOO");
+            b.field("field2", "FOO");
+        }));
+        assertEquals(new BytesRef("FOO"), doc.rootDoc().getField("field").binaryValue());
+        assertEquals(new BytesRef("foo"), doc.rootDoc().getField("field2").binaryValue());
+    }
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
@@ -435,6 +450,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello", "world" }
         );
+        Analyzer q = ft.getTextSearchInfo().getSearchQuoteAnalyzer();
+        assertTokenStreamContents(q.tokenStream("", "Hello World"), new String[] { "hello world" });
 
         mapperService = createMapperService(mapping(b -> {
             b.startObject("field").field("type", "keyword").field("split_queries_on_whitespace", true).endObject();

@@ -110,7 +110,7 @@ public class MetadataIndexStateService {
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
-    private final MetadataIndexUpgradeService metadataIndexUpgradeService;
+    private final IndexMetadataVerifier indexMetadataVerifier;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
@@ -120,7 +120,7 @@ public class MetadataIndexStateService {
 
     @Inject
     public MetadataIndexStateService(ClusterService clusterService, AllocationService allocationService,
-                                     MetadataIndexUpgradeService metadataIndexUpgradeService,
+                                     IndexMetadataVerifier indexMetadataVerifier,
                                      IndicesService indicesService, ShardLimitValidator shardLimitValidator, ThreadPool threadPool,
                                      TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction,
                                      TransportVerifyShardIndexBlockAction transportVerifyShardIndexBlockAction) {
@@ -130,7 +130,7 @@ public class MetadataIndexStateService {
         this.threadPool = threadPool;
         this.transportVerifyShardBeforeCloseAction = transportVerifyShardBeforeCloseAction;
         this.transportVerifyShardIndexBlockAction = transportVerifyShardIndexBlockAction;
-        this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.indexMetadataVerifier = indexMetadataVerifier;
         this.shardLimitValidator = shardLimitValidator;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
@@ -856,22 +856,22 @@ public class MetadataIndexStateService {
                 final Settings.Builder updatedSettings = Settings.builder().put(indexMetadata.getSettings());
                 updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
 
-                IndexMetadata updatedIndexMetadata = IndexMetadata.builder(indexMetadata)
+                IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
                     .state(IndexMetadata.State.OPEN)
                     .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                     .settings(updatedSettings)
                     .timestampRange(IndexLongFieldRange.NO_SHARDS)
                     .build();
 
-                // The index might be closed because we couldn't import it due to old incompatible version
-                // We need to check that this index can be upgraded to the current version
-                updatedIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(updatedIndexMetadata, minIndexCompatibilityVersion);
+                // The index might be closed because we couldn't import it due to an old incompatible
+                // version, so we need to verify its compatibility.
+                newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(newIndexMetadata, minIndexCompatibilityVersion);
                 try {
-                    indicesService.verifyIndexMetadata(updatedIndexMetadata, updatedIndexMetadata);
+                    indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
                     throw new ElasticsearchException("Failed to verify index " + index, e);
                 }
-                metadata.put(updatedIndexMetadata, true);
+                metadata.put(newIndexMetadata, true);
             }
 
             // Always removes index closed blocks (note: this can fail on-going close index actions)

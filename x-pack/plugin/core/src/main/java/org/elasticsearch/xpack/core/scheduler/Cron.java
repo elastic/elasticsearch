@@ -308,7 +308,7 @@ public class Cron implements ToXContentFragment {
 
         boolean gotOne = false;
         // loop until we've computed the next time, or we've past the endTime
-        while (!gotOne) {
+        while (gotOne == false) {
 
             if(cl.get(Calendar.YEAR) > 2999) { // prevent endless loop...
                 return -1;
@@ -869,8 +869,8 @@ public class Cron implements ToXContentFragment {
             boolean dayOfMSpec = !dom.contains(NO_SPEC);
             boolean dayOfWSpec = !dow.contains(NO_SPEC);
 
-            if (!dayOfMSpec || dayOfWSpec) {
-                if (!dayOfWSpec || dayOfMSpec) {
+            if (dayOfMSpec == false || dayOfWSpec) {
+                if (dayOfWSpec == false || dayOfMSpec) {
                     throw illegalArgument("support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
                 }
             }
@@ -1201,7 +1201,7 @@ public class Cron implements ToXContentFragment {
         while (itr.hasNext()) {
             Integer iVal = itr.next();
             String val = iVal.toString();
-            if (!first) {
+            if (first == false) {
                 buf.append(",");
             }
             buf.append(val);

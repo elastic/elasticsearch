@@ -319,7 +319,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             out.writeOptionalTimeValue(keepAlive);
             out.writeBoolean(keepOnCompletion);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getVersion().before(Version.V_7_10_0)) {
             out.writeBoolean(true);
         }
     }

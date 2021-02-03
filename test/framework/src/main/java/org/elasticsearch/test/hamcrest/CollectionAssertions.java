@@ -27,11 +27,11 @@ import org.hamcrest.Matcher;
  */
 public class CollectionAssertions {
 
-    public static Matcher<ImmutableOpenMap> hasKey(final String key) {
+    public static Matcher<ImmutableOpenMap<String, ?>> hasKey(final String key) {
         return new CollectionMatchers.ImmutableOpenMapHasKeyMatcher(key);
     }
 
-    public static Matcher<ImmutableOpenMap> hasAllKeys(final String... keys) {
+    public static Matcher<ImmutableOpenMap<String, ?>> hasAllKeys(final String... keys) {
         return new CollectionMatchers.ImmutableOpenMapHasAllKeysMatcher(keys);
     }
 }

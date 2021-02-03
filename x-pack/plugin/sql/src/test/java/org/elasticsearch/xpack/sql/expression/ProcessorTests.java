@@ -57,7 +57,7 @@ public class ProcessorTests extends ESTestCase {
                 fail(procName + " does NOT provide a static NAME field\n" + ex);
             }
             processorNames.add(value);
-            if (!registered.contains(value)) {
+            if (registered.contains(value) == false) {
                 notRegistered.add(procName);
             }
             Class<?> declaringClass = proc.getMethod("getWriteableName").getDeclaringClass();

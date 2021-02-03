@@ -9,7 +9,7 @@ public abstract class Resolvables {
 
     public static boolean resolved(Iterable<? extends Resolvable> resolvables) {
         for (Resolvable resolvable : resolvables) {
-            if (!resolvable.resolved()) {
+            if (resolvable.resolved() == false) {
                 return false;
             }
         }

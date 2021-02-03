@@ -30,7 +30,7 @@ public abstract class AbstractRowSet implements RowSet {
         if (terminated) {
             return false;
         }
-        if (!doNext()) {
+        if (doNext() == false) {
             terminated = true;
             return false;
         }

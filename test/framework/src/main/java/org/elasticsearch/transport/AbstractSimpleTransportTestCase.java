@@ -473,6 +473,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
+            @SuppressWarnings("rawtypes")
             public void onResponseReceived(long requestId, Transport.ResponseContext context) {
                 if (context.action().equals(ACTION)) {
                     responseReceived.incrementAndGet();
@@ -1022,7 +1023,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.transport.TransportService.tracer:trace",
+        value = "org.elasticsearch.transport.TransportService.tracer:trace,_root:DEBUG",
         reason = "to ensure we log network events on TRACE level")
     public void testTracerLog() throws Exception {
         TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
@@ -1072,6 +1073,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), excludeSettings)
             .build());
 
+        boolean success = false;
         MockLogAppender appender = new MockLogAppender();
         try {
             appender.start();
@@ -1116,9 +1118,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             appender.addExpectation(errorResponseSentExpectation);
             appender.addExpectation(errorResponseReceivedExpectation);
 
+            logger.info("--> [internal:testError] sending message");
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
-
+            logger.info("--> [internal:testError] checking expectations");
             assertBusy(appender::assertAllExpectationsMatched);
+            logger.info("--> [internal:testError] expectations ok");
 
             final String notSeenSent = "*[internal:testNotSeen]*sent to*";
             final MockLogAppender.LoggingExpectation notSeenSentExpectation =
@@ -1133,13 +1137,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             appender.addExpectation(notSeenReceivedExpectation);
 
             PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
+            logger.info("--> [internal:testNotSeen] sending message");
             serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);
+            logger.info("--> [internal:testNotSeen] awaiting response");
             future.txGet();
-
+            logger.info("--> [internal:testNotSeen] checking expectations");
             assertBusy(appender::assertAllExpectationsMatched);
+            logger.info("--> [internal:testNotSeen] expectations ok");
+
+            success = true;
+        } catch (Throwable t) { // TODO remove once https://github.com/elastic/elasticsearch/issues/66630 resolved
+            logger.info("--> test failed", t);
+            throw t;
         } finally {
+            logger.info("--> removing appender [success={}]", success);
             Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+            logger.info("--> stopping appender [success={}]", success);
             appender.stop();
+            logger.info("--> all done [success={}]", success);
         }
     }
 

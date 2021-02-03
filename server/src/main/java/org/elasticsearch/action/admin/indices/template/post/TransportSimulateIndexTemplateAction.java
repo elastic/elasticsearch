@@ -194,7 +194,7 @@ public class TransportSimulateIndexTemplateAction
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
                 for (Map<String, Map<String, Object>> mapping : mappings) {
-                    if (!mapping.isEmpty()) {
+                    if (mapping.isEmpty() == false) {
                         assert mapping.size() == 1 : mapping;
                         Map.Entry<String, Map<String, Object>> entry = mapping.entrySet().iterator().next();
                         mapperService.merge(entry.getKey(), entry.getValue(), MapperService.MergeReason.INDEX_TEMPLATE);

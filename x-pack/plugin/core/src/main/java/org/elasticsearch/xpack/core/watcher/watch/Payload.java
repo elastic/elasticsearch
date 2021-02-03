@@ -56,7 +56,7 @@ public interface Payload extends ToXContentObject {
 
             Simple simple = (Simple) o;
 
-            if (!data.equals(simple.data)) return false;
+            if (data.equals(simple.data) == false) return false;
 
             return true;
         }

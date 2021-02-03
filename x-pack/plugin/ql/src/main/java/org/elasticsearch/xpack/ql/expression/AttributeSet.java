@@ -98,7 +98,7 @@ public class AttributeSet implements Set<Attribute> {
     @Override
     public boolean containsAll(Collection<?> c) {
         for (Object o : c) {
-            if (!delegate.containsKey(o)) {
+            if (delegate.containsKey(o) == false) {
                 return false;
             }
         }

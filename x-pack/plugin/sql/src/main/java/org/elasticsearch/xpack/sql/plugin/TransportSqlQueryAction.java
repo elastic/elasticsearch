@@ -139,12 +139,12 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
          * CLI gets a special treatment see {@link org.elasticsearch.xpack.sql.action.SqlQueryResponse#value()}
          */ 
         if (r instanceof GeoShape) {
-            return r.toString();
+            r = r.toString();
         } else if (r instanceof Interval) {
             if (mode == CLI) {
-                return r.toString();
+                r = r.toString();
             } else {
-                return ((Interval) r).value();
+                r = ((Interval) r).value();
             }
         }
 

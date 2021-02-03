@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -59,33 +60,33 @@ public class ReplaceFunctionProcessor implements Processor {
         if (!(replacement instanceof String || replacement instanceof Character)) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", replacement);
         }
-        
+
         return Strings.replace(input instanceof Character ? input.toString() : (String) input,
                 pattern instanceof Character ? pattern.toString() : (String) pattern,
                 replacement instanceof Character ? replacement.toString() : (String) replacement);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         ReplaceFunctionProcessor other = (ReplaceFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
                 && Objects.equals(pattern(), other.pattern())
                 && Objects.equals(replacement(), other.replacement());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(input(), pattern(), replacement());
     }
-    
+
     public Processor input() {
         return input;
     }
@@ -93,7 +94,7 @@ public class ReplaceFunctionProcessor implements Processor {
     public Processor pattern() {
         return pattern;
     }
-    
+
     public Processor replacement() {
         return replacement;
     }

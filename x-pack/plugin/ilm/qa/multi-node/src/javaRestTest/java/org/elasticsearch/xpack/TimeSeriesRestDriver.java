@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack;
@@ -177,7 +178,8 @@ public final class TimeSeriesRestDriver {
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "javaRestTest-3"), null, null));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2," +
+            "javaRestTest-3"), null, null));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc;
@@ -1217,14 +1218,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {
         assertThat(ese, throwableWithMessage(
             containsString("action [" + action + "] is unauthorized for API key id [" + apiKeyId + "] of user [" + userName + "]")));
-        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the privileges [")));
+        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName) {
         assertThat(ese, throwableWithMessage(
             containsString("action [" + action + "] is unauthorized for user [" + userName + "]")));
-        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the privileges [")));
+        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.graph;
 
@@ -32,7 +21,7 @@ import java.util.Set;
  * A request to identify terms from a choice of field as part of a {@link Hop}.
  * Optionally, a set of terms can be provided that are used as an exclusion or
  * inclusion list to filter which terms are considered.
- * 
+ *
  */
 public class VertexRequest implements ToXContentObject {
     private String fieldName;
@@ -45,7 +34,7 @@ public class VertexRequest implements ToXContentObject {
     public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 2;
     private int shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
 
-   
+
     public VertexRequest() {
 
     }
@@ -96,9 +85,9 @@ public class VertexRequest implements ToXContentObject {
     /**
      * Adds a term to the set of allowed values - the boost defines the relative
      * importance when pursuing connections in subsequent {@link Hop}s. The boost value
-     * appears as part of the query. 
+     * appears as part of the query.
      * @param term a required term
-     * @param boost an optional boost 
+     * @param boost an optional boost
      */
     public void addInclude(String term, float boost) {
         if (excludes != null) {
@@ -134,8 +123,8 @@ public class VertexRequest implements ToXContentObject {
     /**
      * A "certainty" threshold which defines the weight-of-evidence required before
      * a term found in this field is identified as a useful connection
-     * 
-     * @param value The minimum number of documents that contain this term found in the samples used across all shards 
+     *
+     * @param value The minimum number of documents that contain this term found in the samples used across all shards
      */
     public VertexRequest minDocCount(int value) {
         minDocCount = value;
@@ -150,8 +139,8 @@ public class VertexRequest implements ToXContentObject {
     /**
      * A "certainty" threshold which defines the weight-of-evidence required before
      * a term found in this field is identified as a useful connection
-     * 
-     * @param value The minimum number of documents that contain this term found in the samples used across all shards 
+     *
+     * @param value The minimum number of documents that contain this term found in the samples used across all shards
      */
     public VertexRequest shardMinDocCount(int value) {
         shardMinDocCount = value;

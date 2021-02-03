@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.type;
@@ -28,7 +29,7 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 final class StringUtils {
 
     public static final String EMPTY = "";
-    
+
     public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .append(ISO_LOCAL_DATE)
@@ -63,7 +64,7 @@ final class StringUtils {
         if (value == null) {
             return "null";
         }
-        
+
         if (value instanceof ZonedDateTime) {
             return ((ZonedDateTime) value).format(ISO_DATE_WITH_NANOS);
         }

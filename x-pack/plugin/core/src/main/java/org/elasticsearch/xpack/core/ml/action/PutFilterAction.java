@@ -39,7 +39,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
             MlFilter.Builder filter = MlFilter.STRICT_PARSER.apply(parser, null);
             if (filter.getId() == null) {
                 filter.setId(filterId);
-            } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(filter.getId())) {
+            } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(filter.getId()) == false) {
                 // If we have both URI and body filter ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
                         filter.getId(), filterId));

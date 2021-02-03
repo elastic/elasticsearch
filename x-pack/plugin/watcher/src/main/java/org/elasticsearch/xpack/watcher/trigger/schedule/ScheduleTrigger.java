@@ -37,7 +37,7 @@ public class ScheduleTrigger implements Trigger {
 
         ScheduleTrigger trigger = (ScheduleTrigger) o;
 
-        if (!schedule.equals(trigger.schedule)) return false;
+        if (schedule.equals(trigger.schedule) == false) return false;
 
         return true;
     }

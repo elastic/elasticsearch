@@ -417,7 +417,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     private Terms wrapTerms(Terms terms, String field) throws IOException {
-        if (!hasField(field)) {
+        if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
             // for the _field_names field, fields for the document

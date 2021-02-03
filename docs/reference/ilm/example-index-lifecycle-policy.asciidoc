@@ -22,7 +22,7 @@ and retention requirements.
 [[example-using-index-lifecycle-policy-scenario]]
 ==== Scenario
 
-You’re tasked with sending log files to an {es} cluster. This log data has the
+You want to send log files to an {es} cluster so you can visualize and analyze the data. This log data has the
 following data retention requirements:
 
 * Keep logs on the hot data tier for 30 days
@@ -71,7 +71,7 @@ cluster.
 ==== View the policy
 
 The {agent} uses data streams with an index pattern of `logs-*-*` to store log
-monitoring data. {es}'s built-in `logs` {ilm-init} policy automatically manages
+monitoring data. The built-in `logs` {ilm-init} policy automatically manages
 backing indices for these data streams.
 
 To view the `logs` policy in {kib}:
@@ -79,11 +79,9 @@ To view the `logs` policy in {kib}:
 . Open the menu and go to **Stack Management > Index Lifecycle Policies**.
 . Select the `logs` policy.
 
-The `logs` policy uses our recommended rollover defaults. These defaults
-initiate a rollover when the current write index reaches 50GB or becomes 30 days
-old.
+The `logs` policy uses the recommended rollover defaults: start writing to a new index when the current write index reaches 50GB or becomes 30 days old.
 
-To confirm these rollover settings, click **Settings** for the hot phase. Then
+To view or change the rollover settings, click **Settings** for the hot phase. Then
 disable **Use recommended defaults** to display the rollover settings.
 
 [role="screenshot"]
@@ -93,8 +91,8 @@ image::images/ilm/tutorial-ilm-hotphaserollover-default.png[View rollover defaul
 [[ilm-ex-modify-policy]]
 ==== Modify the policy
 
-The `logs` policy's default settings are enough to prevent the creation of many
-tiny daily indices. You can modify the policy to meet more complex requirements.
+The default `logs` policy is designed to prevent the creation of many
+tiny daily indices. You can modify the policy to meet your performance requirements and manage resource usage.
 
 . Activate the warm phase and click **Settings**.
 +
@@ -102,8 +100,7 @@ tiny daily indices. You can modify the policy to meet more complex requirements.
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png[Add a warm phase with custom settings]
 
-.. Set *Move data into phase when* to *30 days*. This keeps indices in the hot
-tier for 30 days. After 30 days, indices move to the warm tier.
+.. Set *Move data into phase when* to *30 days*. This moves indices to the warm tier 30 days after rollover.
 
 .. Enable **Replicas** and change *Number of replicas* to *1*.
 

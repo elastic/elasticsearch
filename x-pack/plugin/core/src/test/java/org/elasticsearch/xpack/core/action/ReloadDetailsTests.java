@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.action;
@@ -19,7 +20,7 @@ public class ReloadDetailsTests extends AbstractWireSerializingTestCase<ReloadDe
 
     @Override
     protected ReloadDetails createTestInstance() {
-        return new ReloadDetails(randomAlphaOfLengthBetween(5, 10), 
+        return new ReloadDetails(randomAlphaOfLengthBetween(5, 10),
                 new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false))),
                 new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false))));
     }

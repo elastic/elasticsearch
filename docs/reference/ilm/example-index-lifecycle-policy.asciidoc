@@ -118,4 +118,4 @@ keeps the indices on hot nodes for 30 days.
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-delete-rollover.png[Add a delete phase]
 
-. Verify the **Policy Timeline** and click **Save Policy**.
+. Click **Save Policy**.

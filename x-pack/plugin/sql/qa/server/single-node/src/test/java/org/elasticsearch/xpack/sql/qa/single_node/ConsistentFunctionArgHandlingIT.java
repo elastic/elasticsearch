@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,7 +24,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static java.lang.String.join;
 import static java.util.Arrays.asList;
@@ -33,16 +33,16 @@ import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 /**
- * <p>This test was introduced because of the inconsistencies regarding NULL argument handling. NULL literal vs NULL field 
+ * <p>This test was introduced because of the inconsistencies regarding NULL argument handling. NULL literal vs NULL field
  * value as function arguments in some case result in different function return values.</p>
  *
  * <p>Functions should return with the same value no matter if the argument(s) came from a field or from a literal.</p>
- * 
- * <p>The test class based on the example function calls (and argument specifications) generates all the 
- * permutations of the function arguments (4 options per argument: value/NULL as literal/field) and tests that the 
- * function calls with the same argument values provide the same result regardless of the source (literal, field) 
+ *
+ * <p>The test class based on the example function calls (and argument specifications) generates all the
+ * permutations of the function arguments (4 options per argument: value/NULL as literal/field) and tests that the
+ * function calls with the same argument values provide the same result regardless of the source (literal, field)
  * of the arguments.</p>
- *  
+ *
  * <p>To ignore any of the tests, add an .ignore() method call after the Fn ctors in the FUNCTION_CALLS_TO_TEST list below, like:
  * <code> new Fn("ASCII", "foobar").ignore()</code></p>
  */
@@ -73,27 +73,27 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
         new Fn("UCASE", "foobar")
     );
 
-    private static final List<String> NON_TESTED_FUNCTIONS = asList(
-        "CURDATE", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", "CURTIME", "DATEADD", "DATEDIFF", "DATEPART", 
-        "DATETIME_FORMAT", "DATETIME_PARSE", "DATETRUNC", "DATE_ADD", "DATE_DIFF", "DATE_PARSE", "DATE_PART", "DATE_TRUNC", "DAY", 
-        "DAYNAME", "DAYOFMONTH", "DAYOFWEEK", "DAYOFYEAR", "DAY_NAME", "DAY_OF_MONTH", "DAY_OF_WEEK", "DAY_OF_YEAR", "DOM", "DOW", "DOY", 
-        "FORMAT", "HOUR", "HOUR_OF_DAY", "IDOW", "ISODAYOFWEEK", "ISODOW", "ISOWEEK", "ISOWEEKOFYEAR", "ISO_DAY_OF_WEEK", 
-        "ISO_WEEK_OF_YEAR", "IW", "IWOY", "MINUTE", "MINUTE_OF_DAY", "MINUTE_OF_HOUR", "MONTH", "MONTHNAME", "MONTH_NAME", 
-        "MONTH_OF_YEAR", "NOW", "QUARTER", "SECOND", "SECOND_OF_MINUTE", "TIMESTAMPADD", "TIMESTAMPDIFF", "TIMESTAMP_ADD", 
-        "TIMESTAMP_DIFF", "TIME_PARSE", "TODAY", "TO_CHAR", "WEEK", "WEEK_OF_YEAR", "YEAR", "ABS", "ACOS", "ASIN", "ATAN", 
-        "ATAN2", "CBRT", "CEIL", "CEILING", "COS", "COSH", "COT", "DEGREES", "E", "EXP", "EXPM1", "FLOOR", "LOG", "LOG10", 
-        "MOD", "PI", "POWER", "RADIANS", "RAND", "RANDOM", "ROUND", "SIGN", "SIGNUM", "SIN", "SINH", "SQRT", "TAN", "TRUNC", 
-        "TRUNCATE", "CAST", "CONVERT", "DATABASE", "USER", "ST_ASTEXT", "ST_ASWKT", "ST_DISTANCE", 
-        "ST_GEOMETRYTYPE", "ST_GEOMFROMTEXT", "ST_WKTTOSQL", "ST_X", "ST_Y", "ST_Z");
+    private static final List<String> NON_TESTED_FUNCTIONS;
+    static {
+        try {
+            Class<?> c = ConsistentFunctionArgHandlingIT.class;
+            NON_TESTED_FUNCTIONS = Files.readAllLines(Path.of(c.getResource(c.getSimpleName() + "-non-tested-functions.txt").toURI()));
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 
-    private enum Source { FIELD, LITERAL }
-    
+    private enum Source {
+        FIELD,
+        LITERAL
+    }
+
     private static class Fn {
         private final String name;
         private final List<Argument> arguments;
         private List<String> aliases = new ArrayList<>();
         private boolean ignored = false;
-        
+
         private Fn(String name, Object... arguments) {
             this.name = name;
             this.arguments = new ArrayList<>();
@@ -101,23 +101,23 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
                 this.arguments.add(Argument.class.isAssignableFrom(a.getClass()) ? (Argument) a : new Argument(a));
             }
         }
-        
+
         public Fn aliases(String... aliases) {
             this.aliases = asList(aliases);
             return this;
-        } 
-        
+        }
+
         public Fn ignore() {
             this.ignored = true;
             return this;
         }
-        
+
         @Override
         public String toString() {
             return name + "(" + arguments.stream().map(a -> String.valueOf(a.exampleValue)).collect(joining(", ")) + ")";
         }
     }
-    
+
     private static class Argument {
         private final Object exampleValue;
         private final Source[] acceptedSources;
@@ -127,27 +127,27 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
             this.acceptedSources = acceptedSources.length == 0 ? Source.values() : acceptedSources;
         }
     }
-    
+
     @ParametersFactory
     public static Iterable<Object[]> testFactory() {
         List<Object[]> tests = new ArrayList<>();
-        tests.add(new Object[]{ null });
-        FUNCTION_CALLS_TO_TEST.forEach(f -> tests.add(new Object[]{ f }));
+        tests.add(new Object[] { null });
+        FUNCTION_CALLS_TO_TEST.forEach(f -> tests.add(new Object[] { f }));
         return tests;
     }
-    
+
     private final Fn fn;
-    
+
     public ConsistentFunctionArgHandlingIT(Fn fn) {
         this.fn = fn;
     }
-    
+
     public void test() throws Exception {
         if (fn == null) {
             checkScalarFunctionCoverage();
             return;
         }
-        
+
         assumeFalse("Ignored", fn.ignored);
 
         // create a record for the function, where all the example (non-null) argument values are stored in fields
@@ -157,12 +157,12 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
         final String argPrefix = "arg_" + functionName + "_";
         final String nullArgPrefix = "arg_null_" + functionName + "_";
         final String testDocId = functionName + "_" + UUIDs.base64UUID();
-        
+
         indexTestDocForFunction(functionName, indexName, argPrefix, nullArgPrefix, testDocId);
 
         List<List<Object>> possibleValuesPerArguments = fn.arguments.stream().map(a -> asList(a.exampleValue, null)).collect(toList());
         List<List<Source>> acceptedSourcesPerArguments = fn.arguments.stream().map(a -> asList(a.acceptedSources)).collect(toList());
-        
+
         iterateAllPermutations(possibleValuesPerArguments, argValues -> {
             // we only want to check the function calls that have at least a single NULL argument
             if (argValues.stream().noneMatch(Objects::isNull)) {
@@ -170,7 +170,7 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
             }
 
             List<Tuple<String, Object>> results = new ArrayList<>();
-            
+
             iterateAllPermutations(acceptedSourcesPerArguments, argSources -> {
                 List<String> functionCallArgs = new ArrayList<>();
                 List<String> functionCallArgsForAssert = new ArrayList<>();
@@ -193,18 +193,17 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
                 final String functionCall = functionName + "(" + join(", ", functionCallArgs) + ")";
                 final String query = "SELECT " + functionCall + " FROM " + indexName + " WHERE docId = '" + testDocId + "'";
                 ResultSet retVal = esJdbc().createStatement().executeQuery(query);
-                
+
                 assertTrue(retVal.next());
                 results.add(tuple(functionName + "(" + join(", ", functionCallArgsForAssert) + ")", retVal.getObject(1)));
                 // only a single row should be returned
                 assertFalse(retVal.next());
 
-                Stream<Object> returnValueStream = results.stream().map(Tuple::v2);
-                if (returnValueStream.distinct().count() > 1) {
-                    int maxResultWidth = returnValueStream.mapToInt(o -> asLiteralInQuery(o).length()).max().orElse(20);
+                if (results.stream().map(Tuple::v2).distinct().count() > 1) {
+                    int maxResultWidth = results.stream().map(Tuple::v2).mapToInt(o -> asLiteralInQuery(o).length()).max().orElse(20);
                     String resultsAsString = results.stream()
-                            .map(r -> String.format(Locale.ROOT, "%2$-" + maxResultWidth + "s // %1$s", r.v1(), asLiteralInQuery(r.v2())))
-                            .collect(joining("\n"));
+                        .map(r -> String.format(Locale.ROOT, "%2$-" + maxResultWidth + "s // %1$s", r.v1(), asLiteralInQuery(r.v2())))
+                        .collect(joining("\n"));
                     fail("The result of the last call differs from the other calls:\n" + resultsAsString);
                 }
             });
@@ -246,9 +245,12 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
             functions.removeAll(fn.aliases);
         }
         functions.removeAll(NON_TESTED_FUNCTIONS);
-        
-        assertThat("Missing function checks: [" + functions.stream().map(s -> "\"" + s + "\"").collect(joining(", ")) + "]", 
-            functions, empty());
+
+        assertThat(
+            "Some functions are not covered by this test",
+            functions,
+            empty()
+        );
     }
 
     private static String asLiteralInQuery(Object argValue) {
@@ -264,9 +266,9 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
         return argInQuery;
     }
 
-    private static <T> void iterateAllPermutations(List<List<T>> possibleValuesPerItem, CheckedConsumer<List<T>, Exception> consumer) 
+    private static <T> void iterateAllPermutations(List<List<T>> possibleValuesPerItem, CheckedConsumer<List<T>, Exception> consumer)
         throws Exception {
-        
+
         if (possibleValuesPerItem.isEmpty()) {
             consumer.accept(new ArrayList<>());
             return;
@@ -280,6 +282,5 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
             }
         });
     }
-    
-}
 
+}

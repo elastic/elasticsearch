@@ -26,6 +26,12 @@ GET /_field_caps?fields=rating
 
 `POST /<target>/_field_caps?fields=<fields>`
 
+[[search-field-caps-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata`, `read`, or `manage` <<privileges-list-indices,index
+privilege>> for the target data stream, index, or index alias.
 
 [[search-field-caps-api-desc]]
 ==== {api-description-title}

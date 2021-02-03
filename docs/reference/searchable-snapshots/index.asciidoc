@@ -113,7 +113,7 @@ indices again.
 Before you restore a snapshot containing a {search-snap} index, you must first
 <<snapshots-register-repository,register the repository>> containing the
 original index snapshot. When restored, the {search-snap} index mounts the
-original index snapshot from its original repository repository. If wanted, you
+original index snapshot from its original repository. If wanted, you
 can use separate repositories for regular snapshots and {search-snaps}.
 
 A snapshot of a {search-snap} index contains only a small amount of metadata

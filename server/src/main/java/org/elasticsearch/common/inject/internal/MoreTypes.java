@@ -69,7 +69,7 @@ public class MoreTypes {
      * @throws ConfigurationException if {@code type} contains a type variable
      */
     public static <T> TypeLiteral<T> makeKeySafe(TypeLiteral<T> type) {
-        if (!isFullySpecified(type.getType())) {
+        if (isFullySpecified(type.getType()) == false) {
             String message = type + " cannot be used as a key; It is not fully specified.";
             throw new ConfigurationException(singleton(new Message(message)));
         }
@@ -144,7 +144,7 @@ public class MoreTypes {
             // Neal isn't either but suspects some pathological case related
             // to nested classes exists.
             Type rawType = parameterizedType.getRawType();
-            if (!(rawType instanceof Class)) {
+            if ((rawType instanceof Class) == false) {
                 throw new IllegalArgumentException(
                         "Expected a Class, but <" + type +"> is of type " + type.getClass().getName()
                 );
@@ -179,7 +179,7 @@ public class MoreTypes {
             return a.equals(b);
 
         } else if (a instanceof ParameterizedType) {
-            if (!(b instanceof ParameterizedType)) {
+            if ((b instanceof ParameterizedType) == false) {
                 return false;
             }
 
@@ -191,7 +191,7 @@ public class MoreTypes {
                     && Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());
 
         } else if (a instanceof GenericArrayType) {
-            if (!(b instanceof GenericArrayType)) {
+            if ((b instanceof GenericArrayType) == false) {
                 return false;
             }
 
@@ -200,7 +200,7 @@ public class MoreTypes {
             return equals(ga.getGenericComponentType(), gb.getGenericComponentType());
 
         } else if (a instanceof WildcardType) {
-            if (!(b instanceof WildcardType)) {
+            if ((b instanceof WildcardType) == false) {
                 return false;
             }
 
@@ -210,7 +210,7 @@ public class MoreTypes {
                     && Arrays.equals(wa.getLowerBounds(), wb.getLowerBounds());
 
         } else if (a instanceof TypeVariable) {
-            if (!(b instanceof TypeVariable)) {
+            if ((b instanceof TypeVariable) == false) {
                 return false;
             }
             TypeVariable<?> va = (TypeVariable) a;
@@ -377,7 +377,7 @@ public class MoreTypes {
         }
 
         // check our supertypes
-        if (!rawType.isInterface()) {
+        if (rawType.isInterface() == false) {
             while (rawType != Object.class) {
                 Class<?> rawSupertype = rawType.getSuperclass();
                 if (rawSupertype == toResolve) {
@@ -480,12 +480,12 @@ public class MoreTypes {
                 return false;
             }
 
-            if (!MoreTypes.isFullySpecified(rawType)) {
+            if (MoreTypes.isFullySpecified(rawType) == false) {
                 return false;
             }
 
             for (Type type : typeArguments) {
-                if (!MoreTypes.isFullySpecified(type)) {
+                if (MoreTypes.isFullySpecified(type) == false) {
                     return false;
                 }
             }

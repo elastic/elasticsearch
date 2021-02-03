@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.support;
@@ -47,7 +48,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
 
         final SecurityIndexManager.State previousState = SecurityIndexManager.State.UNRECOVERED_STATE;
         final SecurityIndexManager.State currentState = new SecurityIndexManager.State(
-            Instant.now(), true, true, true, Version.CURRENT,
+            Instant.now(), true, true, Version.CURRENT,
             ".security", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN);
 
         cacheInvalidatorRegistry.onSecurityIndexStageChange(previousState, currentState);

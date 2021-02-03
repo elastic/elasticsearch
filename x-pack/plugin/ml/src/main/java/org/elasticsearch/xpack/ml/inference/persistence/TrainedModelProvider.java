@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
@@ -609,7 +610,7 @@ public class TrainedModelProvider {
 
         ActionListener<List<TrainedModelConfig.Builder>> getTrainedModelListener = ActionListener.wrap(
             modelBuilders -> {
-                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance() 
+                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()
                   || includes.isIncludeHyperparameters()) == false) {
                     finalListener.onResponse(modelBuilders.stream()
                         .map(TrainedModelConfig.Builder::build)
@@ -632,7 +633,7 @@ public class TrainedModelProvider {
                                     if (includes.isIncludeHyperparameters()) {
                                         builder.setHyperparameters(modelMetadata.getHyperparameters());
                                     }
-                                    
+
                                 }
                                 return builder.build();
                             })

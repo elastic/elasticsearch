@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.join.query;
 
@@ -32,6 +21,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -141,7 +131,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
         }
         if (minChildren == 0) {
-            deprecationLogger.deprecate("min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
         }
         if (maxChildren < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");
@@ -411,9 +401,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
             if (minChildren != that.minChildren) return false;
             if (maxChildren != that.maxChildren) return false;
-            if (!toQuery.equals(that.toQuery)) return false;
-            if (!innerQuery.equals(that.innerQuery)) return false;
-            if (!joinField.equals(that.joinField)) return false;
+            if (toQuery.equals(that.toQuery) == false) return false;
+            if (innerQuery.equals(that.innerQuery) == false) return false;
+            if (joinField.equals(that.joinField) == false) return false;
             return scoreMode == that.scoreMode;
         }
 

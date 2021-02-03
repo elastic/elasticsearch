@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
@@ -250,7 +239,7 @@ public class XContentHelper {
     public static boolean update(Map<String, Object> source, Map<String, Object> changes, boolean checkUpdatesAreUnequal) {
         boolean modified = false;
         for (Map.Entry<String, Object> changesEntry : changes.entrySet()) {
-            if (!source.containsKey(changesEntry.getKey())) {
+            if (source.containsKey(changesEntry.getKey()) == false) {
                 // safe to copy, change does not exist in source
                 source.put(changesEntry.getKey(), changesEntry.getValue());
                 modified = true;
@@ -268,7 +257,7 @@ public class XContentHelper {
             if (modified) {
                 continue;
             }
-            if (!checkUpdatesAreUnequal) {
+            if (checkUpdatesAreUnequal == false) {
                 modified = true;
                 continue;
             }
@@ -283,7 +272,7 @@ public class XContentHelper {
      */
     public static void mergeDefaults(Map<String, Object> content, Map<String, Object> defaults) {
         for (Map.Entry<String, Object> defaultEntry : defaults.entrySet()) {
-            if (!content.containsKey(defaultEntry.getKey())) {
+            if (content.containsKey(defaultEntry.getKey()) == false) {
                 // copy it over, it does not exists in the content
                 content.put(defaultEntry.getKey(), defaultEntry.getValue());
             } else {
@@ -321,7 +310,7 @@ public class XContentHelper {
                         // just make sure not to add the same value twice
                         mergedList.addAll(defaultList);
                         for (Object o : contentList) {
-                            if (!mergedList.contains(o)) {
+                            if (mergedList.contains(o) == false) {
                                 mergedList.add(o);
                             }
                         }
@@ -334,7 +323,7 @@ public class XContentHelper {
 
     private static boolean allListValuesAreMapsOfOne(List list) {
         for (Object o : list) {
-            if (!(o instanceof Map)) {
+            if ((o instanceof Map) == false) {
                 return false;
             }
             if (((Map) o).size() != 1) {

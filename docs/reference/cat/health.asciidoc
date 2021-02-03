@@ -13,6 +13,11 @@ health>> API.
 
 `GET /_cat/health`
 
+[[cat-health-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-health-api-desc]]
 ==== {api-description-title}

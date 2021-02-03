@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -26,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -66,7 +56,7 @@ public class OperationRouting {
         if (ignoreAwarenessAttr == false) {
             awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
             if (awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "searches_not_routed_on_awareness_attributes",
                     IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
             }
             clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -91,7 +81,7 @@ public class OperationRouting {
         boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
         if (ignoreAwarenessAttr == false) {
             if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "searches_not_routed_on_awareness_attributes",
                     IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
             }
             this.awarenessAttributes = awarenessAttributes;
@@ -199,7 +189,7 @@ public class OperationRouting {
                         break;
                     }
                 }
-                if (!found) {
+                if (found == false) {
                     return null;
                 }
                 // no more preference

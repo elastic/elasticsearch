@@ -1,15 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation.logging;
-
-import java.util.Arrays;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,6 +33,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.xpack.core.ClientHelper;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
 /**
  * This component manages the construction and lifecycle of the {@link DeprecationIndexingAppender}.
  * It also starts and stops the appender
@@ -62,14 +63,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
         final Configuration configuration = context.getConfiguration();
 
-        final EcsJsonLayout layout = EcsJsonLayout.newBuilder()
-            .setType("deprecation")
+        final EcsJsonLayout ecsLayout = EcsJsonLayout.newBuilder()
+            .setDataset("elasticsearch.deprecation")
             .setESMessageFields("key,x-opaque-id")
             .setConfiguration(configuration)
             .build();
 
         this.filter = new RateLimitingFilter();
-        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, layout, consumer);
+        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", filter, ecsLayout, consumer);
     }
 
     @Override

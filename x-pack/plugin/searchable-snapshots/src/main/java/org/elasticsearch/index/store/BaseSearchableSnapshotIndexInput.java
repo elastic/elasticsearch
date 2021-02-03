@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store;
 
@@ -42,11 +43,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
-        assert fileInfo.metadata()
-            .hashEqualsContents() == false : "this method should only be used with blobs that are NOT stored in metadata's hash field "
-                + "(fileInfo: "
-                + fileInfo
-                + ')';
+        assert fileInfo.metadata().hashEqualsContents() == false
+            : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;

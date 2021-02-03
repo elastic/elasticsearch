@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
@@ -182,7 +183,9 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         assertThat(repository, instanceOf(BlobStoreRepository.class));
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
-        final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(
+            internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(fsRepoName)
+        );
         final IndexId indexId = repositoryData.resolveIndexId(indexName);
         long inMemoryCacheSize = 0;
         long expectedPhysicalCacheSize = 0;

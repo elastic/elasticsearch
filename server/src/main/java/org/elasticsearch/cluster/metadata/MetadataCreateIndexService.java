@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -55,6 +44,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -181,7 +171,7 @@ public class MetadataCreateIndexService {
      */
     public void validateIndexName(String index, ClusterState state) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
-        if (!index.toLowerCase(Locale.ROOT).equals(index)) {
+        if (index.toLowerCase(Locale.ROOT).equals(index) == false) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
 
@@ -214,7 +204,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                DEPRECATION_LOGGER.deprecate("index_name_starts_with_dot",
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.INDICES, "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                         "starting with a dot are reserved for hidden indices and system indices", index);
             }
@@ -227,7 +217,7 @@ public class MetadataCreateIndexService {
      * Validate the name for an index or alias against some static rules.
      */
     public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
-        if (!Strings.validFileName(index)) {
+        if (Strings.validFileName(index) == false) {
             throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
         if (index.contains("#")) {
@@ -362,7 +352,7 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    DEPRECATION_LOGGER.deprecate("index_template_multiple_match",
+                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
@@ -438,8 +428,7 @@ public class MetadataCreateIndexService {
      * Given a state and index settings calculated after applying templates, validate metadata for
      * the new index, returning an {@link IndexMetadata} for the new index
      */
-    private IndexMetadata buildAndValidateTemporaryIndexMetadata(final ClusterState currentState,
-                                                                 final Settings aggregatedIndexSettings,
+    private IndexMetadata buildAndValidateTemporaryIndexMetadata(final Settings aggregatedIndexSettings,
                                                                  final CreateIndexClusterStateUpdateRequest request,
                                                                  final int routingNumShards) {
 
@@ -489,7 +478,7 @@ public class MetadataCreateIndexService {
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates),
                 null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, Collections.singletonList(mappings),
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
@@ -522,14 +511,14 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
                 null, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
-                MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
+                MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName, false), currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
+                aliasValidator, xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
             Collections.singletonList(templateName), metadataTransformer);
     }
 
@@ -573,7 +562,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY,
             sourceMetadata, settings, indexScopedSettings, shardLimitValidator, indexSettingProviders);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, Collections.emptyList(),
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),
@@ -764,7 +753,7 @@ public class MetadataCreateIndexService {
          */
         shardLimitValidator.validateShardLimit(indexSettings, currentState);
         if (indexSettings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            DEPRECATION_LOGGER.deprecate("soft_deletes_disabled",
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SETTINGS, "soft_deletes_disabled",
                 "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
                     "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + request.index() + "].");
         }
@@ -957,7 +946,7 @@ public class MetadataCreateIndexService {
 
     private static ClusterBlocks.Builder createClusterBlocksBuilder(ClusterState currentState, String index, Set<ClusterBlock> blocks) {
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
-        if (!blocks.isEmpty()) {
+        if (blocks.isEmpty() == false) {
             for (ClusterBlock block : blocks) {
                 blocksBuilder.addIndexBlock(index, block);
             }
@@ -971,7 +960,7 @@ public class MetadataCreateIndexService {
                                                              @Nullable IndexMetadata sourceMetadata) throws IOException {
         MapperService mapperService = indexService.mapperService();
         for (Map<String, Map<String, Object>> mapping : mappings) {
-            if (!mapping.isEmpty()) {
+            if (mapping.isEmpty() == false) {
                 assert mapping.size() == 1 : mapping;
                 Map.Entry<String, Map<String, Object>> entry = mapping.entrySet().iterator().next();
                 mapperService.merge(entry.getKey(), entry.getValue(), MergeReason.INDEX_TEMPLATE);
@@ -1048,7 +1037,7 @@ public class MetadataCreateIndexService {
     private static List<String> validateIndexCustomPath(Settings settings, @Nullable Path sharedDataPath) {
         String customPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
-        if (!Strings.isEmpty(customPath)) {
+        if (Strings.isEmpty(customPath) == false) {
             if (sharedDataPath == null) {
                 validationErrors.add("path.shared_data must be set in order to use custom data paths");
             } else {
@@ -1198,7 +1187,6 @@ public class MetadataCreateIndexService {
 
         indexSettingsBuilder
             .put(IndexMetadata.SETTING_VERSION_CREATED, sourceMetadata.getCreationVersion())
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, sourceMetadata.getUpgradedVersion())
             .put(builder.build())
             .put(IndexMetadata.SETTING_ROUTING_PARTITION_SIZE, sourceMetadata.getRoutingPartitionSize())
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())
@@ -1232,7 +1220,8 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            DEPRECATION_LOGGER.deprecate("translog_retention", "Translog retention settings [index.translog.retention.age] "
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
+                "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
         }
     }

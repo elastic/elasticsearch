@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.actions;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,7 +52,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
-import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
@@ -67,34 +66,20 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        logger.info("--> running [{}] with data stream [{}], snapshot repot [{}] and policy [{}]", getTestName(), dataStream,
+            snapshotRepo, policy);
     }
 
-    @After
-    public void waitNoRestoresInProgressInRepo() throws Exception {
-        /*
-         * This should be a "fairly quick" wait as each test waits for the searchable snapshot action
-         * to complete.
-         * It seems that sometime there is a discrepancy between the {@link org.elasticsearch.repositories.RepositoryData}
-         * status of the snapshots and the cluster state {@link org.elasticsearch.cluster.RestoreInProgress} metadata, which
-         * will prevent {@link #wipeCluster} from wiping the snapshots as the cluster state would show some
-         * as "in progress" and won't be able to delete them.
-         */
-        assertBusy(() -> {
-            try {
-                Response response = client().performRequest(new Request("GET", "/_snapshot/" + snapshotRepo + "/_status"));
-                assertThat(EntityUtils.toString(response.getEntity()), containsStringIgnoringCase("\"snapshots\":[]"));
-            } catch (IOException e) {
-                // converting to AssertionError here so assertBusy retries
-                throw new AssertionError(e);
-            }
-        });
+    @Override
+    protected boolean waitForAllSnapshotsWiped() {
+        return true;
     }
 
     public void testSearchableSnapshotAction() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
@@ -120,7 +105,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", dataStream, new Template(null, null, null));
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream, new Template(null, null, null));
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
@@ -182,7 +167,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicyRequest.setEntity(entity);
         assertOK(client().performRequest(createPolicyRequest));
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
@@ -231,7 +216,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
-        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink]" +
+        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup]" +
             " actions which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
@@ -245,7 +230,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null, null
         );
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
@@ -275,7 +260,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SetPriorityAction.NAME, new SetPriorityAction(10))),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME,
@@ -303,7 +288,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null, null
         );
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
@@ -346,7 +331,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()),
             new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1), ForceMergeAction.NAME,
+                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null), ForceMergeAction.NAME,
                     new ForceMergeAction(1, null))
             ),
             new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction())),

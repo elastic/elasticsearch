@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.index.store.cache;
@@ -288,21 +289,17 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + (position + length)
                 + "] vs "
                 + rangeToWrite;
-            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
-                final int read;
-                if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
-                    final ByteBuffer duplicate = b.duplicate();
-                    duplicate.limit(duplicate.position() + toIntBytes(rangeToRead.v2() - rangeToRead.v1()));
-                    read = readCacheFile(channel, position, duplicate);
-                    assert duplicate.position() <= b.limit();
-                    b.position(duplicate.position());
-                } else {
-                    read = readCacheFile(channel, position, b);
-                }
-                return read;
-            }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
+            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
+            assert rangeToRead.v2() - rangeToRead.v1() == b.remaining() : b.remaining() + " vs " + rangeToRead;
+
+            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
+                rangeToWrite,
+                rangeToRead,
+                channel -> readCacheFile(channel, position, b),
+                this::writeCacheFile,
+                directory.cacheFetchAsyncExecutor()
+            );
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();

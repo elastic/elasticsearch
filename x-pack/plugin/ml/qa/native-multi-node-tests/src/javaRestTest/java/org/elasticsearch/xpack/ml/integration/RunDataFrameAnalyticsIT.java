@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -582,6 +583,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Stopped analytics");
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67889")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 
@@ -612,11 +614,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         NodeAcknowledgedResponse response = startAnalytics(id);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until progress for first phase is over 1
-        assertBusy(() -> {
-            List<PhaseProgress> progress = getAnalyticsStats(id).getProgress();
-            assertThat(progress.get(0).getProgressPercent(), greaterThan(1));
-        });
+        String phaseToWait = randomFrom("reindexing", "loading_data", "computing_outliers");
+        waitUntilSomeProgressHasBeenMadeForPhase(id, phaseToWait);
         stopAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 

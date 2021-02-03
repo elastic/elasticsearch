@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.capacity;
@@ -354,6 +355,23 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(
             exception.getMessage(),
             equalTo("decider [" + FixedAutoscalingDeciderService.NAME + "] not applicable to policy with roles [ " + badRoles + "]")
+        );
+    }
+
+    public void testValidateNotEmptyDeciders() {
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
+            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+        );
+        String policyName = randomAlphaOfLength(8);
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            policyName,
+            new TreeSet<>(randomBoolean() ? org.elasticsearch.common.collect.Set.of() : org.elasticsearch.common.collect.Set.of("master")),
+            new TreeMap<>()
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(
+            exception.getMessage(),
+            equalTo("no default nor user configured deciders for policy [" + policyName + "] with roles [" + policy.roles() + "]")
         );
     }
 

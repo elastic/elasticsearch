@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -71,6 +72,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -403,7 +405,7 @@ public class WildcardFieldMapper extends FieldMapper {
                     String normalizedString = toLowerCase(r.s);
                     result = new TermQuery(new Term("", normalizedString));
                     break;
-                case REGEXP_CHAR:                    
+                case REGEXP_CHAR:
                     String cs = new StringBuilder().appendCodePoint(r.c).toString();
                     String normalizedChar = toLowerCase(cs);
                     result = new TermQuery(new Term("", normalizedChar));
@@ -892,7 +894,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
             for (Object value : values) {
                 bq.add(termQuery(value, context), Occur.SHOULD);

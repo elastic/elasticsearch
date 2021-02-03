@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -1018,8 +1007,20 @@ public class MetadataIndexTemplateService {
 
     /**
      * Resolve the given v2 template into an ordered list of aliases
+     *
+     * @param failIfTemplateHasDataStream Whether to skip validating if a template has a data stream definition and an alias definition.
+     *                                    This validation is needed so that no template gets created that creates datastream and also
+     *                                    a an alias pointing to the backing indices of a data stream. Unfortunately this validation
+     *                                    was missing in versions prior to 7.11, which mean that there are cluster states out there,
+     *                                    that have this malformed templates. This method is used when rolling over a data stream
+     *                                    or creating new data streams. In order for these clusters to avoid failing these operations
+     *                                    immediately after an upgrade the failure should be optional. So that there is time to change
+     *                                    these templates. The logic that adds/updates index and component templates shouldn't skip this
+     *                                    validation.
      */
-    public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata, final String templateName) {
+    public static List<Map<String, AliasMetadata>> resolveAliases(final Metadata metadata,
+                                                                  final String templateName,
+                                                                  final boolean failIfTemplateHasDataStream) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null : "attempted to resolve aliases for a template [" + templateName +
             "] that did not exist in the cluster state";
@@ -1039,6 +1040,19 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::aliases)
             .ifPresent(aliases::add);
+
+        // A template that creates data streams can't also create aliases.
+        // (otherwise we end up with aliases pointing to backing indices of data streams)
+        if (aliases.size() > 0 && template.getDataStreamTemplate() != null) {
+            if (failIfTemplateHasDataStream) {
+                throw new IllegalArgumentException("template [" + templateName + "] has alias and data stream definitions");
+            } else {
+                String warning = "template [" + templateName + "] has alias and data stream definitions";
+                logger.warn(warning);
+                HeaderWarning.addWarning(warning);
+            }
+        }
+
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order
         // of precedence (with the index template first)
@@ -1090,7 +1104,7 @@ public class MetadataIndexTemplateService {
             tempIndexService -> {
                 // Validate aliases
                 MetadataCreateIndexService.resolveAndValidateAliases(temporaryIndexName, Collections.emptySet(),
-                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName), stateWithIndex.metadata(),
+                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName, true), stateWithIndex.metadata(),
                     new AliasValidator(),
                     // the context is only used for validation so it's fine to pass fake values for the
                     // shard id and the current timestamp

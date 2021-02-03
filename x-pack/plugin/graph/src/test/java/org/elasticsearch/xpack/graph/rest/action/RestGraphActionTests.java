@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.graph.rest.action;
@@ -27,7 +28,7 @@ public class RestGraphActionTests extends RestActionTestCase {
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> {});
 
         dispatchRequest(request);
         assertWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);

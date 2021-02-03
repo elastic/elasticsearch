@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
@@ -241,7 +242,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         private void expectUnauthorized(String action, String user, ThrowingRunnable r) {
             SQLInvalidAuthorizationSpecException e = expectThrows(SQLInvalidAuthorizationSpecException.class, r);
-            assertEquals("action [" + action + "] is unauthorized for user [" + user + "]", e.getMessage());
+            assertThat(e.getMessage(), containsString("action [" + action + "] is unauthorized for user [" + user + "]"));
         }
     }
 

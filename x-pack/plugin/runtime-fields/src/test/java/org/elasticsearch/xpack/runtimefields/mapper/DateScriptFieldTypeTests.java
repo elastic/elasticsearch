@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -30,6 +31,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -38,6 +40,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
@@ -70,6 +73,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    public void testFromSource() throws IOException {
+        MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "date")));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", 1545)));
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            MappedFieldType ft = mapperService.fieldType("field");
+            SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+            Query rangeQuery = ft.rangeQuery("1200-01-01", "2020-01-01", false, false, ShapeRelation.CONTAINS, null, null, sec);
+            IndexSearcher searcher = new IndexSearcher(ir);
+            assertEquals(1, searcher.count(rangeQuery));
+        });
+    }
 
     public void testDateWithFormat() throws IOException {
         CheckedSupplier<XContentBuilder, IOException> mapping = () -> runtimeFieldMapping(b -> {
@@ -601,7 +616,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         };
         ScriptModule scriptModule = new ScriptModule(
             Settings.EMPTY,
-            org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields())
+            org.elasticsearch.common.collect.List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY))
         );
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             DateFieldScript.Factory factory = scriptService.compile(script, DateFieldScript.CONTEXT);

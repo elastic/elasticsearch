@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,6 +42,13 @@ public class LatestContinuousIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-latest-test";
 
+    private static final Map<String, Object> RUNTIME_MAPPINGS =
+        new HashMap<String, Object>() {{
+            put("event-upper-at-search", new HashMap<String, Object>() {{
+                put("type", "keyword");
+                put("script", singletonMap("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}"));
+            }});
+        }};
     private static final String MISSING_BUCKET_KEY = "~~NULL~~"; // ensure that this key is last after sorting
 
     private final String eventField;
@@ -52,20 +61,13 @@ public class LatestContinuousIT extends ContinuousTestCase {
 
     @Override
     public TransformConfig createConfig() {
-        Map<String, Object> runtimeMappings =
-            new HashMap<>() {{
-                put("event-upper-at-search", new HashMap<>() {{
-                    put("type", "keyword");
-                    put("script", singletonMap("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}"));
-                }});
-            }};
         TransformConfig.Builder transformConfigBuilder =
             new TransformConfig.Builder()
                 .setId(NAME)
                 .setSource(
                     SourceConfig.builder()
                         .setIndex(CONTINUOUS_EVENTS_SOURCE_INDEX)
-                        .setRuntimeMappings(runtimeMappings)
+                        .setRuntimeMappings(RUNTIME_MAPPINGS)
                         .build())
                 .setDest(new DestConfig(NAME, INGEST_PIPELINE))
                 .setLatestConfig(
@@ -90,6 +92,8 @@ public class LatestContinuousIT extends ContinuousTestCase {
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .source(
                     new SearchSourceBuilder()
+                        // runtime mappings are needed in case "event-upper-at-search" is selected as the event field in test constructor
+                        .runtimeMappings(RUNTIME_MAPPINGS)
                         .size(0)
                         .aggregation(
                             new TermsAggregationBuilder("by_event")

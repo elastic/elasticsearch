@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -53,7 +54,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
     }
 
     protected abstract StringOperation operation();
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         //TODO change this to use _source instead of the exact form (aka field.keyword for text fields)
@@ -61,7 +62,7 @@ public abstract class UnaryStringFunction extends UnaryScalarFunction {
                 paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
-    
+
     @Override
     public String processScript(String template) {
         return formatTemplate(

@@ -28,11 +28,11 @@ the data. This data has the following retention requirements:
 * When the write index reaches 50GB or is 30 days old, roll over to a new index.
 * After rollover, keep indices in the hot data tier for 30 days.
 * 30 days after rollover:
-** Move indices to the warm data tier
-** Set <<glossary-replica-shard, replica shards>> to 1
+** Move indices to the warm data tier.
+** Set <<glossary-replica-shard, replica shards>> to 1.
 ** <<indices-forcemerge, Force merge>> multiple index segments to free up the
-space used by deleted documents
-* Delete indices after 90 days
+space used by deleted documents.
+* Delete indices 90 days after rollover.
 
 
 [discrete]

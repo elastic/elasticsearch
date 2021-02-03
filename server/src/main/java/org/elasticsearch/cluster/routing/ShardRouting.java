@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
@@ -519,28 +520,13 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     /** returns true if the current routing is identical to the other routing in all but meta fields, i.e., unassigned info */
     public boolean equalsIgnoringMetadata(ShardRouting other) {
-        if (primary != other.primary) {
-            return false;
-        }
-        if (shardId != null ? !shardId.equals(other.shardId) : other.shardId != null) {
-            return false;
-        }
-        if (currentNodeId != null ? !currentNodeId.equals(other.currentNodeId) : other.currentNodeId != null) {
-            return false;
-        }
-        if (relocatingNodeId != null ? !relocatingNodeId.equals(other.relocatingNodeId) : other.relocatingNodeId != null) {
-            return false;
-        }
-        if (allocationId != null ? !allocationId.equals(other.allocationId) : other.allocationId != null) {
-            return false;
-        }
-        if (state != other.state) {
-            return false;
-        }
-        if (recoverySource != null ? !recoverySource.equals(other.recoverySource) : other.recoverySource != null) {
-            return false;
-        }
-        return true;
+        return primary == other.primary
+            && Objects.equals(shardId, other.shardId)
+            && Objects.equals(currentNodeId, other.currentNodeId)
+            && Objects.equals(relocatingNodeId, other.relocatingNodeId)
+            && Objects.equals(allocationId, other.allocationId)
+            && state == other.state
+            && Objects.equals(recoverySource, other.recoverySource);
     }
 
     @Override
@@ -548,14 +534,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null || !(o instanceof ShardRouting)) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
         ShardRouting that = (ShardRouting) o;
-        if (unassignedInfo != null ? !unassignedInfo.equals(that.unassignedInfo) : that.unassignedInfo != null) {
-            return false;
-        }
-        return equalsIgnoringMetadata(that);
+        return Objects.equals(unassignedInfo, that.unassignedInfo) && equalsIgnoringMetadata(that);
     }
 
     /**

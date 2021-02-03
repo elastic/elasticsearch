@@ -22,7 +22,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         project.getTasks().register("validateChangelogs", ValidateChangelogsTask.class).configure(action -> {
             action.setGroup("Documentation");
-            action.setDescription("Validates that all the changelogs YAML files are well-formed");
+            action.setDescription("Validates that all the changelog YAML files are well-formed");
         });
     }
 }

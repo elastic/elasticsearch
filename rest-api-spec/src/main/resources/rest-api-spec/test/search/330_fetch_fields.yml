@@ -734,3 +734,54 @@ Test nested fields with ignored subfields:
   -  match:
         hits.hits.0.fields.user:
            - { "first" : [ "John" ] }
+---
+Test nested field with sibling field resolving to DocValueFetcher:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support was introduced in 8.0.0 and not backported yet
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   owner:
+                     type: text
+                     fields:
+                       length:
+                         type: token_count
+                         analyzer: standard
+                   products:
+                     type: nested
+                     properties:
+                       manufacturer:
+                         type: keyword
+
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              owner: "Anna Ott"
+              products:
+                 - { "manufacturer" : "Supersoft"}
+                 - { "manufacturer" : "HyperSmart"}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]
+  - length: { hits.hits.0.fields : 3 }
+  - match:
+        hits.hits.0.fields.owner:
+          - "Anna Ott"
+  - match:
+        hits.hits.0.fields.owner\.length: 
+        - 2
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}

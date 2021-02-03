@@ -43,11 +43,11 @@ public class FieldFetcher {
         List<String> nestedMappingPaths = context.hasNested()
             ? context.nestedMappings().stream().map(ObjectMapper::name).collect(Collectors.toList())
             : Collections.emptyList();
-        return create(context, fieldAndFormats, nestedMappingPaths);
+        return create(context, fieldAndFormats, nestedMappingPaths, "");
     }
 
     private static FieldFetcher create(SearchExecutionContext context,
-        Collection<FieldAndFormat> fieldAndFormats, List<String> nestedMappingsInScope) {
+        Collection<FieldAndFormat> fieldAndFormats, List<String> nestedMappingsInScope, String scopePath) {
 
         // sort nestedMappingsInScope by length so we can find the shortest prefix for other fields quicker later
         if (nestedMappingsInScope.isEmpty() == false) {
@@ -72,11 +72,13 @@ public class FieldFetcher {
                 if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
+                if (field.startsWith(scopePath) == false) {
+                    // this field is out of scope for this FieldFetcher (its likely nested) so ignore
+                    continue;
+                }
                 String nestedParentPath = null;
                 if (nestedMappingsInScope.isEmpty() == false) {
                     // try to find the shortest nested parent path for this field
-
-
                     for (String nestedFieldPath : nestedMappingsInScope) {
                         if (field.startsWith(nestedFieldPath)) {
                             nestedParentPath = nestedFieldPath;
@@ -106,7 +108,8 @@ public class FieldFetcher {
             FieldFetcher nestedSubFieldFetcher = FieldFetcher.create(
                 context,
                 fieldsInsideNested.get(nestedFieldPath),
-                narrowedScopeNestedMappings
+                narrowedScopeNestedMappings,
+                nestedFieldPath
             );
 
             // add a special ValueFetcher that filters source and collects its subfields

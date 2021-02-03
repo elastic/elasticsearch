@@ -62,7 +62,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         policy = "policy-" + randomAlphaOfLength(5);
         index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         alias = "alias-" + randomAlphaOfLength(5);
-        logger.info("--> running [{}] with  index [{}], alias [{}] and policy [{}]", getTestName(), index, alias, policy);
+        logger.info("--> running [{}] with index [{}], alias [{}] and policy [{}]", getTestName(), index, alias, policy);
     }
 
     public void testShrinkAction() throws Exception {

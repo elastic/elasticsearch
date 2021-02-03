@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -37,10 +28,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -53,6 +46,8 @@ import java.util.function.IntFunction;
  * Main class to initiate resizing (shrink / split) an index into a new index
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportResizeAction.class);
+
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
 
@@ -93,11 +88,12 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         }
 
         // TODO: only fetch indices stats for shrink type resize requests
-        client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true).execute(
+        client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true).setStore(true).execute(
             ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                 final CreateIndexClusterStateUpdateRequest updateRequest;
                 try {
-                    updateRequest = prepareCreateIndexRequest(resizeRequest, sourceMetadata, i -> {
+                    StoreStats indexStoreStats = indicesStatsResponse.getPrimaries().store;
+                    updateRequest = prepareCreateIndexRequest(resizeRequest, sourceMetadata, indexStoreStats, i -> {
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, targetIndex);
@@ -115,6 +111,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     // static for unittesting this method
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final ResizeRequest resizeRequest,
                                                                           final IndexMetadata sourceMetadata,
+                                                                          final StoreStats indexStoreStats,
                                                                           final IntFunction<DocsStats> perShardDocStats,
                                                                           final String targetIndexName) {
         final CreateIndexRequest targetIndex = resizeRequest.getTargetIndexRequest();
@@ -123,12 +120,37 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
+        ByteSizeValue maxSinglePrimarySize = resizeRequest.getMaxSinglePrimarySize();
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
+            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxSinglePrimarySize != null) {
+                throw new IllegalArgumentException("Cannot set both index.number_of_shards and max_single_primary_size" +
+                    " for the target index");
+            }
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
             assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                numShards = 1;
+                if (maxSinglePrimarySize != null) {
+                    int sourceIndexShardsNum = sourceMetadata.getNumberOfShards();
+                    long sourceIndexStorageBytes = indexStoreStats.getSizeInBytes();
+                    long maxSinglePrimarySizeBytes = maxSinglePrimarySize.getBytes();
+                    long minShardsNum = sourceIndexStorageBytes / maxSinglePrimarySizeBytes;
+                    if (minShardsNum * maxSinglePrimarySizeBytes < sourceIndexStorageBytes) {
+                        minShardsNum = minShardsNum + 1;
+                    }
+                    if (minShardsNum > sourceIndexShardsNum) {
+                        logger.info("By setting max_single_primary_size to [{}], the target index [{}] will contain [{}] shards," +
+                                " which will be greater than [{}] shards in the source index [{}]," +
+                                " using [{}] for the shard count of the target index [{}]",
+                            maxSinglePrimarySize.toString(), targetIndexName, minShardsNum, sourceIndexShardsNum,
+                            sourceMetadata.getIndex().getName(), sourceIndexShardsNum, targetIndexName);
+                        numShards = sourceIndexShardsNum;
+                    } else {
+                        numShards = calTargetShardsNum(sourceIndexShardsNum, (int)minShardsNum);
+                    }
+                } else {
+                    numShards = 1;
+                }
             } else {
                 assert resizeRequest.getResizeType() == ResizeType.CLONE;
                 numShards = sourceMetadata.getNumberOfShards();
@@ -196,12 +218,37 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
 
     @Override
     protected String getMasterActionName(DiscoveryNode node) {
-        if (node.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)){
+        if (node.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
             return super.getMasterActionName(node);
         } else {
             // this is for BWC - when we send this to version that doesn't have ResizeAction.NAME registered
             // we have to send to shrink instead.
             return ShrinkAction.NAME;
         }
+    }
+
+    // Get the minimum factor of sourceIndexShardsNum which is greater minShardsNum
+    protected static int calTargetShardsNum(final int sourceIndexShardsNum, final int minShardsNum) {
+        if (sourceIndexShardsNum <=0 || minShardsNum <=0){
+            return 1;
+        }
+        if (sourceIndexShardsNum % minShardsNum == 0) {
+            return minShardsNum;
+        }
+        int num = (int) Math.floor(Math.sqrt(sourceIndexShardsNum));
+        if (minShardsNum >= num) {
+            for (int i = num; i >= 1; i--) {
+                if (sourceIndexShardsNum % i == 0 && minShardsNum <= sourceIndexShardsNum / i) {
+                    return sourceIndexShardsNum / i;
+                }
+            }
+        } else {
+            for (int i = 1; i < num; i++) {
+                if (sourceIndexShardsNum % i == 0 && minShardsNum <= i) {
+                    return i;
+                }
+            }
+        }
+        return sourceIndexShardsNum;
     }
 }

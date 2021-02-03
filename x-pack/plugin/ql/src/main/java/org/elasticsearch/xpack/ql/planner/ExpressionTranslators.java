@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.planner;
@@ -64,28 +65,26 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-
 public final class ExpressionTranslators {
 
-    public static final String DATE_FORMAT = "strict_date_time";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
-            new BinaryComparisons(),
-            new Ranges(),
-            new BinaryLogic(),
-            new IsNulls(),
-            new IsNotNulls(),
-            new Nots(),
-            new Likes(),
-            new InComparisons(),
-            new StringQueries(),
-            new Matches(),
-            new MultiMatches(),
-            new Scalars()
-            );
+        new BinaryComparisons(),
+        new Ranges(),
+        new BinaryLogic(),
+        new IsNulls(),
+        new IsNotNulls(),
+        new Nots(),
+        new Likes(),
+        new InComparisons(),
+        new StringQueries(),
+        new Matches(),
+        new MultiMatches(),
+        new Scalars()
+    );
 
     public static Query toQuery(Expression e) {
         return toQuery(e, new QlTranslatorHandler());
@@ -297,7 +296,7 @@ public final class ExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (bc.left().dataType() == DATETIME) {
+            if (DataTypes.isDateTime(bc.left().dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -383,6 +382,7 @@ public final class ExpressionTranslators {
 
     public static class InComparisons extends ExpressionTranslator<In> {
 
+        @Override
         protected Query asQuery(In in, TranslatorHandler handler) {
             return doTranslate(in, handler);
         }
@@ -403,7 +403,7 @@ public final class ExpressionTranslators {
                     }
                 });
 
-                if (dt == DATETIME) {
+                if (DataTypes.isDateTime(dt)) {
                     DateFormatter formatter = DateFormatter.forPattern(DATE_FORMAT);
 
                     q = null;
@@ -443,11 +443,11 @@ public final class ExpressionTranslators {
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
             if (f instanceof StartsWith) {
                 StartsWith sw = (StartsWith) f;
-                if (sw.isCaseSensitive() && sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
+                if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
                     String pattern = (String) sw.pattern().fold();
 
-                    return new PrefixQuery(f.source(), targetFieldName, pattern);
+                    return new PrefixQuery(f.source(), targetFieldName, pattern, sw.isCaseInsensitive());
                 }
             }
             return null;

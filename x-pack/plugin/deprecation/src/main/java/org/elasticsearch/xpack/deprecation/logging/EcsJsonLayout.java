@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation.logging;
@@ -66,8 +67,9 @@ public class EcsJsonLayout extends AbstractStringLayout {
         map.put("ecs.version", inQuotes(ECS_VERSION));
 
         Map<String, String> ecsKeyReplacements = new HashMap<>();
-        ecsKeyReplacements.put("x-opaque-id", "elasticsearch.http.request.x_opaque_id");
+        ecsKeyReplacements.put("category", "elasticsearch.event.category");
         ecsKeyReplacements.put("key", "event.code");
+        ecsKeyReplacements.put("x-opaque-id", "elasticsearch.http.request.x_opaque_id");
 
         for (String key : esMessageFields) {
             map.put(ecsKeyReplacements.getOrDefault(key, key), inQuotes("%ESMessageField{" + key + "}"));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.inference;
@@ -111,7 +112,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
 
-        inferenceRunner.inferTestDocs(localModel, testDocsIterator);
+        inferenceRunner.inferTestDocs(localModel, testDocsIterator, 0L);
 
         ArgumentCaptor<BulkRequest> argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
@@ -150,7 +151,7 @@ public class InferenceRunnerTests extends ESTestCase {
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields);
         inferenceRunner.cancel();
 
-        inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator);
+        inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator, 0L);
 
         Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));

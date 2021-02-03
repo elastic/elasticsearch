@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ingest;
@@ -40,7 +41,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     private final String icmpTypeField;
     private final String icmpCodeField;
     private final String targetField;
-    private final MessageDigest messageDigest;
+    private final ThreadLocal<MessageDigest> messageDigest;
     private final byte[] seed;
     private final boolean ignoreMissing;
 
@@ -56,7 +57,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         String icmpTypeField,
         String icmpCodeField,
         String targetField,
-        MessageDigest messageDigest,
+        ThreadLocal<MessageDigest> messageDigest,
         byte[] seed,
         boolean ignoreMissing
     ) {
@@ -112,7 +113,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     }
 
     public MessageDigest getMessageDigest() {
-        return messageDigest;
+        return messageDigest.get();
     }
 
     public byte[] getSeed() {
@@ -134,7 +135,9 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             }
         }
 
-        ingestDocument.setFieldValue(targetField, flow.toCommunityId(messageDigest, seed));
+        MessageDigest md = messageDigest.get();
+        md.reset();
+        ingestDocument.setFieldValue(targetField, flow.toCommunityId(md, seed));
         return ingestDocument;
     }
 
@@ -255,12 +258,13 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             if (seedInt < 0 || seedInt > 65535) {
                 throw newConfigurationException(TYPE, processorTag, "seed", "must be a value between 0 and 65535");
             }
-            MessageDigest messageDigest;
-            try {
-                messageDigest = MessageDigest.getInstance("SHA-1");
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException("unable to obtain SHA-1 hasher", e);
-            }
+            ThreadLocal<MessageDigest> messageDigest = ThreadLocal.withInitial(() -> {
+                try {
+                    return MessageDigest.getInstance("SHA-1");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalStateException("unable to obtain SHA-1 hasher", e);
+                }
+            });
 
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
             return new CommunityIdProcessor(

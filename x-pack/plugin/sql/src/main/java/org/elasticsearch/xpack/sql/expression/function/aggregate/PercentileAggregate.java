@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
@@ -44,7 +45,7 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
             new MethodConfigurator(PercentilesMethod.TDIGEST, TypeResolutions::isNumeric, methodParameter -> {
                 Double compression = foldNullSafe(methodParameter, DataTypes.DOUBLE);
                 return compression == null ? new PercentilesConfig.TDigest() : new PercentilesConfig.TDigest(compression);
-            }), 
+            }),
             new MethodConfigurator(PercentilesMethod.HDR, TypeResolutions::isInteger, methodParameter -> {
                 Integer numOfDigits = foldNullSafe(methodParameter, DataTypes.INTEGER);
                 return numOfDigits == null ? new PercentilesConfig.Hdr() : new PercentilesConfig.Hdr(numOfDigits);
@@ -71,12 +72,12 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
         }
 
     }
-    
+
     private final Expression parameter;
     private final Expression method;
     private final Expression methodParameter;
 
-    PercentileAggregate(Source source, Expression field, Expression parameter, Expression method, Expression methodParameter) 
+    PercentileAggregate(Source source, Expression field, Expression parameter, Expression method, Expression methodParameter)
     {
         super(source, field, singletonList(parameter));
         this.parameter = parameter;
@@ -84,8 +85,8 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
         this.methodParameter = methodParameter;
     }
 
-    @Override 
-    protected TypeResolution resolveType() {        
+    @Override
+    protected TypeResolution resolveType() {
         TypeResolution resolution = super.resolveType();
         if (resolution.unresolved()) {
             return resolution;
@@ -103,7 +104,7 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
 
         ParamOrdinal methodOrdinal = ParamOrdinal.fromIndex(parameters().size() + 1);
         ParamOrdinal methodParameterOrdinal = ParamOrdinal.fromIndex(parameters().size() + 2);
-        
+
         if (method != null) {
             resolution = isFoldable(method, sourceText(), methodOrdinal);
             if (resolution.unresolved()) {
@@ -137,7 +138,7 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
 
         return TypeResolution.TYPE_RESOLVED;
     }
-    
+
     public Expression parameter() {
         return parameter;
     }
@@ -189,7 +190,7 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
         if (this == o) {
             return true;
         }
-        
+
         if (!super.equals(o)) {
             return false;
         }

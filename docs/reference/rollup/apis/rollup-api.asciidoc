@@ -57,7 +57,7 @@ or `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 * You can only roll up an index that contains:
 
 ** A <<date,`date`>> or <<date_nanos,`date_nanos`>> timestamp field
-** One or more <<number,numeric>> fields to store as `metrics`
+** One or more <<number,numeric>> fields
 
 [[rollup-api-path-params]]
 ==== {api-path-parms-title}

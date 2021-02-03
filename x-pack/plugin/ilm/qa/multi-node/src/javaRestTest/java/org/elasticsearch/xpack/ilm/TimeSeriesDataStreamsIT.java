@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm;
@@ -88,7 +89,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
         String policyName = "logs-policy";
-        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
+        createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
 
         createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 

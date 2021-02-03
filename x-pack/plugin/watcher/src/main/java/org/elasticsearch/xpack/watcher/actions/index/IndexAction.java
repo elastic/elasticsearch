@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
@@ -179,7 +181,7 @@ public class IndexAction implements Action {
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.DOC_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate("watcher_index_action", TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "watcher_index_action", TYPES_DEPRECATION_MESSAGE);
                     docType = parser.text();
                 } else if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();

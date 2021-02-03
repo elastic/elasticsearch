@@ -104,7 +104,8 @@ public class DeprecationLogger {
         final String msg,
         final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
-        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(DeprecationCategory.COMPATIBLE_API, key, opaqueId, msg, params);
+        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(DeprecationCategory.COMPATIBLE_API,
+            key, opaqueId, msg, params);
         compatibleLogger.log(DEPRECATION, deprecationMessage);
         return this;
     }

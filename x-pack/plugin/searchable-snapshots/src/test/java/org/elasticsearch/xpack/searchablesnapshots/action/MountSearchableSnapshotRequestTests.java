@@ -10,15 +10,24 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MountSearchableSnapshotRequestTests extends AbstractWireSerializingTestCase<MountSearchableSnapshotRequest> {
 
@@ -31,7 +40,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             randomBoolean() ? instance.indexSettings() : mutateSettings(instance.indexSettings()),
             randomBoolean() ? instance.ignoreIndexSettings() : mutateStringArray(instance.ignoreIndexSettings()),
             randomBoolean(),
-            randomBoolean()
+            randomStorage()
         ).masterNodeTimeout(randomBoolean() ? instance.masterNodeTimeout() : mutateTimeValue(instance.masterNodeTimeout()));
     }
 
@@ -46,7 +55,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 Settings.EMPTY,
                 Strings.EMPTY_ARRAY,
                 randomBoolean(),
-                randomBoolean()
+                randomStorage()
             )
         );
     }
@@ -68,7 +77,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 1:
                 return new MountSearchableSnapshotRequest(
@@ -79,7 +88,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 2:
                 return new MountSearchableSnapshotRequest(
@@ -90,7 +99,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 3:
                 return new MountSearchableSnapshotRequest(
@@ -101,7 +110,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 4:
                 return new MountSearchableSnapshotRequest(
@@ -112,7 +121,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     mutateSettings(req.indexSettings()),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 5:
                 return new MountSearchableSnapshotRequest(
@@ -123,7 +132,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     mutateStringArray(req.ignoreIndexSettings()),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 6:
                 return new MountSearchableSnapshotRequest(
@@ -134,7 +143,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion() == false,
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(req.masterNodeTimeout());
             case 7:
                 return new MountSearchableSnapshotRequest(
@@ -145,7 +154,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy() == false
+                    randomValueOtherThan(req.storage(), MountSearchableSnapshotRequestTests::randomStorage)
                 ).masterNodeTimeout(req.masterNodeTimeout());
             default:
                 return new MountSearchableSnapshotRequest(
@@ -156,7 +165,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    req.isPartialLocalCopy()
+                    req.storage()
                 ).masterNodeTimeout(mutateTimeValue(req.masterNodeTimeout()));
         }
     }
@@ -203,8 +212,31 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, randomAlphaOfLength(5)).build(),
             Strings.EMPTY_ARRAY,
             randomBoolean(),
-            randomBoolean()
+            randomStorage()
         ).validate();
         assertThat(validationException.getMessage(), containsString(IndexMetadata.SETTING_DATA_PATH));
+    }
+
+    public void testParsesStorage() throws IOException {
+        assertStorageParser("full_copy", MountSearchableSnapshotRequest.Storage.FULL_COPY);
+        assertStorageParser("shared_cache", MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
+        assertStorageParser("FULL_COPY", MountSearchableSnapshotRequest.Storage.FULL_COPY);
+    }
+
+    private static void assertStorageParser(String storageParam, MountSearchableSnapshotRequest.Storage expected) throws IOException {
+        final Map<String, String> params = new HashMap<>();
+        params.put("repository", "test");
+        params.put("snapshot", "test");
+        params.put("storage", storageParam);
+
+        final RestRequest restReq = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(params)
+            .withContent(new BytesArray("{\"index\":\"test\"}"), XContentType.JSON)
+            .build();
+        final MountSearchableSnapshotRequest mountReq = MountSearchableSnapshotRequest.PARSER.apply(restReq.contentParser(), restReq);
+        assertThat(mountReq.storage(), equalTo(expected));
+    }
+
+    private static MountSearchableSnapshotRequest.Storage randomStorage() {
+        return randomFrom(MountSearchableSnapshotRequest.Storage.FULL_COPY, MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
     }
 }

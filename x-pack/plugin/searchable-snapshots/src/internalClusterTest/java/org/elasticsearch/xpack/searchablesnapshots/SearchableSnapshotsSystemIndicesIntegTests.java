@@ -73,7 +73,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
             Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean()).build(),
             Strings.EMPTY_ARRAY,
             true,
-            randomBoolean()
+            randomFrom(MountSearchableSnapshotRequest.Storage.FULL_COPY, MountSearchableSnapshotRequest.Storage.SHARED_CACHE)
         );
 
         final ElasticsearchException exception = expectThrows(

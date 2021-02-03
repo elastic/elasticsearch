@@ -92,7 +92,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // perform expensive operations (ie. clusterStateProcessed)
             false,
             // restoring into the cold tier, so use a full local copy
-            false);
+            MountSearchableSnapshotRequest.Storage.FULL_COPY);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             ActionListener.wrap(response -> {
                 if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {

@@ -217,7 +217,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
             true,
-            false
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -488,7 +488,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
             true,
-            true
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -730,7 +730,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
             true,
-            false
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -786,7 +786,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString()).build(),
             Strings.EMPTY_ARRAY,
             true,
-            false
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
 
         final RestoreSnapshotResponse restore = client().execute(MountSearchableSnapshotAction.INSTANCE, mount).get();
@@ -866,7 +866,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexSettingsBuilder.build(),
                 Strings.EMPTY_ARRAY,
                 true,
-                false
+                MountSearchableSnapshotRequest.Storage.FULL_COPY
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -901,7 +901,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexSettingsBuilder.build(),
                 Strings.EMPTY_ARRAY,
                 true,
-                false
+                MountSearchableSnapshotRequest.Storage.FULL_COPY
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -935,7 +935,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexSettingsBuilder.build(),
                 Strings.EMPTY_ARRAY,
                 true,
-                false
+                MountSearchableSnapshotRequest.Storage.FULL_COPY
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();

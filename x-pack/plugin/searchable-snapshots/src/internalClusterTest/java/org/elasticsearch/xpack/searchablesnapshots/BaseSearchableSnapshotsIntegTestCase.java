@@ -127,7 +127,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 .build(),
             Strings.EMPTY_ARRAY,
             true,
-            false
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
 
         final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();

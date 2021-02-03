@@ -110,7 +110,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         String repoName,
         SnapshotId snapshotId,
         IndexId indexId,
-        boolean isPartialLocalCopy
+        MountSearchableSnapshotRequest.Storage storage
     ) {
         final Settings.Builder settings = Settings.builder();
 
@@ -128,7 +128,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), SearchableSnapshotAllocator.ALLOCATOR_NAME)
             .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY);
 
-        if (isPartialLocalCopy) {
+        if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
             settings.put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
         }
 
@@ -194,13 +194,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                                 .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
                                 .put(request.indexSettings())
                                 .put(
-                                    buildIndexSettings(
-                                        repoData.getUuid(),
-                                        request.repositoryName(),
-                                        snapshotId,
-                                        indexId,
-                                        request.isPartialLocalCopy()
-                                    )
+                                    buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId, request.storage())
                                 )
                                 .build()
                         )

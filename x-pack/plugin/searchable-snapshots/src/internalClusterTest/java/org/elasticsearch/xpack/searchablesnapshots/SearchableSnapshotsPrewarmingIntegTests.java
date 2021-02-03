@@ -225,7 +225,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                             restoredIndexSettings,
                             Strings.EMPTY_ARRAY,
                             true,
-                            false
+                            MountSearchableSnapshotRequest.Storage.FULL_COPY
                         )
                     ).get();
 

@@ -78,7 +78,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
             true,
-            randomBoolean()
+            randomFrom(MountSearchableSnapshotRequest.Storage.FULL_COPY, MountSearchableSnapshotRequest.Storage.SHARED_CACHE)
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
@@ -98,7 +98,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
             Settings.EMPTY,
             Strings.EMPTY_ARRAY,
             randomBoolean(),
-            randomBoolean()
+            randomFrom(MountSearchableSnapshotRequest.Storage.FULL_COPY, MountSearchableSnapshotRequest.Storage.SHARED_CACHE)
         );
 
         final ActionFuture<RestoreSnapshotResponse> future = client().execute(MountSearchableSnapshotAction.INSTANCE, req);

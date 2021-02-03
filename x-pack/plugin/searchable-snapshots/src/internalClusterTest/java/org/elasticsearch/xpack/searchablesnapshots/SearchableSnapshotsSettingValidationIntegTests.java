@@ -45,7 +45,7 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseSearchab
             indexSettingsBuilder.build(),
             Strings.EMPTY_ARRAY,
             true,
-            randomFrom(MountSearchableSnapshotRequest.Storage.FULL_COPY, MountSearchableSnapshotRequest.Storage.SHARED_CACHE)
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();

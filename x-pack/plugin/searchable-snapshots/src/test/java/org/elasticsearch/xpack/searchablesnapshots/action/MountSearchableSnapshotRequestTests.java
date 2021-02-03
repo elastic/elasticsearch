@@ -40,7 +40,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             randomBoolean() ? instance.indexSettings() : mutateSettings(instance.indexSettings()),
             randomBoolean() ? instance.ignoreIndexSettings() : mutateStringArray(instance.ignoreIndexSettings()),
             randomBoolean(),
-            randomStorage()
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         ).masterNodeTimeout(randomBoolean() ? instance.masterNodeTimeout() : mutateTimeValue(instance.masterNodeTimeout()));
     }
 
@@ -55,7 +55,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                 Settings.EMPTY,
                 Strings.EMPTY_ARRAY,
                 randomBoolean(),
-                randomStorage()
+                randomFrom(MountSearchableSnapshotRequest.Storage.values())
             )
         );
     }
@@ -154,7 +154,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
                     req.indexSettings(),
                     req.ignoreIndexSettings(),
                     req.waitForCompletion(),
-                    randomValueOtherThan(req.storage(), MountSearchableSnapshotRequestTests::randomStorage)
+                    randomValueOtherThan(req.storage(), () -> randomFrom(MountSearchableSnapshotRequest.Storage.values()))
                 ).masterNodeTimeout(req.masterNodeTimeout());
             default:
                 return new MountSearchableSnapshotRequest(
@@ -212,7 +212,7 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
             Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, randomAlphaOfLength(5)).build(),
             Strings.EMPTY_ARRAY,
             randomBoolean(),
-            randomStorage()
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         ).validate();
         assertThat(validationException.getMessage(), containsString(IndexMetadata.SETTING_DATA_PATH));
     }
@@ -236,7 +236,4 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
         assertThat(mountReq.storage(), equalTo(expected));
     }
 
-    private static MountSearchableSnapshotRequest.Storage randomStorage() {
-        return randomFrom(MountSearchableSnapshotRequest.Storage.FULL_COPY, MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
-    }
 }

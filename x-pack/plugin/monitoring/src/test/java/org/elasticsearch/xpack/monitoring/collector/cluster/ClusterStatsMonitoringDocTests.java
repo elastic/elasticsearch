@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
@@ -267,6 +268,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
         when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
+        when(mockOsInfo.getArch()).thenReturn("_architecture");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getInfo(JvmInfo.class)).thenReturn(mockJvmInfo);
@@ -489,6 +491,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"pretty_names\":["
                           + "{"
                             + "\"pretty_name\":\"_pretty_os_name\","
+                            + "\"count\":1"
+                          + "}"
+                        + "],"
+                        + "\"architectures\":["
+                          + "{"
+                            + "\"arch\":\"_architecture\","
                             + "\"count\":1"
                           + "}"
                         + "],"

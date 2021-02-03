@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.broadcast.node;
@@ -343,7 +332,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt) {
-            if (!shard.currentNodeId().equals(masterNode.getId())) {
+            if (shard.currentNodeId().equals(masterNode.getId()) == false) {
                 set.add(shard.currentNodeId());
             }
         }
@@ -389,7 +378,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int successfulShards = 0;
         int failedShards = 0;
         for (Object result : action.getResults().values()) {
-            if (!(result instanceof ElasticsearchException)) {
+            if ((result instanceof ElasticsearchException) == false) {
                 successfulShards++;
             } else {
                 failedShards++;
@@ -429,7 +418,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().getRoutingTable().allShards(new String[]{TEST_INDEX});
         Map<String, List<ShardRouting>> map = new HashMap<>();
         for (ShardRouting shard : shardIt) {
-            if (!map.containsKey(shard.currentNodeId())) {
+            if (map.containsKey(shard.currentNodeId()) == false) {
                 map.put(shard.currentNodeId(), new ArrayList<>());
             }
             map.get(shard.currentNodeId()).add(shard);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc;
 
@@ -188,7 +189,7 @@ public class Realms implements Iterable<Realm> {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
-            if (!config.enabled()) {
+            if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("realm [{}] is disabled", identifier);
                 }
@@ -217,7 +218,7 @@ public class Realms implements Iterable<Realm> {
             realms.add(realm);
         }
 
-        if (!realms.isEmpty()) {
+        if (realms.isEmpty() == false) {
             Collections.sort(realms);
         } else {
             // there is no "realms" configuration, add the defaults

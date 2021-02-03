@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -78,7 +79,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
+
         row = rows.get(3);
         assertEquals("keyword", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
@@ -103,31 +104,31 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
+
         row = rows.get(7);
         assertEquals("some.string.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
+
         row = rows.get(8);
         assertEquals("some.string.typical", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
+
         row = rows.get(9);
         assertEquals("some.ambiguous", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
+
         row = rows.get(10);
         assertEquals("some.ambiguous.one", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
+
         row = rows.get(11);
         assertEquals("some.ambiguous.two", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
@@ -244,7 +245,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, nullable(row).getClass());
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
-        
+
         row = rows.get(10);
         assertEquals("some.ambiguous.one", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
@@ -254,7 +255,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, nullable(row).getClass());
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
-        
+
         row = rows.get(11);
         assertEquals("some.ambiguous.two", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
@@ -275,7 +276,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
     }
-    
+
     public void testSysColumnsInJdbcMode() {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
@@ -369,7 +370,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, nullable(row).getClass());
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
-        
+
         row = rows.get(9);
         assertEquals("some.ambiguous", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
@@ -379,7 +380,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, nullable(row).getClass());
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
-        
+
         row = rows.get(10);
         assertEquals("some.ambiguous.one", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
@@ -389,7 +390,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Integer.class, nullable(row).getClass());
         assertEquals(Integer.class, sqlDataType(row).getClass());
         assertEquals(Integer.class, sqlDataTypeSub(row).getClass());
-        
+
         row = rows.get(11);
         assertEquals("some.ambiguous.two", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));

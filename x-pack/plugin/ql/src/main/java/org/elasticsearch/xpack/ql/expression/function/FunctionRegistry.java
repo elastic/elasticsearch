@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function;
 
@@ -434,7 +435,7 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(source, children.get(0), children.get(1), 
+            return ctorRef.build(source, children.get(0), children.get(1),
                 children.size() > 2 ? children.get(2) : null,
                 children.size() > 3 ? children.get(3) : null);
         };

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -87,11 +88,11 @@ public class IndexOfFunctionProcessorTests extends ESTestCase {
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
                 () -> new IndexOf(EMPTY, stringLiteral, l("foo"), l(1), config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
-        
+
         siae = expectThrows(QlIllegalArgumentException.class,
                 () -> new IndexOf(EMPTY, l("foo"), stringLiteral, l(2), config).makePipe().asProcessor().process(null));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
-        
+
         Literal numericLiteral = randomValueOtherThanMany(v -> v.dataType().isNumeric(), () -> LiteralTests.randomLiteral());
         siae = expectThrows(QlIllegalArgumentException.class,
                 () -> new IndexOf(EMPTY, l("foo"), l("o"), numericLiteral, config).makePipe().asProcessor().process(null));

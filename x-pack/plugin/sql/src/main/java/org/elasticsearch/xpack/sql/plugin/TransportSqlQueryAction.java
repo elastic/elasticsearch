@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
@@ -135,7 +136,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
          * since SqlQueryResponse creation doesn't have access to GeoShape nor Interval classes to make the decision
          * so, we flatten them as Strings before being serialized.
          * CLI gets a special treatment see {@link org.elasticsearch.xpack.sql.action.SqlQueryResponse#value()}
-         */ 
+         */
         if (r instanceof GeoShape) {
             r = r.toString();
         } else if (r instanceof Interval) {

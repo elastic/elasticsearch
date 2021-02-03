@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql;
@@ -49,7 +50,7 @@ public final class SqlTestUtils {
      * that the precision of the clock can be milliseconds, microseconds or nanoseconds), whereas in Java 8
      * {@code System.currentTimeMillis()} is always used. To account for these differences, this method defines a new {@code Clock}
      * which will offer a value for {@code ZonedDateTime.now()} set to always have milliseconds precision.
-     * 
+     *
      * @return {@link ZonedDateTime} instance for the current date-time with milliseconds precision in UTC
      */
     public static ZonedDateTime now() {

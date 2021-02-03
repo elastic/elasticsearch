@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.type;
 
@@ -48,7 +49,7 @@ public final class DataTypes {
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
     //@formatter:on
-    
+
     private static final Collection<DataType> TYPES = unmodifiableList(Arrays.asList(
             UNSUPPORTED,
             NULL,
@@ -71,14 +72,14 @@ public final class DataTypes {
             .stream()
             .sorted(Comparator.comparing(DataType::typeName))
             .collect(toList()));
-    
+
     private static final Map<String, DataType> NAME_TO_TYPE = unmodifiableMap(TYPES.stream()
             .collect(toMap(DataType::typeName, t -> t)));
-    
+
     private static final Map<String, DataType> ES_TO_TYPE = unmodifiableMap(TYPES.stream()
             .filter(e -> e.esType() != null)
             .collect(toMap(DataType::esType, t -> t)));
-    
+
     private DataTypes() {}
 
     public static Collection<DataType> types() {

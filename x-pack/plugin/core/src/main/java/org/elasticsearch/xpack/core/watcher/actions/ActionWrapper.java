@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.actions;
 
@@ -64,7 +65,7 @@ public class ActionWrapper implements ToXContentObject {
                          @Nullable ExecutableTransform<Transform, Transform.Result> transform,
                          ExecutableAction<? extends Action> action,
                          @Nullable String path,
-                         @Nullable Integer maxIterations) {        
+                         @Nullable Integer maxIterations) {
         this.id = id;
         this.condition = condition;
         this.throttler = throttler;

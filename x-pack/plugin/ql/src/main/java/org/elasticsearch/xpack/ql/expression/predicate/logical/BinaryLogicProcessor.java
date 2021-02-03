@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.logical;
 
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.util.function.BiFunction;
 
 public class BinaryLogicProcessor extends FunctionalEnumBinaryProcessor<Boolean, Boolean, Boolean, BinaryLogicOperation> {
-    
+
     public enum BinaryLogicOperation implements PredicateBiFunction<Boolean, Boolean, Boolean> {
 
         AND((l, r) -> {
@@ -66,7 +67,7 @@ public class BinaryLogicProcessor extends FunctionalEnumBinaryProcessor<Boolean,
             return symbol;
         }
     }
-    
+
     public static final String NAME = "lb";
 
     public BinaryLogicProcessor(Processor left, Processor right, BinaryLogicOperation operation) {

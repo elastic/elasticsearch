@@ -1,5 +1,8 @@
 [[search-validate]]
 === Validate API
+++++
+<titleabbrev>Validate</titleabbrev>
+++++
 
 Validates a potentially expensive query without executing it.
 

@@ -33,6 +33,13 @@ GET /_snapshot/my_repository
 
 `GET /_snapshot`
 
+[[get-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[get-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
 

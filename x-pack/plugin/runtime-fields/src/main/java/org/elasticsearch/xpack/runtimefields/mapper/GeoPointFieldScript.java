@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.apache.lucene.document.LatLonDocValuesField;
 
 import java.util.List;
 import java.util.Map;
@@ -29,10 +28,6 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
  */
 public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_script_field", Factory.class);
-
-    static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "geo_point_whitelist.txt"));
-    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -56,7 +51,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         @Override
         public void execute() {
             try {
-                Object value = XContentMapValues.extractValue(field, leafSearchLookup.source().loadSourceIfNeeded());
+                Object value = XContentMapValues.extractValue(field, leafSearchLookup.source().source());
                 if (value instanceof List<?>) {
                     List<?> values = (List<?>) value;
                     if (values.size() > 0 && values.get(0) instanceof Number) {
@@ -75,8 +70,10 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         }
 
         private void parsePoint(Object point) {
-            GeoUtils.parseGeoPoint(point, scratch, true);
-            emit(scratch.lat(), scratch.lon());
+            if (point != null) {
+                GeoUtils.parseGeoPoint(point, scratch, true);
+                emit(scratch.lat(), scratch.lon());
+            }
         }
     };
 

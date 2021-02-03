@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 grammar EqlBase;
@@ -99,7 +100,7 @@ operatorExpression
 //   https://github.com/antlr/antlr4/issues/780
 //   https://github.com/antlr/antlr4/issues/781
 predicate
-    : NOT? kind=IN LP expression (COMMA expression)* RP
+    : NOT? kind=(IN | IN_INSENSITIVE) LP expression (COMMA expression)* RP
     | kind=SEQ constant
     | kind=SEQ LP constant (COMMA constant)* RP
     ;
@@ -117,6 +118,7 @@ functionExpression
 
 functionName
     : IDENTIFIER
+    | TILDE_IDENTIFIER
     ;
 
 constant
@@ -161,6 +163,7 @@ ANY: 'any';
 BY: 'by';
 FALSE: 'false';
 IN: 'in';
+IN_INSENSITIVE : 'in~';
 JOIN: 'join';
 MAXSPAN: 'maxspan';
 NOT: 'not';
@@ -224,6 +227,10 @@ IDENTIFIER
 
 QUOTED_IDENTIFIER
     : '`' ( ~'`' | '``' )* '`'
+    ;
+
+TILDE_IDENTIFIER
+    : LETTER (LETTER | DIGIT | '_')* '~'
     ;
 
 eventValue

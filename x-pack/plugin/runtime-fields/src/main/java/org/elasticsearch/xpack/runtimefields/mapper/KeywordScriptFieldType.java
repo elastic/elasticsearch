@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -139,8 +140,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             script,
             leafFactory(context),
             name(),
-            BytesRefs.toString(Objects.requireNonNull(lowerTerm)),
-            BytesRefs.toString(Objects.requireNonNull(upperTerm)),
+            lowerTerm == null ? null : BytesRefs.toString(lowerTerm),
+            upperTerm == null ? null : BytesRefs.toString(upperTerm),
             includeLower,
             includeUpper
         );

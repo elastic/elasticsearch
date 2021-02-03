@@ -73,28 +73,49 @@ include::{es-repo-dir}/indices/create-data-stream.asciidoc[tag=data-stream-name]
 
 * A priority for the index template
 +
-[IMPORTANT]
-====
-{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and
-`synthetics-*-*` index patterns, each with a priority of `100`.
-{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
-create data streams.
+include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
 
-If you use {agent}, assign your index templates a priority lower than `100` to
-avoid overriding the built-in templates. Otherwise, use a non-overlapping index
-pattern or assign templates with an overlapping pattern a `priority` higher than
-`100`.
+[[elastic-data-stream-naming-scheme]]
+.The Elastic data stream naming scheme
+****
+The {agent} uses the Elastic data stream naming scheme to name its data streams.
+To help you organize your data consistently and avoid naming collisions, we
+recommend you also use the Elastic naming scheme for your other data streams.
 
-For example, if you don't use {agent} and want to create a template for the
-`logs-*` index pattern, assign your template a priority of `200`. This ensures
-your template is applied instead of the built-in template for `logs-*-*`.
-====
+The naming scheme splits data into different data streams based on the following
+components. Each component corresponds to a
+<<constant-keyword-field-type,constant keyword>> field defined in the
+{ecs-ref}[Elastic Common Schema (ECS)].
 
-If the index template doesn't specify a mapping for the `@timestamp` field, {es}
-maps `@timestamp` as a `date` field  with default options.
+`type`::
+Generic type describing the data, such as `logs`, `metrics`, or `synthetics`.
+Corresponds to the `data_stream.type` field.
+
+`dataset`::
+Describes the ingested data and its structure. Corresponds to the
+`data_stream.dataset` field. Defaults to `generic`.
+
+`namespace`::
+User-configurable arbitrary grouping. Corresponds to the `data_stream.dataset`
+field. Defaults to `default`.
+
+The naming scheme separates these components with a `-` character:
+
+```
+<type>-<dataset>-<namespace>
+```
+
+For example, the {agent} uses the `logs-nginx.access-production` data
+stream to store data with a type of `logs`, a dataset of `nginx.access`, and a
+namespace of `production`. If you use the {agent} to ingest a log file, it
+stores the data in the `logs-generic-default` data stream.
+****
+
+include::{es-repo-dir}/data-streams/data-streams.asciidoc[tag=timestamp-reqs]
 
 If using {ilm-init}, specify your lifecycle policy in the `index.lifecycle.name`
 setting.
+
 TIP: Carefully consider your template's mappings and settings. Later changes may
 require reindexing. See <<data-streams-change-mappings-and-settings>>.
 

@@ -41,6 +41,7 @@ public class RollupActionIT extends ESRestTestCase {
         index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
+        logger.info("--> running [{}] with index [{}], alias [{}] and policy [{}]", getTestName(), index, alias, policy);
     }
 
     public void testRollupIndex() throws Exception {

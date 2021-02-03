@@ -185,7 +185,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
-                if (!line.isEmpty() && !line.startsWith("//")) {
+                if (line.isEmpty() == false && line.startsWith("//") == false) {
                     // parse test name
                     if (testName == null) {
                         if (testNames.keySet().contains(line)) {

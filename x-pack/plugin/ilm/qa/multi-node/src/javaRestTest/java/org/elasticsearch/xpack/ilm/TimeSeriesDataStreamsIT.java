@@ -28,10 +28,12 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -49,13 +51,25 @@ import static org.hamcrest.Matchers.is;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
+    private String policyName;
+    private String dataStream;
+    private String template;
+
+    @Before
+    public void refreshAbstractions() {
+        policyName = "policy-" + randomAlphaOfLength(5);
+        dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        template = "template-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        logger.info("--> running [{}] with data stream [{}], template [{}] and policy [{}]", getTestName(), dataStream, template,
+            policyName);
+    }
+
+
     public void testRolloverAction() throws Exception {
-        String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 1L));
 
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
 
-        String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
         assertBusy(() -> assertTrue(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2))));
@@ -66,12 +80,10 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testRolloverIsSkippedOnManualDataStreamRollover() throws Exception {
-        String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 2L));
 
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
 
-        String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
@@ -88,12 +100,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
-        String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null));
-
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
-
-        String dataStream = "logs-foo";
+        createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
@@ -111,12 +119,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testShrinkAfterRollover() throws Exception {
-        String policyName = "logs-policy";
         createFullPolicy(client(), policyName, TimeValue.ZERO);
-
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
-
-        String dataStream = "logs-foo";
+        createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
@@ -132,11 +136,9 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     public void testSearchableSnapshotAction() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(5, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "cold", new SearchableSnapshotAction(snapshotRepo));
 
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
-        String dataStream = "logs-foo";
+        createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
@@ -157,11 +159,9 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testReadOnlyAction() throws Exception {
-        String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "warm", new ReadOnlyAction());
 
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
-        String dataStream = "logs-foo";
+        createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
@@ -180,11 +180,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testFreezeAction() throws Exception {
-        String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "cold", new FreezeAction());
-
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
-        String dataStream = "logs-foo";
+        createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
@@ -206,11 +203,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testForceMergeAction() throws Exception {
-        String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
-
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
-        String dataStream = "logs-foo";
+        createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
@@ -228,12 +222,10 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetDataStreamReturnsILMPolicy() throws Exception {
-        String policyName = "logs-policy";
-        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
-        String dataStream = "logs-foo";
+        createComposableTemplate(client(), template,  dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        Request explainRequest = new Request("GET",   "/_data_stream/logs-foo");
+        Request explainRequest = new Request("GET", "/_data_stream/" + dataStream);
         Response response = client().performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {

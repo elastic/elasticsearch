@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
@@ -84,7 +85,7 @@ public class DeadlockAnalyzer {
         Set<Long> knownDeadlockedThreads = threadInfoMap.keySet();
         for (ThreadInfo threadInfo : allThreads) {
             Thread.State state = threadInfo.getThreadState();
-            if (state == Thread.State.BLOCKED && !knownDeadlockedThreads.contains(threadInfo.getThreadId())) {
+            if (state == Thread.State.BLOCKED && knownDeadlockedThreads.contains(threadInfo.getThreadId()) == false) {
                 for (LinkedHashSet<ThreadInfo> cycle : cycles) {
                     if (cycle.contains(threadInfoMap.get(Long.valueOf(threadInfo.getLockOwnerId())))) {
                         LinkedHashSet<ThreadInfo> chain = new LinkedHashSet<>();
@@ -147,9 +148,7 @@ public class DeadlockAnalyzer {
 
             Deadlock deadlock = (Deadlock) o;
 
-            if (memberIds != null ? !memberIds.equals(deadlock.memberIds) : deadlock.memberIds != null) return false;
-
-            return true;
+            return Objects.equals(memberIds, deadlock.memberIds);
         }
 
         @Override

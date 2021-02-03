@@ -2870,7 +2870,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(searcher.getIndexReader().numDocs() <= docsStats.getCount());
                 }
                 assertThat(docsStats.getDeleted(), equalTo(0L));
-                assertThat(docsStats.getAverageSizeInBytes(), greaterThan(0L));
+                assertThat(docsStats.getTotalSizeInBytes(), greaterThan(0L));
             }
 
             final List<Integer> ids = randomSubsetOf(
@@ -2930,7 +2930,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
                 assertThat(docStats.getDeleted(), equalTo(0L));
-                assertThat(docStats.getAverageSizeInBytes(), greaterThan(0L));
+                assertThat(docStats.getTotalSizeInBytes(), greaterThan(0L));
             }
         } finally {
             closeShards(indexShard);

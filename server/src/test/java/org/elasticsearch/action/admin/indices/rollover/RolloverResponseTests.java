@@ -43,8 +43,9 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
     private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
     static {
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong())));
     }
 
     @Override

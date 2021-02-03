@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -88,7 +89,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             () -> new DateTimeParse(Source.EMPTY, l("2020-04-07"), l("MM/dd"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
-            "Invalid datetime string [2020-04-07] or pattern [MM/dd] is received; Text '2020-04-07' could not be parsed at index 2",        
+            "Invalid datetime string [2020-04-07] or pattern [MM/dd] is received; Text '2020-04-07' could not be parsed at index 2",
             siae.getMessage()
         );
 
@@ -153,7 +154,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             siae.getMessage()
         );
     }
- 
+
     public void testDateInvalidInputs() {
         SqlIllegalArgumentException siae = expectThrows(
             SqlIllegalArgumentException.class,
@@ -185,7 +186,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 "Text '07/05/2020' could not be parsed, unparsed text found at index 5",
            siae.getMessage()
         );
-    
+
         siae = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateParse(Source.EMPTY, l("11:04:07"), l("HH:mm:ss"), randomZone()).makePipe().asProcessor().process(null)
@@ -194,7 +195,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             "Invalid date string [11:04:07] or pattern [HH:mm:ss] is received; Unable to convert parsed text into [date]",
             siae.getMessage()
         );
-        
+
         siae = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateParse(Source.EMPTY, l("05/2020 11:04:07"), l("MM/uuuu HH:mm:ss"), randomZone())

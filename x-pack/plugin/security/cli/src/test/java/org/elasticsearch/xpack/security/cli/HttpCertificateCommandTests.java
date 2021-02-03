@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.cli;
@@ -209,7 +210,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(zipRoot.resolve("ca"), not(pathExists()));
 
         // No CA in CSR mode
-        verifyKibanaDirectory(zipRoot, false, 
+        verifyKibanaDirectory(zipRoot, false,
             Collections.singletonList("Certificate Signing Request"),
             Stream.of(password, csrPath.getFileName().toString())
             .filter(s -> "".equals(s) == false).collect(Collectors.toList()));

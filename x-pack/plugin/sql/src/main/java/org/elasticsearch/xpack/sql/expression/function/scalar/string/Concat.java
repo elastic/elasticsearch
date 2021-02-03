@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.string.Conc
  * parameter or the concatenation of the two strings if none of them is null.
  */
 public class Concat extends BinaryScalarFunction {
-    
+
     public Concat(Source source, Expression source1, Expression source2) {
         super(source, source1, source2);
     }
@@ -52,7 +53,7 @@ public class Concat extends BinaryScalarFunction {
     protected Pipe makePipe() {
         return new ConcatFunctionPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()));
     }
-    
+
     @Override
     public Nullability nullable() {
         return Nullability.FALSE;
@@ -67,7 +68,7 @@ public class Concat extends BinaryScalarFunction {
     public Object fold() {
         return process(left().fold(), right().fold());
     }
-    
+
     @Override
     protected Concat replaceChildren(Expression newLeft, Expression newRight) {
         return new Concat(source(), newLeft, newRight);

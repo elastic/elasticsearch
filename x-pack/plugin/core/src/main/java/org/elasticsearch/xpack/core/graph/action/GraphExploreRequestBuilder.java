@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.graph.action;
 
@@ -20,7 +21,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
 /**
  * Creates a new {@link GraphExploreRequestBuilder}
- * 
+ *
  * @see GraphExploreRequest
  */
 public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExploreRequest, GraphExploreResponse> {
@@ -113,9 +114,9 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         request.types(types);
         return this;
     }
-   
+
     /**
-     * Add a stage in the graph exploration. Each hop represents a stage of 
+     * Add a stage in the graph exploration. Each hop represents a stage of
      * querying elasticsearch to identify terms which can then be connnected
      * to other terms in a subsequent hop.
      * @param guidingQuery optional choice of query which influences which documents
@@ -129,7 +130,7 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
     /**
      * Controls the choice of algorithm used to select interesting terms. The default
      * value is true which means terms are selected based on significance (see the {@link SignificantTerms}
-     * aggregation) rather than popularity (using the {@link TermsAggregator}).  
+     * aggregation) rather than popularity (using the {@link TermsAggregator}).
      * @param value true if the significant_terms algorithm should be used.
      */
     public GraphExploreRequestBuilder useSignificance(boolean value) {
@@ -137,19 +138,19 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         return this;
     }
 
-    
+
     /**
-     * The number of top-matching documents that are considered during each hop (default is 
+     * The number of top-matching documents that are considered during each hop (default is
      * {@link SamplerAggregationBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
      * Very small values (less than 50) may not provide sufficient weight-of-evidence to identify
-     * significant connections between terms. 
-     * <p> Very large values (many thousands) are not recommended with loosely defined queries (fuzzy queries or 
+     * significant connections between terms.
+     * <p> Very large values (many thousands) are not recommended with loosely defined queries (fuzzy queries or
      *  those with many OR clauses).
      *  This is because any useful signals in the best documents are diluted with irrelevant noise from low-quality matches.
-     *  Performance is also typically better with smaller samples as there are less look-ups required for background frequencies 
-     *  of terms found in the documents  
+     *  Performance is also typically better with smaller samples as there are less look-ups required for background frequencies
+     *  of terms found in the documents
      * </p>
-     * 
+     *
      * @param maxNumberOfDocsPerHop the shard-level sample size in documents
      */
     public GraphExploreRequestBuilder sampleSize(int maxNumberOfDocsPerHop) {

@@ -1,5 +1,5 @@
-[[breaking-changes-7.10]]
-== Breaking changes in 7.10
+[[migrating-7.10]]
+== Migrating to 7.10
 ++++
 <titleabbrev>7.10</titleabbrev>
 ++++
@@ -15,11 +15,30 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
+
+
+[discrete]
+[[breaking-changes-7.10]]
+=== Breaking changes
+
+The following changes in {es} 7.10 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.10, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+
 //tag::notable-breaking-changes[]
 
 [discrete]
 [[breaking_710_security_changes]]
-=== Authentication changes
+==== Authentication changes
 
 [[api-keys-require-name-property]]
 .API keys now require a `name` property.
@@ -44,8 +63,84 @@ To avoid errors, specify the `name` property when creating or granting API keys.
 ====
 
 [discrete]
+[[breaking_710_java_changes]]
+==== Java changes
+
+[[supplier-searchlookup-arg]]
+.The `MappedFieldType#fielddataBuilder` method now accepts a `Supplier<SearchLookup>` argument.
+[%collapsible]
+====
+*Details* +
+To support future feature development, the existing
+`MappedFieldType#fielddataBuilder` method now accepts a new
+`Supplier<SearchLookup>` argument.
+
+*Impact* +
+If you develop or maintain a mapper plugin, update your implementation of the
+`MappedFieldType#fielddataBuilder` method to accommodate the new signature.
+====
+
+[discrete]
+[[breaking_710_networking_changes]]
+==== Networking changes
+
+[keep-idle-and-keep-internal-limits]
+.The `*.tcp.keep_idle` and `*.tcp.keep_interval` settings are now limited to `300` seconds.
+[%collapsible]
+====
+*Details* +
+The `{network,transport,http}.tcp.keep_idle` and
+`{network,transport,http}.tcp.keep_interval` settings now have a maximum
+value of `300` seconds, equivalent to 5 minutes.
+
+*Impact* +
+If specified, ensure the `{network,transport,http}.tcp.keep_idle` and
+`{network,transport,http}.tcp.keep_interval` settings do not exceed `300`
+seconds. Setting `{network,transport,http}.tcp.keep_idle` or
+`{network,transport,http}.tcp.keep_interval` to a value greater than `300`
+seconds in `elasticsearch.yml` will result in an error on startup.
+====
+
+[discrete]
+[[breaking_710_search_changes]]
+==== Search changes
+
+[[max-doc-value-field-search-limits]]
+.The `index.max_docvalue_fields_search` setting now limits doc value fields returned by `inner_hits` or the `top_hits` aggregation.
+[%collapsible]
+====
+*Details* +
+The `index.max_docvalue_fields_search` setting limits the number of doc value
+fields retrieved by a search. Previously, this setting applied only to doc value
+fields returned by the `docvalue_fields` parameter in a top-level search. The
+setting now also applies to doc value fields returned by an `inner_hits` section
+or `top_hits` aggregation.
+
+*Impact* +
+If you use `inner_hits` or the `top_hits` aggregation, ensure
+`index.max_docvalue_fields_search` is configured correctly for your use case.
+====
+
+//end::notable-breaking-changes[]
+
+[discrete]
+[[deprecated-7.10]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.10
+and will be removed in 8.0
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.10.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
 [[breaking_710_indices_changes]]
-=== Indices changes
+==== Indices deprecations
 
 [[bc-deprecate-rest-api-access-to-system-indices]]
 .REST API access to system indices is deprecated.
@@ -80,28 +175,9 @@ To avoid deprecation warnings, do not use unsupported REST APIs to access system
 indices.
 ====
 
-
-[discrete]
-[[breaking_710_java_changes]]
-=== Java changes
-
-[[supplier-searchlookup-arg]]
-.The `MappedFieldType#fielddataBuilder` method now accepts a `Supplier<SearchLookup>` argument.
-[%collapsible]
-====
-*Details* +
-To support future feature development, the existing
-`MappedFieldType#fielddataBuilder` method now accepts a new
-`Supplier<SearchLookup>` argument.
- 
-*Impact* +
-If you develop or maintain a mapper plugin, update your implementation of the
-`MappedFieldType#fielddataBuilder` method to accommodate the new signature.
-====
-
 [discrete]
 [[breaking_710_ml_changes]]
-=== Machine learning changes
+==== Machine learning deprecations
 
 [[ml-allow-no-deprecations]]
 .The `allow_no_jobs` and `allow_no_datafeeds` API parameters are deprecated.
@@ -120,7 +196,7 @@ To avoid deprecation warnings, use the `allow_no_match` parameter.
 
 [discrete]
 [[breaking_710_mapping_changes]]
-=== Mapping changes
+==== Mapping deprecations
 
 [[mapping-boosts]]
 .The `boost` parameter on field mappings has been deprecated.
@@ -138,49 +214,8 @@ directly on queries instead.
 ====
 
 [discrete]
-[[breaking_710_networking_changes]]
-=== Networking changes
-
-[keep-idle-and-keep-internal-limits]
-.The `*.tcp.keep_idle` and `*.tcp.keep_interval` settings are now limited to `300` seconds.
-[%collapsible]
-====
-*Details* +
-The `{network,transport,http}.tcp.keep_idle` and
-`{network,transport,http}.tcp.keep_interval` settings now have a maximum
-value of `300` seconds, equivalent to 5 minutes.
-
-*Impact* +
-If specified, ensure the `{network,transport,http}.tcp.keep_idle` and
-`{network,transport,http}.tcp.keep_interval` settings do not exceed `300`
-seconds. Setting `{network,transport,http}.tcp.keep_idle` or
-`{network,transport,http}.tcp.keep_interval` to a value greater than `300`
-seconds in `elasticsearch.yml` will result in an error on startup.
-====
-
-[discrete]
-[[breaking_710_search_changes]]
-=== Search changes
-
-[[max-doc-value-field-search-limits]]
-.The `index.max_docvalue_fields_search` setting now limits doc value fields returned by `inner_hits` or the `top_hits` aggregation.
-[%collapsible]
-====
-*Details* +
-The `index.max_docvalue_fields_search` setting limits the number of doc value
-fields retrieved by a search. Previously, this setting applied only to doc value
-fields returned by the `docvalue_fields` parameter in a top-level search. The
-setting now also applies to doc value fields returned by an `inner_hits` section
-or `top_hits` aggregation.
-
-*Impact* +
-If you use `inner_hits` or the `top_hits` aggregation, ensure
-`index.max_docvalue_fields_search` is configured correctly for your use case.
-====
-
-[discrete]
 [[breaking_710_snapshot_restore_changes]]
-=== Snapshot and restore changes
+==== Snapshot and restore deprecations
 
 [[respository-stats-api-deprecated]]
 .The repository stats API has been deprecated.
@@ -196,4 +231,3 @@ removed in 8.0.0.
 Use the {ref}/repositories-metering-apis.html[repositories metering APIs].
 Discontinue use of the repository stats API.
 ====
-//end::notable-breaking-changes[]

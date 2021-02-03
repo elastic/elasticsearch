@@ -90,12 +90,10 @@ public class YearTimes implements Times {
 
         YearTimes that = (YearTimes) o;
 
-        if (Arrays.equals(days, that.days) == false) return false;
-        if (months.equals(that.months) == false) return false;
-        // order doesn't matter
-        if (newHashSet(times).equals(newHashSet(that.times)) == false) return false;
-
-        return true;
+        return Arrays.equals(days, that.days)
+            && months.equals(that.months)
+            // order doesn't matter
+            && newHashSet(times).equals(newHashSet(that.times));
     }
 
     @Override

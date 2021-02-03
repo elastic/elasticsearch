@@ -44,7 +44,7 @@ public class SlackMessageDefaults {
         SlackMessageDefaults defaults = (SlackMessageDefaults) o;
 
         return Objects.equals(from, defaults.from)
-            & Arrays.equals(to, defaults.to)
+            && Arrays.equals(to, defaults.to)
             && Objects.equals(icon, defaults.icon)
             && Objects.equals(text, defaults.text)
             && Objects.equals(attachment, defaults.attachment);

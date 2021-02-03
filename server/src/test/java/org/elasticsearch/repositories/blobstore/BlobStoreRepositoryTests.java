@@ -183,14 +183,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
     }
 
-    public void testRepositoryDataConcurrentModificationNotAllowed() {
+    public void testRepositoryDataConcurrentModificationNotAllowed() throws Exception {
         final BlobStoreRepository repository = setupRepo();
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
-        final PlainActionFuture<RepositoryData> future = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(), future);
+        writeIndexGen(repository, repositoryData, startingGeneration);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created

@@ -19,5 +19,8 @@ testClusters.all {
   module ':modules:mapper-extras'
 }
 
-test.enabled = false
-jarHell.enabled = false
+tasks.named("test").configure {enabled = false }
+tasks.named("jarHell").configure {enabled = false }
+
+ext.projectLicenses = ['Apache License 2.0': 'http://www.apache.org/licenses/LICENSE-2.0']
+ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')

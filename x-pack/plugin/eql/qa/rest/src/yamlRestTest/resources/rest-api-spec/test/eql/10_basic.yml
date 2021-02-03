@@ -161,10 +161,6 @@ setup:
 
 ---
 "EQL status API":
-  - skip:
-      version: " - 7.11.99"
-      reason: "The EQL status API was introduced in 7.12"
-
 
   - do:
       eql.search:

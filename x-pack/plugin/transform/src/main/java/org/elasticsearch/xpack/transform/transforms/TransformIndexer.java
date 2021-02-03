@@ -447,6 +447,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             transformConfig.getDestination(),
             nextCheckpoint
         );
+
+        if (deleteByQuery == null) {
+            finalizeCheckpoint(listener);
+            return;
+        }
+
         logger.debug(
             "[{}] Run delete based on retention policy using dbq [{}] with query: [{}]",
             getJobId(),

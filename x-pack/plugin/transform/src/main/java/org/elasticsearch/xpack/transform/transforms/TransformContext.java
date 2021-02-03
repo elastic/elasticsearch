@@ -43,7 +43,7 @@ class TransformContext {
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+        this.shouldStopAtCheckpoint = false;
     }
 
     TransformTaskState getTaskState() {

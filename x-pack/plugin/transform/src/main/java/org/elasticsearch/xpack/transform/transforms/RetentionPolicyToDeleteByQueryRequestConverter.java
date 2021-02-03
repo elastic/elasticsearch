@@ -19,6 +19,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 
 import java.time.Instant;
 
+/**
+ * Implementation of `retention_policy` configuration parameter.
+ *
+ * All implementations of `rentention_policy` are converted to a {@link DeleteByQueryRequest}, which is than executed by the indexer.
+ */
 public final class RetentionPolicyToDeleteByQueryRequestConverter {
 
     public static class RetentionPolicyException extends ElasticsearchException {
@@ -29,12 +34,28 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
 
     private RetentionPolicyToDeleteByQueryRequestConverter() {}
 
+    /**
+     * Build a {@link DeleteByQueryRequest} from a retention policy. The DBQ should run _after_ a new checkpoint has finished.
+     * The given checkpoint should be the one that just finished indexing, however the DBQ executes before this checkpoint
+     * gets exposed.
+     *
+     * @param retentionPolicyConfig The retention policy configuration
+     * @param settingsConfig settings to set certain parameters
+     * @param destConfig the destination config
+     * @param checkpoint The checkpoint that just finished
+     *
+     * @return a delete by query request according to the given configurations or null if no delete by query should be executed
+     */
     static DeleteByQueryRequest buildDeleteByQueryRequest(
         RetentionPolicyConfig retentionPolicyConfig,
         SettingsConfig settingsConfig,
         DestConfig destConfig,
         TransformCheckpoint checkpoint
     ) {
+        if (checkpoint == null || checkpoint.isEmpty()) {
+            return null;
+        }
+
         DeleteByQueryRequest request = new DeleteByQueryRequest();
 
         if (retentionPolicyConfig instanceof TimeRetentionPolicyConfig) {

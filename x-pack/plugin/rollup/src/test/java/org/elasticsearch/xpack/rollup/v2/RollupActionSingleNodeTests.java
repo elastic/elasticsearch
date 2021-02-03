@@ -277,7 +277,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 //        assertRollupIndex(config);
     }
 
-
     private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {
         RollupActionDateHistogramGroupConfig randomConfig = ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig(random());
         if (randomConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {

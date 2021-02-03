@@ -332,7 +332,6 @@ public class TransportRollupAction
                         group.add(rollupIndexName, rollupInfo);
                         rollupGroups.put(rollupGroupKeyName, group);
                     }
-
                     dsMetadata.put(RollupMetadata.TYPE, new RollupMetadata(rollupGroups));
 
                     List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());

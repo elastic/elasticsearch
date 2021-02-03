@@ -8,20 +8,17 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -29,7 +26,7 @@ import java.util.Objects;
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link RollupGroup}s and their names.
  */
-public class RollupMetadata implements Metadata.Custom {
+public class RollupMetadata extends AbstractDiffable<RollupMetadata> implements ToXContentObject {
     public static final String TYPE = "rollup";
     public static final String SOURCE_INDEX_NAME_META_FIELD = "source_index";
     private static final ParseField ROLLUP = new ParseField("rollup");
@@ -69,30 +66,6 @@ public class RollupMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
-        return new RollupMetadata.RollupMetadataDiff((RollupMetadata) before, this);
-    }
-
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return new RollupMetadataDiff(in);
-    }
-
-    @Override
-    public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_11_0;
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.rollupIndices, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
     }
@@ -103,12 +76,10 @@ public class RollupMetadata implements Metadata.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(ROLLUP.getPreferredName());
-        for (Map.Entry<String, RollupGroup> rollup : rollupIndices.entrySet()) {
-            builder.field(rollup.getKey(), rollup.getValue());
-        }
-        builder.endObject();
-        return builder;
+        return builder
+            .startObject()
+            .field(ROLLUP.getPreferredName(), rollupIndices)
+            .endObject();
     }
 
     public static Builder builder() {
@@ -148,35 +119,6 @@ public class RollupMetadata implements Metadata.Custom {
 
         public RollupMetadata build() {
             return new RollupMetadata(rollupIndices);
-        }
-    }
-
-    static class RollupMetadataDiff implements NamedDiff<Metadata.Custom> {
-
-        final Diff<Map<String, RollupGroup>> rollupIndicesDiff;
-
-        RollupMetadataDiff(RollupMetadata before, RollupMetadata after) {
-            this.rollupIndicesDiff = DiffableUtils.diff(before.rollupIndices, after.rollupIndices, DiffableUtils.getStringKeySerializer());
-        }
-
-        RollupMetadataDiff(StreamInput in) throws IOException {
-            this.rollupIndicesDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                RollupGroup::new, RollupGroup::readDiffFrom);
-        }
-
-        @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
-            return new RollupMetadata(rollupIndicesDiff.apply(((RollupMetadata) part).rollupIndices));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            rollupIndicesDiff.writeTo(out);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
         }
     }
 }

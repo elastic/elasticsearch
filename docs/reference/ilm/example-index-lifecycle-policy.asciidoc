@@ -111,7 +111,7 @@ tier 30 days after rollover.
 --
 
 . Activate the delete phase and set *Move data into phase when* to *90* days.
-This moves indices to the delete phase 90 days after rollover.
+This deletes indices 90 days after rollover.
 +
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-delete-rollover.png[Add a delete phase]

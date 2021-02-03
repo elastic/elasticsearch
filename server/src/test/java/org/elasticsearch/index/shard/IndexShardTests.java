@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -1535,7 +1524,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ElasticsearchException e = expectThrows(ElasticsearchException.class, shard::storeStats);
             assertTrue(failureCallbackTriggered.get());
 
-            if (corruptIndexException && !throwWhenMarkingStoreCorrupted.get()) {
+            if (corruptIndexException && throwWhenMarkingStoreCorrupted.get() == false) {
                 assertTrue(store.isMarkedCorrupted());
             }
         }
@@ -3268,7 +3257,7 @@ public class IndexShardTests extends IndexShardTestCase {
         boolean gap = false;
         Set<String> ids = new HashSet<>();
         for (int i = offset + 1; i < operations; i++) {
-            if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
+            if (rarely() == false || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
                 final String id = ids.isEmpty() || randomBoolean() ? Integer.toString(i) : randomFrom(ids);
                 if (ids.add(id) == false) { // this is an update
                     indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
@@ -3277,7 +3266,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         new BytesArray("{}"), XContentType.JSON);
                 indexShard.applyIndexOperationOnReplica(i, indexShard.getOperationPrimaryTerm(), 1,
                     IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse);
-                if (!gap && i == localCheckpoint + 1) {
+                if (gap == false && i == localCheckpoint + 1) {
                     localCheckpoint++;
                 }
                 max = i;

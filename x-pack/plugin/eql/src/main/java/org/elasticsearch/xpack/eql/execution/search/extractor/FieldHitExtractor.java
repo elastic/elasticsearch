@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search.extractor;
@@ -18,6 +19,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 
 public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
@@ -49,6 +51,11 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         if (dataType == DATETIME) {
             if (values instanceof String) {
                 return parseDateString(values);
+            }
+        }
+        if (dataType == DATETIME_NANOS) {
+            if (values instanceof String) {
+                return DateUtils.asDateTimeWithNanos(values.toString(), zoneId());
             }
         }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.cache;
 
@@ -172,6 +173,10 @@ public final class TestUtils {
     ) {
         assertCounter(timedCounter, total, count, min, max);
         assertThat(timedCounter.totalNanoseconds(), equalTo(totalNanoseconds));
+    }
+
+    public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
+        return cacheFile.getCompletedRanges().stream().mapToLong(range -> range.v2() - range.v1()).sum();
     }
 
     /**

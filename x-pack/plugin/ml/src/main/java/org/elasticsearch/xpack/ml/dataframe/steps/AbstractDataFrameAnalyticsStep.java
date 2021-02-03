@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.steps;
@@ -57,7 +58,7 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
     @Override
     public final void execute(ActionListener<StepResponse> listener) {
         logger.debug(() -> new ParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
-        if (task.isStopping()) {
+        if (task.isStopping() && shouldSkipIfTaskIsStopping()) {
             logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
             listener.onResponse(new StepResponse(true));
             return;
@@ -75,5 +76,9 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
         ParentTaskAssigningClient parentTaskClient = parentTaskClient();
         executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, RefreshAction.INSTANCE,
             new RefreshRequest(config.getDest().getIndex()), refreshListener);
+    }
+
+    protected boolean shouldSkipIfTaskIsStopping() {
+        return true;
     }
 }

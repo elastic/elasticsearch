@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
@@ -17,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -77,7 +80,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState interimState = stateBuilder.build();
         final ClusterState state = startAll(interimState);
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS);
         Collection<AllocationDecider> allocationDecidersList = new ArrayList<>(
             ClusterModule.createAllocationDeciders(Settings.EMPTY, clusterSettings, Collections.emptyList())
         );
@@ -105,6 +108,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             @Override
             public Set<DiscoveryNode> nodes() {
                 return Sets.newHashSet(state.nodes());
+            }
+
+            @Override
+            public Set<DiscoveryNodeRole> roles() {
+                return Set.of(DiscoveryNodeRole.DATA_ROLE);
             }
 
             @Override
@@ -161,6 +169,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
+            null,
+            Set.of(),
             Set.of()
         );
 
@@ -190,9 +200,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
+            null,
             randomClusterInfo(state),
             null,
-            Sets.newHashSet(state.nodes())
+            Sets.newHashSet(state.nodes()),
+            Set.of()
         );
 
         assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
@@ -230,9 +242,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
+            null,
             info,
             null,
-            Sets.newHashSet(state.nodes())
+            Sets.newHashSet(state.nodes()),
+            Set.of()
         );
 
         for (int window = 0; window < between(1, 20); ++window) {

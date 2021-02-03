@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
@@ -21,20 +22,20 @@ public class IndexOfFunctionProcessor implements Processor {
     private final Processor input;
     private final Processor substring;
     private final Processor start;
-    private final boolean isCaseSensitive;
+    private final boolean caseInsensitive;
 
-    public IndexOfFunctionProcessor(Processor input, Processor substring, Processor start, boolean isCaseSensitive) {
+    public IndexOfFunctionProcessor(Processor input, Processor substring, Processor start, boolean caseInsensitive) {
         this.input = input;
         this.substring = substring;
         this.start = start;
-        this.isCaseSensitive = isCaseSensitive;
+        this.caseInsensitive = caseInsensitive;
     }
 
     public IndexOfFunctionProcessor(StreamInput in) throws IOException {
         input = in.readNamedWriteable(Processor.class);
         substring = in.readNamedWriteable(Processor.class);
         start = in.readNamedWriteable(Processor.class);
-        isCaseSensitive = in.readBoolean();
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
@@ -42,15 +43,15 @@ public class IndexOfFunctionProcessor implements Processor {
         out.writeNamedWriteable(input);
         out.writeNamedWriteable(substring);
         out.writeNamedWriteable(start);
-        out.writeBoolean(isCaseSensitive);
+        out.writeBoolean(caseInsensitive);
     }
 
     @Override
     public Object process(Object o) {
-        return doProcess(input.process(o), substring.process(o), start.process(o), isCaseSensitive());
+        return doProcess(input.process(o), substring.process(o), start.process(o), isCaseInsensitive());
     }
 
-    public static Object doProcess(Object input, Object substring, Object start, boolean isCaseSensitive) {
+    public static Object doProcess(Object input, Object substring, Object start, boolean caseInsensitive) {
         if (input == null) {
             return null;
         }
@@ -63,7 +64,7 @@ public class IndexOfFunctionProcessor implements Processor {
         if (substring instanceof String == false && substring instanceof Character == false) {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", substring);
         }
-        
+
         if (start != null && start instanceof Number == false) {
             throw new EqlIllegalArgumentException("A number is required; received [{}]", start);
         }
@@ -71,15 +72,15 @@ public class IndexOfFunctionProcessor implements Processor {
 
         int result;
 
-        if (isCaseSensitive) {
-            result =  input.toString().indexOf(substring.toString(), startIndex);
+        if (caseInsensitive == false) {
+            result = input.toString().indexOf(substring.toString(), startIndex);
         } else {
             result = input.toString().toLowerCase(Locale.ROOT).indexOf(substring.toString().toLowerCase(Locale.ROOT), startIndex);
         }
 
         return result < 0 ? null : result;
     }
-    
+
     protected Processor input() {
         return input;
     }
@@ -92,8 +93,8 @@ public class IndexOfFunctionProcessor implements Processor {
         return start;
     }
 
-    protected boolean isCaseSensitive() {
-        return isCaseSensitive;
+    protected boolean isCaseInsensitive() {
+        return caseInsensitive;
     }
 
     @Override
@@ -101,23 +102,23 @@ public class IndexOfFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         IndexOfFunctionProcessor other = (IndexOfFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
-                && Objects.equals(substring(), other.substring())
-                && Objects.equals(start(), other.start())
-                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
+            && Objects.equals(substring(), other.substring())
+            && Objects.equals(start(), other.start())
+            && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(input(), substring(), start(), isCaseSensitive());
+        return Objects.hash(input(), substring(), start(), isCaseInsensitive());
     }
-    
+
 
     @Override
     public String getWriteableName() {

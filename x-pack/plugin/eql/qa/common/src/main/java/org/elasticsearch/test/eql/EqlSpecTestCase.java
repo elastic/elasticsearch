@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.test.eql;
@@ -24,6 +25,7 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
         Set<String> uniqueTestNames = new HashSet<>();
         List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true, uniqueTestNames);
         specs.addAll(EqlSpecLoader.load("/additional_test_queries.toml", true, uniqueTestNames));
+        specs.addAll(EqlSpecLoader.load("/test_queries_date.toml", true, uniqueTestNames));
         List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false, uniqueTestNames);
 
         // Validate only currently supported specs

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
@@ -174,11 +175,7 @@ public class Regression implements DataFrameAnalysis {
         } else {
             featureProcessors = Collections.emptyList();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            earlyStoppingEnabled = in.readBoolean();
-        } else {
-            earlyStoppingEnabled = true;
-        }
+        earlyStoppingEnabled = in.readBoolean();
     }
 
     public String getDependentVariable() {
@@ -235,9 +232,7 @@ public class Regression implements DataFrameAnalysis {
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeNamedWriteableList(featureProcessors);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(earlyStoppingEnabled);
-        }
+        out.writeBoolean(earlyStoppingEnabled);
     }
 
     @Override

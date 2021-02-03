@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -35,7 +36,7 @@ public abstract class AbstractFieldScript {
      */
     static final int MAX_VALUES = 100;
 
-    public static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
+    static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(
             name + "_script_field",
             factoryClass,

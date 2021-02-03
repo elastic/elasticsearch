@@ -29,6 +29,7 @@ setup:
   - set: {analytics.stats.moving_percentiles_usage: moving_percentiles_usage}
   - set: { analytics.stats.normalize_usage: normalize_usage }
   - set: { analytics.stats.rate_usage: rate_usage }
+  - set: { analytics.stats.multi_terms_usage: multi_terms_usage }
 
   # use boxplot agg
   - do:
@@ -56,6 +57,7 @@ setup:
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
   - match: { analytics.stats.normalize_usage: $normalize_usage }
   - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
 
   # use top_metrics agg
   - do:
@@ -86,6 +88,7 @@ setup:
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
   - match: { analytics.stats.normalize_usage: $normalize_usage }
   - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
 
   # use cumulative_cardinality agg
   - do:
@@ -120,6 +123,7 @@ setup:
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
   - match: { analytics.stats.normalize_usage: $normalize_usage }
   - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
 
   # use t-test agg
   - do:
@@ -148,6 +152,7 @@ setup:
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
   - match: { analytics.stats.normalize_usage: $normalize_usage }
   - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
 
   - do:
       search:
@@ -172,6 +177,7 @@ setup:
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
   - match: { analytics.stats.normalize_usage: $normalize_usage }
   - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
 
   # use moving_percentile agg
   - do:
@@ -207,6 +213,7 @@ setup:
   - set: {analytics.stats.moving_percentiles_usage: moving_percentiles_usage}
   - match: { analytics.stats.normalize_usage: $normalize_usage }
   - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
 
   # use normalize agg
   - do:
@@ -242,6 +249,7 @@ setup:
   - gt: { analytics.stats.normalize_usage: $normalize_usage }
   - set: {analytics.stats.normalize_usage: normalize_usage}
   - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
 
   # use rate agg
   - do:
@@ -273,3 +281,19 @@ setup:
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
   - gt: { analytics.stats.rate_usage: $rate_usage }
   - set: {analytics.stats.rate_usage: rate_usage}
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use multi_terms agg
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: timestamp
+                  - field: str.keyword
+
+  - length: { aggregations.m_terms.buckets: 2 }

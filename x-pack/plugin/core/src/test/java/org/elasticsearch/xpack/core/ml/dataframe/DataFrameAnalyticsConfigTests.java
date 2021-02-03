@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
@@ -151,7 +152,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 42L,
                 bwcRegression.getLossFunction(),
                 bwcRegression.getLossFunctionParameter(),
-                bwcRegression.getFeatureProcessors());
+                bwcRegression.getFeatureProcessors(),
+                bwcRegression.getEarlyStoppingEnabled());
             testAnalysis = new Regression(testRegression.getDependentVariable(),
                 testRegression.getBoostedTreeParams(),
                 testRegression.getPredictionFieldName(),
@@ -159,7 +161,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 42L,
                 testRegression.getLossFunction(),
                 testRegression.getLossFunctionParameter(),
-                bwcRegression.getFeatureProcessors());
+                testRegression.getFeatureProcessors(),
+                testRegression.getEarlyStoppingEnabled());
         } else {
             Classification testClassification = (Classification)testInstance.getAnalysis();
             Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
@@ -170,7 +173,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 bwcClassification.getNumTopClasses(),
                 bwcClassification.getTrainingPercent(),
                 42L,
-                bwcClassification.getFeatureProcessors());
+                bwcClassification.getFeatureProcessors(),
+                bwcClassification.getEarlyStoppingEnabled());
             testAnalysis = new Classification(testClassification.getDependentVariable(),
                 testClassification.getBoostedTreeParams(),
                 testClassification.getPredictionFieldName(),
@@ -178,7 +182,8 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
                 testClassification.getNumTopClasses(),
                 testClassification.getTrainingPercent(),
                 42L,
-                testClassification.getFeatureProcessors());
+                testClassification.getFeatureProcessors(),
+                testClassification.getEarlyStoppingEnabled());
         }
         super.assertOnBWCObject(new DataFrameAnalyticsConfig.Builder(bwcSerializedObject)
             .setAnalysis(bwcAnalysis)

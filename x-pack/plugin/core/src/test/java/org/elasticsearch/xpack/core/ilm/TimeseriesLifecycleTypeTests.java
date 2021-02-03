@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -52,7 +53,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
-    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
+    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
@@ -209,7 +210,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testValidateActionsFollowingSearchableSnapshot() {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1)));
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -621,7 +622,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case RolloverAction.NAME:
                 return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
             case ShrinkAction.NAME:
-                return new ShrinkAction(1);
+                return new ShrinkAction(1, null);
             case FreezeAction.NAME:
                 return new FreezeAction();
             case SetPriorityAction.NAME:

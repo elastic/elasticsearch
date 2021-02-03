@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.type;
 
@@ -49,6 +50,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.LONG_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.areCompatible;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.defaultPrecision;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
@@ -172,6 +174,27 @@ public class SqlDataTypesTests extends ESTestCase {
         assertNull(compatibleInterval(INTERVAL_MINUTE_TO_SECOND, INTERVAL_MONTH));
     }
 
+    public void testIntervalCompabitilityWithDateTimes() {
+        for (DataType intervalType : asList(INTERVAL_YEAR,
+            INTERVAL_MONTH,
+            INTERVAL_DAY,
+            INTERVAL_HOUR,
+            INTERVAL_MINUTE,
+            INTERVAL_SECOND,
+            INTERVAL_YEAR_TO_MONTH,
+            INTERVAL_DAY_TO_HOUR,
+            INTERVAL_DAY_TO_MINUTE,
+            INTERVAL_DAY_TO_SECOND,
+            INTERVAL_HOUR_TO_MINUTE,
+            INTERVAL_HOUR_TO_SECOND,
+            INTERVAL_MINUTE_TO_SECOND)) {
+            for (DataType dateTimeType: asList(DATE, DATETIME)) {
+                assertTrue(areCompatible(intervalType, dateTimeType));
+                assertTrue(areCompatible(dateTimeType, intervalType));
+            }
+        }
+    }
+
     public void testIsDateBased() {
         List<DataType> dateBasedList = asList(DATE, DATETIME, DATETIME_ARRAY);
         for (DataType d : dateBasedList) {
@@ -229,7 +252,6 @@ public class SqlDataTypesTests extends ESTestCase {
                 assertEquals(displaySize(baseType), displaySize(d));
             }
         }
-
     }
 
     public void testEsToDataType() {

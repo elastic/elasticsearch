@@ -71,7 +71,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         } catch (URISyntaxException e) {
             throw new RuntimeException("exception while reading the store", e);
         }
-        if (!Files.exists(keyStore)) {
+        if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
         String keyStoreStr = keyStore.toAbsolutePath().toString();
@@ -200,7 +200,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
                 while (actual.next()) {
                     String name = actual.getString("name");
-                    if (!name.startsWith(".security")) {
+                    if (name.startsWith(".security") == false) {
                         actualList.add(name);
                     }
                 }

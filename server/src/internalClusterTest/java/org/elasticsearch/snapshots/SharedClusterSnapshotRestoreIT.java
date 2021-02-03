@@ -1671,7 +1671,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             boolean atLeastOne = false;
             List<String> indices = new ArrayList<>();
             for (int j = 0; j < numIndices; j++) {
-                if (all || randomBoolean() || !atLeastOne) {
+                if (all || randomBoolean() || atLeastOne == false) {
                     indices.add("test-idx-" + j);
                     atLeastOne = true;
                 }

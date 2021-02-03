@@ -48,7 +48,7 @@ public abstract class BinaryDateTimePipe extends BinaryPipe {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         BinaryDateTimePipe that = (BinaryDateTimePipe) o;

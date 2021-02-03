@@ -149,7 +149,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         parser.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p, lenient), LATEST_TRANSFORM);
         parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, lenient), TransformField.SETTINGS);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> parseRentionPolicyConfig(p), TransformField.RETENTION_POLICY);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> parseRetentionPolicyConfig(p), TransformField.RETENTION_POLICY);
         parser.declareField(
             optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, TransformField.CREATE_TIME.getPreferredName()),
@@ -168,7 +168,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         return syncConfig;
     }
 
-    private static RetentionPolicyConfig parseRentionPolicyConfig(XContentParser parser) throws IOException {
+    private static RetentionPolicyConfig parseRetentionPolicyConfig(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
         RetentionPolicyConfig retentionPolicyConfig = parser.namedObject(RetentionPolicyConfig.class, parser.currentName(), true);

@@ -514,9 +514,21 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 }});
         SyncConfig syncConfig = new TimeSyncConfig("field", null);
         LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
-        TransformConfig config =
-            new TransformConfig(
-                transformId, sourceConfig, randomDestConfig(), null, syncConfig, null, null, latestConfig, null, null, null, null);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            sourceConfig,
+            randomDestConfig(),
+            null,
+            syncConfig,
+            null,
+            null,
+            latestConfig,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         auditor.addExpectation(
@@ -545,9 +557,21 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 }});
         SyncConfig syncConfig = new TimeSyncConfig("field-t", null);
         LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
-        TransformConfig config =
-            new TransformConfig(
-                transformId, sourceConfig, randomDestConfig(), null, syncConfig, null, null, latestConfig, null, null, null, null);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            sourceConfig,
+            randomDestConfig(),
+            null,
+            syncConfig,
+            null,
+            null,
+            latestConfig,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         auditor.addExpectation(

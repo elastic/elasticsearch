@@ -493,7 +493,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
+            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
         when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

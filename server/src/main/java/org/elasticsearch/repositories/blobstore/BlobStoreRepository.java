@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -1425,7 +1414,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
                 threadPool.generic().execute(() -> doGetRepositoryData(
                         ActionListener.wrap(repoData -> clusterService.submitStateUpdateTask(
-                                "set safe repository generation [" + metadata.name() + "][" + repoData + "]",
+                                "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
                                 new ClusterStateUpdateTask() {
                                     @Override
                                     public ClusterState execute(ClusterState currentState) {
@@ -1452,6 +1441,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                                     @Override
                                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                        logger.trace("[{}] initialized repository generation in cluster state to [{}]",
+                                                metadata.name(), repoData.getGenId());
                                         // Resolve listeners on generic pool since some callbacks for repository data do additional IO
                                         threadPool.generic().execute(() -> {
                                             final ActionListener<RepositoryData> existingListener;
@@ -1460,6 +1451,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                 repoDataInitialized = null;
                                             }
                                             existingListener.onResponse(repoData);
+                                            logger.trace("[{}] called listeners after initializing repository to generation [{}]"
+                                                    , metadata.name(), repoData.getGenId());
                                         });
                                     }
                                 }), onFailure)));
@@ -1730,6 +1723,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     protected void writeIndexGen(RepositoryData repositoryData, long expectedGen, Version version,
                                  Function<ClusterState, ClusterState> stateFilter, ActionListener<RepositoryData> listener) {
+        logger.trace("[{}] writing repository data on top of expected generation [{}]", metadata.name(), expectedGen);
         assert isReadOnly() == false; // can not write to a read only repository
         final long currentGen = repositoryData.getGenId();
         if (currentGen != expectedGen) {
@@ -1787,6 +1781,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
                     setPendingStep.onResponse(newGen);
                 }
             });
@@ -1883,6 +1878,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                         cacheRepositoryData(repoDataToCache, newGen);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
                             // Delete all now outdated index files up to 1000 blobs back from the new generation.

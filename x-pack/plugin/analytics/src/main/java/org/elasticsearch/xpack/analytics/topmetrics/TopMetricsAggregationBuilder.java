@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
@@ -84,7 +85,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
                 ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser =
-            MultiValuesSourceFieldConfig.parserBuilder(true, false, false);
+            MultiValuesSourceFieldConfig.parserBuilder(true, false, false, false);
         PARSER.declareObjectArray(constructorArg(), (p, n) -> metricParser.parse(p, null).build(), METRIC_FIELD);
     }
 

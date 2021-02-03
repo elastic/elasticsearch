@@ -44,15 +44,15 @@ To complete this tutorial, you'll need:
 * An {es} cluster with hot and warm data tiers.
 
 ** {ess}:
-Elastic Stack deployments on {ess} include a hot data tier by default. To add
-warm data tier, edit your deployment and click **Add capacity**
-under the **Warm data tier**.
+Elastic Stack deployments on the {ess} include a hot tier by default. To add a
+warm tier, edit your deployment and click **Add capacity** for the warm data
+tier.
 +
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-ess-add-warm-data-tier.png[Add a warm data tier to your deployment]
 
 ** Self-managed cluster:
-Assign nodes the `data_hot` and `data_warm` node roles as described in
+Assign `data_hot` and `data_warm` roles to nodes as described in
 <<data-tiers>>.
 +
 For example, include the `data_warm` node role in the `elasticsearch.yml` file
@@ -68,7 +68,7 @@ cluster.
 
 [discrete]
 [[example-using-index-lifecycle-policy-view-ilm-policy]]
-==== View the `logs` {ilm-init} policy
+==== View the policy
 
 The {agent} uses data streams with an index pattern of `logs-*-*` to store log
 monitoring data. {es}'s built-in `logs` {ilm-init} policy automatically manages
@@ -80,21 +80,21 @@ To view the `logs` policy in {kib}:
 . Select the `logs` policy.
 
 The `logs` policy uses our recommended rollover defaults. These defaults
-initiates a rollover when the current write index size reaches 50GB or becomes
-30 days old.
+initiate a rollover when the current write index reaches 50GB or becomes 30 days
+old.
 
-To confirm these rollover settings, click **Settings** under the **Hot phase**.
-Then disable **Use recommended defaults**.
+To confirm these rollover settings, click **Settings** for the hot phase. Then
+disable **Use recommended defaults** to display the rollover settings.
 
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-hotphaserollover-default.png[View rollover defaults]
 
 [discrete]
 [[ilm-ex-modify-policy]]
-==== Modify the `logs` policy
+==== Modify the policy
 
-The default `logs` policy is enough to prevent the creation of many tiny daily
-indices. You can modify the policy to meet more complex requirements.
+The `logs` policy's default settings are enough to prevent the creation of many
+tiny daily indices. You can modify the policy to meet more complex requirements.
 
 . Activate the warm phase and click **Settings**.
 +
@@ -102,11 +102,8 @@ indices. You can modify the policy to meet more complex requirements.
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png[Add a warm phase with custom settings]
 
-.. Set one of the following options to control when the index moves to the warm
-phase:
-
-*** Provide a value for *Move data into phase when*. Setting this to *30 days*
-keeps the indices on hot nodes for 30 days.
+.. Set *Move data into phase when* to *30 days*. This keeps indices in the hot
+tier for 30 days. After 30 days, indices move to the warm tier.
 
 .. Enable **Replicas** and change *Number of replicas* to *1*.
 

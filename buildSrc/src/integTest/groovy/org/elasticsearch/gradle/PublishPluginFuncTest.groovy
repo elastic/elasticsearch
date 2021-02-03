@@ -48,7 +48,9 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         def generatedPomFile = file("build/distributions/hello-world-1.0.pom")
         generatedPomFile.exists()
         assertXmlEquals(generatedPomFile.text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <project xmlns="http://maven.apache.org/POM/4.0.0" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world</artifactId>
@@ -93,7 +95,9 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         def generatedPomFile = file("build/distributions/hello-world-plugin-1.0.pom")
         generatedPomFile.exists()
         assertXmlEquals(generatedPomFile.text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <project xmlns="http://maven.apache.org/POM/4.0.0" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world-plugin</artifactId>
@@ -120,33 +124,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 classname 'org.acme.HelloWorldPlugin'
                 description = "custom project description"
             }
-//            
-//              // this is currently required to have validation passed
-//              // In our elasticsearch build this is currently setup in the 
-//              // root build.gradle file.
-//              plugins.withType(MavenPublishPlugin) {
-//                publishing {
-//                  publications {
-//                    // add license information to generated poms
-//                    all {
-//                      pom.withXml { XmlProvider xml ->
-//                        Node node = xml.asNode()
-//                        node.appendNode('inceptionYear', '2009')
-//            
-//                        Node license = node.appendNode('licenses').appendNode('license')
-//                        license.appendNode('name', "The Apache Software License, Version 2.0")
-//                        license.appendNode('url', "http://www.apache.org/licenses/LICENSE-2.0.txt")
-//                        license.appendNode('distribution', 'repo')
-//            
-//                        Node developer = node.appendNode('developers').appendNode('developer')
-//                        developer.appendNode('name', 'Elastic')
-//                        developer.appendNode('url', 'https://www.elastic.co')
-//                      }
-//                    }
-//                  }
-//                }
-//              }
-            
+           
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
             licenseFile = file('license.txt')
@@ -163,12 +141,9 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         def generatedPomFile = file("build/distributions/hello-world-plugin-1.0.pom")
         generatedPomFile.exists()
         assertXmlEquals(generatedPomFile.text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-              <!-- This module was also published with a richer model, Gradle metadata,  -->
-              <!-- which should be used instead. Do not delete the following line which  -->
-              <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
-              <!-- that they should prefer consuming it instead. -->
-              <!-- do_not_remove: published-with-gradle-metadata -->
+            <project xmlns="http://maven.apache.org/POM/4.0.0" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world-plugin</artifactId>
@@ -228,7 +203,9 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         println generatedPomFile.text
         generatedPomFile.exists()
         assertXmlEquals(generatedPomFile.text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <project xmlns="http://maven.apache.org/POM/4.0.0" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world</artifactId>

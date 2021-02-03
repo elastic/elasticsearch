@@ -492,6 +492,7 @@ public class MlConfigMigrator {
         {
             createIndexRequest.settings(MlConfigIndex.settings());
             createIndexRequest.mapping(MlConfigIndex.mapping());
+            createIndexRequest.origin(ML_ORIGIN);
         } catch (Exception e) {
             logger.error("error writing the .ml-config mappings", e);
             listener.onFailure(e);

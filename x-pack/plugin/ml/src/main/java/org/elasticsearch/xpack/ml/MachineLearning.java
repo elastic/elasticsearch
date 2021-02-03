@@ -1180,16 +1180,20 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 .setVersionMetaKey("version")
                 .setOrigin(ML_ORIGIN)
                 .build(),
-            SystemIndexDescriptor.builder()
-                .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
-                .setPrimaryIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-                .setDescription("Contains ML model configuration and statistics")
-                .setMappings(InferenceIndexConstants.mapping())
-                .setSettings(InferenceIndexConstants.settings())
-                .setVersionMetaKey("version")
-                .setOrigin(ML_ORIGIN)
-                .build()
+            getInferenceIndexSecurityDescriptor()
         );
+    }
+
+    public static SystemIndexDescriptor getInferenceIndexSecurityDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
+            .setPrimaryIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setDescription("Contains ML model configuration and statistics")
+            .setMappings(InferenceIndexConstants.mapping())
+            .setSettings(InferenceIndexConstants.settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ML_ORIGIN)
+            .build();
     }
 
     @Override

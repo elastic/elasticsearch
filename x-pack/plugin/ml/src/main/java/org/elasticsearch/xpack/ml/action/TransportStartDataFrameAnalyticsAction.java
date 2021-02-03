@@ -61,9 +61,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
@@ -669,8 +671,26 @@ public class TransportStartDataFrameAnalyticsAction
             );
 
             // Get stats to initialize in memory stats tracking
-            executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
-                new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener);
+            ActionListener<Boolean> indexCheckListener = ActionListener.wrap(
+                ok -> executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
+                    new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener),
+                error -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(error);
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] failed to create internal index [{}]",
+                            params.getId(),
+                            InferenceIndexConstants.LATEST_INDEX_NAME),
+                        cause);
+                    dfaTask.setFailed(error);
+                }
+            );
+
+            // Create the system index explicitly.  Although the master node would create it automatically on first use,
+            // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
+            // might use outdated mappings.
+            MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
+                indexCheckListener);
         }
 
         private void executeTask(DataFrameAnalyticsTask task) {

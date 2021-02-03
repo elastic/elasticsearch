@@ -129,14 +129,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
     }
 
-    public void testTypeLookup() {
-        String type = randomAlphaOfLength(4);
-        assertThat(
-            ((TypeFieldType) new FieldTypeLookup(type, List.of(), List.of(), List.of()).get(TypeFieldType.NAME)).getType(),
-            equalTo(type)
-        );
-    }
-
     public void testRuntimeFieldsLookup() {
         MockFieldMapper concrete = new MockFieldMapper("concrete");
         TestRuntimeField runtime = new TestRuntimeField("runtime", "type");

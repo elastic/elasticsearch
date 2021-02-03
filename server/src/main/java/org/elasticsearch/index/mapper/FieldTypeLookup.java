@@ -84,10 +84,6 @@ final class FieldTypeLookup {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
-        if (field.equals(TypeFieldType.NAME)) {
-            return new TypeFieldType(type);
-        }
-
         MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;

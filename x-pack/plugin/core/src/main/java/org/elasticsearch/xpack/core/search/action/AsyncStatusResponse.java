@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -63,7 +64,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
      * @param id – encoded async search id
      * @return status response
      */
-    public static AsyncStatusResponse getStatus(AsyncSearchResponse asyncSearchResponse,
+    public static AsyncStatusResponse getStatusFromStoredSearch(AsyncSearchResponse asyncSearchResponse,
             long expirationTimeMillis, String id) {
         int totalShards = 0;
         int successfulShards = 0;
@@ -151,6 +152,29 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         return builder;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        AsyncStatusResponse other = (AsyncStatusResponse) obj;
+        return id.equals(other.id)
+            && isRunning == other.isRunning
+            && isPartial == other.isPartial
+            && startTimeMillis == other.startTimeMillis
+            && expirationTimeMillis == other.expirationTimeMillis
+            && totalShards == other.totalShards
+            && successfulShards == other.successfulShards
+            && skippedShards == other.skippedShards
+            && failedShards == other.failedShards
+            && Objects.equals(completionStatus, other.completionStatus);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, isRunning, isPartial, startTimeMillis, expirationTimeMillis, totalShards,
+            successfulShards, skippedShards, failedShards, completionStatus);
+    }
+
     /**
      * Returns the id of the async search status request.
      */
@@ -185,6 +209,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     /**
      * Returns a timestamp when the search will be expired, in milliseconds since epoch.
      */
+    @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
     }

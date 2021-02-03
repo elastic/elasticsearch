@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,10 +20,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
-import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.action.EqlStatusResponse;
@@ -59,56 +56,19 @@ public class TransportEqlAsyncGetStatusAction extends HandledTransportAction<Get
     protected void doExecute(Task task, GetAsyncStatusRequest request, ActionListener<EqlStatusResponse> listener) {
         AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
         DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
-        if (node == null || Objects.equals(node, clusterService.localNode())) {
-            retrieveStatus(request, listener);
+        DiscoveryNode localNode = clusterService.state().getNodes().getLocalNode();
+        if (node == null || Objects.equals(node, localNode)) {
+            store.retrieveStatus(
+                request,
+                taskManager,
+                EqlSearchTask.class,
+                EqlSearchTask::getStatusResponse,
+                EqlStatusResponse::getStatusFromStoredSearch,
+                listener
+            );
         } else {
             transportService.sendRequest(node, EqlAsyncGetStatusAction.NAME, request,
                 new ActionListenerResponseHandler<>(listener, EqlStatusResponse::new, ThreadPool.Names.SAME));
-        }
-    }
-
-    private void retrieveStatus(GetAsyncStatusRequest request, ActionListener<EqlStatusResponse> listener) {
-        long nowInMillis = System.currentTimeMillis();
-        AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
-        try {
-            AsyncTask task = (AsyncTask) taskManager.getTask(searchId.getTaskId().getId());
-            if ((task instanceof EqlSearchTask) && (task.getExecutionId().equals(searchId))) {
-                EqlStatusResponse response = ((EqlSearchTask) task).getStatusResponse();
-                sendFinalResponse(request, response, nowInMillis, listener);
-            } else {
-                getStatusResponseFromIndex(searchId, request, nowInMillis, listener);
-            }
-        } catch (Exception exc) {
-            listener.onFailure(exc);
-        }
-    }
-
-    /**
-     * Get a status response from index
-     */
-    private void getStatusResponseFromIndex(AsyncExecutionId searchId,
-            GetAsyncStatusRequest request, long nowInMillis, ActionListener<EqlStatusResponse> listener) {
-        store.getStatusResponse(searchId, EqlStatusResponse::getStatus,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(SearchStatusResponse eqlStatusResponse) {
-                    sendFinalResponse(request, (EqlStatusResponse) eqlStatusResponse, nowInMillis, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }
-        );
-    }
-
-    private static void sendFinalResponse(GetAsyncStatusRequest request,
-            EqlStatusResponse response, long nowInMillis, ActionListener<EqlStatusResponse> listener) {
-        if (response.getExpirationTime() < nowInMillis) { // check if the result has expired
-            listener.onFailure(new ResourceNotFoundException(request.getId()));
-        } else {
-            listener.onResponse(response);
         }
     }
 }

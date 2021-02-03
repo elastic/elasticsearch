@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -52,7 +53,7 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
      * @param id – encoded async search id
      * @return a status response
      */
-    public static EqlStatusResponse getStatus(StoredAsyncResponse<EqlSearchResponse> storedResponse,
+    public static EqlStatusResponse getStatusFromStoredSearch(StoredAsyncResponse<EqlSearchResponse> storedResponse,
             long expirationTimeMillis, String id) {
         EqlSearchResponse searchResponse = storedResponse.getResponse();
         if (searchResponse != null) {
@@ -122,6 +123,24 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
         return builder;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        EqlStatusResponse other = (EqlStatusResponse) obj;
+        return id.equals(other.id)
+            && isRunning == other.isRunning
+            && isPartial == other.isPartial
+            && Objects.equals(startTimeMillis, other.startTimeMillis)
+            && expirationTimeMillis == other.expirationTimeMillis
+            && Objects.equals(completionStatus, other.completionStatus);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, isRunning, isPartial, startTimeMillis, expirationTimeMillis, completionStatus);
+    }
+
     /**
      * Returns the id of the eql search status request.
      */
@@ -157,6 +176,7 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
     /**
      * Returns a timestamp when the eql search will be expired, in milliseconds since epoch.
      */
+    @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
     }

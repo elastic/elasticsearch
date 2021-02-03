@@ -51,6 +51,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -230,14 +231,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
-    /**
-     * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
-     * is registered in the task manager, <code>null</code> otherwise.
-     *
-     * This method throws a {@link ResourceNotFoundException} if the authenticated user
-     * is not the creator of the original task.
-     */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+    private <T extends AsyncTask> T getTaskInt(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;
@@ -246,7 +240,21 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         if (asyncTask.getExecutionId().equals(asyncExecutionId) == false) {
             return null;
         }
+        return asyncTask;
+    }
 
+    /**
+     * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
+     * is registered in the task manager, <code>null</code> otherwise.
+     *
+     * This method throws a {@link ResourceNotFoundException} if the authenticated user
+     * is not the creator of the original task.
+     */
+    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+        T asyncTask = getTaskInt(taskManager, asyncExecutionId, tClass);
+        if (asyncTask == null) {
+            return  null;
+        }
         // Check authentication for the user
         final Authentication auth = securityContext.getAuthentication();
         if (ensureAuthenticatedUserIsSame(asyncTask.getOriginHeaders(), auth) == false) {
@@ -310,16 +318,53 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         ));
     }
 
+    /**
+     * Retrieve the status of the async search or async or stored eql search.
+     * Retrieve from the task if the task is still available or from the index.
+     */
+     public <T extends AsyncTask, SR extends SearchStatusResponse> void retrieveStatus(
+            GetAsyncStatusRequest request,
+            TaskManager taskManager,
+            Class<T> tClass,
+            Function<T, SR> statusProducerFromTask,
+            TriFunction<R, Long, String, SR> statusProducerFromIndex,
+            ActionListener<SR> listener) {
+        AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
+        try {
+            T asyncTask = getTaskInt(taskManager, asyncExecutionId, tClass);
+            if (asyncTask != null) { // get status response from task
+                SR response = statusProducerFromTask.apply(asyncTask);
+                sendFinalStatusResponse(request, response, listener);
+            } else { // get status response from index
+                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(SR searchStatusResponse) {
+                            sendFinalStatusResponse(request, searchStatusResponse, listener);
+                        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+                );
+            }
+        } catch (Exception exc) {
+            listener.onFailure(exc);
+        }
+    }
+
 
     /**
      * Gets the status response of the stored search from the index
      * @param asyncExecutionId – id of the stored search (async search or stored eql search)
-     * @param statusProducer – a producer of a status from the stored search and expirationTime
+     * @param statusProducer – a producer of a status from the stored search, expirationTime and async search id
      * @param listener – listener to report result to
      */
-    public void getStatusResponse(
-        AsyncExecutionId asyncExecutionId,
-        TriFunction<R, Long, String, SearchStatusResponse> statusProducer, ActionListener<SearchStatusResponse> listener) {
+    private <SR extends SearchStatusResponse> void getStatusResponseFromIndex(
+            AsyncExecutionId asyncExecutionId,
+            TriFunction<R, Long, String, SR> statusProducer,
+            ActionListener<SR> listener) {
         String asyncId = asyncExecutionId.getEncoded();
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncId)
@@ -340,6 +385,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             },
             listener::onFailure
         ));
+    }
+
+    private static <SR extends SearchStatusResponse> void sendFinalStatusResponse(
+            GetAsyncStatusRequest request,
+            SR response,
+            ActionListener<SR> listener) {
+        if (response.getExpirationTime() < System.currentTimeMillis()) { // check if the result has expired
+            listener.onFailure(new ResourceNotFoundException(request.getId()));
+        } else {
+            listener.onResponse(response);
+        }
     }
 
     /**

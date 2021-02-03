@@ -27,16 +27,17 @@ public class EqlSearchTask extends StoredAsyncTask<EqlSearchResponse> {
             getExecutionId().getEncoded(), true, true);
     }
 
+
     /**
-     * Returns the search status response from {@link EqlSearchTask}
+     * Returns the status from {@link EqlSearchTask}
      */
-    public EqlStatusResponse getStatusResponse() {
+    public static EqlStatusResponse getStatusResponse(EqlSearchTask asyncTask) {
         return new EqlStatusResponse(
-            getExecutionId().getEncoded(),
+            asyncTask.getExecutionId().getEncoded(),
             true,
             true,
-            getStartTime(),
-            getExpirationTimeMillis(),
+            asyncTask.getStartTime(),
+            asyncTask.getExpirationTimeMillis(),
             null
         );
     }

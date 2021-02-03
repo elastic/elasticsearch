@@ -90,22 +90,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 Array of wildcard (`*`) expressions
 used to match the names of data streams and indices during creation.
 +
-[IMPORTANT]
-====
-{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and `synthetics-*-*` index
-patterns, each with a priority of `100`.
-{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
-create data streams. If you use {agent}, assign your index templates a priority
-lower than `100` to avoid an overriding the built-in templates.
-
-Otherwise, to avoid accidentally applying the built-in templates, use a
-non-overlapping index pattern or assign templates with an overlapping pattern a
-`priority` higher than `100`.
-
-For example, if you don't use {agent} and want to create a template for the
-`logs-*` index pattern, assign your template a priority of `200`. This ensures
-your template is applied instead of the built-in template for `logs-*-*`.
-====
+include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
 
 [xpack]#`data_stream`#::
 (Optional, object)

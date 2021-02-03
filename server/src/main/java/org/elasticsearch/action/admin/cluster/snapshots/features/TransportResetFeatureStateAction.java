@@ -20,15 +20,11 @@
 package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -44,9 +40,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TransportResetFeatureStateAction extends TransportMasterNodeAction<ResetFeatureStateRequest, ResetFeatureStateResponse> {
 
@@ -100,7 +96,25 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
         clusterService.submitStateUpdateTask("reset_feature_states", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return deleteIndexService.deleteIndices(currentState, Sets.union(concreteSystemIndices, concreteAssociatedIndices));
+                ClusterState state = currentState;
+                for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
+
+                    ClusterState intermediateState = state;
+                    Set<Index> concreteSystemIndices = Stream.concat(
+                        feature.getIndexDescriptors().stream().map(SystemIndexDescriptor::getIndexPattern),
+                        feature.getAssociatedIndexPatterns().stream())
+                        .flatMap(pattern -> Arrays.stream(
+                            indexNameExpressionResolver.concreteIndices(
+                                intermediateState,
+                                IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN,
+                                pattern)))
+                        .collect(Collectors.toSet());
+
+                    state = feature.getCleanUpFunction().apply(
+                        Sets.union(concreteSystemIndices, concreteAssociatedIndices),
+                        deleteIndexService, state);
+                }
+                return state;
             }
 
             @Override

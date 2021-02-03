@@ -8,13 +8,16 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Plugin for defining system indices. Extends {@link ActionPlugin} because system indices must be accessed via APIs
@@ -52,7 +55,16 @@ public interface SystemIndexPlugin extends ActionPlugin {
         return Collections.emptyList();
     }
 
-    default void cleanUpFeature(ClusterService clusterService, Client client) {
+    default ClusterState cleanUpFeature(
+        Set<Index> indices,
+        MetadataDeleteIndexService deleteIndexService,
+        ClusterState state) {
         // do nothing
+        return state;
+    }
+
+    default TriFunction<Set<Index>,  MetadataDeleteIndexService, ClusterState, ClusterState> getCleanUpFunction() {
+        // return (indices, deleteIndexService, state) -> state;
+        return this::cleanUpFeature;
     }
 }

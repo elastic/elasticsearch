@@ -23,16 +23,16 @@ and retention requirements.
 ==== Scenario
 
 You want to send log files to an {es} cluster so you can visualize and analyze
-the data. This log data has the following data retention requirements:
+the data. This data has the following retention requirements:
 
 * When the write index reaches 50GB or is 30 days old, roll over to a new index.
 * After rollover, keep indices in the hot data tier for 30 days.
 * 30 days after rollover:
-** Move the logs to the warm data tier
+** Move indices to the warm data tier
 ** Set <<glossary-replica-shard, replica shards>> to 1
 ** <<indices-forcemerge, Force merge>> multiple index segments to free up the
 space used by deleted documents
-* Delete logs after 90 days
+* Delete indices after 90 days
 
 
 [discrete]

@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
 
 public class FrozenCacheService implements Releasable {
 
-    private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.frozen-cache.";
+    private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "size",
@@ -69,7 +69,7 @@ public class FrozenCacheService implements Releasable {
     );
 
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "region-size",
+        SETTINGS_PREFIX + "region_size",
         FROZEN_CACHE_RANGE_SIZE_SETTING,
         Setting.Property.NodeScope
     );
@@ -92,14 +92,14 @@ public class FrozenCacheService implements Releasable {
     );
 
     public static final Setting<Integer> SNAPSHOT_CACHE_MAX_FREQ_SETTING = Setting.intSetting(
-        SETTINGS_PREFIX + "maxfreq",
+        SETTINGS_PREFIX + "max_freq",
         100,                       // default
         1,                            // min
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
-        SETTINGS_PREFIX + "min-time-delta",
+        SETTINGS_PREFIX + "min_time_delta",
         TimeValue.timeValueSeconds(60L),                        // default
         TimeValue.timeValueSeconds(0L),                         // min
         Setting.Property.NodeScope

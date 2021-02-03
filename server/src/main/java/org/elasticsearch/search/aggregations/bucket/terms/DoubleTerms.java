@@ -161,7 +161,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
-    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, DoubleTerms.Bucket prototype) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, DoubleTerms.Bucket prototype) {
         return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 }

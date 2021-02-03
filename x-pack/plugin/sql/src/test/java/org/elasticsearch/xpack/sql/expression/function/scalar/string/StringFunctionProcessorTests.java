@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -74,7 +75,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
 
         stringCharInputValidation(proc);
     }
-    
+
     public void testLCaseWithAZTRLocale() {
         Locale initialLocale = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr"));
@@ -88,7 +89,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
             // unicode 0049 = I (regular capital letter i)
             // in Turkish locale this would be lowercased to a "i" without dot (unicode 0131)
             assertEquals("\u0069", proc.process("\u0049"));
-            
+
             Locale.setDefault(Locale.forLanguageTag("az"));
             assertEquals("\u0069\u0307", proc.process("\u0130"));
             assertEquals("\u0069", proc.process("\u0049"));
@@ -105,23 +106,23 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         assertEquals("SOMELOWERCASE", proc.process("SomeLoweRCasE"));
         assertEquals("FULLUPPERCASE", proc.process("FULLUPPERCASE"));
         assertEquals("A", proc.process('a'));
-        
+
         // special uppercasing for small letter sharp "s" resulting "SS"
         assertEquals("\u0053\u0053", proc.process("\u00df"));
 
         stringCharInputValidation(proc);
     }
-    
+
     public void testUCaseWithAZTRLocale() {
         Locale initialLocale = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr"));
-        
+
         try {
             StringProcessor proc = new StringProcessor(StringOperation.UCASE);
             // ES-SQL is not Locale sensitive (so far).
             // in Turkish locale, small letter "i" is uppercased to "I" with a dot above (unicode 130), otherwise in "i" (unicode 49)
             assertEquals("\u0049", proc.process("\u0069"));
-            
+
             Locale.setDefault(Locale.forLanguageTag("az"));
             assertEquals("\u0049", proc.process("\u0069"));
         } finally {
@@ -219,7 +220,7 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
 
         stringCharInputValidation(proc);
     }
-    
+
     public void testOctetLength() {
         StringProcessor proc = new StringProcessor(StringOperation.OCTET_LENGTH);
         assertNull(proc.process(null));

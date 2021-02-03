@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
@@ -985,15 +986,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     // This class is a workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
-    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
     // and SUM(all nulls)
     // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
     static class ReplaceSumWithStats extends OptimizerBasicRule {
-        
-        @Override 
+
+        @Override
         public LogicalPlan apply(LogicalPlan plan) {
             final Map<Expression, Stats> statsPerField = new LinkedHashMap<>();
-            
+
             plan.forEachExpressionsUp(e -> {
                 if (e instanceof Sum) {
                     statsPerField.computeIfAbsent(((Sum) e).field(), field -> {
@@ -1002,7 +1003,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     });
                 }
             });
-            
+
             if (statsPerField.isEmpty() == false) {
                 plan = plan.transformExpressionsUp(e -> {
                     if (e instanceof Sum) {
@@ -1012,7 +1013,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return e;
                 });
             }
-            
+
             return plan;
         }
     }
@@ -1060,11 +1061,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         PercentileKey(PercentileRank per) {
             super(per.field(), per.percentilesConfig());
         }
-        
+
         private Expression field() {
             return v1();
         }
-        
+
         private PercentilesConfig percentilesConfig() {
             return v2();
         }
@@ -1088,7 +1089,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<PercentileKey, Percentiles> percentilesPerAggKey = new LinkedHashMap<>();
             percentsPerAggKey.forEach((aggKey, percents) -> percentilesPerAggKey.put(
                     aggKey,
-                    new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents), 
+                    new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents),
                         aggKey.percentilesConfig())));
 
             return p.transformExpressionsUp(e -> {
@@ -1122,7 +1123,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<PercentileKey, PercentileRanks> ranksPerAggKey = new LinkedHashMap<>();
             valuesPerAggKey.forEach((aggKey, values) -> ranksPerAggKey.put(
                 aggKey,
-                new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values), 
+                new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values),
                     aggKey.percentilesConfig())));
 
             return p.transformExpressionsUp(e -> {

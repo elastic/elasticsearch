@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar;
@@ -38,7 +39,7 @@ public class DatabaseFunctionTests extends ESTestCase {
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())
         );
-        
+
         Project result = (Project) analyzer.analyze(parser.createStatement("SELECT DATABASE()"), true);
         NamedExpression ne = result.projections().get(0);
         assertTrue(ne instanceof Alias);

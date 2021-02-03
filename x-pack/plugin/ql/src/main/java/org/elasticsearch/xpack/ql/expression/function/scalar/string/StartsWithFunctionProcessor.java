@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
@@ -66,7 +67,7 @@ public class StartsWithFunctionProcessor implements Processor {
             return source.toString().toLowerCase(Locale.ROOT).startsWith(pattern.toString().toLowerCase(Locale.ROOT));
         }
     }
-    
+
     protected Processor source() {
         return source;
     }
@@ -84,22 +85,22 @@ public class StartsWithFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         StartsWithFunctionProcessor other = (StartsWithFunctionProcessor) obj;
         return Objects.equals(source(), other.source())
                 && Objects.equals(pattern(), other.pattern())
                 && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(source(), pattern(), isCaseSensitive());
     }
-    
+
 
     @Override
     public String getWriteableName() {

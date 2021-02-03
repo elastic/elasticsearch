@@ -85,7 +85,7 @@ RUN curl --retry 10 -S -L \\
     'build_date'          : BuildParams.buildDate,
     'config_dir'          : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'        : BuildParams.gitRevision,
-    'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
+    'license'             : 'Elastic-License-2.0',
     'package_manager'     : base == DockerBase.UBI ? 'microdnf' : 'yum',
     'source_elasticsearch': sourceElasticsearch,
     'docker_base'         : base.name().toLowerCase(),

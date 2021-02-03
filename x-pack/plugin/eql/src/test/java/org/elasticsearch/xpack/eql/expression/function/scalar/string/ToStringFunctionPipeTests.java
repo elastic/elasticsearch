@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -44,7 +45,7 @@ public class ToStringFunctionPipeTests extends AbstractNodeTestCase<ToStringFunc
             b1.input());
 
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         ToStringFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new ToStringFunctionPipe(
@@ -59,10 +60,10 @@ public class ToStringFunctionPipeTests extends AbstractNodeTestCase<ToStringFunc
     public void testReplaceChildren() {
         ToStringFunctionPipe b = randomInstance();
         Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
-        
+
         ToStringFunctionPipe newB = new ToStringFunctionPipe(b.source(), b.expression(), b.input());
         ToStringFunctionPipe transformed = newB.replaceChildren(newInput);
-        
+
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());

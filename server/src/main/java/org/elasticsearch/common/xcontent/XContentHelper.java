@@ -95,7 +95,7 @@ public class XContentHelper {
         try {
             final XContentType contentType;
             InputStream input;
-            Compressor compressor = CompressorFactory.compressor(bytes);
+            Compressor compressor = CompressorFactory.compressor(bytes, xContentType);
             if (compressor != null) {
                 InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
@@ -133,6 +133,20 @@ public class XContentHelper {
         try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse content to map", e);
+        }
+    }
+
+    /**
+     * Convert a string in some {@link XContent} format to a {@link List}. Throws an {@link ElasticsearchParseException} if there is any
+     * error.
+     */
+    public static <T> List<T> convertToList(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, string)) {
+            return (List<T>) (ordered ? parser.listOrderedMap() : parser.list());
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }

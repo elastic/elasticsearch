@@ -15,4 +15,5 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   // Also needed because of jackson-databind:
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.net.SocketPermission "*", "connect";
 };

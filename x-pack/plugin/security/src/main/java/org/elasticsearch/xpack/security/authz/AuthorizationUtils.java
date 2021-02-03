@@ -27,6 +27,7 @@ import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TAS
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.GEOIP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
@@ -120,6 +121,7 @@ public final class AuthorizationUtils {
             case DEPRECATION_ORIGIN:
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
+            case GEOIP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
             case ENRICH_ORIGIN:
             case IDP_ORIGIN:

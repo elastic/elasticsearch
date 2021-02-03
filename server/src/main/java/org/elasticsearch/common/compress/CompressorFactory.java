@@ -26,6 +26,11 @@ public class CompressorFactory {
 
     @Nullable
     public static Compressor compressor(BytesReference bytes) {
+        return compressor(bytes, null);
+    }
+
+    @Nullable
+    public static Compressor compressor(BytesReference bytes, XContentType contentType) {
             if (COMPRESSOR.isCompressed(bytes)) {
                 // bytes should be either detected as compressed or as xcontent,
                 // if we have bytes that can be either detected as compressed or
@@ -34,7 +39,9 @@ public class CompressorFactory {
                 return COMPRESSOR;
             }
 
-        XContentType contentType = XContentHelper.xContentType(bytes);
+        if (contentType == null){
+            contentType = XContentHelper.xContentType(bytes);
+        }
         if (contentType == null) {
             if (isAncient(bytes)) {
                 throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");

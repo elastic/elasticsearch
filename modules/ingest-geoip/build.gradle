@@ -32,6 +32,14 @@ restResources {
   }
 }
 
+internalClusterTest {
+  if ("true".equals(System.getenv("geoip_use_service"))) {
+    jvmArgs("-Xmx1g")
+  } else {
+    exclude("**/GeoIpDownloaderIT.class")
+  }
+}
+
 tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {
   from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
   into "${project.buildDir}/ingest-geoip"

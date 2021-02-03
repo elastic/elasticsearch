@@ -86,6 +86,7 @@ public final class ClientHelper {
     public static final String MONITORING_ORIGIN = "monitoring";
     public static final String DEPRECATION_ORIGIN = "deprecation";
     public static final String ROLLUP_ORIGIN = "rollup";
+    public static final String GEOIP_ORIGIN = "geoip";
     public static final String ENRICH_ORIGIN = "enrich";
     public static final String TRANSFORM_ORIGIN = "transform";
     public static final String ASYNC_SEARCH_ORIGIN = "async_search";

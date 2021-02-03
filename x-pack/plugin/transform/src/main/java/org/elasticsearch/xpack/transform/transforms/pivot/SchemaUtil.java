@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -250,12 +252,11 @@ public final class SchemaUtil {
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    private static void getSourceFieldMappings(
-        Client client,
-        String[] index,
-        String[] fields,
-        ActionListener<Map<String, String>> listener
-    ) {
+    static void getSourceFieldMappings(Client client, String[] index, String[] fields, ActionListener<Map<String, String>> listener) {
+        if (index == null || index.length == 0 || fields == null || fields.length == 0) {
+            listener.onResponse(Collections.emptyMap());
+            return;
+        }
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
             .fields(fields)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);

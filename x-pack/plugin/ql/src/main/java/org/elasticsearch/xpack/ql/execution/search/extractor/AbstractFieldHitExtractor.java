@@ -1,9 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.StringJoiner;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -18,19 +29,11 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
-
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
+
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
@@ -210,9 +213,10 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above.
                     || dataType == DATETIME
+                    || dataType == DATETIME_NANOS
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }
-    
+
     private static NumberType numberType(DataType dataType) {
         return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
     }

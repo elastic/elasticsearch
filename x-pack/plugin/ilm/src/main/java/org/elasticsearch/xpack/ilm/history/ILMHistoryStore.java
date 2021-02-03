@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.history;
@@ -33,6 +34,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -90,7 +92,8 @@ public class ILMHistoryStore implements Closeable {
                     if (response.hasFailures()) {
                         Map<String, String> failures = Arrays.stream(response.getItems())
                             .filter(BulkItemResponse::isFailed)
-                            .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                            .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage,
+                                    (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2));
                         logger.error("failures: [{}]", failures);
                     }
                 }

@@ -1,23 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.document.Field;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,22 +42,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import org.apache.lucene.document.Field;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
@@ -407,7 +397,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!mappers.isEmpty()) {
+            if (mappers.isEmpty() == false) {
                 // sort the mappers so we get consistent serialization format
                 List<FieldMapper> sortedMappers = new ArrayList<>(mappers.values());
                 sortedMappers.sort(Comparator.comparing(FieldMapper::name));
@@ -439,7 +429,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (!copyToFields.isEmpty()) {
+            if (copyToFields.isEmpty() == false) {
                 builder.startArray("copy_to");
                 for (String field : copyToFields) {
                     builder.value(field);
@@ -969,29 +959,44 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
+                        "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName, name, parameter.name);
                 } else {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.deprecate(propName,
+                        deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
                         iterator.remove();
                         continue;
                     }
-                    throw new MapperParsingException("unknown parameter [" + propName
-                        + "] on mapper [" + name + "] of type [" + type + "]");
+                    if (parserContext.isFromDynamicTemplate()) {
+                        // The parameter is unknown, but this mapping is from a dynamic template.
+                        // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
+                        deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, propName,
+                            "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
+                            + "Usage will result in an error in future major versions and should be removed.",
+                            propName,
+                            type
+                        );
+                        iterator.remove();
+                        continue;
+                    }
+                    throw new MapperParsingException(
+                        "unknown parameter [" + propName + "] on mapper [" + name + "] of type [" + type + "]"
+                    );
                 }
                 if (Objects.equals("boost", propName)) {
                     deprecationLogger.deprecate(
+                        DeprecationCategory.MAPPINGS,
                         "boost",
                         "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
                         name);
                 }
                 if (parameter.deprecated) {
-                    deprecationLogger.deprecate(propName,
+                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName);
                 }

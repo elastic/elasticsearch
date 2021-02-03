@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -144,7 +133,7 @@ final class BootstrapChecks {
         for (final BootstrapCheck check : checks) {
             final BootstrapCheck.BootstrapCheckResult result = check.check(context);
             if (result.isFailure()) {
-                if (!(enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce()) {
+                if (enforceLimits == false && enforceBootstrapChecks == false && check.alwaysEnforce() == false) {
                     ignoredErrors.add(result.getMessage());
                 } else {
                     errors.add(result.getMessage());
@@ -152,15 +141,16 @@ final class BootstrapChecks {
             }
         }
 
-        if (!ignoredErrors.isEmpty()) {
+        if (ignoredErrors.isEmpty() == false) {
             ignoredErrors.forEach(error -> log(logger, error));
         }
 
-        if (!errors.isEmpty()) {
+        if (errors.isEmpty() == false) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("[" + errors.size() + "] bootstrap checks failed");
+            messages.add("[" + errors.size() + "] bootstrap checks failed. You must address the points described in the following ["
+                    + errors.size() + "] lines before starting Elasticsearch.");
             for (int i = 0; i < errors.size(); i++) {
-                messages.add("[" + (i + 1) + "]: " + errors.get(i));
+                messages.add("bootstrap check failure [" + (i + 1) + "] of [" + errors.size() + "]: " + errors.get(i));
             }
             final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);

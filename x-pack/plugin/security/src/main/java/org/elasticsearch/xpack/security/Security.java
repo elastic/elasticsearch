@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -771,7 +772,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 assert dlsBitsetCache.get() != null;
                 module.setReaderWrapper(indexService ->
                         new SecurityIndexReaderWrapper(
-                                shardId -> indexService.newQueryShardContext(shardId.id(),
+                                shardId -> indexService.newSearchExecutionContext(shardId.id(),
                                 0,
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...

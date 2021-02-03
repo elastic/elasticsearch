@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -83,7 +72,7 @@ public class JsonLoggerTests extends ESTestCase {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
-            testLogger.deprecate("someKey", "deprecated message1");
+            testLogger.deprecate(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -116,10 +105,10 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("key", "someId", "deprecated message1"));
-        testLogger.info(new DeprecatedMessage("key", "", "deprecated message2"));
+        testLogger.info(new DeprecatedMessage(DeprecationCategory.OTHER, "key", "someId", "deprecated message1"));
+        testLogger.info(new DeprecatedMessage(DeprecationCategory.OTHER, "key", "", "deprecated message2"));
         // This message will be filtered out by the RateLimitingFilter because an empty ID is the same as a null one.
-        testLogger.info(new DeprecatedMessage("key", null, "deprecated message3"));
+        testLogger.info(new DeprecatedMessage(DeprecationCategory.OTHER, "key", null, "deprecated message3"));
         testLogger.info("deprecated message4");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -279,8 +268,8 @@ public class JsonLoggerTests extends ESTestCase {
         // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-            deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -307,8 +296,8 @@ public class JsonLoggerTests extends ESTestCase {
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-            deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(

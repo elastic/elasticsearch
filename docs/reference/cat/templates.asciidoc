@@ -16,6 +16,11 @@ and <<mapping,field mappings>> to new indices at creation.
 
 `GET /_cat/templates`
 
+[[cat-templates-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-templates-path-params]]
 ==== {api-path-parms-title}
@@ -48,7 +53,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ----
-GET _cat/templates/my-template-*?v&s=name
+GET _cat/templates/my-template-*?v=true&s=name
 ----
 // TEST[s/^/PUT _index_template\/my-template-0\n{"index_patterns": "te*", "priority": 200}\n/]
 // TEST[s/^/PUT _index_template\/my-template-1\n{"index_patterns": "tea*", "priority": 201}\n/]

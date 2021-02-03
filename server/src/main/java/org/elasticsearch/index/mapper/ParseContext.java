@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -318,10 +307,7 @@ public abstract class ParseContext {
     }
 
     public static class InternalParseContext extends ParseContext {
-        private final Mapping mapping;
         private final MappingLookup mappingLookup;
-        private final IndexSettings indexSettings;
-        private final IndexAnalyzers indexAnalyzers;
         private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
@@ -339,18 +325,12 @@ public abstract class ParseContext {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        public InternalParseContext(Mapping mapping,
-                                    MappingLookup mappingLookup,
-                                    IndexSettings indexSettings,
-                                    IndexAnalyzers indexAnalyzers,
+        public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
                                     DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
-            this.mapping = mapping;
             this.mappingLookup = mappingLookup;
-            this.indexSettings = indexSettings;
-            this.indexAnalyzers = indexAnalyzers;
             this.parserContextFunction = parserContextFunction;
             this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.parser = parser;
@@ -358,7 +338,7 @@ public abstract class ParseContext {
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
@@ -369,7 +349,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexSettings indexSettings() {
-            return this.indexSettings;
+            return this.mappingLookup.getIndexSettings();
         }
 
         @Override
@@ -416,7 +396,7 @@ public abstract class ParseContext {
 
         @Override
         public RootObjectMapper root() {
-            return mapping.root();
+            return this.mappingLookup.getMapping().root();
         }
 
         @Override
@@ -426,12 +406,12 @@ public abstract class ParseContext {
 
         @Override
         public MetadataFieldMapper getMetadataMapper(String mapperName) {
-            return mapping.getMetadataMapper(mapperName);
+            return mappingLookup.getMapping().getMetadataMapper(mapperName);
         }
 
         @Override
         public IndexAnalyzers indexAnalyzers() {
-            return indexAnalyzers;
+            return mappingLookup.getIndexAnalyzers();
         }
 
         @Override
@@ -687,11 +667,11 @@ public abstract class ParseContext {
      * @return null if no external value has been set or the value
      */
     public final <T> T parseExternalValue(Class<T> clazz) {
-        if (!externalValueSet() || externalValue() == null) {
+        if (externalValueSet() == false || externalValue() == null) {
             return null;
         }
 
-        if (!clazz.isInstance(externalValue())) {
+        if (clazz.isInstance(externalValue()) == false) {
             throw new IllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }

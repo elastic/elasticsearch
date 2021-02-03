@@ -9,7 +9,7 @@ if (BuildParams.inFipsJvm) {
   allprojects {
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     boolean java8 = BuildParams.runtimeJavaVersion == JavaVersion.VERSION_1_8
-    boolean zulu8 = java8 && BuildParams.runtimeJavaDetails.contains("Zulu")
+    boolean zulu8 = java8 && BuildParams.runtimeJavaDetails.toLowerCase().contains("azul")
     File fipsSecurity;
     File fipsPolicy;
     if (java8) {
@@ -23,7 +23,7 @@ if (BuildParams.inFipsJvm) {
       }
     } else {
       fipsSecurity = new File(fipsResourcesDir,
-        BuildParams.runtimeJavaDetails.startsWith('Oracle') ? 'fips_java_oracle.security' : 'fips_java_bcjsse_11.security')
+        BuildParams.runtimeJavaDetails.toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java_bcjsse_11.security')
       fipsPolicy = new File(fipsResourcesDir, "fips_java_bcjsse_11.policy")
     }
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')

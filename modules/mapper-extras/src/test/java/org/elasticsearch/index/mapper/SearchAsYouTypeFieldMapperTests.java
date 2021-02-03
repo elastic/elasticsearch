@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
@@ -56,7 +45,7 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldTyp
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.plugins.Plugin;
 
@@ -416,22 +405,23 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testMatchPhrasePrefix() throws IOException {
-        QueryShardContext queryShardContext = createQueryShardContext(createMapperService(fieldMapping(this::minimalMapping)));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(fieldMapping(this::minimalMapping)));
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(searchExecutionContext);
             Query expected = new SynonymQuery.Builder("field._index_prefix").addTerm(new Term("field._index_prefix", "two words")).build();
             assertThat(q, equalTo(expected));
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(searchExecutionContext);
             Query expected = new SynonymQuery.Builder("field._index_prefix").addTerm(new Term("field._index_prefix", "three words here"))
                 .build();
             assertThat(q, equalTo(expected));
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(searchExecutionContext);
             MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
             mpq.setSlop(1);
             mpq.add(new Term("field", "two"));
@@ -440,7 +430,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "more than three words").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "more than three words").toQuery(searchExecutionContext);
             Query expected = new SpanNearQuery.Builder("field._3gram", true)
                 .addClause(new SpanTermQuery(new Term("field._3gram", "more than three")))
                 .addClause(new FieldMaskingSpanQuery(
@@ -451,7 +441,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "more than three words").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "more than three words").toQuery(searchExecutionContext);
             Query expected = new SpanNearQuery.Builder("field._3gram", true)
                 .addClause(new SpanTermQuery(new Term("field._3gram", "more than three")))
                 .addClause(new FieldMaskingSpanQuery(
@@ -462,7 +452,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "two words").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "two words").toQuery(searchExecutionContext);
             Query expected = new MatchNoDocsQuery();
             assertThat(q, equalTo(expected));
         }
@@ -470,7 +460,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         {
             Query actual = new MatchPhrasePrefixQueryBuilder("field._3gram", "one two three four")
                 .slop(1)
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             MultiPhrasePrefixQuery expected = new MultiPhrasePrefixQuery("field._3gram");
             expected.setSlop(1);
             expected.add(new Term("field._3gram", "one two three"));
@@ -481,17 +471,18 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testMatchPhrase() throws IOException {
-        QueryShardContext queryShardContext = createQueryShardContext(createMapperService(fieldMapping(this::minimalMapping)));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(fieldMapping(this::minimalMapping)));
         {
             Query actual = new MatchPhraseQueryBuilder("field", "one")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new TermQuery(new Term("field", "one"));
             assertThat(actual, equalTo(expected));
         }
 
         {
             Query actual = new MatchPhraseQueryBuilder("field", "one two")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new MultiPhraseQuery.Builder()
                 .add(new Term("field._2gram", "one two"))
                 .build();
@@ -500,7 +491,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query actual = new MatchPhraseQueryBuilder("field", "one two three")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new MultiPhraseQuery.Builder()
                 .add(new Term("field._3gram", "one two three"))
                 .build();
@@ -509,7 +500,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query actual = new MatchPhraseQueryBuilder("field", "one two three four")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new MultiPhraseQuery.Builder()
                 .add(new Term("field._3gram", "one two three"))
                 .add(new Term("field._3gram", "two three four"))
@@ -520,7 +511,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         {
             Query actual = new MatchPhraseQueryBuilder("field", "one two")
                 .slop(1)
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new MultiPhraseQuery.Builder()
                 .add(new Term("field", "one"))
                 .add(new Term("field", "two"))
@@ -531,14 +522,14 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query actual = new MatchPhraseQueryBuilder("field._2gram", "one two")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new TermQuery(new Term("field._2gram", "one two"));
             assertThat(actual, equalTo(expected));
         }
 
         {
             Query actual = new MatchPhraseQueryBuilder("field._2gram", "one two three")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new MultiPhraseQuery.Builder()
                 .add(new Term("field._2gram", "one two"))
                 .add(new Term("field._2gram", "two three"))
@@ -548,14 +539,14 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query actual = new MatchPhraseQueryBuilder("field._3gram", "one two three")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new TermQuery(new Term("field._3gram", "one two three"));
             assertThat(actual, equalTo(expected));
         }
 
         {
             Query actual = new MatchPhraseQueryBuilder("field._3gram", "one two three four")
-                .toQuery(queryShardContext);
+                .toQuery(searchExecutionContext);
             Query expected = new MultiPhraseQuery.Builder()
                 .add(new Term("field._3gram", "one two three"))
                 .add(new Term("field._3gram", "two three four"))
@@ -565,7 +556,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             expectThrows(IllegalArgumentException.class,
-                () -> new MatchPhraseQueryBuilder("field._index_prefix", "one two three four").toQuery(queryShardContext));
+                () -> new MatchPhraseQueryBuilder("field._index_prefix", "one two three four").toQuery(searchExecutionContext));
         }
     }
 
@@ -586,7 +577,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-        QueryShardContext qsc = createQueryShardContext(ms);
+        SearchExecutionContext qsc = createSearchExecutionContext(ms);
         when(qsc.indexVersionCreated()).thenReturn(Version.CURRENT);
         QueryStringQueryParser parser = new QueryStringQueryParser(qsc, "f");
         Query q = parser.parse("foo:*");
@@ -611,7 +602,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testMultiMatchBoolPrefix() throws IOException {
-        QueryShardContext queryShardContext = createQueryShardContext(
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(fieldMapping(b -> b.field("type", "search_as_you_type").field("max_shingle_size", 4)))
         );
 
@@ -624,7 +615,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         );
         builder.type(MultiMatchQueryBuilder.Type.BOOL_PREFIX);
 
-        final Query actual = builder.toQuery(queryShardContext);
+        final Query actual = builder.toQuery(searchExecutionContext);
         assertThat(actual, instanceOf(DisjunctionMaxQuery.class));
         final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) actual;
         assertThat(disMaxQuery.getDisjuncts(), hasSize(4));

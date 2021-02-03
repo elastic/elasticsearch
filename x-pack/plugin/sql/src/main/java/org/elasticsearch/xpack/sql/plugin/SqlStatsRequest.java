@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.plugin;
@@ -17,18 +18,18 @@ import java.io.IOException;
  * Request to gather usage statistics
  */
 public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
-    
+
     private boolean includeStats;
 
     public SqlStatsRequest() {
         super((String[]) null);
     }
-    
+
     public SqlStatsRequest(StreamInput in) throws IOException {
         super(in);
         includeStats = in.readBoolean();
     }
-    
+
     public boolean includeStats() {
         return includeStats;
     }
@@ -42,15 +43,15 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         super.writeTo(out);
         out.writeBoolean(includeStats);
     }
-    
+
     @Override
     public String toString() {
         return "sql_stats";
     }
-    
+
     static class NodeStatsRequest extends BaseNodeRequest {
         boolean includeStats;
-        
+
         NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
             includeStats = in.readBoolean();
@@ -59,7 +60,7 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         NodeStatsRequest(SqlStatsRequest request) {
             includeStats = request.includeStats();
         }
-        
+
         public boolean includeStats() {
             return includeStats;
         }

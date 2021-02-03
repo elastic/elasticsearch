@@ -38,13 +38,13 @@ PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
   }
 }
 
-POST /index_1/_close
+POST /index_1/_close?wait_for_active_shards=0
 
-POST /index_2/_close
+POST /index_2/_close?wait_for_active_shards=0
 
-POST /index_3/_close
+POST /index_3/_close?wait_for_active_shards=0
 
-POST /index_4/_close
+POST /index_4/_close?wait_for_active_shards=0
 
 ----
 // TESTSETUP
@@ -60,6 +60,12 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 ==== {api-request-title}
 
 `POST /_snapshot/<repository>/<snapshot>/_restore`
+
+[[restore-snapshot-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[restore-snapshot-api-desc]]
 ==== {api-description-title}

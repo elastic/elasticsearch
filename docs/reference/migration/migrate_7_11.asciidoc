@@ -9,8 +9,8 @@ your application to {es} 7.11.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_711_blah_changes>>
-// * <<breaking_711_blah_changes>>
+* <<breaking_711_search_changes>>
+* <<breaking_711_transform_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -18,11 +18,22 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //tag::notable-breaking-changes[]
 
 [discrete]
+[[breaking_711_ml_changes]]
+=== Machine learning changes
+.The trained models API parameter `for_export` is now renamed to `exclude_generated`.
+[%collapsible]
+====
+*Details* +
+The {ref}/get-trained-models.html[get trained models API] no longer accepts `for_export`.
+Use `exclude_generated` instead.
+====
+
+[discrete]
 [[breaking_711_search_changes]]
 === Search changes
 
 [[highlight-normalization]]
-.Keyword fields with a custom normalizer will use the normalized form when highlighting
+.Keyword fields with a custom normalizer will use the normalized form when highlighting.
 [%collapsible]
 ====
 *Details* +
@@ -32,19 +43,43 @@ will be applied to the values of a keyword field; for example, a
 field configured with a lowercase normalizer will return highlighted
 snippets in lower case.
 ====
-[discrete]
-[[breaking_711_api_changes]]
-=== API changes
 
-[discrete]
-==== {dataframe-transform-cap} API changes
-
-.Transform now writes `group_by` dates as a string.
+[[text-subfields]]
+.Internal fields used for text search acceleration are hidden.
 [%collapsible]
 ====
 *Details* +
-Transform no longer writes dates used in a `group_by` as `epoch_millis` but as
-formatted ISO string. Previously constructed transforms will still use `epoch_millis`.
-You can configure and change the output format in the settings of the transform.
+Text fields can add internal subfields using extra analysis to speed
+up prefix and phrase searches. Previously these were exposed to
+the field caps API and were available for searching directly. However,
+they did not implement all query types and could return bad results
+or throw errors if used via the query DSL. These subfields are now
+internal only and cannot be invoked as searchable fields in queries.
+====
+
+[[significant-text-non-text-fields]]
+.The significant text aggregation now throws an error if applied to a numeric field.
+[%collapsible]
+====
+*Details* +
+The significant text aggregation could previously be applied to a fields that
+were defined as numeric, which made little sense and would always return an
+empty result. Given that applying a text-specific aggregation to a non-text
+field is almost certainly a mistake, this has now been changed to throw an
+error.
+====
+
+[discrete]
+[[breaking_711_transform_changes]]
+=== Transform changes
+
+.Transforms now write `group_by` dates as strings.
+[%collapsible]
+====
+*Details* +
+Transforms now write dates used in a `group_by` as formatted ISO strings instead
+of `epoch_millis` values. Previously constructed transforms will still use
+`epoch_millis` values. You can configure and change the output format in the
+settings of the transform.
 ====
 //end::notable-breaking-changes[]

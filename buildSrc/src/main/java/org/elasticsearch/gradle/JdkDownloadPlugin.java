@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle;
@@ -36,10 +25,11 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     public static final String VENDOR_ADOPTOPENJDK = "adoptopenjdk";
     public static final String VENDOR_OPENJDK = "openjdk";
+    public static final String VENDOR_AZUL = "azul";
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
-    public static final String JDK_TRIMMED_PREFIX = "jdk-?\\d.*";
+    public static final String JDK_TRIMMED_PREFIX = "(jdk-?\\d.*)|(zulu-?\\d.+).jdk";
 
     @Override
     public void apply(Project project) {
@@ -130,6 +120,22 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + "/"
                     + jdk.getBuild()
                     + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+            }
+        } else if (jdk.getVendor().equals(VENDOR_AZUL)) {
+            repoUrl = "https://cdn.azul.com";
+
+            // The following is an absolute hack until AdoptOpenJdk provides Apple aarch64 builds
+            switch (jdk.getMajor()) {
+                case "15":
+                    artifactPattern = "zulu/bin/zulu" + jdk.getMajor() + ".28.1013-ca-jdk15.0.1-macosx_[classifier].[ext]";
+                    break;
+
+                case "11":
+                    artifactPattern = "zulu/bin/zulu" + jdk.getMajor() + ".43.1021-ca-jdk11.0.9.1-macosx_[classifier].[ext]";
+                    break;
+
+                default:
+                    throw new GradleException("Unknown Azul JDK major version  [" + jdk.getMajor() + "]");
             }
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");

@@ -16,6 +16,7 @@ File repoDir = file("$buildDir/testclusters/repo")
 tasks.named("javaRestTest").configure {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 
 testClusters.all {
@@ -30,6 +31,7 @@ testClusters.all {
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 
 if (BuildParams.inFipsJvm){

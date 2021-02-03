@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
@@ -35,7 +36,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportSearchableSnapshotCacheStoresAction.NodeRequest,
     TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata> {
 
-    public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/store";
+    public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
     public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesCacheFilesMetadata::new);
 

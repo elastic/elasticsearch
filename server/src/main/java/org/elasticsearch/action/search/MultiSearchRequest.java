@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
@@ -28,6 +17,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -195,7 +185,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // support first line with \n
             if (nextMarker == 0) {
                 from = nextMarker + 1;
-                deprecationLogger.deprecate("multi_search_empty_first_line",
+                deprecationLogger.deprecate(DeprecationCategory.API, "multi_search_empty_first_line",
                     "support for empty first line before any action metadata in msearch API is deprecated and " +
                     "will be removed in the next major version");
                 continue;
@@ -233,7 +223,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
-                            if (!allowExplicitIndex) {
+                            if (allowExplicitIndex == false) {
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
                             searchRequest.indices(nodeStringArrayValue(value));
@@ -360,11 +350,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 return requests.stream()
                     .map(SearchRequest::buildDescription)
                     .collect(Collectors.joining(action + "[", ",", "]"));
-            }
-
-            @Override
-            public boolean shouldCancelChildrenOnCancellation() {
-                return true;
             }
         };
     }

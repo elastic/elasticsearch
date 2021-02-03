@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.graph.rest.action;
@@ -10,6 +11,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -113,7 +115,7 @@ public class RestGraphAction extends XPackRestHandler {
         }
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "graph_with_types", TYPES_DEPRECATION_MESSAGE);
             graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
         return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));

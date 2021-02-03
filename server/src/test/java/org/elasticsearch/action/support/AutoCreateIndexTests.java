@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -224,16 +213,11 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testNullAllowAutoCreateInTemplateDoesNotOverrideMatchingAutoCreateIndexSetting() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            null
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+            .componentTemplates(emptyList())
+            .metadata(emptyMap())
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -250,16 +234,11 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testCanHandleNullAutoCreateSettingInTemplate() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            null
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+            .componentTemplates(emptyList())
+            .metadata(emptyMap())
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -277,16 +256,12 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            false
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+           .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+           .componentTemplates(emptyList())
+           .metadata(emptyMap())
+           .allowAutoCreate(false)
+           .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -304,16 +279,12 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testEnabledAutoCreateTemplateSettingDoesOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            true
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+            .componentTemplates(emptyList())
+            .metadata(emptyMap())
+            .allowAutoCreate(true)
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();

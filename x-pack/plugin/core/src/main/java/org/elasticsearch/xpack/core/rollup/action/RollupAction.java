@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
@@ -30,7 +31,7 @@ import java.util.Objects;
 
 public class RollupAction extends ActionType<RollupAction.Response> {
     public static final RollupAction INSTANCE = new RollupAction();
-    public static final String NAME = "cluster:admin/xpack/rollup/action";
+    public static final String NAME = "indices:admin/xpack/rollup";
 
     private RollupAction() {
         super(NAME, RollupAction.Response::new);
@@ -55,6 +56,11 @@ public class RollupAction extends ActionType<RollupAction.Response> {
             sourceIndex = in.readString();
             rollupIndex = in.readString();
             rollupConfig = new RollupActionConfig(in);
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { sourceIndex };
         }
 
         @Override
@@ -178,6 +184,10 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         public ShardRequest(ShardId shardId, Request request) {
             super(shardId, request);
             this.request = request;
+        }
+
+        public String getRollupIndex() {
+            return request.getRollupIndex();
         }
 
         public RollupActionConfig getRollupConfig() {

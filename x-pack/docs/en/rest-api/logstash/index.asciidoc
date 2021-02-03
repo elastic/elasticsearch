@@ -1,0 +1,14 @@
+[role="xpack"]
+[[logstash-apis]]
+== Logstash APIs
+
+The following APIs are used to manage Pipelines used by Logstash Central
+Management:
+
+* <<logstash-api-put-pipeline>>
+* <<logstash-api-get-pipeline>>
+* <<logstash-api-delete-pipeline>>
+
+include::delete-pipeline.asciidoc[]
+include::get-pipeline.asciidoc[]
+include::put-pipeline.asciidoc[]

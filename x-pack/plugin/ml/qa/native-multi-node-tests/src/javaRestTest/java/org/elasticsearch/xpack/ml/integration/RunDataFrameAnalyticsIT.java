@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.junit.After;
 import org.junit.Before;
 
@@ -581,6 +583,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Stopped analytics");
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67889")
     public void testOutlierDetectionStopAndRestart() throws Exception {
         String sourceIndex = "test-outlier-detection-stop-and-restart";
 
@@ -611,12 +614,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         NodeAcknowledgedResponse response = startAnalytics(id);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
-        assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(id).getState();
-            assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
-                equalTo(DataFrameAnalyticsState.STOPPED))));
-        });
+        String phaseToWait = randomFrom("reindexing", "loading_data", "computing_outliers");
+        waitUntilSomeProgressHasBeenMadeForPhase(id, phaseToWait);
         stopAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 

@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptException;
 
 import java.nio.CharBuffer;
@@ -30,15 +18,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.singletonMap;
 
 public class RegexTests extends ScriptTestCase {
-
-    @Override
-    protected Settings scriptEngineSettings() {
-        // Enable regexes just for this test. They are disabled by default.
-        return Settings.builder()
-                .put(CompilerSettings.REGEX_ENABLED.getKey(), true)
-                .build();
-    }
-
     public void testPatternAfterReturn() {
         assertEquals(true, exec("return 'foo' ==~ /foo/"));
         assertEquals(false, exec("return 'bar' ==~ /foo/"));
@@ -151,6 +130,10 @@ public class RegexTests extends ScriptTestCase {
     // Make sure some methods on Pattern are whitelisted
     public void testSplit() {
         assertArrayEquals(new String[] {"cat", "dog"}, (String[]) exec("/,/.split('cat,dog')"));
+    }
+
+    public void testSplitWithLimit() {
+        assertArrayEquals(new String[] {"cat", "dog,pig"}, (String[]) exec("/,/.split('cat,dog,pig', 2)"));
     }
 
     public void testSplitAsStream() {

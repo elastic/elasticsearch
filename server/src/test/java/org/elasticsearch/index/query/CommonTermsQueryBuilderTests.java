@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -94,7 +83,9 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     @Override
-    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder,
+                                       Query query,
+                                       SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
 
@@ -174,7 +165,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     public void testCommonTermsQuery1() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query1.json");
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
@@ -185,7 +176,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     public void testCommonTermsQuery2() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query2.json");
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo("50%"));
@@ -196,7 +187,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     public void testCommonTermsQuery3() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query3.json");
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
@@ -207,7 +198,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     // see #11730
     public void testCommonTermsQuery4() throws IOException {
-        Query parsedQuery = parseQuery(commonTermsQuery(TEXT_FIELD_NAME, "text")).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(commonTermsQuery(TEXT_FIELD_NAME, "text")).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
 
         assertDeprecationWarning();

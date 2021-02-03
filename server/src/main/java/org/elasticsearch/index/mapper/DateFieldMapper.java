@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -33,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
@@ -46,7 +36,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -277,8 +267,9 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                DEPRECATION_LOGGER.deprecate("date_mapper_null_field", "Error parsing [" + nullValue.getValue()
-                        + "] as date in [null_value] on field [" + name() + "]); [null_value] will be ignored");
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "date_mapper_null_field",
+                    "Error parsing [" + nullValue.getValue() + "] as date in [null_value] on field [" + name() + "]);"
+                        + " [null_value] will be ignored");
                 return null;
             }
         }
@@ -359,7 +350,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
@@ -377,7 +368,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -387,7 +378,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, SearchExecutionContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
@@ -417,7 +408,7 @@ public final class DateFieldMapper extends FieldMapper {
             boolean includeUpper,
             @Nullable ZoneId timeZone,
             DateMathParser parser,
-            QueryShardContext context,
+            SearchExecutionContext context,
             Resolution resolution,
             BiFunction<Long, Long, Query> builder
         ) {
@@ -449,7 +440,7 @@ public final class DateFieldMapper extends FieldMapper {
          * @param builder build the query
          * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
          */
-        public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
+        public static Query handleNow(SearchExecutionContext context, Function<LongSupplier, Query> builder) {
             boolean[] nowUsed = new boolean[1];
             LongSupplier nowSupplier = () -> {
                 nowUsed[0] = true;
@@ -476,7 +467,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery

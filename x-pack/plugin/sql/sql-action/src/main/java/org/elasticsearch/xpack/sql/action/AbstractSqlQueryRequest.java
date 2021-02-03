@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -142,27 +143,27 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         this.params = params;
         return this;
     }
-    
+
     private static List<SqlTypedParamValue> parseParams(XContentParser p) throws IOException {
         List<SqlTypedParamValue> result = new ArrayList<>();
         Token token = p.currentToken();
-        
+
         if (token == Token.START_ARRAY) {
             Object value = null;
             String type = null;
             SqlTypedParamValue previousParam = null;
             SqlTypedParamValue currentParam = null;
-            
+
             while ((token = p.nextToken()) != Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
-                
+
                 if (token == Token.START_OBJECT) {
                     // we are at the start of a value/type pair... hopefully
                     currentParam = SqlTypedParamValue.fromXContent(p);
                     /*
                      * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
                      * that are checked later in validateParams method.
-                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to 
+                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
                      * its type being explicitly set or inferred.
                      */
                     if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
@@ -196,7 +197,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                     } else {
                         throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
                     }
-                    
+
                     currentParam = new SqlTypedParamValue(type, value, false);
                     if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
                         currentParam.tokenLocation(loc);
@@ -207,12 +208,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                 previousParam = currentParam;
             }
         }
-        
+
         return result;
     }
-    
+
     protected static void validateParams(List<SqlTypedParamValue> params, Mode mode) {
-        for(SqlTypedParamValue param : params) {            
+        for(SqlTypedParamValue param : params) {
             if (Mode.isDriver(mode) && param.hasExplicitType() == false) {
                 throw new XContentParseException(param.tokenLocation(), "[params] must be an array where each entry is an object with a "
                         + "value/type pair");

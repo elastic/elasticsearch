@@ -26,8 +26,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +55,6 @@ public class RollupIndexMetadataTests extends AbstractSerializingTestCase<Rollup
             metrics.put(randomAlphaOfLength(5 + i),
                 randomList(5, () -> randomFrom("min", "max", "sum", "value_count", "avg")));
         }
-
         return new RollupIndexMetadata(interval, dateTimezone, metrics);
     }
 }

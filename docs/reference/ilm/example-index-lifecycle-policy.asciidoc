@@ -26,9 +26,7 @@ You want to send log files to an {es} cluster so you can visualize and analyze
 the data. This log data has the following data retention requirements:
 
 * When the write index reaches 50GB or is 30 days old, roll over to a new index.
-* After rollover, keep indices in the hot data tier for 30 days. This means
-indices stay in the hot tier for 30-60 days: up to 30 days before rollover +
-30 days after rollover.
+* After rollover, keep indices in the hot data tier for 30 days.
 * 30 days after rollover:
 ** Move the logs to the warm data tier
 ** Set <<glossary-replica-shard, replica shards>> to 1
@@ -84,8 +82,8 @@ To view the `logs` policy in {kib}:
 The `logs` policy uses the recommended rollover defaults: start writing to a new
 index when the current write index reaches 50GB or becomes 30 days old.
 
-To view or change the rollover settings, click **Settings** for the hot phase. Then
-disable **Use recommended defaults** to display the rollover settings.
+To view or change the rollover settings, click **Settings** for the hot phase.
+Then disable **Use recommended defaults** to display the rollover settings.
 
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-hotphaserollover-default.png[View rollover defaults]

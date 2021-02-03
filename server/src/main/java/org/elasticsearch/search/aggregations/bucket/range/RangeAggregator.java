@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -88,7 +77,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
      * wasn't particularly rigorous. We had a performance test that collected
      * 123 buckets with an average of 900 documents per bucket that jumped
      * from 35ms to 90ms. I figure that 5000 is fairly close to where the break
-     * even point is. 
+     * even point is.
      */
     public static final double DOCS_PER_RANGE_TO_USE_FILTERS = 5000;
     /**
@@ -118,7 +107,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
          * <strong>must</strong> call this know that consumers prefer
          * {@code from} and {@code to} parameters if they are non-null
          * and finite. Otherwise they parse from {@code fromrStr} and
-         * {@code toStr}. 
+         * {@code toStr}.
          */
         public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
@@ -313,7 +302,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * Looks like it'd be more expensive to use the filter-by-filter
              * aggregator. Oh well. Snapshot the the filter-by-filter
              * aggregator's debug information if we're profiling bececause it
-             * is useful even if the aggregator isn't. 
+             * is useful even if the aggregator isn't.
              */
             if (context.profiling()) {
                 filtersDebug = new HashMap<>();
@@ -371,7 +360,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * that we work with will round differently in the native range
              * aggregator than in the filters aggregator. So we can't use
              * the filters. That is, if the input data type is a `long` in
-             * the first place. If it isn't then 
+             * the first place. If it isn't then
              */
             if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > MAX_ACCURATE_BOUND) {
                 return null;

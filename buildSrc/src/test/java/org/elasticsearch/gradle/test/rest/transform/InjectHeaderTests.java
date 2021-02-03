@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -45,8 +35,10 @@ import java.util.stream.Collectors;
 
 public class InjectHeaderTests extends GradleUnitTestCase {
 
-    private static final YAMLFactory yaml = new YAMLFactory();
-    private static final ObjectMapper mapper = new ObjectMapper(yaml);
+    private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
+    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
+    private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
+
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
         "application/vnd.elasticsearch+json;compatible-with=7",
@@ -62,8 +54,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     public void testInjectHeadersWithoutSetupBlock() throws Exception {
         String testName = "/rest/header_inject/no_setup.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
-        YAMLParser yamlParser = yaml.createParser(testFile);
-        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
+        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
         // validate no setup
         assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(0L));
@@ -96,8 +88,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     public void testInjectHeadersWithSetupBlock() throws Exception {
         String testName = "/rest/header_inject/with_setup.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
-        YAMLParser yamlParser = yaml.createParser(testFile);
-        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
+        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
 
         // validate setup exists
@@ -131,8 +123,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     public void testInjectHeadersWithSkipBlock() throws Exception {
         String testName = "/rest/header_inject/with_skip.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
-        YAMLParser yamlParser = yaml.createParser(testFile);
-        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
+        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
 
         // validate setup exists
@@ -178,8 +170,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     public void testInjectHeadersWithFeaturesBlock() throws Exception {
         String testName = "/rest/header_inject/with_features.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
-        YAMLParser yamlParser = yaml.createParser(testFile);
-        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
+        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
 
         // validate setup exists
@@ -224,8 +216,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     public void testInjectHeadersWithHeadersBlock() throws Exception {
         String testName = "/rest/header_inject/with_headers.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
-        YAMLParser yamlParser = yaml.createParser(testFile);
-        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
+        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
 
         // validate setup exists
@@ -346,7 +338,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     private void printTest(String testName, List<ObjectNode> tests) {
         if (humanDebug) {
             System.out.println("\n************* " + testName + " *************");
-            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(System.out)) {
+            try (SequenceWriter sequenceWriter = MAPPER.writer().writeValues(System.out)) {
                 for (ObjectNode transformedTest : tests) {
                     sequenceWriter.write(transformedTest);
                 }

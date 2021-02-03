@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.querydsl.container;
@@ -11,6 +12,7 @@ import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 // NB: this class is taken from SQL - it hasn't been ported over to QL
@@ -83,10 +85,13 @@ public class SearchHitFieldRef implements FieldExtraction {
     }
 
     private static boolean hasDocValues(DataType dataType) {
-        return dataType == KEYWORD || dataType == DATETIME;
+        return dataType == KEYWORD || dataType == DATETIME || dataType == DATETIME_NANOS;
     }
 
     private static String format(DataType dataType) {
+        if (dataType == DATETIME_NANOS) {
+            return "strict_date_optional_time_nanos";
+        }
         return dataType == DATETIME ? "epoch_millis" : null;
     }
 }

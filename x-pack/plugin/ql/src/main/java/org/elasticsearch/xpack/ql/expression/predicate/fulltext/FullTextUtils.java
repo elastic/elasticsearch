@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.fulltext;
 
@@ -52,10 +53,10 @@ abstract class FullTextUtils {
             return emptyMap();
         }
         Set<String> fieldNames = Strings.commaDelimitedListToSet(fieldString);
-        
+
         Float defaultBoost = Float.valueOf(1.0f);
         Map<String, Float> fields = new LinkedHashMap<>();
-        
+
         for (String fieldName : fieldNames) {
             if (fieldName.contains("^")) {
                 String[] split = splitInTwo(fieldName, "^");
@@ -77,7 +78,7 @@ abstract class FullTextUtils {
 
         return fields;
     }
-    
+
     private static String[] splitInTwo(String string, String delimiter) {
         String[] split = Strings.split(string, delimiter);
         if (split == null || split.length != 2) {

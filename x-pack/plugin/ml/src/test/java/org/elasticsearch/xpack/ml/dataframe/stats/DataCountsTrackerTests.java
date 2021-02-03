@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.stats;
@@ -22,10 +23,10 @@ public class DataCountsTrackerTests extends ESTestCase {
         assertThat(resetDataCounts, equalTo(new DataCounts(JOB_ID)));
     }
 
-    public void testResetTestDocsCount() {
+    public void testSetTestDocsCount() {
         DataCountsTracker dataCountsTracker = new DataCountsTracker(new DataCounts(JOB_ID, 10, 20, 30));
-        dataCountsTracker.resetTestDocsCount();
+        dataCountsTracker.setTestDocsCount(15);
         DataCounts resetDataCounts = dataCountsTracker.report();
-        assertThat(resetDataCounts, equalTo(new DataCounts(JOB_ID, 10, 0, 30)));
+        assertThat(resetDataCounts, equalTo(new DataCounts(JOB_ID, 10, 15, 30)));
     }
 }

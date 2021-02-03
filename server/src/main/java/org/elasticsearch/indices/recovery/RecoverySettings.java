@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -21,10 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsProbe;
-import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.node.NodeRoleSettings;
 
 import java.util.List;

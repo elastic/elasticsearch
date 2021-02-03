@@ -557,6 +557,14 @@ Values must be greater than zero and less than or equal to 1.
 By default, this value is calculated during hyperparameter optimization.
 end::dfas-downsample-factor[]
 
+tag::dfas-early-stopping-enabled[]
+Advanced configuration option.
+Specifies whether the training process should finish if it is not finding any
+better perfoming models. If disabled, the training process can take significantly
+longer and the chance of finding a better performing model is unremarkable.
+By default, early stoppping is enabled.
+end::dfas-early-stopping-enabled[]
+
 tag::dfas-eta-growth[]
 Advanced configuration option.
 Specifies the rate at which `eta` increases for each new tree that is added
@@ -571,12 +579,17 @@ candidate split.
 end::dfas-feature-bag-fraction[]
 
 tag::dfas-feature-processors[]
+Advanced configuration option.
 A collection of feature preprocessors that modify one or more included fields.
 The analysis uses the resulting one or more features instead of the
 original document field. Multiple `feature_processors` entries can refer to the
-same document fields.
-Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] 
-still occurs.
+same document fields. Automatic categorical 
+{ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for the fields 
+that are unprocessed by a custom processor or that have categorical values.
+Only use this if you want to override the automatic feature encoding of the 
+specified fields. Refer to 
+{ml-docs}/ml-feature-processors.html[{dfanalytics} feature processors] to learn 
+more.
 end::dfas-feature-processors[]
 
 tag::dfas-feature-processors-feat-name[]

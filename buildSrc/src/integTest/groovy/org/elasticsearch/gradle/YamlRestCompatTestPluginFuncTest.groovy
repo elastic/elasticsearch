@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle
@@ -48,8 +37,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
     }
 
@@ -100,8 +89,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SUCCESS
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
         result.task(':transformCompatTests').outcome == TaskOutcome.SUCCESS
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
@@ -128,8 +117,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':transformCompatTests').outcome == TaskOutcome.UP_TO_DATE
     }
 
@@ -157,8 +146,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
 
         when:
@@ -171,8 +160,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SKIPPED
-        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
         result.task(':transformCompatTests').outcome == TaskOutcome.SKIPPED
 
     }

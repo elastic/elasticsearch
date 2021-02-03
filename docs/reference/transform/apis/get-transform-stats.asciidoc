@@ -108,6 +108,10 @@ was created.
 =====
 //End checkpointing.last
 
+`last_search_time`:::
+(date)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-last-search-time]
+
 //Begin checkpointing.next
 `next`:::
 (object) Contains statistics about the next checkpoint that is currently in

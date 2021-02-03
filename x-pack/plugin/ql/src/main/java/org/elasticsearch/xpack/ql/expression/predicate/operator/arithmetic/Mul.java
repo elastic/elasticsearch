@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
@@ -16,7 +17,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 /**
  * Multiplication function ({@code a * b}).
  */
-public class Mul extends ArithmeticOperation {
+public class Mul extends ArithmeticOperation implements BinaryComparisonInversible {
 
     public Mul(Source source, Expression left, Expression right) {
         super(source, left, right, DefaultBinaryArithmeticOperation.MUL);
@@ -51,5 +52,10 @@ public class Mul extends ArithmeticOperation {
 
     public Mul swapLeftAndRight() {
         return new Mul(source(), right(), left());
+    }
+
+    @Override
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Div::new;
     }
 }

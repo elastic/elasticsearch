@@ -160,10 +160,10 @@ public class ShrinkActionIT extends ESRestTestCase {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
 
         // add a policy
-        Map<String, LifecycleAction> hotActions = Map.of(
+        Map<String, LifecycleAction> hotActions = org.elasticsearch.common.collect.Map.of(
             RolloverAction.NAME, new RolloverAction(null, null, 1L),
             ShrinkAction.NAME, new ShrinkAction(expectedFinalShards, null));
-        Map<String, Phase> phases = Map.of(
+        Map<String, Phase> phases = org.elasticsearch.common.collect.Map.of(
             "hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
@@ -225,8 +225,8 @@ public class ShrinkActionIT extends ESRestTestCase {
         // all shards to be active and we want that to happen as part of the shrink action)
         MigrateAction migrateAction = new MigrateAction(false);
         ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null);
-        Phase phase = new Phase("warm", TimeValue.ZERO, Map.of(migrateAction.getWriteableName(), migrateAction,
-            shrinkAction.getWriteableName(), shrinkAction));
+        Phase phase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(migrateAction.getWriteableName(),
+            migrateAction, shrinkAction.getWriteableName(), shrinkAction));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);

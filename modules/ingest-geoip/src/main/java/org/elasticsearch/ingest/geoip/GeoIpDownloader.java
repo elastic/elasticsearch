@@ -27,6 +27,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -143,11 +148,24 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
                 currentDatabases.put(name, new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5));
                 if (updateTaskState(name)) {
                     logger.info("updated geoip database [" + name + "]");
+                    deleteOldChunks(name, firstChunk);
                 }
             }
         } catch (Exception e) {
             logger.error("error updating geoip database [" + name + "]", e);
         }
+    }
+
+    //visible for testing
+    void deleteOldChunks(String name, int firstChunk) {
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
+            .must(new MatchQueryBuilder("name", name))
+            .must(new RangeQueryBuilder("chunk").to(firstChunk, false));
+        DeleteByQueryRequest request = new DeleteByQueryRequest();
+        request.indices(DATABASES_INDEX);
+        request.setQuery(queryBuilder);
+        client.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(r -> {
+        }, e -> logger.warn("could not delete old chunks for geoip database [" + name + "]", e)));
     }
 
     //visible for testing
@@ -172,11 +190,7 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
 
     //visible for testing
     int indexChunks(String name, InputStream is, int chunk) throws IOException {
-        while (true) {
-            byte[] buf = getChunk(is);
-            if (buf.length == 0) {
-                break;
-            }
+        for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             client.prepareIndex(DATABASES_INDEX).setId(name + "_" + chunk)
                 .setSource(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

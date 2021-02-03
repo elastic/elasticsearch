@@ -194,6 +194,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
             protected void updateTimestamp(Map<String, GeoIpTaskState.Metadata> currentDatabases, String name) {
                 fail();
             }
+
+            @Override
+            void deleteOldChunks(String name, int firstChunk) {
+                assertEquals("test", name);
+                assertEquals(0, firstChunk);
+            }
         };
 
         geoIpDownloader.setState(taskState);
@@ -227,6 +233,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
             protected void updateTimestamp(Map<String, GeoIpTaskState.Metadata> currentDatabases, String name) {
                 fail();
             }
+
+            @Override
+            void deleteOldChunks(String name, int firstChunk) {
+                assertEquals("test", name);
+                assertEquals(9, firstChunk);
+            }
         };
 
         geoIpDownloader.setState(taskState);
@@ -259,6 +271,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
             protected void updateTimestamp(Map<String, GeoIpTaskState.Metadata> currentDatabases, String name) {
                 assertEquals(databases, currentDatabases);
                 assertEquals("test", name);
+            }
+
+            @Override
+            void deleteOldChunks(String name, int firstChunk) {
+                fail();
             }
         };
 

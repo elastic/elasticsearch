@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
@@ -24,9 +25,13 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,12 +41,16 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
+
 @ClusterScope(scope = Scope.TEST, maxNumDataNodes = 1)
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
     }
 
     @Override
@@ -88,8 +97,16 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 for (SearchHit hit : res.getHits().getHits()) {
                     data.add((byte[]) hit.getSourceAsMap().get("data"));
                 }
-                DatabaseReader build = new DatabaseReader.Builder(new GZIPInputStream(new MultiByteArrayInputStream(data))).build();
-                assertEquals(id.replace(".mmdb", ""), build.getMetadata().getDatabaseType());
+
+                GZIPInputStream stream = new GZIPInputStream(new MultiByteArrayInputStream(data));
+                Path tempFile = createTempFile();
+                try (OutputStream os = new BufferedOutputStream(Files.newOutputStream(tempFile, TRUNCATE_EXISTING, WRITE, CREATE))) {
+                    stream.transferTo(os);
+                }
+
+                try (DatabaseReader databaseReader = new DatabaseReader.Builder(tempFile.toFile()).build()) {
+                    assertEquals(id.replace(".mmdb", ""), databaseReader.getMetadata().getDatabaseType());
+                }
             });
         }
     }

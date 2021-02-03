@@ -18,7 +18,7 @@
       $body:
         size: 1000
         _source: false
-        fields: [ {"field" : "str" }, {"field" : "int" } ]
+        fields: [ {"field" : "int" }, {"field" : "str" } ]
         sort:
           - int:
               order: asc

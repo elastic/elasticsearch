@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -80,7 +81,7 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     public ShrinkAction(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             if (in.readBoolean()) {
                 this.numberOfShards = in.readVInt();
                 this.maxSinglePrimarySize = null;
@@ -104,7 +105,7 @@ public class ShrinkAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             boolean hasNumberOfShards = numberOfShards != null;
             out.writeBoolean(hasNumberOfShards);
             if (hasNumberOfShards) {

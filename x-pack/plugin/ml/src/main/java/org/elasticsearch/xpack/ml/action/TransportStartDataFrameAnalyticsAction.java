@@ -15,9 +15,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -34,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -44,7 +41,6 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,7 +72,6 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
-import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -86,7 +81,6 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
-import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -199,9 +193,7 @@ public class TransportStartDataFrameAnalyticsAction
 
         // Perform memory usage estimation for this config
         ActionListener<StartContext> startContextListener = ActionListener.wrap(
-            startContext -> {
-                estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener);
-            },
+            startContext -> estimateMemoryUsageAndUpdateMemoryTracker(startContext, memoryUsageHandledListener),
             listener::onFailure
         );
 
@@ -698,31 +690,6 @@ public class TransportStartDataFrameAnalyticsAction
             );
 
             MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
-        }
-
-        private void searchProgressFromIndex(String jobId, ActionListener<StoredProgress> listener) {
-            SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
-            searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-            searchRequest.source().size(1);
-            searchRequest.source().query(QueryBuilders.idsQuery().addIds(StoredProgress.documentId(jobId)));
-            searchRequest.allowPartialSearchResults(false);
-
-            ActionListener<SearchResponse> searchListener = ActionListener.wrap(
-                searchResponse -> {
-                    SearchHit[] hits = searchResponse.getHits().getHits();
-                    if (hits.length == 0) {
-                        logger.debug(() -> new ParameterizedMessage("[{}] No stored progress found", jobId));
-                        listener.onResponse(null);
-                    } else {
-                        StoredProgress storedProgress = MlParserUtils.parse(hits[0], StoredProgress.PARSER);
-                        logger.debug(() -> new ParameterizedMessage("[{}] Found stored progress {}", jobId, storedProgress.get().get(0)));
-                        listener.onResponse(storedProgress);
-                    }
-                },
-                listener::onFailure
-            );
-
-            executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchListener);
         }
 
         private void executeTask(DataFrameAnalyticsTask task) {

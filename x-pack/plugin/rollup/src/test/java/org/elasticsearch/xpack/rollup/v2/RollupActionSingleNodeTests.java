@@ -101,7 +101,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        expectThrows(ElasticsearchException.class, () -> rollup(config));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(config));
+        assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
     public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {

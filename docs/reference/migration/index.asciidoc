@@ -1,4 +1,4 @@
-[[migration-guide]]
+[[breaking-changes]]
 = Migration guide
 
 [partintro]

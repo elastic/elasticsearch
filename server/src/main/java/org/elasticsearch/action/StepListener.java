@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
+import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BinaryOperator;
@@ -72,17 +73,22 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
 
     /**
      * Combines this listener with another one, waiting for both to successfully complete and combining their results.
+     *
      * @param other the other step listener to combine with
-     * @param fn the function that combines the results
+     * @param fn    the function that combines the results
      * @return the combined listener
      */
     public StepListener<Response> thenCombine(StepListener<Response> other, BinaryOperator<Response> fn) {
-        final StepListener<Response> res = new StepListener<>();
-        final GroupedActionListener<Response> groupedActionListener = new GroupedActionListener<>(
-            res.map(coll -> coll.stream().reduce(fn).get()), 2);
+        final StepListener<Response> combined = new StepListener<>();
+        final GroupedActionListener<Response> groupedActionListener =
+            new GroupedActionListener<>(combined.map(results -> {
+                final Optional<Response> response = results.stream().reduce(fn);
+                assert response.isPresent();
+                return response.get();
+            }), 2);
         delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
         other.delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
-        return res;
+        return combined;
     }
 
     /**

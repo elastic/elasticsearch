@@ -178,8 +178,8 @@ String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull
  */
 
 if ( BuildParams.inFipsJvm ) {
-  bwc_tests_enabled = false
-  bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/issues/66772"
+  bwc_tests_enabled = true
+  bwc_tests_disabled_issue = ""
 }
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {

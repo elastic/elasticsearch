@@ -61,7 +61,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
-    private boolean skipOperatorOnly = false; // this field does not get serialised because it is always set locally by authz
+    private boolean skipOperatorOnlyState = false; // this field does not get serialised because it is always set locally by authz
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;

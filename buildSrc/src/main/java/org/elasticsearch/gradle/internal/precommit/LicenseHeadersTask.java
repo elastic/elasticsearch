@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -121,7 +110,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
      * Allowed license families for this project.
      */
     @Input
-    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("Apache", "Generated", "Vendored"));
+    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored"));
     /**
      * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
      * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
@@ -169,6 +158,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         matchers.add(subStringMatcher("GEN  ", "Generated", "ANTLR GENERATED CODE"));
         // Vendored Code
         matchers.add(subStringMatcher("VEN  ", "Vendored", "@notice"));
+        // Dual SSPLv1 and Elastic
+        matchers.add(subStringMatcher("DUAL", "SSPL+Elastic License", "the Elastic License 2.0 or the Server"));
 
         for (Map.Entry<String, String> additional : additionalLicenses.entrySet()) {
             String category = additional.getKey().substring(0, 5);
@@ -187,8 +178,9 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         boolean unknownLicenses = stats.getNumUnknown() > 0;
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
+            getLogger().error("The following files contain unapproved license headers:");
             unapprovedFiles(getReportFile()).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
-            throw new GradleException("License header problems were found! Full details: " + reportFile.getAbsolutePath());
+            throw new GradleException("Check failed. License header problems were found. Full details: " + reportFile.getAbsolutePath());
         }
     }
 

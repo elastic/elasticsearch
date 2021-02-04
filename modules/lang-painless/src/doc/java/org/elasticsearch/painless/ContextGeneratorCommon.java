@@ -16,6 +16,7 @@ import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 import org.elasticsearch.painless.action.PainlessContextInstanceBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
+import org.elasticsearch.painless.javadoc.JavadocExtractor;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -182,7 +183,7 @@ public class ContextGeneratorCommon {
                 .collect(Collectors.toList());
         }
 
-        public PainlessInfos(List<PainlessContextInfo> contextInfos, StdlibJavadocExtractor extractor) throws IOException {
+        public PainlessInfos(List<PainlessContextInfo> contextInfos, JavadocExtractor extractor) throws IOException {
             javaNamesToDisplayNames = getDisplayNames(contextInfos);
 
             javaNamesToJavadoc = new HashMap<>();

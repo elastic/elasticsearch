@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.operator;
@@ -101,6 +102,7 @@ public class Constants {
         "cluster:admin/xpack/enrich/execute",
         "cluster:admin/xpack/enrich/get",
         "cluster:admin/xpack/enrich/put",
+        "cluster:admin/xpack/enrich/reindex",
         "cluster:admin/xpack/license/basic_status",
         // "cluster:admin/xpack/license/delete",
         "cluster:admin/xpack/license/feature_usage",
@@ -157,7 +159,6 @@ public class Constants {
         "cluster:admin/xpack/rollup/start",
         "cluster:admin/xpack/rollup/stop",
         "cluster:admin/xpack/searchable_snapshots/cache/clear",
-        "cluster:admin/xpack/searchable_snapshots/cache/store",
         "cluster:admin/xpack/security/api_key/create",
         "cluster:admin/xpack/security/api_key/get",
         "cluster:admin/xpack/security/api_key/grant",
@@ -226,6 +227,7 @@ public class Constants {
         "cluster:monitor/task",
         "cluster:monitor/task/get",
         "cluster:monitor/tasks/lists",
+        "cluster:monitor/text_structure/findstructure",
         "cluster:monitor/transform/get",
         "cluster:monitor/transform/stats/get",
         "cluster:monitor/xpack/analytics/stats",
@@ -265,7 +267,6 @@ public class Constants {
         "cluster:monitor/xpack/ml/data_frame/evaluate",
         "cluster:monitor/xpack/ml/datafeeds/get",
         "cluster:monitor/xpack/ml/datafeeds/stats/get",
-        "cluster:monitor/xpack/ml/findfilestructure",
         "cluster:monitor/xpack/ml/inference/get",
         "cluster:monitor/xpack/ml/inference/stats/get",
         "cluster:monitor/xpack/ml/info/get",
@@ -368,6 +369,7 @@ public class Constants {
         "indices:admin/xpack/ccr/forget_follower",
         "indices:admin/xpack/ccr/put_follow",
         "indices:admin/xpack/ccr/unfollow",
+        "indices:admin/xpack/rollup",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
         "indices:data/read/async_search/submit",
@@ -420,6 +422,7 @@ public class Constants {
         "internal:admin/ccr/restore/file_chunk/get",
         "internal:admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/session/put",
+        "internal:admin/xpack/searchable_snapshots/cache/store",
         "internal:cluster/nodes/indices/shard/store",
         "internal:gateway/local/meta_state",
         "internal:gateway/local/started_shards"

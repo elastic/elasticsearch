@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -333,13 +334,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
+        Instant instantOfTrigger = Instant.ofEpochMilli(now);
         // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
             sourceHasChanged(ActionListener.wrap(hasChanged -> {
+                context.setLastSearchTime(instantOfTrigger);
                 hasSourceChanged = hasChanged;
                 if (hasChanged) {
-                    context.setChangesLastDetectedAt(Instant.now());
+                    context.setChangesLastDetectedAt(instantOfTrigger);
                     logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
                     changedSourceListener.onResponse(null);
                 } else {
@@ -355,6 +358,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }));
         } else {
             hasSourceChanged = true;
+            context.setLastSearchTime(instantOfTrigger);
+            context.setChangesLastDetectedAt(instantOfTrigger);
             changedSourceListener.onResponse(null);
         }
     }
@@ -364,22 +369,31 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function = FunctionFactory.create(getConfig());
 
         if (isContinuous()) {
-            changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
-
-            if (changeCollector.isOptimized() == false) {
-                logger.warn(
-                    new ParameterizedMessage(
-                        "[{}] could not find any optimizations for continuous execution, "
-                            + "this transform might run slowly, please check your configuration.",
-                        getJobId()
-                    )
-                );
-                auditor.warning(
-                    getJobId(),
-                    "could not find any optimizations for continuous execution, "
-                        + "this transform might run slowly, please check your configuration."
-                );
+            Map<String, Object> scriptBasedRuntimeFieldNames = transformConfig.getSource().getScriptBasedRuntimeMappings();
+            List<String> performanceCriticalFields = function.getPerformanceCriticalFields();
+            if (performanceCriticalFields.stream().allMatch(scriptBasedRuntimeFieldNames::containsKey)) {
+                String message = "all the group-by fields are script-based runtime fields, "
+                    + "this transform might run slowly, please check your configuration.";
+                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
+                auditor.warning(getJobId(), message);
             }
+
+            if (scriptBasedRuntimeFieldNames.containsKey(transformConfig.getSyncConfig().getField())) {
+                String message = "sync time field is a script-based runtime field, "
+                    + "this transform might run slowly, please check your configuration.";
+                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
+                auditor.warning(getJobId(), message);
+            }
+
+            changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
+            if (changeCollector.isOptimized() == false) {
+                String message = "could not find any optimizations for continuous execution, "
+                    + "this transform might run slowly, please check your configuration.";
+                logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), message));
+                auditor.warning(getJobId(), message);
+            }
+
+            // TODO: Report warnings in preview
         }
     }
 
@@ -825,10 +839,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected SearchRequest buildSearchRequest() {
         assert nextCheckpoint != null;
 
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder(); // .size(0);
-
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().runtimeMappings(getConfig().getSource().getRuntimeMappings());
         switch (runState) {
             case APPLY_RESULTS:
                 buildUpdateQuery(sourceBuilder);
@@ -842,8 +853,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 throw new IllegalStateException("Transform indexer job encountered an illegal state [" + runState + "]");
         }
 
-        searchRequest.source(sourceBuilder);
-        return searchRequest;
+        return new SearchRequest(getConfig().getSource().getIndex())
+            .allowPartialSearchResults(false)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .source(sourceBuilder);
     }
 
     private SearchSourceBuilder buildChangedBucketsQuery(SearchSourceBuilder sourceBuilder) {
@@ -876,15 +889,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {
-            BoolQueryBuilder filteredQuery =
-                new BoolQueryBuilder()
-                    .filter(queryBuilder)
-                    .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
+                .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
             // Only apply extra filter if it is the subsequent run of the continuous transform
             if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
-                QueryBuilder filter =
-                    changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+                QueryBuilder filter = changeCollector.buildFilterQuery(
+                    lastCheckpoint.getTimeUpperBound(),
+                    nextCheckpoint.getTimeUpperBound()
+                );
                 if (filter != null) {
                     filteredQuery.filter(filter);
                 }

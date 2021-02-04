@@ -148,7 +148,7 @@ PUT _index_template/timeseries_template
 === Create the data stream
 
 To get things started, index a document into the name or wildcard pattern defined
-in the `index_patterns` of the <<indices-templates,index template>>. As long
+in the `index_patterns` of the <<index-templates,index template>>. As long
 as an existing data stream, index, or index alias does not already use the name, the index
 request automatically creates a corresponding data stream with a single backing index.
 {es} automatically indexes the request's documents into this backing index, which also

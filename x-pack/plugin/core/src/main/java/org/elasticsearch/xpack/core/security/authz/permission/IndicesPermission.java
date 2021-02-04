@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -236,7 +238,8 @@ public final class IndicesPermission {
                             for (String privilegeName : group.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(() -> {
-                                        deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" +
+                                        deprecationLogger.deprecate(DeprecationCategory.SECURITY,
+                                            "[" + indexOrAlias + "] mapping update for ingest privilege [" +
                                                 privilegeName + "]", "the index privilege [" + privilegeName + "] allowed the update " +
                                                 "mapping action [" + action + "] on index [" + indexOrAlias + "], this privilege " +
                                                 "will not permit mapping updates in the next major release - users who require access " +

@@ -78,7 +78,7 @@ xpack.security.http.filter.enabled: true
 [discrete]
 === Specifying TCP transport profiles
 
-<<modules-transport,TCP transport profiles>>
+<<transport-profiles,TCP transport profiles>>
 enable Elasticsearch to bind on multiple hosts. The {es} {security-features} enable you to apply
 different IP filtering on different profiles.
 

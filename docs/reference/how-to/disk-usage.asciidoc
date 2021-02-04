@@ -149,6 +149,8 @@ Indices in Elasticsearch are stored in one or more shards. Each shard is a Lucen
 
 The <<indices-forcemerge,`_forcemerge` API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
 
+include::{es-repo-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
+
 [discrete]
 === Shrink Index
 

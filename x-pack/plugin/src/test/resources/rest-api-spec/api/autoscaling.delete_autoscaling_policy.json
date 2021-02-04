@@ -2,11 +2,10 @@
   "autoscaling.delete_autoscaling_policy":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-delete-autoscaling-policy.html",
-      "description":"Deletes an autoscaling policy."
+      "description":"Deletes an autoscaling policy. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
     },
-    "stability":"experimental",
-    "visibility":"feature_flag",
-    "feature_flag":"es.autoscaling_feature_flag_registered",
+    "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

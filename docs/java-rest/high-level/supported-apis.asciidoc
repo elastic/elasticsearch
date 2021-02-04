@@ -301,7 +301,6 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-estimate-model-memory>>
 * <<{upid}-evaluate-data-frame>>
 * <<{upid}-explain-data-frame-analytics>>
-* <<{upid}-find-file-structure>>
 * <<{upid}-flush-job>>
 * <<{upid}-forecast-job>>
 * <<{upid}-get-job>>
@@ -366,8 +365,6 @@ include::ml/estimate-model-memory.asciidoc[]
 include::ml/evaluate-data-frame.asciidoc[]
 // EXPLAIN
 include::ml/explain-data-frame-analytics.asciidoc[]
-// FIND
-include::ml/find-file-structure.asciidoc[]
 // FLUSH
 include::ml/flush-job.asciidoc[]
 // FORECAST
@@ -528,6 +525,17 @@ include::security/put-privileges.asciidoc[]
 include::security/create-api-key.asciidoc[]
 include::security/get-api-key.asciidoc[]
 include::security/invalidate-api-key.asciidoc[]
+
+[role="xpack"]
+== Text Structure APIs
+:upid: {mainid}-text-structure
+:doc-tests-file: {doc-tests}/TextStructureClientDocumentationIT.java
+
+The Java High Level REST Client supports the following Text Structure APIs:
+
+* <<{upid}-find-structure>>
+
+include::textstructure/find-structure.asciidoc[]
 
 [role="xpack"]
 == Watcher APIs

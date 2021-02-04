@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search;
@@ -33,7 +22,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +38,7 @@ public class MultiMatchQuery extends MatchQuery {
 
     private Float groupTieBreaker = null;
 
-    public MultiMatchQuery(QueryShardContext context) {
+    public MultiMatchQuery(SearchExecutionContext context) {
         super(context);
     }
 
@@ -128,7 +117,7 @@ public class MultiMatchQuery extends MatchQuery {
             MappedFieldType fieldType = context.getFieldType(name);
             if (fieldType != null) {
                 Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
-                if (!groups.containsKey(actualAnalyzer)) {
+                if (groups.containsKey(actualAnalyzer) == false) {
                     groups.put(actualAnalyzer, new ArrayList<>());
                 }
                 float boost = entry.getValue() == null ? 1.0f : entry.getValue();
@@ -233,13 +222,13 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
-    static Query blendTerm(QueryShardContext context, BytesRef value, float tieBreaker,
+    static Query blendTerm(SearchExecutionContext context, BytesRef value, float tieBreaker,
                            boolean lenient, List<FieldAndBoost> blendedFields) {
 
         return blendTerms(context, new BytesRef[] {value}, tieBreaker, lenient, blendedFields);
     }
 
-    static Query blendTerms(QueryShardContext context, BytesRef[] values, float tieBreaker,
+    static Query blendTerms(SearchExecutionContext context, BytesRef[] values, float tieBreaker,
                             boolean lenient, List<FieldAndBoost> blendedFields) {
 
         List<Query> queries = new ArrayList<>();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz.store;
@@ -12,6 +13,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -296,7 +298,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
     }
 
     private void verifyLogger(DeprecationLogger deprecationLogger, String roleName, String aliasName, String indexNames) {
-        verify(deprecationLogger).deprecate("index_permissions_on_alias",
+        verify(deprecationLogger).deprecate(DeprecationCategory.SECURITY, "index_permissions_on_alias",
             "Role [" + roleName + "] contains index privileges covering the [" + aliasName
                 + "] alias but which do not cover some of the indices that it points to [" + indexNames + "]. Granting privileges over an"
                 + " alias and hence granting privileges over all the indices that the alias points to is deprecated and will be removed"

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest;
@@ -1022,7 +1011,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
             }
             Path path = PathUtils.get(keystorePath);
-            if (!Files.exists(path)) {
+            if (Files.exists(path) == false) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
@@ -1040,7 +1029,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         if (certificateAuthorities != null) {
             Path path = PathUtils.get(certificateAuthorities);
-            if (!Files.exists(path)) {
+            if (Files.exists(path) == false) {
                 throw new IllegalStateException(CERTIFICATE_AUTHORITIES + " is set but points to a non-existing file");
             }
             try {
@@ -1086,7 +1075,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return runningTasks;
     }
 
-    protected static void assertOK(Response response) {
+    public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
@@ -1216,9 +1205,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
+    /**
+     * Deprecation message emitted since {@link Version#V_7_12_0} for the rest of the 7.x series. Can be removed in v9 since it is not
+     * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
+     * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
+     */
+    private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards " +
+            "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' " +
+            "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
+
     protected static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest(new Request("POST", "/" + index + "/_close"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");
+        closeRequest.setOptions(expectVersionSpecificWarnings(v -> v.compatible(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE)));
+        assertOK(client().performRequest(closeRequest));
     }
 
     protected static void openIndex(String index) throws IOException {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest;
 
@@ -10,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
@@ -158,5 +160,10 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return restHandler.validAcceptMediaTypes();
+    }
+
+    @Override
+    public Version compatibleWithVersion() {
+        return restHandler.compatibleWithVersion();
     }
 }

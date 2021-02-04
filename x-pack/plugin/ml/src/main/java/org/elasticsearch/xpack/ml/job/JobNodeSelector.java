@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job;
 
@@ -11,8 +12,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
+import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
@@ -22,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
@@ -80,6 +85,36 @@ public class JobNodeSelector {
             }
             return "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node) + "], because this node isn't a ml node.";
         };
+    }
+
+    public Tuple<NativeMemoryCapacity, Long> perceivedCapacityAndMaxFreeMemory(int maxMachineMemoryPercent,
+                                                                               boolean useAutoMemoryPercentage,
+                                                                               int maxOpenJobs,
+                                                                               boolean isMemoryTrackerRecentlyRefreshed) {
+        List<DiscoveryNode> capableNodes = clusterState.getNodes()
+            .mastersFirstStream()
+            .filter(n -> this.nodeFilter.apply(n) == null)
+            .collect(Collectors.toList());
+        NativeMemoryCapacity currentCapacityForMl = MlAutoscalingDeciderService.currentScale(
+            capableNodes,
+            maxMachineMemoryPercent,
+            useAutoMemoryPercentage
+        );
+        long mostAvailableMemory = capableNodes.stream()
+            .map(n -> nodeLoadDetector.detectNodeLoad(
+                clusterState,
+                true,
+                n,
+                maxOpenJobs,
+                maxMachineMemoryPercent,
+                isMemoryTrackerRecentlyRefreshed,
+                useAutoMemoryPercentage)
+            )
+            .filter(nl -> nl.remainingJobs() > 0)
+            .mapToLong(NodeLoad::getFreeMemory)
+            .max()
+            .orElse(0L);
+        return Tuple.tuple(currentCapacityForMl, mostAvailableMemory);
     }
 
     public PersistentTasksCustomMetadata.Assignment selectNode(int dynamicMaxOpenJobs,

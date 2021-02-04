@@ -983,137 +983,6 @@ setup:
         id: "missing_config"
 
 ---
-"Test delete given config, state and stats documents":
-  - skip:
-      features: headers
-  - do:
-      ml.put_data_frame_analytics:
-        id: "delete_foo"
-        body: >
-          {
-            "source": {
-              "index": "index-source"
-            },
-            "dest": {
-              "index": "index-dest"
-            },
-            "analysis": {"regression":{
-                "dependent_variable": "to_predict"
-            }}
-          }
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      index:
-        index: .ml-state-000001
-        id: "delete_foo_regression_state#1"
-        body: >
-          {
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      index:
-        index: .ml-state-000001
-        id: "data_frame_analytics-delete_foo-progress"
-        body: >
-          {
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      index:
-        index: .ml-stats-000001
-        id: "delete_foo_stats_1"
-        body: >
-          {
-            "job_id": "delete_foo"
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      index:
-        index: .ml-stats-000001
-        id: "delete_foo_stats_2"
-        body: >
-          {
-            "job_id": "delete_foo"
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh:
-        index: .ml-stat*
-
-  - do:
-      search:
-        index: .ml-state*
-        body:
-          size: 0
-          query:
-            bool:
-              filter:
-                ids:
-                  values:
-                    - "data_frame_analytics-delete_foo-progress"
-                    - "delete_foo_regression_state#1"
-
-  - match: { hits.total.value: 2 }
-
-  - do:
-      search:
-        index: .ml-stats-*
-        body:
-          size: 0
-          query:
-            bool:
-              filter:
-                ids:
-                  values:
-                    - "delete_foo_stats_1"
-                    - "delete_foo_stats_2"
-
-  - match: { hits.total.value: 2 }
-
-  - do:
-      ml.delete_data_frame_analytics:
-        id: "delete_foo"
-  - match: { acknowledged: true }
-
-  - do:
-      search:
-        index: .ml-state*
-        body:
-          size: 0
-          query:
-            bool:
-              filter:
-                ids:
-                  values:
-                    - "data_frame_analytics-delete_foo-progress"
-                    - "delete_foo_regression_state#1"
-  - match: { hits.total.value: 0 }
-
-  - do:
-      search:
-        index: .ml-stats-*
-        body:
-          size: 0
-          query:
-            bool:
-              filter:
-                ids:
-                  values:
-                    - "delete_foo_stats_1"
-                    - "delete_foo_stats_2"
-
-  - match: { hits.total.value: 0 }
-
----
 "Test max model memory limit":
   - skip:
       features: headers
@@ -1638,7 +1507,14 @@ setup:
                 "training_percent": 60.3,
                 "randomize_seed": 42,
                 "loss_function": "msle",
-                "loss_function_parameter": 2.0
+                "loss_function_parameter": 2.0,
+                "alpha": 1.0,
+                "eta_growth_rate_per_tree": 1.0,
+                "soft_tree_depth_limit": 2.0,
+                "soft_tree_depth_tolerance": 3.0,
+                "downsample_factor": 0.5,
+                "max_optimization_rounds_per_hyperparameter": 3,
+                "early_stopping_enabled": true
               }
             }
           }
@@ -1657,7 +1533,14 @@ setup:
       "training_percent": 60.3,
       "randomize_seed": 42,
       "loss_function": "msle",
-      "loss_function_parameter": 2.0
+      "loss_function_parameter": 2.0,
+      "alpha": 1.0,
+      "eta_growth_rate_per_tree": 1.0,
+      "soft_tree_depth_limit": 2.0,
+      "soft_tree_depth_tolerance": 3.0,
+      "downsample_factor": 0.5,
+      "max_optimization_rounds_per_hyperparameter": 3,
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time
@@ -1983,7 +1866,14 @@ setup:
                 "feature_bag_fraction": 0.3,
                 "class_assignment_objective": "maximize_accuracy",
                 "training_percent": 60.3,
-                "randomize_seed": 24
+                "randomize_seed": 24,
+                "alpha": 1.0,
+                "eta_growth_rate_per_tree": 1.0,
+                "soft_tree_depth_limit": 2.0,
+                "soft_tree_depth_tolerance": 3.0,
+                "downsample_factor": 0.5,
+                "max_optimization_rounds_per_hyperparameter": 3,
+                "early_stopping_enabled": true
               }
             }
           }
@@ -2002,7 +1892,14 @@ setup:
       "training_percent": 60.3,
       "randomize_seed": 24,
       "class_assignment_objective": "maximize_accuracy",
-      "num_top_classes": 2
+      "num_top_classes": 2,
+      "alpha": 1.0,
+      "eta_growth_rate_per_tree": 1.0,
+      "soft_tree_depth_limit": 2.0,
+      "soft_tree_depth_tolerance": 3.0,
+      "downsample_factor": 0.5,
+      "max_optimization_rounds_per_hyperparameter": 3,
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time
@@ -2046,7 +1943,8 @@ setup:
       "training_percent": 100.0,
       "randomize_seed": 24,
       "class_assignment_objective": "maximize_minimum_recall",
-      "num_top_classes": 2
+      "num_top_classes": 2,
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time
@@ -2084,7 +1982,8 @@ setup:
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
       "randomize_seed": 42,
-      "loss_function": "mse"
+      "loss_function": "mse",
+      "early_stopping_enabled": true
     }
   }}
   - is_true: create_time

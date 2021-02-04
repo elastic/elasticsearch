@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -97,7 +99,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             final Map<String, Object> source = parser.map();
 
             if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.deprecate("deprecated_settings", DEPRECATED_USAGE);
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
 
                 settings = (List<String>) source.get("deprecated_settings");
             } else {

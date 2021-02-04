@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.snapshots;
 
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -172,13 +174,17 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
      */
     public static EngineFactory getEngineFactory() {
         return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
-            reader -> {
-                try {
-                    return SeqIdGeneratingFilterReader.wrap(reader, config.getPrimaryTermSupplier().getAsLong());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }, true);
+            readerWrapper(config), true);
+    }
+
+    public static Function<DirectoryReader, DirectoryReader> readerWrapper(EngineConfig engineConfig) {
+        return reader -> {
+            try {
+                return SeqIdGeneratingFilterReader.wrap(reader, engineConfig.getPrimaryTermSupplier().getAsLong());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
     }
 
     /**

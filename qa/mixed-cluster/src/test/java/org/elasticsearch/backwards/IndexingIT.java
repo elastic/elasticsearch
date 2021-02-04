@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.backwards;
 
@@ -400,7 +389,11 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private Nodes buildNodeAndVersions() throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
+        return buildNodeAndVersions(client());
+    }
+
+    static Nodes buildNodeAndVersions(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         Nodes nodes = new Nodes();
@@ -411,12 +404,12 @@ public class IndexingIT extends ESRestTestCase {
                 Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
                 HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))));
         }
-        response = client().performRequest(new Request("GET", "_cluster/state"));
+        response = client.performRequest(new Request("GET", "_cluster/state"));
         nodes.setMasterNodeId(ObjectPath.createFromResponse(response).evaluate("master_node"));
         return nodes;
     }
 
-    final class Nodes extends HashMap<String, Node> {
+    static final class Nodes extends HashMap<String, Node> {
 
         private String masterNodeId = null;
 
@@ -469,7 +462,7 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
-    final class Node {
+    static final class Node {
         private final String id;
         private final String nodeName;
         private final Version version;

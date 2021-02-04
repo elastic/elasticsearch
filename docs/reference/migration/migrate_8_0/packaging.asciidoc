@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_packaging_changes]]
-=== Packaging changes
+==== Packaging changes
 
 //tag::notable-breaking-changes[]
 .Java 11 is required.

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.parser;
@@ -9,7 +10,9 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
@@ -165,8 +169,13 @@ public class ExpressionBuilder extends IdentifierBuilder {
         switch (predicate.kind.getType()) {
             case EqlBaseParser.SEQ:
                 return Predicates.combineOr(expressions(predicate.constant()).stream()
+                    .map(c -> new InsensitiveWildcardEquals(source, expr, c, zoneId))
+                    .collect(toList()));
+            case EqlBaseParser.IN_INSENSITIVE:
+                Expression insensitiveIn = Predicates.combineOr(expressions(predicate.expression()).stream()
                     .map(c -> new InsensitiveEquals(source, expr, c, zoneId))
                     .collect(toList()));
+                return predicate.NOT() != null ? new Not(source, insensitiveIn) : insensitiveIn;
             case EqlBaseParser.IN:
                 List<Expression> container = expressions(predicate.expression());
                 Expression checkInSet = new In(source, expr, container, zoneId);
@@ -199,7 +208,14 @@ public class ExpressionBuilder extends IdentifierBuilder {
         String name = ctx.name.getText();
         List<Expression> arguments = expressions(ctx.expression());
 
-        return new UnresolvedFunction(source, name, UnresolvedFunction.ResolutionType.STANDARD, arguments);
+        FunctionResolutionStrategy strategy = FunctionResolutionStrategy.DEFAULT;
+
+        if (name.endsWith("~")) {
+            name = name.substring(0, name.length() - 1);
+            strategy = EqlFunctionResolution.CASE_INSENSITIVE;
+        }
+
+        return new UnresolvedFunction(source, name, strategy, arguments);
     }
 
     @Override

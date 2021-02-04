@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
@@ -86,7 +87,6 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.loadPipeline;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.pipelineName;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.templateName;
-import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTORY;
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
@@ -641,11 +641,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             if (clusterState != null) {
                 final long expirationTimeMillis = expiration.toInstant().toEpochMilli();
                 final long currentTimeMillis = System.currentTimeMillis();
-                final boolean cleanUpWatcherHistory = clusterService.getClusterSettings().get(CLEAN_WATCHER_HISTORY);
 
-                // list of index patterns that we clean up; watcher history can be included
-                final String[] indexPatterns =
-                        cleanUpWatcherHistory ? new String[] { ".monitoring-*", ".watcher-history*" } : new String[] { ".monitoring-*" };
+                // list of index patterns that we clean up
+                final String[] indexPatterns = new String[] { ".monitoring-*" };
 
                 // Get the names of the current monitoring indices
                 final Set<String> currents = MonitoredSystem.allSystems()
@@ -676,7 +674,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     }
                 }
 
-                if (!indices.isEmpty()) {
+                if (indices.isEmpty() == false) {
                     logger.info("cleaning up [{}] old indices", indices.size());
                     deleteIndices(indices);
                 } else {

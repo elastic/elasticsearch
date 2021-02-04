@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -27,7 +28,7 @@ import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -139,7 +140,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.2\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -148,7 +149,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 IpScriptFieldData.IpScriptDocValues bytes = (IpScriptFieldData.IpScriptDocValues) getDoc().get("test");
@@ -192,7 +193,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.rangeQuery("192.0.0.0", "200.0.0.0", randomBoolean(), randomBoolean(), null, null, null, ctx);
     }
 
@@ -214,7 +215,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomIp(randomBoolean()), ctx);
     }
 
@@ -240,7 +241,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(randomList(100, () -> randomIp(randomBoolean())), ctx);
     }
 
@@ -323,7 +324,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                 };
             }
         };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY)));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             IpFieldScript.Factory factory = scriptService.compile(script, IpFieldScript.CONTEXT);
             return new IpScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});

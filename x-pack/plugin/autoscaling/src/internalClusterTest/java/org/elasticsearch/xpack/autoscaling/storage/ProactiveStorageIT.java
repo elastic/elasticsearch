@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
@@ -69,7 +70,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     )
                     .toArray(IndexRequestBuilder[]::new)
             );
-            client().admin().indices().rolloverIndex(new RolloverRequest(dsName, null));
+            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dsName, null)).actionGet());
         }
         forceMerge();
         refresh();
@@ -90,6 +91,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         // ideally, we would count replicas too, but we leave this for follow-up work
         assertThat(
+            response.getResults().get(policyName).toString(),
             response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.greaterThanOrEqualTo(enoughSpace + used)
         );

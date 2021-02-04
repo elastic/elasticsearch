@@ -164,7 +164,7 @@ node:
 
 [source,console]
 ----------------------------------
-GET _cat/nodes?v
+GET _cat/nodes?v=true
 ---------------------------------- 
 
 The node that has an asterisk(*) in the `master` column is the elected master

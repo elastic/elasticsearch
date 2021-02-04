@@ -1,9 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.index;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Stream;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.test.ESTestCase;
@@ -16,22 +25,14 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.stream.Stream;
-
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
@@ -371,7 +372,7 @@ public class IndexResolverTests extends ESTestCase {
                         isSearchable(field.getDataType()),
                         isAggregatable(field.getDataType())));
 
-        if (!field.isAggregatable()) {
+        if (field.isAggregatable() == false) {
             ((UpdateableFieldCapabilities) caps).nonAggregatableIndices.add(indexName);
         }
 
@@ -385,7 +386,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == KEYWORD || type == DATETIME;
+        return type.isNumeric() || type == KEYWORD || isDateTime(type);
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {

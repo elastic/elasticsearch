@@ -1569,9 +1569,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexScopedSettings,
                         null),
                     shardLimitValidator,
-                    systemIndices,
-                    indexNameExpressionResolver
-                );
+                    systemIndices);
                 actions.put(PutMappingAction.INSTANCE,
                     new TransportPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
                         actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList()),

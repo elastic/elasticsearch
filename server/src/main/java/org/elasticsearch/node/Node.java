@@ -604,7 +604,7 @@ public class Node implements Closeable {
                 transportService, indicesService);
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
                     metadataCreateIndexService, clusterModule.getMetadataDeleteIndexService(), indexMetadataVerifier,
-                 shardLimitValidator, systemIndices, clusterModule.getIndexNameExpressionResolver());
+                 shardLimitValidator, systemIndices);
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);

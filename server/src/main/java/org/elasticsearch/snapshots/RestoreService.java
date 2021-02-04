@@ -34,13 +34,12 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -91,8 +90,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
-import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
@@ -102,6 +99,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
+import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
 /**
@@ -165,15 +163,18 @@ public class RestoreService implements ClusterStateApplier {
 
     private final SystemIndices systemIndices;
 
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
-    public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
-                          AllocationService allocationService, MetadataCreateIndexService createIndexService,
-                          MetadataDeleteIndexService metadataDeleteIndexService, IndexMetadataVerifier indexMetadataVerifier,
-                          ShardLimitValidator shardLimitValidator, SystemIndices systemIndices,
-                          IndexNameExpressionResolver indexNameExpressionResolver) {
+    public RestoreService(
+        ClusterService clusterService,
+        RepositoriesService repositoriesService,
+        AllocationService allocationService,
+        MetadataCreateIndexService createIndexService,
+        MetadataDeleteIndexService metadataDeleteIndexService,
+        IndexMetadataVerifier indexMetadataVerifier,
+        ShardLimitValidator shardLimitValidator,
+        SystemIndices systemIndices
+    ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
@@ -186,7 +187,6 @@ public class RestoreService implements ClusterStateApplier {
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
         this.systemIndices = systemIndices;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     /**
@@ -322,7 +322,10 @@ public class RestoreService implements ClusterStateApplier {
                         }
 
                         // Clear out all existing indices which fall within a system index pattern being restored
-                        final Set<Index> systemIndicesToDelete = resolveIndicesToDelete(currentState, featureStatesToRestore);
+                        final Set<Index> systemIndicesToDelete = resolveSystemIndicesToDelete(
+                            currentState,
+                            featureStatesToRestore.keySet()
+                        );
                         currentState = metadataDeleteIndexService.deleteIndices(currentState, systemIndicesToDelete);
 
                         // Updating cluster state
@@ -724,28 +727,29 @@ public class RestoreService implements ClusterStateApplier {
         return featureStatesToRestore;
     }
 
-    private Set<Index> resolveIndicesToDelete(ClusterState currentState, Map<String, List<String>> featureStatesToRestore) {
+    /**
+     * Resolves a set of index names that currently exist in the cluster that are part of a feature state which is about to be restored,
+     * and should therefore be removed prior to restoring those feature states from the snapshot.
+     *
+     * @param currentState The current cluster state
+     * @param featureStatesToRestore A set of feature state names that are about to be restored
+     * @return A set of index names that should be removed based on the feature states being restored
+     */
+    private Set<Index> resolveSystemIndicesToDelete(ClusterState currentState, Set<String> featureStatesToRestore) {
         if (featureStatesToRestore == null) {
             return Collections.emptySet();
         }
 
-        final String[] indexPatternsToDelete = featureStatesToRestore.keySet().stream()
+        return featureStatesToRestore.stream()
             .map(featureName -> systemIndices.getFeatures().get(featureName))
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
             .flatMap(feature -> feature.getIndexDescriptors().stream())
-            .map(descriptor -> descriptor.getIndexPattern())
-            .toArray(String[]::new);
-
-        if (indexPatternsToDelete.length == 0) {
-            // If this is empty, it'll resolve to all indices, so explicitly return an empty set here.
-            return Collections.emptySet();
-        }
-
-        final String[] indexNamesToDelete = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
-            LENIENT_EXPAND_OPEN_CLOSED, indexPatternsToDelete);
-        return Stream.of(indexNamesToDelete)
-            .map(idxName -> currentState.metadata().index(idxName).getIndex())
-            .collect(Collectors.toSet());
+            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+            .map(indexName -> {
+                assert currentState.metadata().hasIndex(indexName) : "index [" + indexName + "] not found in metadata but must be present";
+                return currentState.metadata().getIndices().get(indexName).getIndex();
+            })
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     //visible for testing

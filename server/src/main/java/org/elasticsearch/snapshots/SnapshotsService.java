@@ -353,9 +353,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         final SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
         return feature.getIndexDescriptors().stream()
-            .map(SystemIndexDescriptor::getIndexPattern)
-            .flatMap(pattern -> Arrays.stream(indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(currentState,
-                LENIENT_EXPAND_OPEN_CLOSED, pattern)))
+            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
             .collect(Collectors.toList());
     }
 

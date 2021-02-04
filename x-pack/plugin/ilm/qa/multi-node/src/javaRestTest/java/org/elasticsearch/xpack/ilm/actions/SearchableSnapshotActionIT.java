@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.actions;
@@ -51,7 +52,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class SearchableSnapshotActionIT extends ESRestTestCase {
@@ -65,6 +66,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        logger.info("--> running [{}] with data stream [{}], snapshot repot [{}] and policy [{}]", getTestName(), dataStream,
+            snapshotRepo, policy);
     }
 
     @Override
@@ -76,7 +79,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
@@ -102,14 +105,15 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), "template-name", dataStream, new Template(null, null, null));
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream, new Template(null, null, null));
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
         }
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
-        assertThat(getNumberOfSegments(client(), backingIndexName), greaterThan(1));
+        Integer preLifecycleBackingIndexSegments = getNumberOfSegments(client(), backingIndexName);
+        assertThat(preLifecycleBackingIndexSegments, greaterThanOrEqualTo(1));
 
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
@@ -119,7 +123,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             try {
                 Integer numberOfSegments = getNumberOfSegments(client(), backingIndexName);
                 logger.info("index {} has {} segments", backingIndexName, numberOfSegments);
-                return numberOfSegments == 1;
+                // this is a loose assertion here as forcemerge is best effort
+                if (preLifecycleBackingIndexSegments > 1) {
+                    return numberOfSegments < preLifecycleBackingIndexSegments;
+                } else {
+                    // the index had only one segement to start with so nothing to assert
+                    return true;
+                }
             } catch (Exception e) {
                 try {
                     // if ILM executed the action already we don't have an index to assert on so we don't fail the test
@@ -137,7 +147,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 30, TimeUnit.SECONDS));
+        }, 60, TimeUnit.SECONDS));
 
         assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);
@@ -164,7 +174,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createPolicyRequest.setEntity(entity);
         assertOK(client().performRequest(createPolicyRequest));
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
 
         indexDocument(client(), dataStream, true);
@@ -224,7 +234,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null, null
         );
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
@@ -279,7 +289,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null, null
         );
 
-        createComposableTemplate(client(), "template-name", dataStream,
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
             new Template(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)

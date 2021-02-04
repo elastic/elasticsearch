@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -31,7 +32,7 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         super(allFields,
             Collections.emptyList(),
             Collections.emptyMap());
-        if (!allFields.contains(timeField)) {
+        if (allFields.contains(timeField) == false) {
             throw new IllegalArgumentException("timeField should also be contained in allFields");
         }
         this.timeField = Objects.requireNonNull(timeField);

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -57,10 +46,16 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final DeprecationHandler deprecationHandler;
+    private final boolean useCompatibility;
 
-    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, boolean useCompatibility) {
         this.xContentRegistry = xContentRegistry;
         this.deprecationHandler = deprecationHandler;
+        this.useCompatibility = useCompatibility;
+    }
+
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler) {
+        this(xContentRegistry, deprecationHandler, false);
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
@@ -416,6 +411,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public abstract boolean isClosed();
+
+    @Override
+    public boolean useCompatibility() {
+        return useCompatibility;
+    }
 
     @Override
     public DeprecationHandler getDeprecationHandler() {

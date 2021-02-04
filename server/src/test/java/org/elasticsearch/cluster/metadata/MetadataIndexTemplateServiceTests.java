@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -1115,7 +1104,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<Map<String, AliasMetadata>> resolvedAliases =
-            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template", true);
+            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
@@ -1132,11 +1121,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .metadata(Metadata.builder().put("1", it).build())
             .build();
         Exception e =
-            expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", true));
+            expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1"));
         assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
-        // Ignoring validation
-        assertThat(MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", false), equalTo(List.of(a1)));
-        assertWarnings("template [1] has alias and data stream definitions");
 
         // index template can't have data streams and a component template with an aliases
         ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, null, a1), null, null);
@@ -1145,11 +1131,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state2 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put("1", it).put("c1", componentTemplate).build())
             .build();
-        e = expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", true));
+        e = expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1"));
         assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
-        // Ignoring validation
-        assertThat(MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", false), equalTo(List.of(a1)));
-        assertWarnings("template [1] has alias and data stream definitions");
     }
 
     public void testAddInvalidTemplate() throws Exception {

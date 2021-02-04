@@ -123,7 +123,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
         es_arg_array+=("${es_opt}")
       fi
     fi
-  done < <(env)
+  done <<< "$(env)"
 
   # Reset the positional parameters to the es_arg_array values and any existing positional params
   set -- "$@" "${es_arg_array[@]}"

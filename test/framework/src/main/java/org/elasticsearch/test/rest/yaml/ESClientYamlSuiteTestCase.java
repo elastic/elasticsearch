@@ -51,6 +51,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -339,7 +341,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-        Set<String> osPrettyNames = new HashSet<>();
+        SortedSet<String> osPrettyNames = new TreeSet<>();
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
@@ -351,8 +353,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
         }
 
-        assert osPrettyNames.size() == 1 : "mixed os cluster found: " + osPrettyNames;
-        return osPrettyNames.iterator().next();
+        assert osPrettyNames.isEmpty() == false : "no os found";
+
+        // Although in theory there should only be one element as all nodes are running on the same machine,
+        // in reality there can be two in mixed version clusters if different Java versions report the OS
+        // name differently. This has been observed to happen on Windows, where Java needs to be updated to
+        // recognize new Windows versions, and until this update has been done the newest version of Windows
+        // is reported as the previous one. In this case taking the last alphabetically is likely to be most
+        // accurate, for example if "Windows Server 2016" and "Windows Server 2019" are reported by different
+        // Java versions then Windows Server 2019 is likely to be correct.
+        return osPrettyNames.last();
     }
 
     protected RequestOptions getCatNodesVersionMasterRequestOptions() {

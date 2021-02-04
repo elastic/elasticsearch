@@ -18,7 +18,21 @@ You can view a list of in-progress and completed recoveries using the
 `indices.recovery.max_bytes_per_sec`::
 (<<cluster-update-settings,Dynamic>>) Limits total inbound and outbound
 recovery traffic for each node. Applies to both peer recoveries as well
-as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb`.
+as snapshot recoveries (i.e., restores from a snapshot). Defaults to `40mb`
+unless the node is a <<cold-tier, dedicated cold node>> in which case the
+default relates to the total memory available to the node:
+
+.Recovery Rate for Cold Nodes
+[options="header"]
+|======
+|total memory         | default value
+|<= 4 GB              | 40 MB/s
+|> 4 GB and <= 8 GB   | 60 MB/s
+|> 8 GB and <= 16 GB  | 90 MB/s
+|> 16 GB and <= 32 GB | 125 MB/s
+|> 32 GB              | 250 MB/s
+|======
+
 +
 This limit applies to each node separately. If multiple nodes in a cluster
 perform recoveries at the same time, the cluster's total recovery traffic may

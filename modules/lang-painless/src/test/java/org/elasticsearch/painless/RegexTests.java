@@ -276,20 +276,6 @@ public class RegexTests extends ScriptTestCase {
         assertScriptStack(e,
                 "/\\ujjjj/",
                 "   ^---- HERE");
-
-        e = expectThrows(ScriptException.class, () -> {
-            exec("/(?< >.+)/"); // Invalid capture name
-        });
-        assertEquals(
-            "invalid regular expression: could not compile regex constant [(?< >.+)] with flags []: "
-                + "capturing group name does not start with a Latin letter",
-            e.getCause().getMessage()
-        );
-
-        // And make sure the location of the error points to the offset inside the pattern
-        assertScriptStack(e,
-                "/(?< >.+)/",
-                "    ^---- HERE");
     }
 
     public void testRegexAgainstNumber() {

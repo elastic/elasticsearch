@@ -60,8 +60,4 @@ public class QlSourceBuilder {
         fetchFields.forEach(field -> sourceBuilder.fetchField(new FieldAndFormat(field.field, field.format, null)));
         scriptFields.forEach(sourceBuilder::scriptField);
     }
-
-    public boolean noSource() {
-        return true;
-    }
 }

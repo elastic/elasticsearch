@@ -416,7 +416,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
-            Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.OperatorDynamic, Property.NodeScope);
     /**
      * The amount of memory needed to load the ML native code shared libraries. The assumption is that the first
      * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
@@ -430,7 +430,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
+           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.OperatorDynamic, Property.NodeScope);
     /**
      * This boolean value indicates if `max_machine_memory_percent` should be ignored and a automatic calculation is used instead.
      *
@@ -446,10 +446,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",
         false,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
-            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.OperatorDynamic, Property.NodeScope);
 
     // Before 8.0.0 this needs to match the max allowed value for xpack.ml.max_open_jobs,
     // as the current node could be running in a cluster where some nodes are still using
@@ -464,7 +464,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
         Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
-            TimeValue.timeValueSeconds(5), Setting.Property.Dynamic, Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(5), Property.OperatorDynamic, Setting.Property.NodeScope);
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
@@ -483,7 +483,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 }
                 return value;
             },
-            Property.Dynamic,
+            Property.OperatorDynamic,
             Property.NodeScope
         );
 
@@ -496,7 +496,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
         "xpack.ml.max_ml_node_size",
         ByteSizeValue.ZERO,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);

@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.Iterator;
@@ -44,11 +45,19 @@ public class RestTestTransformer {
             .map(transform -> (RestTestTransformGlobalTeardown) transform)
             .collect(Collectors.toList());
 
+
         // Collect any transformations that are identified by an object key.
-        Map<String, List<RestTestTransformByObjectKey>> objectKeyFinders = transformations.stream()
-            .filter(transform -> transform instanceof RestTestTransformByObjectKey)
-            .map(transform -> (RestTestTransformByObjectKey) transform)
-            .collect(Collectors.groupingBy(RestTestTransformByObjectKey::getKeyToFind));
+        Map<String, List<RestTestTransformByParentObject>> objectKeyFinders = transformations.stream()
+            .filter(transform -> transform instanceof RestTestTransformByParentObject)
+            .map(transform -> (RestTestTransformByParentObject) transform)
+            .collect(Collectors.groupingBy(RestTestTransformByParentObject::getKeyToFind));
+
+
+        // Collect any transformations that are identified by an object key where the value is an array
+        Map<String, List<RestTestTransformByParentArray>> arrayByObjectKeyFinders = transformations.stream()
+            .filter(transform -> transform instanceof RestTestTransformByParentArray)
+            .map(transform -> (RestTestTransformByParentArray) transform)
+            .collect(Collectors.groupingBy(RestTestTransformByParentArray::getKeyOfArrayToFind));
 
         // transform the tests and include the global setup and teardown as part of the transform
         for (ObjectNode test : tests) {
@@ -62,7 +71,7 @@ public class RestTestTransformer {
                 if ("teardown".equals(testName)) {
                     teardownSection = test;
                 }
-                traverseTest(testName, test, objectKeyFinders);
+                traverseTest(testName, test, null, objectKeyFinders, arrayByObjectKeyFinders);
             }
         }
 
@@ -102,25 +111,39 @@ public class RestTestTransformer {
      * @param currentNode      The current node that is being evaluated.
      * @param objectKeyFinders A Map of object keys to find and their associated transformation
      */
-    private void traverseTest(String testName, JsonNode currentNode, Map<String, List<RestTestTransformByObjectKey>> objectKeyFinders) {
+    private void traverseTest(String testName,
+                              JsonNode currentNode,
+                              String parentKeyName,
+                              Map<String, List<RestTestTransformByParentObject>> objectKeyFinders,
+                              Map<String, List<RestTestTransformByParentArray>> arrayByObjectKeyFinders) {
         if (currentNode.isArray()) {
+            if (parentKeyName != null) {
+                List<RestTestTransformByParentArray> transforms = arrayByObjectKeyFinders.get(parentKeyName);
+                if (transforms != null) {
+                    for (RestTestTransformByParentArray transform : transforms) {
+                        if (transform.getTestName() == null || testName.equals(transform.getTestName())) {
+                            transform.transformTest((ArrayNode) currentNode);
+                        }
+                    }
+                }
+            }
             currentNode.elements().forEachRemaining(node -> {
-                traverseTest(testName, node, objectKeyFinders);
+                traverseTest(testName, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders);
             });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
-                List<RestTestTransformByObjectKey> transforms = objectKeyFinders.get(entry.getKey());
+                List<RestTestTransformByParentObject> transforms = objectKeyFinders.get(entry.getKey());
                 if (transforms == null) {
-                    traverseTest(testName, entry.getValue(), objectKeyFinders);
+                    traverseTest(testName, entry.getValue(), entry.getKey(), objectKeyFinders, arrayByObjectKeyFinders);
                 } else {
-                    for (RestTestTransformByObjectKey transform : transforms) {
+                    for (RestTestTransformByParentObject transform : transforms) {
                         if (transform.getTestName() == null || testName.equals(transform.getTestName())) {
-                            if (transform.withChildKey() == null) {
+                            if (transform.requiredChildKey() == null) {
                                 transform.transformTest((ObjectNode) currentNode);
                             } else {
                                 if (entry.getValue().isObject()) {
                                     ObjectNode child = (ObjectNode) entry.getValue();
-                                    if (child.has(transform.withChildKey())) {
+                                    if (child.has(transform.requiredChildKey())) {
                                         transform.transformTest((ObjectNode) currentNode);
                                     }
                                 }

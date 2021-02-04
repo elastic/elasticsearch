@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * A single instruction to transforms a REST test.
@@ -17,11 +18,12 @@ public interface RestTestTransform<T extends JsonNode> {
 
     /**
      * Transform the Json structure per the given {@link RestTestTransform}
-     * Implementations are expected to mutate the node (and/or it's parent) to satisfy the transformation.
+     * Implementations are expected to mutate the parent to satisfy the transformation.
      *
-     * @param node The node to transform. This may also be the logical parent of the node that should be transformed.
+     * @param parent The parent of the node to transform.
      */
-    void transformTest(T node);
+    void transformTest(T parent);
+
 
     /**
      * @return The test name to to apply this transformation to. if {@code null} will apply to any test irregardless of the name.

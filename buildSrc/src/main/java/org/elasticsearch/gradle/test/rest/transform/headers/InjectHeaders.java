@@ -6,13 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.test.rest.transform;
+package org.elasticsearch.gradle.test.rest.transform.headers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalSetup;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalTeardown;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
@@ -22,7 +26,7 @@ import java.util.Map;
  * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section
  * as well as adding headers as a features to the "setup" and "teardown" sections.
  */
-public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTransformGlobalSetup, RestTestTransformGlobalTeardown {
+public class InjectHeaders implements RestTestTransformByParentObject, RestTestTransformGlobalSetup, RestTestTransformGlobalTeardown {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 

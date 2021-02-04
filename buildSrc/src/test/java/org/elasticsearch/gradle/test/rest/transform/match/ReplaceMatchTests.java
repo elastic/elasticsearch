@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.test.rest.transform;
+package org.elasticsearch.gradle.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,10 +25,10 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.junit.Test;
 
 import java.io.File;
@@ -36,9 +36,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.regex.Pattern;
 
-public class ReplaceKeyValueTests extends GradleUnitTestCase {
+public class ReplaceMatchTests extends GradleUnitTestCase {
 
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
@@ -47,63 +46,43 @@ public class ReplaceKeyValueTests extends GradleUnitTestCase {
 
     private static final boolean humanDebug = true; // useful for humans trying to debug these tests
 
-    /**
-     * test file does not have setup: block
-     */
+
+
     @Test
-    public void testReplaceTypes() throws Exception {
-        String testName = "/rest/replace_match/replace_types.yml";
+    public void testReplaceAll() throws Exception {
+        String testName = "/rest/transform/match/match.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
-
-
-
-
         JsonNode replacementNode = MAPPER.convertValue("_doc", JsonNode.class);
 
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
-            Collections.singletonList(new ReplaceKeyValue("match", "_type", null, replacementNode))
+            Collections.singletonList(new ReplaceMatch("_type", replacementNode, null))
         );
         printTest(testName, transformedTests);
-        // // ensure setup is correct
-        // assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
-        // transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
-        // transformedTests.stream().filter(node -> node.get("teardown") != null).forEach(this::assertTeardown);
-        // // ensure do body is correct
-        // transformedTests.forEach(test -> {
-        // Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
-        // while (testsIterator.hasNext()) {
-        // Map.Entry<String, JsonNode> testObject = testsIterator.next();
-        // assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
-        // ArrayNode testBody = (ArrayNode) testObject.getValue();
-        // assertTestBodyForHeaders(testBody, headers);
-        // }
-        // });
     }
 
-    // private void assertTestBodyForHeaders(ArrayNode testBody, Map<String, String> headers) {
-    // testBody.forEach(arrayObject -> {
-    // assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
-    // ObjectNode testSection = (ObjectNode) arrayObject;
-    // if (testSection.get("do") != null) {
-    // ObjectNode doSection = (ObjectNode) testSection.get("do");
-    // assertThat(doSection.get("headers"), CoreMatchers.notNullValue());
-    // ObjectNode headersNode = (ObjectNode) doSection.get("headers");
-    // LongAdder assertions = new LongAdder();
-    // headers.forEach((k, v) -> {
-    // assertThat(headersNode.get(k), CoreMatchers.notNullValue());
-    // TextNode textNode = (TextNode) headersNode.get(k);
-    // assertThat(textNode.asText(), CoreMatchers.equalTo(v));
-    // assertions.increment();
-    // });
-    // assertThat(assertions.intValue(), CoreMatchers.equalTo(headers.size()));
-    // }
-    // });
-    // }
+    @Test
+    public void testReplaceTest() throws Exception {
+        String testName = "/rest/transform/match/match.yml";
+        File testFile = new File(getClass().getResource(testName).toURI());
+        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
+        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
+        RestTestTransformer transformer = new RestTestTransformer();
+        JsonNode replacementNode = MAPPER.convertValue("_doc", JsonNode.class);
+
+
+        List<ObjectNode> transformedTests = transformer.transformRestTests(
+            new LinkedList<>(tests),
+            Collections.singletonList(new ReplaceMatch("_type", replacementNode, "Basic"))
+        );
+        printTest(testName, transformedTests);
+    }
+
+
 
     // only to help manually debug
     private void printTest(String testName, List<ObjectNode> tests) {

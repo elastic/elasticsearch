@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -27,6 +28,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
+import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryResponse> {
@@ -66,7 +68,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rowCount = columnCount;
                 columnCount = temp;
             }
-            
+
             rows = new ArrayList<>(rowCount);
             for (int r = 0; r < rowCount; r++) {
                 List<Object> row = new ArrayList<>(rowCount);
@@ -81,7 +83,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, mode, false, columns, rows);
+        return new SqlQueryResponse(cursor, mode, DATE_NANOS_SUPPORT_VERSION, false, columns, rows);
     }
 
     public void testToXContent() throws IOException {
@@ -128,6 +130,6 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
             org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
-        return new SqlQueryResponse(response.cursor(), Mode.JDBC, false, response.columns(), response.rows());
+        return new SqlQueryResponse(response.cursor(), Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, response.columns(), response.rows());
     }
 }

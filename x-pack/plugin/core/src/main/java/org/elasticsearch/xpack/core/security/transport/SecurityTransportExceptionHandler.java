@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.transport;
 
@@ -25,7 +26,7 @@ public final class SecurityTransportExceptionHandler implements BiConsumer<TcpCh
     }
 
     public void accept(TcpChannel channel, Exception e) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
         } else if (SSLExceptionHelper.isNotSslRecordException(e)) {

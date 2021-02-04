@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.autoscaling;
@@ -489,7 +490,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(jobId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, Collections.emptyList(), true),
+            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, true),
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
@@ -537,6 +538,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
         @Override
         public Set<DiscoveryNode> nodes() {
+            return null;
+        }
+
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
             return null;
         }
 

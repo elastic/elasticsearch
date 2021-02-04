@@ -766,6 +766,23 @@ Human-readable name of an operating system used by one or more selected nodes.
 Number of selected nodes using the operating system.
 ======
 
+`architectures`::
+(array of objects)
+Contains statistics about processor architectures (for example, x86_64 or
+aarch64) used by selected nodes.
++
+.Properties of `architectures`
+[%collapsible%open]
+======
+`arch`:::
+(string)
+Name of an architecture used by one or more selected nodes.
+
+`count`:::
+(string)
+Number of selected nodes using the architecture.
+======
+
 `mem`::
 (object)
 Contains statistics about memory used by selected nodes.
@@ -1214,7 +1231,16 @@ The API returns the following response:
         "built_in_tokenizers": [],
         "built_in_filters": [],
         "built_in_analyzers": []
-      }
+      },
+      "versions": [
+        {
+          "version": "8.0.0",
+          "index_count": 1,
+          "primary_shard_count": 1,
+          "total_primary_size": "7.4kb",
+          "total_primary_bytes": 7632
+        }
+      ]
    },
    "nodes": {
       "count": {
@@ -1240,6 +1266,12 @@ The API returns the following response:
          "pretty_names": [
             {
                "pretty_name": "Mac OS X",
+               "count": 1
+            }
+         ],
+         "architectures": [
+            {
+               "arch": "x86_64",
                "count": 1
             }
          ],

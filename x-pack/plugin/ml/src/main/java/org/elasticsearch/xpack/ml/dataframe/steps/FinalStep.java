@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.steps;
@@ -60,7 +61,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     protected void doExecute(ActionListener<StepResponse> listener) {
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
-            refreshResponse -> listener.onResponse(new StepResponse(true)),
+            refreshResponse -> listener.onResponse(new StepResponse(false)),
             listener::onFailure
         );
 
@@ -73,7 +74,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     }
 
     private void indexDataCounts(ActionListener<IndexResponse> listener) {
-        DataCounts dataCounts = task.getStatsHolder().getDataCountsTracker().report(config.getId());
+        DataCounts dataCounts = task.getStatsHolder().getDataCountsTracker().report();
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             dataCounts.toXContent(builder, new ToXContent.MapParams(
                 Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
@@ -110,5 +111,10 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     public void updateProgress(ActionListener<Void> listener) {
         // No progress to update
         listener.onResponse(null);
+    }
+
+    @Override
+    protected boolean shouldSkipIfTaskIsStopping() {
+        return false;
     }
 }

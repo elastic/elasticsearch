@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -71,7 +72,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -108,7 +108,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "categorical_1", "type=keyword").get();
     }
 
-
     @Override
     @After
     public void tearDown() throws Exception {
@@ -134,8 +133,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> rollup(config));
-        assertThat(exception.getMessage(), containsString(rollupIndex));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(config));
+        assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
     public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {
@@ -319,9 +318,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
-        RollupAction.Response rollupResponse = client().execute(RollupAction.INSTANCE,
+        AcknowledgedResponse rollupResponse = client().execute(RollupAction.INSTANCE,
             new RollupAction.Request(sourceIndex, rollupIndex, config)).actionGet();
-        assertTrue(rollupResponse.isCreated());
+        assertTrue(rollupResponse.isAcknowledged());
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {

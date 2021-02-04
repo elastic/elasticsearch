@@ -40,7 +40,7 @@ public class CliRepl {
             }
             line = line.trim();
 
-            if (!line.endsWith(";")) {
+            if (line.endsWith(";") == false) {
                 multiLine.append(line);
                 multiLine.append(" ");
                 prompt = MULTI_LINE_PROMPT;

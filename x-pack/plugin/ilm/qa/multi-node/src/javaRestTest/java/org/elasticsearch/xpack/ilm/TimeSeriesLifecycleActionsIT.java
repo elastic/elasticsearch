@@ -75,7 +75,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCond
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -442,7 +441,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client().performRequest(request);
         }
 
-        assertThat(getNumberOfSegments(client(), index), greaterThan(1));
+        assertThat(getNumberOfSegments(client(), index), greaterThanOrEqualTo(1));
         createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, codec));
         updatePolicy(client(), index, policy);
 

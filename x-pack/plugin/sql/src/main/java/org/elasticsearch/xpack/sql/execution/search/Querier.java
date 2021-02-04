@@ -549,7 +549,7 @@ public class Querier {
         public void onResponse(final SearchResponse response) {
             try {
                 ShardSearchFailure[] failure = response.getShardFailures();
-                if (!CollectionUtils.isEmpty(failure)) {
+                if (CollectionUtils.isEmpty(failure) == false) {
                     cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
                 } else {
                     handleResponse(response, ActionListener.wrap(listener::onResponse, e -> cleanup(response, e)));

@@ -77,7 +77,7 @@ public class ResultsPersisterService {
         20,
         0,
         50,
-        Setting.Property.Dynamic,
+        Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope);
     private static final int MAX_RETRY_SLEEP_MILLIS = (int)Duration.ofMinutes(15).toMillis();
     private static final int MIN_RETRY_SLEEP_MILLIS = 50;

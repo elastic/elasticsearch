@@ -3,12 +3,11 @@ setup:
 
   - do:
       snapshot.create_repository:
-        repository: test_repo_restore_1
+        repository: test_repo_restore_2
         body:
-          type: source
+          type: fs
           settings:
-            delegate_type: fs
-            location: "test_repo_restore_1_loc"
+            location: "test_repo_restore_2_loc"
 
   - do:
       cluster.health:
@@ -28,13 +27,13 @@ setup:
 
   - do:
       snapshot.create:
-        repository: test_repo_restore_1
-        snapshot: test_snapshot
+        repository: test_repo_restore_2
+        snapshot: test_snapshot_2
         wait_for_completion: true
         body: |
           { "include_global_state": true }
 
-  - match: { snapshot.snapshot: test_snapshot }
+  - match: { snapshot.snapshot: test_snapshot_2 }
   - match: { snapshot.state : SUCCESS }
   - is_true: snapshot.include_global_state
   - is_true: snapshot.version
@@ -49,8 +48,8 @@ setup:
 
   - do:
       snapshot.restore:
-        repository: test_repo_restore_1
-        snapshot: test_snapshot
+        repository: test_repo_restore_2
+        snapshot: test_snapshot_2
         wait_for_completion: true
         body: |
           { "include_global_state": true }

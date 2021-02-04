@@ -187,7 +187,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     }
 
     /**
-     * @return whether the local copy of the snapshot is partial ({@code true}) or complete ({@code false}).
+     * @return how nodes will use their local storage to accelerate searches of this snapshot
      */
     public Storage storage() {
         return storage;
@@ -227,6 +227,9 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         return getDescription();
     }
 
+    /**
+     * Enumerates the different ways that nodes can use their local storage to accelerate searches of a snapshot.
+     */
     public enum Storage implements Writeable {
         FULL_COPY,
         SHARED_CACHE;

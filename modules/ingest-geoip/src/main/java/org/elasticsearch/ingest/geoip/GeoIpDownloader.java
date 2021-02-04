@@ -171,8 +171,8 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
     //visible for testing
     void deleteOldChunks(String name, int firstChunk) {
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
-            .must(new MatchQueryBuilder("name", name))
-            .must(new RangeQueryBuilder("chunk").to(firstChunk, false));
+            .filter(new MatchQueryBuilder("name", name))
+            .filter(new RangeQueryBuilder("chunk").to(firstChunk, false));
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.indices(DATABASES_INDEX);
         request.setQuery(queryBuilder);

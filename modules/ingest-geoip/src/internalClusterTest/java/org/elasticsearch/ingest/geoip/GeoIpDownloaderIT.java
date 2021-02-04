@@ -12,6 +12,7 @@ import com.maxmind.geoip2.DatabaseReader;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -77,8 +78,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             assertBusy(() -> {
                 GeoIpTaskState.Metadata metadata = state.getDatabases().get(id);
                 BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
-                    .must(new MatchQueryBuilder("name", id))
-                    .must(new RangeQueryBuilder("chunk")
+                    .filter(new MatchQueryBuilder("name", id))
+                    .filter(new RangeQueryBuilder("chunk")
                         .from(metadata.getFirstChunk())
                         .to(metadata.getLastChunk(), true));
                 int size = metadata.getLastChunk() - metadata.getFirstChunk() + 1;
@@ -104,10 +105,15 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     stream.transferTo(os);
                 }
 
-                try (DatabaseReader databaseReader = new DatabaseReader.Builder(tempFile.toFile()).build()) {
-                    assertEquals(id.replace(".mmdb", ""), databaseReader.getMetadata().getDatabaseType());
-                }
+                parseDatabase(id, tempFile);
             });
+        }
+    }
+
+    @SuppressForbidden(reason = "Maxmind API requires java.io.File")
+    private void parseDatabase(String id, Path tempFile) throws IOException {
+        try (DatabaseReader databaseReader = new DatabaseReader.Builder(tempFile.toFile()).build()) {
+            assertEquals(id.replace(".mmdb", ""), databaseReader.getMetadata().getDatabaseType());
         }
     }
 

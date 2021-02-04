@@ -94,8 +94,9 @@ All operations on ingest pipelines.
 ifdef::permanently-unreleased-branch[]
 
 `manage_rollup`::
-All rollup operations. Includes legacy rollup operations, such as creating,
-starting, stopping and deleting rollup jobs.
+All <<legacy-rollup-apis,legacy rollup>> operations, such as creating, starting,
+stopping, and deleting rollup jobs. This privilege is not required to use the
+{ilm-init} <<ilm-rollup,`rollup`>> action or <<rollup-api,rollup API>>.
 
 endif::[]
 ifndef::permanently-unreleased-branch[]

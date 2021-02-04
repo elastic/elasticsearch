@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -53,6 +54,10 @@ public class RecoverySettings {
                  * an assumption here that the size of the instance is correlated with I/O resources. That is we are assuming that the
                  * larger the instance, the more disk and networking capacity it has available.
                  */
+                if (JavaVersion.current().compareTo(JavaVersion.parse("14")) < 0) {
+                    // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
+                    return defaultMaxBytesPerSec.getStringRep();
+                }
                 final ByteSizeValue totalPhysicalMemory = new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize());
                 final ByteSizeValue maxBytesPerSec;
                 if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {

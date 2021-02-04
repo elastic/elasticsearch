@@ -50,6 +50,8 @@ include::bucket/iprange-aggregation.asciidoc[]
 
 include::bucket/missing-aggregation.asciidoc[]
 
+include::bucket/multi-terms-aggregation.asciidoc[]
+
 include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/parent-aggregation.asciidoc[]

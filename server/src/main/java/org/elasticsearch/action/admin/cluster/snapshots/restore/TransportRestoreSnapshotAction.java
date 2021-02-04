@@ -32,10 +32,8 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     public TransportRestoreSnapshotAction(TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        // Using the generic instead of the snapshot threadpool here as the snapshot threadpool might be blocked on long running tasks
-        // which would block the request from getting an error response because of the ongoing task
         super(RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              RestoreSnapshotRequest::new, indexNameExpressionResolver, RestoreSnapshotResponse::new, ThreadPool.Names.GENERIC);
+              RestoreSnapshotRequest::new, indexNameExpressionResolver, RestoreSnapshotResponse::new, ThreadPool.Names.SAME);
         this.restoreService = restoreService;
     }
 

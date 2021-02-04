@@ -334,7 +334,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         List<String> segments = new ArrayList<>();
         StringBuilder builder = null;
         for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
-            if (!SKIP_LINE.matcher(line).matches()) {
+            if (SKIP_LINE.matcher(line).matches() == false) {
                 if (IN_SEGMENT_LINE.matcher(line).matches()) {
                     if (builder != null) {
                         builder.append(line).append("\n");

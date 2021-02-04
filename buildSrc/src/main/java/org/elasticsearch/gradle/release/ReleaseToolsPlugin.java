@@ -18,6 +18,9 @@ import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
 
+/**
+ * This plugin defines tasks related to releasing Elasticsearch.
+ */
 public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override

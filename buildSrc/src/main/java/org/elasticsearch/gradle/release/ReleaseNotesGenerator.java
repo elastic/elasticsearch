@@ -25,6 +25,10 @@ import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Generates the release notes i.e. list of changes that have gone into this release. They are grouped by the
+ * type of change, then by team area.
+ */
 public class ReleaseNotesGenerator implements Closeable {
     /**
      * These mappings translate change types into the headings as they should appears in the release notes.

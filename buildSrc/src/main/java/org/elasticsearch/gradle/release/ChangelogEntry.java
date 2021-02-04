@@ -12,6 +12,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * This class models the contents of a changelog YAML file. It contains no validation of its own,
+ * because we check it against a JSON Schema document.
+ *
+ * @see <code>buildSrc/src/main/resources/changelog-schema.json</code>
+ * @see <a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a>
+ */
 public class ChangelogEntry {
     private int pr;
     private List<Integer> issues;

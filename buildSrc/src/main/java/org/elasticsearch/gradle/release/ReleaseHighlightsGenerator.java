@@ -22,6 +22,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Generates the release highlights notes, for changelog files that contain the <code>highlight</code> field.
+ */
 public class ReleaseHighlightsGenerator implements Closeable {
 
     private final PrintStream out;

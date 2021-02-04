@@ -31,6 +31,9 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Orchestrates the steps required to generate or update various release notes files.
+ */
 public class GenerateReleaseNotesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
 
@@ -79,16 +82,20 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             )
             .collect(Collectors.toList());
 
+        LOGGER.info("Updating release notes index...");
         ReleaseNotesIndexUpdater.update(this.releaseNotesIndexFile.get().getAsFile());
 
+        LOGGER.info("Generating release notes...");
         try (ReleaseNotesGenerator generator = new ReleaseNotesGenerator(this.releaseNotesFile.get().getAsFile())) {
             generator.generate(entries);
         }
 
+        LOGGER.info("Generating release highlights...");
         try (ReleaseHighlightsGenerator generator = new ReleaseHighlightsGenerator(this.releaseHighlightsFile.get().getAsFile())) {
             generator.generate(entries);
         }
 
+        LOGGER.info("Generating breaking changes / deprecations notes...");
         try (BreakingChangesGenerator generator = new BreakingChangesGenerator(this.breakingChangesFile.get().getAsFile())) {
             generator.generate(entries);
         }

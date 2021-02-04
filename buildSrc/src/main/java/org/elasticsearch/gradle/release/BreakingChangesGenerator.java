@@ -23,6 +23,9 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+/**
+ * Generates the page that lists the breaking changes and deprecations for a minor version release.
+ */
 public class BreakingChangesGenerator implements Closeable {
 
     private final PrintStream out;

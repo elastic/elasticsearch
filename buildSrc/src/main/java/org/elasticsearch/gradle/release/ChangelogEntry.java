@@ -8,19 +8,9 @@
 
 package org.elasticsearch.gradle.release;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.elasticsearch.gradle.Version;
-import org.gradle.api.GradleException;
-import org.yaml.snakeyaml.Yaml;
-
-import java.io.File;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
-import java.util.TreeSet;
 
 public class ChangelogEntry {
     private int pr;

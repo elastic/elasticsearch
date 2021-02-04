@@ -25,7 +25,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -121,15 +123,25 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
         }
     }
 
+    //visible for testing
     void updateDatabases() throws IOException {
         logger.info("updating geoip databases");
-        String data = httpClient.getString(endpoint + "?key=11111111-1111-1111-1111-111111111111");
-        List<Map<String, Object>> response = XContentHelper.convertToList(XContentType.JSON.xContent(), data, true);
+        List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
             processDatabase(res);
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private <T> List<T> fetchDatabasesOverview() throws IOException {
+        byte[] data = httpClient.getBytes(endpoint + "?key=11111111-1111-1111-1111-111111111111");
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)) {
+            return (List<T>) parser.list();
+        }
+    }
+
+    //visible for testing
     void processDatabase(Map<String, Object> databaseInfo) {
         Map<String, Metadata> currentDatabases = state.getDatabases();
         String name = databaseInfo.get("name").toString().replace(".gz", "");

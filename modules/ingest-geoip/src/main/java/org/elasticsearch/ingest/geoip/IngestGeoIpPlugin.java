@@ -263,7 +263,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER),
-            GeoIpTaskParams::fromXContent));
+                GeoIpTaskParams::fromXContent),
+            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent));
     }
 
     @Override

@@ -613,6 +613,17 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.cacheKey();
     }
 
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String nestedPath) {
+        return mappingLookup.getNestedParent(nestedPath);
+    }
+
     public NestedDocuments getNestedDocuments() {
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer);
     }

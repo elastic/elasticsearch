@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,17 +40,17 @@ public class FieldFetcher {
 
     public static FieldFetcher create(SearchExecutionContext context,
         Collection<FieldAndFormat> fieldAndFormats) {
-        List<String> nestedMappingPaths = context.hasNested()
-            ? context.nestedMappings().stream().map(ObjectMapper::name).collect(Collectors.toList())
-            : Collections.emptyList();
+        Set<String> nestedMappingPaths = context.hasNested()
+            ? context.nestedMappings().stream().map(ObjectMapper::name).collect(Collectors.toSet())
+            : Collections.emptySet();
         return create(context, fieldAndFormats, nestedMappingPaths, "");
     }
 
     private static FieldFetcher create(SearchExecutionContext context,
-        Collection<FieldAndFormat> fieldAndFormats, List<String> nestedMappingsInScope, String nestedScopePath) {
+        Collection<FieldAndFormat> fieldAndFormats, Set<String> nestedMappingsInScope, String nestedScopePath) {
         // here we only need the nested paths that are closes to the root, e.g. only "foo" if also "foo.bar" is present.
         // the remaining nested field paths are handled recursively
-        List<String> nestedParentPaths = getShortestPrefixes(nestedMappingsInScope);
+        Set<String> nestedParentPaths = getParentPaths(nestedMappingsInScope, context);
 
         // Using a LinkedHashMap so fields are returned in the order requested.
         // We won't formally guarantee this but but its good for readability of the response
@@ -95,9 +96,9 @@ public class FieldFetcher {
             // We construct a field fetcher that narrows the allowed lookup scope to everything beneath its nested field path.
             // We also need to remove this nested field path and everything beneath it from the list of available nested fields before
             // creating this internal field fetcher to avoid infinite loops on this recursion
-            List<String> narrowedScopeNestedMappings = nestedMappingsInScope.stream()
-                .filter(s -> s.startsWith(nestedFieldPath) && (s.equals(nestedFieldPath) == false))
-                .collect(Collectors.toList());
+            Set<String> narrowedScopeNestedMappings = nestedMappingsInScope.stream()
+                .filter(s -> nestedParentPaths.contains(s) == false)
+                .collect(Collectors.toSet());
 
             FieldFetcher nestedSubFieldFetcher = FieldFetcher.create(
                 context,
@@ -219,20 +220,17 @@ public class FieldFetcher {
         }
     }
 
-    public static List<String> getShortestPrefixes(List<String> in) {
-        List<String> shortestPrefixes = new ArrayList<>();
-        if (in.isEmpty() == false) {
-            Collections.sort(in);
-            String lastAddedEntry = in.get(0);
-            shortestPrefixes.add(lastAddedEntry);
-            for (String entry : in) {
-                if (entry.startsWith(lastAddedEntry) == false) {
-                    shortestPrefixes.add(entry);
-                    lastAddedEntry = entry;
-                }
+    public static Set<String> getParentPaths(Set<String> nestedPathsInScope, SearchExecutionContext context) {
+        Set<String> parentPaths = new HashSet<>();
+        for (String candidate : nestedPathsInScope) {
+            String nestedParent = context.getNestedParent(candidate);
+            // if the candidate has no nested parent itself, its a minimal parent path
+            // if the candidate has a parent which is out of scope this means it minimal itself
+            if (nestedParent == null || nestedPathsInScope.contains(nestedParent) == false) {
+                parentPaths.add(candidate);
             }
         }
-        return shortestPrefixes;
+        return parentPaths;
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

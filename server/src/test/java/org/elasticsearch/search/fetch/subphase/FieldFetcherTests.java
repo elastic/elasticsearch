@@ -100,6 +100,22 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValue(), equalTo("baz"));
     }
 
+    public void testMixedDottedObjectSyntax() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("object").field("field", "value").endObject()
+            .field("object.field", "value2")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        System.out.println(fields);
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), containsInAnyOrder("value", "value2"));
+    }
+
     public void testNonExistentField() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()

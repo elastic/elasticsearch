@@ -68,6 +68,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";
+    public static final String COMPATIBLE_API_USAGE = "You are using a compatible API for this request";
 
     private final Settings settings;
 
@@ -96,6 +97,10 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         final List<String> settings;
 
         try (XContentParser parser = request.contentParser()) {
+            if (parser.useCompatibility()) {
+                deprecationLogger.compatibleApiWarning("compatible_key", COMPATIBLE_API_USAGE);
+            }
+
             final Map<String, Object> source = parser.map();
 
             if (source.containsKey("deprecated_settings")) {

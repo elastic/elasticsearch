@@ -35,31 +35,12 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
 
     private final ConfigurableFileCollection changelogs = getProject().getObjects().fileCollection();
+    private final RegularFileProperty releaseNotesIndexFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty releaseNotesFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty releaseHighlightsFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty breakingChangesFile = getProject().getObjects().fileProperty();
 
     private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
-
-    @InputFiles
-    public FileCollection getChangelogs() {
-        return changelogs;
-    }
-
-    @OutputFile
-    public RegularFileProperty getReleaseNotesFile() {
-        return releaseNotesFile;
-    }
-
-    @OutputFile
-    public RegularFileProperty getReleaseHighlightsFile() {
-        return releaseHighlightsFile;
-    }
-
-    @OutputFile
-    public RegularFileProperty getBreakingChangesFile() {
-        return breakingChangesFile;
-    }
 
     @TaskAction
     public void executeTask() throws IOException {
@@ -90,13 +71,15 @@ public class GenerateReleaseNotesTask extends DefaultTask {
                     boolean includedInThisMinor = versionsForChangelogFile.stream().anyMatch(includedInSameMinor);
 
                     if (includedInThisMinor) {
-                        return false == versionsForChangelogFile.stream().anyMatch(includedInEarlierMajorOrMinor);
+                        return versionsForChangelogFile.stream().noneMatch(includedInEarlierMajorOrMinor);
                     } else {
                         return false;
                     }
                 }
             )
             .collect(Collectors.toList());
+
+        ReleaseNotesIndexUpdater.update(this.releaseNotesIndexFile.get().getAsFile());
 
         try (ReleaseNotesGenerator generator = new ReleaseNotesGenerator(this.releaseNotesFile.get().getAsFile())) {
             generator.generate(entries);
@@ -119,16 +102,45 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         }
     }
 
+    @InputFiles
+    public FileCollection getChangelogs() {
+        return changelogs;
+    }
+
     public void setChangelogs(Set<File> files) {
         this.changelogs.setFrom(files);
+    }
+
+    @OutputFile
+    public RegularFileProperty getReleaseNotesIndexFile() {
+        return releaseNotesIndexFile;
+    }
+
+    public void setReleaseNotesIndexFile(RegularFile file) {
+        this.releaseNotesIndexFile.set(file);
+    }
+
+    @OutputFile
+    public RegularFileProperty getReleaseNotesFile() {
+        return releaseNotesFile;
     }
 
     public void setReleaseNotesFile(RegularFile file) {
         this.releaseNotesFile.set(file);
     }
 
+    @OutputFile
+    public RegularFileProperty getReleaseHighlightsFile() {
+        return releaseHighlightsFile;
+    }
+
     public void setReleaseHighlightsFile(RegularFile file) {
         this.releaseHighlightsFile.set(file);
+    }
+
+    @OutputFile
+    public RegularFileProperty getBreakingChangesFile() {
+        return breakingChangesFile;
     }
 
     public void setBreakingChangesFile(RegularFile file) {

@@ -53,6 +53,12 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                     .getFiles()
             );
 
+            action.setReleaseNotesIndexFile(
+                project.getLayout()
+                    .getProjectDirectory()
+                    .file("docs/reference/release-notes.asciidoc")
+            );
+
             action.setReleaseNotesFile(
                 project.getLayout()
                     .getProjectDirectory()

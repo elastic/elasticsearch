@@ -666,6 +666,13 @@ Test nested fields with unmapped subfields:
                        address:
                          type: object
                          enabled: false
+                   account:
+                     type: nested
+                     properties:
+                       details:
+                         type: object
+                         enabled: false
+
   -  do:
         index:
            index: test
@@ -673,6 +680,8 @@ Test nested fields with unmapped subfields:
            refresh: true
            body:
               id: abcd1234
+              account:
+               - { "details" : { "id" : "xyz1234" }}
               user:
                  - { "first" : "John", "address" : { "city" : "Berlin" }}
 
@@ -688,9 +697,21 @@ Test nested fields with unmapped subfields:
            - abcd1234
   - is_false: hits.hits.0.fields.user\.first
   - is_false: hits.hits.0.fields.user\.last
-  - is_false: hits.hits.0.fields.user\.account\.size
+  - is_false: hits.hits.0.fields.acount\.details\.id
   -  match:
         hits.hits.0.fields.user.0: { "first" : [ "John" ], "address.city" : ["Berlin"]}
+  -  match:
+        hits.hits.0.fields.account.0: { "details.id" : ["xyz1234"]}
+
+  -  do:
+       search:
+          index: test
+          body:
+             _source: false
+             fields:
+             - { "field" : "user.address.*", "include_unmapped" : true }
+  -  match:
+       hits.hits.0.fields.user.0: { "address.city" : ["Berlin"]}
 ---
 Test nested fields with ignored subfields:
   -  skip:

@@ -26,6 +26,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -764,6 +765,22 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().size(), equalTo(2));
         assertThat(fields.get("date_field").getValues().get(0), equalTo("11"));
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
+    }
+
+    public void testGetShortestPrefix() {
+        List<String> input = Arrays.asList("foo.bar", "foo", "baz.buzz.baaz", "baz.buzz", "baz.buzz.ba");
+        Collections.shuffle(input);
+        assertThat(FieldFetcher.getShortestPrefixes(input), containsInAnyOrder("foo", "baz.buzz"));
+
+        input = new ArrayList<>(Arrays.asList("aaa", "bbbb", "c"));
+        int randomExtensions = randomInt(100);
+        for (int i = 0; i < randomExtensions; i++) {
+            String value = input.get(randomInt(input.size() - 1));
+            input.add(value + "." + randomAlphaOfLengthBetween(1, 6));
+
+        }
+        Collections.shuffle(input);
+        assertThat(FieldFetcher.getShortestPrefixes(input), containsInAnyOrder("aaa", "bbbb", "c"));
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {

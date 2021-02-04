@@ -67,6 +67,6 @@ public class MaxSinglePrimarySizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_8_0_0);
+        return version.onOrAfter(Version.V_7_12_0);
     }
 }

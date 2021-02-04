@@ -686,7 +686,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                     }
                 }
 
-                if (!indices.isEmpty()) {
+                if (indices.isEmpty() == false) {
                     logger.info("cleaning up [{}] old indices", indices.size());
                     deleteIndices(indices);
                 } else {

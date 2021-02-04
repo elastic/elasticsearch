@@ -30,6 +30,7 @@ public class ChangelogEntry {
     private String summary;
     private Highlight highlight;
     private Breaking breaking;
+    private Deprecation deprecation;
     private List<String> versions;
 
     public int getPr() {
@@ -88,6 +89,14 @@ public class ChangelogEntry {
         this.breaking = breaking;
     }
 
+    public Deprecation getDeprecation() {
+        return deprecation;
+    }
+
+    public void setDeprecation(Deprecation deprecation) {
+        this.deprecation = deprecation;
+    }
+
     public List<String> getVersions() {
         return versions;
     }
@@ -124,7 +133,7 @@ public class ChangelogEntry {
     public String toString() {
         return String.format(
             Locale.ROOT,
-            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, versions=%s}",
+            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s versions=%s}",
             pr,
             issues,
             area,
@@ -132,6 +141,7 @@ public class ChangelogEntry {
             summary,
             highlight,
             breaking,
+            deprecation,
             versions
         );
     }
@@ -269,6 +279,70 @@ public class ChangelogEntry {
                 isNotable,
                 anchor
             );
+        }
+    }
+
+    public static class Deprecation {
+        private String area;
+        private String title;
+        private String body;
+        private String anchor;
+
+        public String getArea() {
+            return area;
+        }
+
+        public void setArea(String area) {
+            this.area = area;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public void setTitle(String title) {
+            this.title = title;
+        }
+
+        public String getBody() {
+            return body;
+        }
+
+        public void setBody(String body) {
+            this.body = body;
+        }
+
+        public String getAnchor() {
+            return anchor;
+        }
+
+        public void setAnchor(String anchor) {
+            this.anchor = anchor;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Deprecation that = (Deprecation) o;
+            return Objects.equals(area, that.area)
+                && Objects.equals(title, that.title)
+                && Objects.equals(body, that.body)
+                && Objects.equals(anchor, that.anchor);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(area, title, body, anchor);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Deprecation{area='%s', title='%s', body='%s', anchor='%s'}", area, title, body, anchor);
         }
     }
 }

@@ -39,7 +39,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseHighlightsFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty breakingChangesFile = getProject().getObjects().fileProperty();
 
-    private ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     @InputFiles
     public FileCollection getChangelogs() {

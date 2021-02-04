@@ -28,7 +28,6 @@ import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
@@ -451,8 +450,6 @@ public class Docker {
         Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 
         Stream.of(es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
-
-        assertPermissionsAndOwnership(es.config("elasticsearch.keystore"), p660);
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));

@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.Docker.assertPermissionsAndOwnership;
 import static org.elasticsearch.packaging.util.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
@@ -97,9 +98,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
-    public void test010Install() throws Exception {
-        // Wait for the container to come up, because we assert the state of some files that Elasticsearch creates on startup.
-        waitForElasticsearch(installation);
+    public void test010Install() {
         verifyContainerInstallation(installation, distribution());
     }
 
@@ -144,6 +143,15 @@ public class DockerTests extends PackagingTestCase {
             .anyMatch(line -> line.contains("amazonrootca"));
 
         assertTrue("Expected Amazon trusted cert in cacerts", matches);
+    }
+
+    /**
+     * Check that when the keystore is created on startup, it is created with the correct permissions.
+     */
+    public void test042KeystorePermissionsAreCorrect() throws Exception {
+        waitForElasticsearch(installation);
+
+        assertPermissionsAndOwnership(installation.config("elasticsearch.keystore"), p660);
     }
 
     /**

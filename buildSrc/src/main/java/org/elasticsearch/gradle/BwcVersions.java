@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.gradle;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -328,15 +330,17 @@ public class BwcVersions {
     }
 
     public List<Version> getIndexCompatible() {
-        return unmodifiableList(
-            Stream.concat(groupByMajor.get(currentVersion.getMajor() - 1).stream(), groupByMajor.get(currentVersion.getMajor()).stream())
-                .collect(Collectors.toList())
-        );
+        var collect = Stream.concat(
+            groupByMajor.get(currentVersion.getMajor() - 1).stream(),
+            groupByMajor.get(currentVersion.getMajor()).stream()
+        ).collect(Collectors.toList());
+        return Architecture.current() == Architecture.AARCH64
+            ? unmodifiableList(filterAarch64SupportedVersions(collect))
+            : unmodifiableList(collect);
     }
 
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
-
         List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
         int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
         for (int i = prevMajors.size() - 1; i > 0 && prevMajors.get(i).getMinor() == minor; i--) {
@@ -345,7 +349,14 @@ public class BwcVersions {
         wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
         wireCompat.sort(Version::compareTo);
 
-        return unmodifiableList(wireCompat);
+        return Architecture.current() == Architecture.AARCH64
+            ? unmodifiableList(filterAarch64SupportedVersions(wireCompat))
+            : unmodifiableList(wireCompat);
+    }
+
+    @NotNull
+    private List<Version> filterAarch64SupportedVersions(List<Version> wireCompat) {
+        return wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList());
     }
 
     public List<Version> getUnreleasedIndexCompatible() {

@@ -564,13 +564,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(indexSettings, that.indexSettings) &&
             Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
             Objects.equals(snapshotUuid, that.snapshotUuid) &&
-            skipOperatorOnly == that.skipOperatorOnly;
+            skipOperatorOnlyState == that.skipOperatorOnlyState;
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid, skipOperatorOnly);
+            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid, skipOperatorOnlyState);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;

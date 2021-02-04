@@ -329,17 +329,23 @@ public class DeprecationHttpIT extends ESRestTestCase {
             configureWriteDeprecationLogsToIndex(true);
 
             final Request compatibleRequest = new Request("GET", "/_test_cluster/deprecated_settings");
-            final RequestOptions compatibleOptions = compatibleRequest.getOptions().toBuilder()
+            final RequestOptions compatibleOptions = compatibleRequest.getOptions()
+                .toBuilder()
                 .addHeader("X-Opaque-Id", "some xid")
-                .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=" + Version.CURRENT.minimumRestCompatibilityVersion().major)
-                .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + Version.CURRENT.minimumRestCompatibilityVersion().major)
+                .addHeader(
+                    "Accept",
+                    "application/vnd.elasticsearch+json;compatible-with=" + Version.CURRENT.minimumRestCompatibilityVersion().major
+                )
+                .addHeader(
+                    "Content-Type",
+                    "application/vnd.elasticsearch+json;compatible-with=" + Version.CURRENT.minimumRestCompatibilityVersion().major
+                )
                 .build();
             compatibleRequest.setOptions(compatibleOptions);
             compatibleRequest.setEntity(
                 buildSettingsRequest(Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), true)
             );
             assertOK(client().performRequest(compatibleRequest));
-
 
             assertBusy(() -> {
                 Response response;

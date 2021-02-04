@@ -30,6 +30,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase<RestoreSnapshotRequest> {
     private RestoreSnapshotRequest randomState(RestoreSnapshotRequest instance) {
         if (randomBoolean()) {
@@ -143,5 +145,10 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         original.writeTo(streamOutput);
         final RestoreSnapshotRequest deserialized = new RestoreSnapshotRequest(streamOutput.bytes().streamInput());
         assertFalse(deserialized.skipOperatorOnlyState());
+    }
+
+    public void testToStringWillIncludeSkipOperatorOnlyState() {
+        RestoreSnapshotRequest original = createTestInstance();
+        assertThat(original.toString(), containsString("skipOperatorOnlyState"));
     }
 }

@@ -127,7 +127,6 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testSnapshotRestoreBehaviourOfOperatorSettings() throws IOException {
         final String repoName = "repo";
         final String snapshotName = "snap";

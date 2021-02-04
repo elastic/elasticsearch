@@ -50,7 +50,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
-    private boolean skipOperatorOnlyState = false; // this field does not get serialised because it is always set locally by authz
+
+    // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
+    private boolean skipOperatorOnlyState = false;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -508,6 +510,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    private void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("indices");
         for (String index : indices) {
             builder.value(index);
@@ -537,8 +545,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.value(ignoreIndexSetting);
         }
         builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -578,6 +584,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString((ToXContentObject) (builder, params) -> {
+            builder.startObject();
+            toXContentFragment(builder, params);
+            builder.field("skipOperatorOnlyState", skipOperatorOnlyState);
+            builder.endObject();
+            return builder;
+        });
     }
 }

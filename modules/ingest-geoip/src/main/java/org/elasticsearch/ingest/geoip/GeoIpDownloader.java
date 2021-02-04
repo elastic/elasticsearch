@@ -57,7 +57,7 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("geoip.downloader.poll.interval",
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("geoip.downloader.endpoint",
-        "https://paisano.elastic.dev/v1/geoip/database", Property.Dynamic, Property.NodeScope);
+        "https://paisano.elastic.dev/v1/geoip/database", Property.NodeScope);
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", true, Property.Dynamic,
         Property.NodeScope);
 

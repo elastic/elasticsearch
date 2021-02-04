@@ -36,7 +36,7 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
 
     private static final Set<Setting<?>> DYNAMIC_SETTINGS = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream()
         .filter(Setting::isDynamic)
-        .filter(setting -> false == setting.isDynamicOperator())
+        .filter(setting -> false == setting.isOperatorOnly())
         .collect(Collectors.toSet());
     private static final Set<Setting<?>> IP_FILTER_SETTINGS = Set.of(
         IP_FILTER_ENABLED_HTTP_SETTING,

@@ -436,7 +436,7 @@ public class RestoreService implements ClusterStateApplier {
                                         settings.keySet().stream(), currentState.metadata().persistentSettings().keySet().stream())
                                         .filter(k -> {
                                             final Setting<?> setting = clusterSettings.get(k);
-                                            return setting != null && setting.isDynamicOperator();
+                                            return setting != null && setting.isOperatorOnly();
                                         })
                                         .collect(Collectors.toSet());
                                     if (false == operatorSettingKeys.isEmpty()) {

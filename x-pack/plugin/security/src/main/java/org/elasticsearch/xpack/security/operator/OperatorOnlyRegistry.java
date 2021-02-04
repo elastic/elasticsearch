@@ -62,7 +62,7 @@ public class OperatorOnlyRegistry {
             request.transientSettings().keySet().stream(), request.persistentSettings().keySet().stream()
         ).filter(k -> {
             final Setting<?> setting = clusterSettings.get(k);
-            return setting != null && setting.isDynamicOperator();
+            return setting != null && setting.isOperatorOnly();
         }).collect(Collectors.toList());
         if (false == operatorOnlySettingKeys.isEmpty()) {
             return () -> (operatorOnlySettingKeys.size() == 1 ? "setting" : "settings")

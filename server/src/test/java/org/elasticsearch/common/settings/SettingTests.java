@@ -1251,6 +1251,6 @@ public class SettingTests extends ESTestCase {
         final Property property = randomFrom(Property.Dynamic, Property.OperatorDynamic);
         final Setting<String> setting = Setting.simpleString("foo.bar", property);
         assertTrue(setting.isDynamic());
-        assertEquals(setting.isDynamicOperator(), property == Property.OperatorDynamic);
+        assertEquals(setting.isOperatorOnly(), property == Property.OperatorDynamic);
     }
 }

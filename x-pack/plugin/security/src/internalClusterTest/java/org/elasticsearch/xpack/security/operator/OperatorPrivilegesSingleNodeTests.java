@@ -68,13 +68,15 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
         return builder.build();
     }
 
-    public void testOperatorOnlyActionOrSettingWillNotBeActionableByNormalSuperuser() {
-        final Client client = client();
+    public void testNormalSuperuserWillFailToCallOperatorOnlyAction() {
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            () -> client.execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet());
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet());
         assertThat(e.getCause().getMessage(), containsString("Operator privileges are required for action"));
+    }
 
+    public void testNormalSuperuserWillFailToSetOperatorOnlySettings() {
         final Settings settings = Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), "null").build();
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
         if (randomBoolean()) {
@@ -82,18 +84,19 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
         } else {
             clusterUpdateSettingsRequest.persistentSettings(settings);
         }
-        e = expectThrows(ElasticsearchSecurityException.class,
-            () -> client.execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet());
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            () -> client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet());
         assertThat(e.getCause().getMessage(), containsString("Operator privileges are required for setting"));
     }
 
-    public void testOperatorUserWillSucceedToCallOperatorOnlyActionOrSetting() {
-        final Client client = client().filterWithHeader(Map.of(
-            "Authorization",
-            basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
+    public void testOperatorUserWillSucceedToCallOperatorOnlyAction() {
+        final Client client = createOperatorClient();
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         client.execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet();
+    }
 
+    public void testOperatorUserWillSucceedToSetOperatorOnlySettings() {
+        final Client client = createOperatorClient();
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest();
         final Settings settings = Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), false).build();
         final boolean useTransientSetting = randomBoolean();
@@ -117,12 +120,15 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     }
 
     public void testOperatorUserIsStillSubjectToRoleLimits() {
-        final Client client = client().filterWithHeader(Map.of(
-            "Authorization",
-            basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
+        final Client client = createOperatorClient();
         final GetUsersRequest getUsersRequest = new GetUsersRequest();
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
             () -> client.execute(GetUsersAction.INSTANCE, getUsersRequest).actionGet());
         assertThat(e.getMessage(), containsString("is unauthorized for user"));
+    }
+
+    private Client createOperatorClient() {
+        return client().filterWithHeader(Map.of("Authorization",
+            basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
     }
 }

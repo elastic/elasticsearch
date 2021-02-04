@@ -299,7 +299,7 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Returns <code>true</code> if this setting is dynamically updateable by operators, otherwise <code>false</code>
      */
-    public final boolean isDynamicOperator() {
+    public final boolean isOperatorOnly() {
         return properties.contains(Property.OperatorDynamic);
     }
 

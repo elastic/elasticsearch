@@ -84,7 +84,7 @@ Defaults to `open`.
 
 `filter_path`::
 (Optional, string)
-Comma-separated list of properties used to filter the API response. See
+Comma-separated list of filters for the API response. See
 <<common-options-response-filtering>>.
 
 `ignore_unavailable`::

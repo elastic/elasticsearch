@@ -137,8 +137,8 @@ GET /my-index-000001/_eql/search
 // TEST[setup:sec_logs]
 
 Use the <<common-options-response-filtering,`filter_path`>> query parameter to
-filter the properties returned in the API response. For example, the following
-search returns only the timestamp and PID for each matching event.
+filter the API response. For example, the following search returns only the
+timestamp and PID for each matching event.
 
 [source,console]
 ----

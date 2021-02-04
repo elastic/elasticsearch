@@ -156,7 +156,7 @@ public class JiraActionTests extends ESTestCase {
         HttpProxy proxy = action1.proxy;
 
         boolean equals = randomBoolean();
-        if (!equals) {
+        if (equals == false) {
             equals = true;
             if (rarely()) {
                 equals = false;

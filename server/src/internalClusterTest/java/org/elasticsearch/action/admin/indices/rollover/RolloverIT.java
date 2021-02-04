@@ -434,6 +434,62 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    public void testRolloverMaxSinglePrimarySize() throws Exception {
+        assertAcked(prepareCreate("test-1").addAlias(new Alias("test_alias")).get());
+        int numDocs = randomIntBetween(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc("test-1", Integer.toString(i), "field", "foo-" + i);
+        }
+        flush("test-1");
+        refresh("test_alias");
+
+        // A large max_single_primary_size
+        {
+            final RolloverResponse response = client().admin().indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxSinglePrimarySizeCondition(new ByteSizeValue(randomIntBetween(100, 50 * 1024), ByteSizeUnit.MB))
+                .get();
+            assertThat(response.getOldIndex(), equalTo("test-1"));
+            assertThat(response.getNewIndex(), equalTo("test-000002"));
+            assertThat("No rollover with a large max_single_primary_size condition", response.isRolledOver(), equalTo(false));
+            final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-1");
+            assertThat(oldIndex.getRolloverInfos().size(), equalTo(0));
+        }
+
+        // A small max_single_primary_size
+        {
+            ByteSizeValue maxSinglePrimarySizeCondition = new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
+            long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
+            final RolloverResponse response = client().admin().indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxSinglePrimarySizeCondition(maxSinglePrimarySizeCondition)
+                .get();
+            assertThat(response.getOldIndex(), equalTo("test-1"));
+            assertThat(response.getNewIndex(), equalTo("test-000002"));
+            assertThat("Should rollover with a small max_single_primary_size condition", response.isRolledOver(), equalTo(true));
+            final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-1");
+            List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
+            assertThat(metConditions.size(), equalTo(1));
+            assertThat(metConditions.get(0).toString(),
+                equalTo(new MaxSinglePrimarySizeCondition(maxSinglePrimarySizeCondition).toString()));
+            assertThat(oldIndex.getRolloverInfos().get("test_alias").getTime(),
+                is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+        }
+
+        // An empty index
+        {
+            final RolloverResponse response = client().admin().indices()
+                .prepareRolloverIndex("test_alias")
+                .addMaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
+                .get();
+            assertThat(response.getOldIndex(), equalTo("test-000002"));
+            assertThat(response.getNewIndex(), equalTo("test-000003"));
+            assertThat("No rollover with an empty index", response.isRolledOver(), equalTo(false));
+            final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-000002");
+            assertThat(oldIndex.getRolloverInfos().size(), equalTo(0));
+        }
+    }
+
     public void testRejectIfAliasFoundInTemplate() throws Exception {
         client().admin().indices().preparePutTemplate("logs")
             .setPatterns(Collections.singletonList("logs-*")).addAlias(new Alias("logs-write")).get();

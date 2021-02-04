@@ -68,14 +68,6 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return totalSizeInBytes;
     }
 
-    /**
-     * Returns the average size in bytes of all documents in this stats.
-     */
-    public long getAverageSizeInBytes() {
-        long totalDocs = count + deleted;
-        return totalDocs == 0 ? 0 : totalSizeInBytes / totalDocs;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);

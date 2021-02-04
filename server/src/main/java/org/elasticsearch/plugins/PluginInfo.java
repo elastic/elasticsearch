@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -386,9 +387,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         if (name.equals(that.name) == false) return false;
         // TODO: since the plugins are unique by their directory name, this should only be a name check, version should not matter?
-        if (version != null ? !version.equals(that.version) : that.version != null) return false;
-
-        return true;
+        return Objects.equals(version, that.version);
     }
 
     @Override

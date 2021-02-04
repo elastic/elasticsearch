@@ -204,7 +204,7 @@ public class IPFilter {
             return true;
         }
 
-        if (!rules.containsKey(profile)) {
+        if (rules.containsKey(profile) == false) {
             // FIXME we need to audit here
             return true;
         }

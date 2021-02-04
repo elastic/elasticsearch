@@ -57,8 +57,9 @@ public class DeprecatedMessage  {
         Object[] args,
         String type) {
         ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args)
-            .field("data_stream.type", "logs")
+            .field("event.dataset", type)
             .field("data_stream.dataset", type)
+            .field("data_stream.type", "logs")
             .field("data_stream.namespace", "default")
             .field("ecs.version", ECS_VERSION)
             .field(KEY_FIELD_NAME, key)

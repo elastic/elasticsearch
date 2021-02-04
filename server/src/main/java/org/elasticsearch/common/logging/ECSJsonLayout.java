@@ -27,8 +27,11 @@ import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.util.KeyValuePair;
+import org.elasticsearch.common.Strings;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This is a wrapper class around <code>co.elastic.logging.log4j2.EcsLayout</code>
@@ -55,21 +58,25 @@ public class ECSJsonLayout {
         @Override
         public EcsLayout build() {
             return EcsLayout.newBuilder()
-                            .setConfiguration(getConfiguration())
-                            .setServiceName("ES_ECS")
-                            .setStackTraceAsArray(false)
-                            .setIncludeMarkers(true)
-                            .setAdditionalFields(additionalFields())
-                            .build();
+                .setConfiguration(getConfiguration())
+                .setServiceName("ES_ECS")
+                .setStackTraceAsArray(false)
+                .setIncludeMarkers(true)
+                .setAdditionalFields(additionalFields())
+                .build();
         }
 
         private KeyValuePair[] additionalFields() {
-            return new KeyValuePair[] {
-                new KeyValuePair("event.dataset", dataset),
-                new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
-                new KeyValuePair("elasticsearch.node.id", "%node_id"),
-                new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),
-                new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"), };
+            List<KeyValuePair> list = new ArrayList<>();
+            if (Strings.isNullOrEmpty(dataset) ==  false) {
+                list.add(new KeyValuePair("event.dataset", dataset));
+            }
+
+            list.add(new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"));
+            list.add(new KeyValuePair("elasticsearch.node.id", "%node_id"));
+            list.add(new KeyValuePair("elasticsearch.node.name", "%ESnode_name"));
+            list.add(new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"));
+            return list.toArray(new KeyValuePair[]{});
         }
 
         public String getDataset() {

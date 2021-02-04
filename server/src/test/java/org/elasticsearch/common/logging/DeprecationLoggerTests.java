@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DeprecationLoggerTests extends ESTestCase {
 
-    public void testMultipleSlowLoggersUseSingleLog4jLogger() {
+    public void testMultipleSlowLoggersUseTwoLog4jLogger() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
         DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecationLoggerTests.class);
@@ -40,6 +40,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         context = (LoggerContext) LogManager.getContext(false);
         int numberOfLoggersAfter = context.getLoggers().size();
 
-        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore+1));
+        // should  create a deprecation and compatible loggers
+        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore + 2));
     }
 }

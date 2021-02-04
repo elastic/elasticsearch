@@ -138,22 +138,32 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("type", "deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
+                            hasEntry("data_stream.type", "logs"),
                             hasEntry("log.logger", "deprecation.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
-                            hasEntry("x-opaque-id", "someId")
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "someKey"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "other")
                         ),
                         allOf(
-                            hasEntry("type", "compatible"),
+                            hasEntry("event.dataset", "elasticsearch.compatible"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "compatible.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "compatible API message"),
-                            hasEntry("x-opaque-id", "someId")
+                            hasEntry("data_stream.type", "logs"),
+                            hasEntry("data_stream.dataset", "elasticsearch.compatible"),
+                            hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "compatibleKey"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry("elasticsearch.event.category", "compatible_api")
                         )
                     )
                 );

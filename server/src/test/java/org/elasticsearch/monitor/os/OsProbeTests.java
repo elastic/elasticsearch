@@ -254,6 +254,50 @@ public class OsProbeTests extends ESTestCase {
         assertNull(cgroup);
     }
 
+    public void testGetTotalMemFromProcMeminfo() throws Exception {
+        // missing MemTotal line
+        var meminfoLines = Arrays.asList(
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        OsProbe probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with invalid value
+        meminfoLines = Arrays.asList(
+            "MemTotal:        invalid kB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
+        // MemTotal line with random valid value
+        long memTotalInKb = randomLongBetween(1, Long.MAX_VALUE / 1024L);
+        meminfoLines = Arrays.asList(
+            "MemTotal:        " + memTotalInKb + " kB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
+    }
+
     private static List<String> getProcSelfGroupLines(String hierarchy) {
         return Arrays.asList(
             "10:freezer:/",
@@ -282,12 +326,14 @@ public class OsProbeTests extends ESTestCase {
      * @param areCgroupStatsAvailable whether or not cgroup data is available. Normally OsProbe establishes this for itself.
      * @param hierarchy a mock value used to generate a cgroup hierarchy.
      * @param procSelfCgroupLines the lines that will be used as the content of <code>/proc/self/cgroup</code>
+     * @param procMeminfoLines lines that will be used as the content of <code>/proc/meminfo</code>
      * @return a test instance
      */
     private static OsProbe buildStubOsProbe(
         final boolean areCgroupStatsAvailable,
         final String hierarchy,
-        List<String> procSelfCgroupLines
+        List<String> procSelfCgroupLines,
+        List<String> procMeminfoLines
     ) {
         return new OsProbe() {
             @Override
@@ -338,6 +384,20 @@ public class OsProbeTests extends ESTestCase {
             boolean areCgroupStatsAvailable() {
                 return areCgroupStatsAvailable;
             }
+
+            @Override
+            List<String> readProcMeminfo() throws IOException {
+                return procMeminfoLines;
+            }
         };
     }
+
+    private static OsProbe buildStubOsProbe(
+        final boolean areCgroupStatsAvailable,
+        final String hierarchy,
+        List<String> procSelfCgroupLines
+    ) {
+        return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines, List.of());
+    }
+
 }

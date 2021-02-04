@@ -113,7 +113,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
 
                     long now = System.currentTimeMillis();
                     for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                        String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpressionAtInstant(alias, now);
+                        String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpression(alias, now);
                         finalActions.add(new AliasAction.Add(index.getName(), resolvedName,
                             action.filter(), action.indexRouting(),
                             action.searchRouting(), action.writeIndex(), action.isHidden()));

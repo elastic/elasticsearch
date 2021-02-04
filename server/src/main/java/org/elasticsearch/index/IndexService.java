@@ -829,10 +829,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public Function<String, String> dateMathExpressionResolverAt() {
-        return expression-> expressionResolver.resolveDateMathExpressionAtInstant(expression, System.currentTimeMillis());
+        return expression-> expressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
     }
     public Function<String, String> dateMathExpressionResolverAt(long instant) {
-        return expression-> expressionResolver.resolveDateMathExpressionAtInstant(expression, instant);
+        return expression-> expressionResolver.resolveDateMathExpression(expression, instant);
     }
 
     public interface ShardStoreDeleter {

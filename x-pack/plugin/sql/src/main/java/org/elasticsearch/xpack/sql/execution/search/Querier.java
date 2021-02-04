@@ -87,7 +87,6 @@ import static org.elasticsearch.action.ActionListener.wrap;
 
 // TODO: add retry/back-off
 public class Querier {
-
     private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;
@@ -145,11 +144,11 @@ public class Querier {
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         return client.prepareSearch(indices)
-                // always track total hits accurately
-                .setTrackTotalHits(true).setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout)
-                .setIndicesOptions(
-                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-                .request();
+            // always track total hits accurately
+            .setTrackTotalHits(true).setAllowPartialSearchResults(false).setSource(source).setTimeout(timeout)
+            .setIndicesOptions(
+                    includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+            .request();
     }
 
     protected static void logSearchResponse(SearchResponse response, Logger logger) {
@@ -488,13 +487,12 @@ public class Querier {
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(),
-                        multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true, multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ComputedRef) {

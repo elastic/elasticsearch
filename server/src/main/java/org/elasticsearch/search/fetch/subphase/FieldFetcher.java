@@ -220,7 +220,7 @@ public class FieldFetcher {
         }
     }
 
-    public static Set<String> getParentPaths(Set<String> nestedPathsInScope, SearchExecutionContext context) {
+    private static Set<String> getParentPaths(Set<String> nestedPathsInScope, SearchExecutionContext context) {
         Set<String> parentPaths = new HashSet<>();
         for (String candidate : nestedPathsInScope) {
             String nestedParent = context.getNestedParent(candidate);

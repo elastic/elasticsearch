@@ -766,22 +766,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
     }
 
-//    public void testGetShortestPrefix() {
-//        List<String> input = Arrays.asList("foo.bar", "foo", "baz.buzz.baaz", "baz.buzz", "baz.buzz.ba");
-//        Randomness.shuffle(input);
-//        assertThat(FieldFetcher.getShortestPrefixes(input), containsInAnyOrder("foo", "baz.buzz"));
-//
-//        input = new ArrayList<>(Arrays.asList("aaa", "bbbb", "c"));
-//        int randomExtensions = randomInt(100);
-//        for (int i = 0; i < randomExtensions; i++) {
-//            String value = input.get(randomInt(input.size() - 1));
-//            input.add(value + "." + randomAlphaOfLengthBetween(1, 6));
-//
-//        }
-//        Randomness.shuffle(input);
-//        assertThat(FieldFetcher.getShortestPrefixes(input), containsInAnyOrder("aaa", "bbbb", "c"));
-//    }
-
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
         return Collections.singletonList(new FieldAndFormat(name, format, includeUnmapped));
     }

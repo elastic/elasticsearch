@@ -41,14 +41,18 @@ public class LongKeyedBucketOrdsBenchmark {
     /**
      * The number of distinct values to add to the buckets.
      */
-    private static final long DISTINCT_VALUES = 10;
+    private static final long DISTINCT_VALUES = 210;
     /**
      * The number of buckets to create in the {@link #multiBucket} case.
      * <p>
-     * If this is not relatively prime to {@link #DISTINCT_VALUES} then the
-     * values won't be scattered evenly across the buckets.
+     * If this is not relatively prime to {@link #DISTINCT_VALUES_IN_BUCKETS}
+     * then the values won't be scattered evenly across the buckets.
      */
     private static final long DISTINCT_BUCKETS = 21;
+    /**
+     * Number of distinct values to add to values wit buckets.
+     */
+    private static final long DISTINCT_VALUES_IN_BUCKETS = 10;
 
     private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
     private final BigArrays bigArrays = new BigArrays(recycler, null, "REQUEST");
@@ -63,6 +67,7 @@ public class LongKeyedBucketOrdsBenchmark {
     public void forceLoadClasses(Blackhole bh) {
         bh.consume(LongKeyedBucketOrds.FromSingle.class);
         bh.consume(LongKeyedBucketOrds.FromMany.class);
+        bh.consume(LongKeyedBucketOrds.FromManySmall.class);
     }
 
     /**
@@ -74,6 +79,9 @@ public class LongKeyedBucketOrdsBenchmark {
         try (LongKeyedBucketOrds.FromSingle ords = new LongKeyedBucketOrds.FromSingle(bigArrays)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
+            }
+            if (ords.size() != DISTINCT_VALUES) {
+                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
             }
             bh.consume(ords);
         }
@@ -87,6 +95,9 @@ public class LongKeyedBucketOrdsBenchmark {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
+            }
+            if (ords.size() != DISTINCT_VALUES) {
+                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
             }
             bh.consume(ords);
         }
@@ -105,6 +116,9 @@ public class LongKeyedBucketOrdsBenchmark {
                 ords = new LongKeyedBucketOrds.FromSingle(bigArrays);
             }
             ords.add(0, i % DISTINCT_VALUES);
+        }
+        if (ords.size() != DISTINCT_VALUES) {
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
         }
         bh.consume(ords);
         ords.close();
@@ -125,7 +139,9 @@ public class LongKeyedBucketOrdsBenchmark {
                 ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
             }
             ords.add(0, i % DISTINCT_VALUES);
-
+        }
+        if (ords.size() != DISTINCT_VALUES) {
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
         }
         bh.consume(ords);
         ords.close();
@@ -134,7 +150,8 @@ public class LongKeyedBucketOrdsBenchmark {
     /**
      * Emulates an aggregation that collects from a single bucket "by accident".
      * This can happen if an aggregation is under, say, a {@code terms}
-     * aggregation and there is only a single value for that term in the index.
+     * aggregation and there is only a single value for that term in the index
+     * but we can't tell that up front.
      */
     @Benchmark
     public void singleBucketIntoMulti(Blackhole bh) {
@@ -142,7 +159,40 @@ public class LongKeyedBucketOrdsBenchmark {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }
+            if (ords.size() != DISTINCT_VALUES) {
+                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+            }
             bh.consume(ords);
+        }
+    }
+
+    /**
+     * Emulates an aggregation that collects from a single bucket "by accident".
+     * This can happen if an aggregation is under, say, a {@code terms}
+     * aggregation and there is only a single value for that term in the index
+     * but we can't tell that up front.
+     */
+    @Benchmark
+    public void singleBucketIntoMultiSmall(Blackhole bh) {
+        try (LongKeyedBucketOrds ords = new LongKeyedBucketOrds.FromManySmall(bigArrays, 3)) {
+            for (long i = 0; i < LIMIT; i++) {
+                ords.add(0, i % DISTINCT_VALUES);
+            }
+            if (ords.size() != DISTINCT_VALUES) {
+                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+            }
+            bh.consume(ords);
+        }
+    }
+
+
+    /**
+     * Emulates an aggregation that collects from many buckets. NOCOMMIT
+     */
+    @Benchmark
+    public void multiBucketManySmall(Blackhole bh) {
+        try (LongKeyedBucketOrds ords = new LongKeyedBucketOrds.FromManySmall(bigArrays, 5)) {
+            multiBucket(bh, ords);
         }
     }
 
@@ -150,12 +200,19 @@ public class LongKeyedBucketOrdsBenchmark {
      * Emulates an aggregation that collects from many buckets.
      */
     @Benchmark
-    public void multiBucket(Blackhole bh) {
+    public void multiBucketMany(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
-            for (long i = 0; i < LIMIT; i++) {
-                ords.add(i % DISTINCT_BUCKETS, i % DISTINCT_VALUES);
-            }
-            bh.consume(ords);
+            multiBucket(bh, ords);
         }
+    }
+
+    private void multiBucket(Blackhole bh, LongKeyedBucketOrds ords) {
+        for (long i = 0; i < LIMIT; i++) {
+            ords.add(i % DISTINCT_BUCKETS, i % DISTINCT_VALUES_IN_BUCKETS);
+        }
+        if (ords.size() != DISTINCT_VALUES) {
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+        }
+        bh.consume(ords);
     }
 }

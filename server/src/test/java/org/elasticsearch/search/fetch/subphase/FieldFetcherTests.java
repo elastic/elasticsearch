@@ -11,6 +11,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -769,7 +770,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testGetShortestPrefix() {
         List<String> input = Arrays.asList("foo.bar", "foo", "baz.buzz.baaz", "baz.buzz", "baz.buzz.ba");
-        Collections.shuffle(input);
+        Randomness.shuffle(input);
         assertThat(FieldFetcher.getShortestPrefixes(input), containsInAnyOrder("foo", "baz.buzz"));
 
         input = new ArrayList<>(Arrays.asList("aaa", "bbbb", "c"));
@@ -779,7 +780,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             input.add(value + "." + randomAlphaOfLengthBetween(1, 6));
 
         }
-        Collections.shuffle(input);
+        Randomness.shuffle(input);
         assertThat(FieldFetcher.getShortestPrefixes(input), containsInAnyOrder("aaa", "bbbb", "c"));
     }
 

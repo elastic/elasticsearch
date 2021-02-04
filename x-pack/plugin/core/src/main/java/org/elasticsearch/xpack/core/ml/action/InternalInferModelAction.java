@@ -143,18 +143,25 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
     public static class Response extends ActionResponse {
 
         private final List<InferenceResults> inferenceResults;
+        private final String modelId;
         private final boolean isLicensed;
 
-        public Response(List<InferenceResults> inferenceResults, boolean isLicensed) {
+        public Response(List<InferenceResults> inferenceResults, String modelId, boolean isLicensed) {
             super();
             this.inferenceResults = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(inferenceResults, "inferenceResults"));
             this.isLicensed = isLicensed;
+            this.modelId = modelId;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
             this.isLicensed = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.modelId = in.readOptionalString();
+            } else {
+                this.modelId = null;
+            }
         }
 
         public List<InferenceResults> getInferenceResults() {
@@ -165,10 +172,17 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             return isLicensed;
         }
 
+        public String getModelId() {
+            return modelId;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteableList(inferenceResults);
             out.writeBoolean(isLicensed);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalString(modelId);
+            }
         }
 
         @Override
@@ -176,12 +190,14 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             InternalInferModelAction.Response that = (InternalInferModelAction.Response) o;
-            return isLicensed == that.isLicensed && Objects.equals(inferenceResults, that.inferenceResults);
+            return isLicensed == that.isLicensed
+                && Objects.equals(inferenceResults, that.inferenceResults)
+                && Objects.equals(modelId, that.modelId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceResults, isLicensed);
+            return Objects.hash(inferenceResults, isLicensed, modelId);
         }
 
         public static Builder builder() {
@@ -190,6 +206,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
 
         public static class Builder {
             private List<InferenceResults> inferenceResults;
+            private String modelId;
             private boolean isLicensed;
 
             public Builder setInferenceResults(List<InferenceResults> inferenceResults) {
@@ -202,8 +219,13 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
                 return this;
             }
 
+            public Builder setModelId(String modelId) {
+                this.modelId = modelId;
+                return this;
+            }
+
             public Response build() {
-                return new Response(inferenceResults, isLicensed);
+                return new Response(inferenceResults, modelId, isLicensed);
             }
         }
 

@@ -175,3 +175,26 @@ setup:
   - match: { count: 1 }
   - match: { trained_model_stats.0.model_id: another-regression-model }
   - match: { trained_model_stats.0.pipeline_count: 0 }
+
+  - do:
+      ml.update_trained_model_alias:
+        model_alias: "my-regression"
+        body: >
+          {
+             "new_model_id": "a-unused-regression-model1"
+          }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "my-regression"
+
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.model_id: a-unused-regression-model1 }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "my-regression,another-regression-model"
+
+  - match: { count: 2 }
+  - match: { trained_model_stats.0.model_id: a-unused-regression-model1 }
+  - match: { trained_model_stats.1.model_id: another-regression-model }

@@ -1,0 +1,34 @@
+{
+  "ml.update_trained_model_alias":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-trained-models-aliases.html",
+      "description":"Updates the model alias referring to the trained model"
+    },
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/model_aliases/{model_alias}/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_alias":{
+              "type":"string",
+              "description":"The trained model alias to update"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The updates to make the provided model_alias",
+      "required":true
+    }
+  }
+}

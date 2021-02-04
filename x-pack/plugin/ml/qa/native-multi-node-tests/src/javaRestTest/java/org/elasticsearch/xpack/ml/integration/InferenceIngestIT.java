@@ -201,6 +201,79 @@ public class InferenceIngestIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    public void testPipelineIngestWithModelAliases() throws Exception {
+        String regressionModelId = "test_regression_1";
+        putModel(regressionModelId, REGRESSION_CONFIG);
+        String regressionModelId2 = "test_regression_2";
+        putModel(regressionModelId2, REGRESSION_CONFIG);
+        String modelAlias = "test_regression";
+        postUpdateModelAlias(modelAlias, null, regressionModelId);
+
+        client().performRequest(putPipeline("simple_regression_pipeline", pipelineDefinition(modelAlias, "regression")));
+
+        for (int i = 0; i < 10; i++) {
+            client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
+        }
+        postUpdateModelAlias(modelAlias, regressionModelId, regressionModelId2);
+        // Need to assert busy as loading the model and then switching the model alias can take time
+        assertBusy(() -> {
+            String source = "{\n" +
+                "  \"docs\": [\n" +
+                "    {\"_source\": {\n" +
+                "      \"col1\": \"female\",\n" +
+                "      \"col2\": \"M\",\n" +
+                "      \"col3\": \"none\",\n" +
+                "      \"col4\": 10\n" +
+                "    }}]\n" +
+                "}";
+            Request request = new Request("POST", "_ingest/pipeline/simple_regression_pipeline/_simulate");
+            request.setJsonEntity(source);
+            Response response = client().performRequest(request);
+            String responseString = EntityUtils.toString(response.getEntity());
+            assertThat(responseString, containsString("\"model_id\":\"test_regression_2\""));
+        }, 30, TimeUnit.SECONDS);
+
+        for (int i = 0; i < 5; i++) {
+            client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
+        }
+
+        client().performRequest(new Request("DELETE", "_ingest/pipeline/simple_regression_pipeline"));
+
+        client().performRequest(new Request("POST", "index_for_inference_test/_refresh"));
+
+        Response searchResponse = client().performRequest(searchRequest("index_for_inference_test",
+            QueryBuilders.boolQuery()
+                .filter(
+                    QueryBuilders.existsQuery("ml.inference.regression.predicted_value"))));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":15"));
+
+        searchResponse = client().performRequest(searchRequest("index_for_inference_test",
+            QueryBuilders.boolQuery()
+                .filter(
+                    QueryBuilders.termQuery("ml.inference.regression.model_id.keyword", regressionModelId))));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
+
+        searchResponse = client().performRequest(searchRequest("index_for_inference_test",
+            QueryBuilders.boolQuery()
+                .filter(
+                    QueryBuilders.termQuery("ml.inference.regression.model_id.keyword", regressionModelId2))));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":5"));
+
+        assertBusy(() -> {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, client().performRequest(new Request("GET",
+            "_ml/trained_models/" + modelAlias + "/_stats")).getEntity().getContent())) {
+            GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
+            assertThat(response.toString(), response.getTrainedModelStats(), hasSize(1));
+            TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
+            assertThat(trainedModelStats.getModelId(), equalTo(regressionModelId2));
+            assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
+        } catch (ResponseException ex) {
+            //this could just mean shard failures.
+            fail(ex.getMessage());
+        }
+        });
+    }
+
     public void assertStatsWithCacheMisses(String modelId, long inferenceCount) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET",
             "_ml/trained_models/" + modelId + "/_stats"));
@@ -626,6 +699,19 @@ public class InferenceIngestIT extends ESRestTestCase {
     private void putModel(String modelId, String modelConfiguration) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId);
         request.setJsonEntity(modelConfiguration);
+        client().performRequest(request);
+    }
+
+    private void postUpdateModelAlias(String modelAlias, String oldModel, String newModel) throws IOException {
+        String oldModelStr = oldModel == null ? "" : "\"old_model_id\": \"" + oldModel + "\",";
+        String newModelStr = "\"new_model_id\": \"" + newModel + "\"";
+        Request request = new Request("POST", "_ml/trained_models/model_aliases/" + modelAlias + "/_update");
+        request.setJsonEntity(
+            "{"
+            + oldModelStr
+            + newModelStr
+            + "}"
+        );
         client().performRequest(request);
     }
 

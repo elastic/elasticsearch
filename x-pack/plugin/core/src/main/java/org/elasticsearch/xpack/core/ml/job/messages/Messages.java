@@ -120,6 +120,11 @@ public final class Messages {
     public static final String INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE = "The provided tags {0} must not match existing model_ids.";
     public static final String INFERENCE_MODEL_ID_AND_TAGS_UNIQUE = "The provided model_id {0} must not match existing tags.";
 
+    public static final String INVALID_MODEL_ALIAS = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or " +
+        "underscores; must start with alphanumeric and cannot end with numbers";
+    public static final String TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY =
+        "The input fields for [{0}] [{1}] and for [{2}] [{3}] differ significantly, model results may change drastically.";
+
     public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";
     public static final String JOB_AUDIT_UPDATED = "Job updated: {0}";

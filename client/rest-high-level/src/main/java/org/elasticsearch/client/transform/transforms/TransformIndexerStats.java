@@ -221,7 +221,6 @@ public class TransformIndexerStats {
     /**
      * Number of documents deleted
      */
-
     public long getDocumentsDeleted() {
         return documentsDeleted;
     }

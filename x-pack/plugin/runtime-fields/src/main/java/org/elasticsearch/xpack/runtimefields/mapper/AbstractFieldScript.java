@@ -54,7 +54,7 @@ public abstract class AbstractFieldScript {
              * don't prevent mapping updates because we've performed too
              * many recently. That'd just be lame. We also compile these
              * scripts during search requests so this could totally be a
-             * source of runaway script compilations. We think folks we
+             * source of runaway script compilations. We think folks will
              * mostly reuse scripts though.
              */
             ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple()

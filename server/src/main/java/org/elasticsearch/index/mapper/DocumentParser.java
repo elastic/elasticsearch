@@ -8,14 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Function;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -30,6 +22,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -109,6 +109,8 @@ final class DocumentParser {
         } else if (emptyDoc == false) {
             parseObjectOrNested(context, root);
         }
+
+        root.postParse(context, new IndexTimeScriptParams(context.sourceToParse().source(), context.rootDoc()));
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);

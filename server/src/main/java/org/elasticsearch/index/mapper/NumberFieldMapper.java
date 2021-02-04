@@ -30,12 +30,18 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -45,10 +51,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -62,6 +70,40 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
+    private static class ScriptParameter implements ToXContent {
+
+        final Script script;
+        final NumberScript compiled;
+
+        ScriptParameter(Script script, ScriptService service) {
+            this.script = script;
+            this.compiled = service.compile(script, SCRIPT_CONTEXT).newInstance();
+        }
+
+        @Override
+        public String toString() {
+            return script.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ScriptParameter that = (ScriptParameter) o;
+            return Objects.equals(script, that.script);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(script);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return script.toXContent(builder, params);
+        }
+    }
+
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -72,6 +114,14 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Explicit<Boolean>> coerce;
 
         private final Parameter<Number> nullValue;
+
+        final FieldMapper.Parameter<ScriptParameter> script = new FieldMapper.Parameter<>(
+            "script",
+            false,
+            () -> null,
+            (n, c, o) -> new ScriptParameter(Script.parse(o), c.scriptService()),
+            m -> toType(m).builder.script.get()
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -110,7 +160,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, meta);
+            return List.of(indexed, hasDocValues, stored, ignoreMalformed, coerce, nullValue, script, meta);
         }
 
         @Override
@@ -1001,6 +1051,9 @@ public class NumberFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> coerce;
     private final Number nullValue;
+    private final NumberScript script;
+
+    private final Builder builder;
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
@@ -1012,6 +1065,7 @@ public class NumberFieldMapper extends FieldMapper {
             CopyTo copyTo,
             Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.builder = builder;
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -1021,6 +1075,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.nullValue = builder.nullValue.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
+        this.script = builder.script.get() == null ? null : builder.script.get().compiled;
     }
 
     boolean coerce() {
@@ -1043,6 +1098,10 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        if (script != null) {
+            throw new IllegalArgumentException("Values supplied for scripted field [" + name() + "]");
+        }
+
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -1080,6 +1139,10 @@ public class NumberFieldMapper extends FieldMapper {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
 
+        indexValue(context, numericValue);
+    }
+
+    private void indexValue(ParseContext context, Number numericValue) {
         context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue,
             indexed, hasDocValues, stored));
 
@@ -1091,5 +1154,60 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, ignoreMalformedByDefault, coerceByDefault).init(this);
+    }
+
+    @Override
+    public void doPostParse(ParseContext context, IndexTimeScriptParams params) {
+        script.execute(params, v -> indexValue(context, v));
+    }
+
+    public static final ScriptContext<ScriptFactory> SCRIPT_CONTEXT = new ScriptContext<>(
+        "number_script", ScriptFactory.class
+    );
+
+    public interface ScriptFactory {
+        NumberScript newInstance();
+    }
+
+    public static abstract class NumberScript {
+
+        private final Map<String, Object> params = new HashMap<>();
+        private IndexTimeScriptParams docParams;
+        private Consumer<Number> emitter;
+
+        public final void execute(IndexTimeScriptParams params, Consumer<Number> emitter) {
+            this.docParams = params;
+            this.emitter = emitter;
+            this.params.clear();
+            this.params.put("_source", params.source());
+            this.execute();
+        }
+
+        public abstract void execute();
+
+        public final Map<String, ScriptDocValues<?>> getDoc() {
+            return docParams.doc();
+        }
+
+        public final Map<String, Object> getParams() {
+            return params;
+        }
+
+        public void emit(Number number) {
+            this.emitter.accept(number);
+        }
+
+    }
+
+    public static final class Emit {
+        private final NumberScript script;
+
+        public Emit(NumberScript script) {
+            this.script = script;
+        }
+
+        public void emit(Number number) {
+            this.script.emit(number);
+        }
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -211,5 +212,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * @param mappers a {@link MappingLookup} that can produce references to other mappers
      */
     public abstract void validate(MappingLookup mappers);
+
+    /**
+     * Do any post-processing of a document after it has been parsed
+     *
+     * @param context   the ParseContext
+     * @param params    the parsed document exposed as script parameters
+     */
+    public void postParse(ParseContext context, IndexTimeScriptParams params) throws IOException {
+        // default impl does nothing
+    }
 
 }

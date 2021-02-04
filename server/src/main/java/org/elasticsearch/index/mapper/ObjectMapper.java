@@ -399,6 +399,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return copy;
     }
 
+    @Override
+    public void postParse(ParseContext context, IndexTimeScriptParams params) throws IOException {
+        for (Mapper mapper : mappers.values()) {
+            mapper.postParse(context, params);
+        }
+    }
+
     /**
      * Build a mapping update with the provided sub mapping update.
      */

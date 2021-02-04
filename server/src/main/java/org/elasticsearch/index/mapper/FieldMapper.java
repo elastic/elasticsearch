@@ -175,6 +175,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
+    @Override
+    public final void postParse(ParseContext context, IndexTimeScriptParams params) throws IOException {
+        doPostParse(context, params);
+        for (Mapper mapper : multiFields) {
+            mapper.postParse(context, params);
+        }
+    }
+
+    public void doPostParse(ParseContext context, IndexTimeScriptParams params) { }
+
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
         FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);

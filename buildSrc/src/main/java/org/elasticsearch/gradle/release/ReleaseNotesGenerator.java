@@ -143,7 +143,7 @@ public class ReleaseNotesGenerator implements Closeable {
 
     private void generateGroupHeader(Version version, String type) {
         out.println("[[" + type + "-" + version + "]]");
-        out.println("[float]");
+        out.println("[discrete]");
         out.println("=== " + TYPE_LABELS.get(type));
         out.println();
     }

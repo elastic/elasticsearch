@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.util.PatternSet;
 
 public class ReleaseToolsPlugin implements Plugin<Project> {
@@ -48,7 +49,9 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             );
         });
 
-        project.getTasks().register("validateChangelogs", ValidateChangelogsTask.class).configure(action -> {
+        final TaskProvider<ValidateChangelogsTask> validateChangelogs = project.getTasks()
+            .register("validateChangelogs", ValidateChangelogsTask.class);
+        validateChangelogs.configure(action -> {
             action.setGroup("Documentation");
             action.setDescription("Validates that all the changelog YAML files are well-formed");
 
@@ -59,5 +62,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
                 .getFiles());
         });
+
+        project.getTasks().named("check").configure(task -> task.dependsOn(validateChangelogs));
     }
 }

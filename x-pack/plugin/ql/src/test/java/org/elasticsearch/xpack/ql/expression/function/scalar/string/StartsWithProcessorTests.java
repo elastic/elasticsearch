@@ -1,83 +1,90 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.LiteralTests;
-import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.junit.Before;
+import org.hamcrest.Matchers;
 
-import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.ql.TestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.hamcrest.Matchers.startsWith;
 
 public class StartsWithProcessorTests extends ESTestCase {
 
-    protected boolean isCaseSensitive;
-    protected Configuration config;
+    public void testSensitiveStartsWithFunctionWithValidInput() {
+        assertTrue(sensitiveStartsWith("foobarbar", "f"));
+        assertFalse(sensitiveStartsWith("foobar", "bar"));
+        assertFalse(sensitiveStartsWith("foo", "foobar"));
+        assertTrue(sensitiveStartsWith("foobar", ""));
+        assertTrue(sensitiveStartsWith("foo", "foo"));
+        assertTrue(sensitiveStartsWith("FOoBar", "FOo"));
+        assertFalse(sensitiveStartsWith("", "bar"));
+        assertNull(sensitiveStartsWith(null, "bar"));
+        assertNull(sensitiveStartsWith("foo", null));
+        assertNull(sensitiveStartsWith(null, null));
 
-    @Before
-    public void setup() {
-        isCaseSensitive = isCaseSensitiveGenerator().get();
-        config = configurationGenerator().get();
+        assertFalse(sensitiveStartsWith("foo", "FO"));
+        assertFalse(sensitiveStartsWith("foo", "FOo"));
     }
 
-    protected Supplier<Boolean> isCaseSensitiveGenerator() {
-        return () -> true;
+    private Boolean sensitiveStartsWith(String left, String right) {
+        return startsWith(false, left, right);
     }
 
-    protected Supplier<Configuration> configurationGenerator() {
-        return () -> randomConfiguration();
+    public void testInsensitiveStartsWithFunctionWithValidInput() {
+        assertTrue(insensitiveStartsWith("foobarbar", "f"));
+        assertFalse(insensitiveStartsWith("foobar", "bar"));
+        assertFalse(insensitiveStartsWith("foo", "foobar"));
+        assertTrue(insensitiveStartsWith("foobar", ""));
+        assertTrue(insensitiveStartsWith("foo", "foo"));
+        assertTrue(insensitiveStartsWith("FOoBar", "FOo"));
+        assertFalse(insensitiveStartsWith("", "bar"));
+        assertNull(insensitiveStartsWith(null, "bar"));
+        assertNull(insensitiveStartsWith("foo", null));
+        assertNull(insensitiveStartsWith(null, null));
+
+        assertTrue(insensitiveStartsWith("foo", "FO"));
+        assertTrue(insensitiveStartsWith("foo", "FOo"));
     }
 
-    protected Supplier<StartsWith> startsWithInstantiator(Source source, Expression field, Expression pattern) {
-        return () -> new StartsWith(source, field, pattern, config);
+    private Boolean insensitiveStartsWith(String left, String right) {
+        return startsWith(true, left, right);
     }
 
-    public void testStartsWithFunctionWithValidInput() {
-        assertEquals(true, startsWithInstantiator(EMPTY, l("foobarbar"), l("f")).get().makePipe().asProcessor().process(null));
-        assertEquals(false, startsWithInstantiator(EMPTY, l("foobar"), l("bar")).get().makePipe().asProcessor().process(null));
-        assertEquals(false, startsWithInstantiator(EMPTY, l("foo"), l("foobar")).get().makePipe().asProcessor().process(null));
-        assertEquals(true, startsWithInstantiator(EMPTY, l("foobar"), l("")).get().makePipe().asProcessor().process(null));
-        assertEquals(true, startsWithInstantiator(EMPTY, l("foo"), l("foo")).get().makePipe().asProcessor().process(null));
-        assertEquals(!isCaseSensitive, startsWithInstantiator(EMPTY, l("foo"), l("FO")).get().makePipe().asProcessor().process(null));
-        assertEquals(!isCaseSensitive, startsWithInstantiator(EMPTY, l("foo"), l("FOo")).get().makePipe().asProcessor().process(null));
-        assertEquals(true, startsWithInstantiator(EMPTY, l("FOoBar"), l("FOo")).get().makePipe().asProcessor().process(null));
-        assertEquals(true, startsWithInstantiator(EMPTY, l('f'), l('f')).get().makePipe().asProcessor().process(null));
-        assertEquals(false, startsWithInstantiator(EMPTY, l(""), l("bar")).get().makePipe().asProcessor().process(null));
-        assertEquals(null, startsWithInstantiator(EMPTY, l(null), l("bar")).get().makePipe().asProcessor().process(null));
-        assertEquals(null, startsWithInstantiator(EMPTY, l("foo"), l(null)).get().makePipe().asProcessor().process(null));
-        assertEquals(null, startsWithInstantiator(EMPTY, l(null), l(null)).get().makePipe().asProcessor().process(null));
+    private Boolean startsWith(boolean caseInsensitive, String left, String right) {
+        return (Boolean) new StartsWithFunctionPipeTests.StartsWithTest(EMPTY, l(left), l(right), caseInsensitive)
+            .makePipe().asProcessor().process(null);
     }
-    
+
+    private Boolean untypedStartsWith(Object left, Object right) {
+        return (Boolean) new StartsWithFunctionPipeTests.StartsWithTest(EMPTY, l(left), l(right), randomBoolean())
+            .makePipe().asProcessor().process(null);
+    }
+
     public void testStartsWithFunctionInputsValidation() {
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> startsWithInstantiator(EMPTY, l(5), l("foo")).get().makePipe().asProcessor().process(null));
+            () -> untypedStartsWith(5, "foo"));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
         siae = expectThrows(QlIllegalArgumentException.class,
-                () -> startsWithInstantiator(EMPTY, l("bar"), l(false)).get().makePipe().asProcessor().process(null));
+            () -> untypedStartsWith("bar", false));
         assertEquals("A string/char is required; received [false]", siae.getMessage());
     }
 
     public void testStartsWithFunctionWithRandomInvalidDataType() {
         Literal literal = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
         QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> startsWithInstantiator(EMPTY, literal, l("foo")).get().makePipe().asProcessor().process(null));
-        assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
+            () -> untypedStartsWith(literal, "foo"));
+        assertThat(siae.getMessage(), Matchers.startsWith("A string/char is required; received"));
         siae = expectThrows(QlIllegalArgumentException.class,
-                () -> startsWithInstantiator(EMPTY, l("foo"), literal).get().makePipe().asProcessor().process(null));
-        assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
+            () -> untypedStartsWith("foo", literal));
+        assertThat(siae.getMessage(), Matchers.startsWith("A string/char is required; received"));
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -78,7 +79,8 @@ public final class TransformAggregations {
         "top_metrics", // https://github.com/elastic/elasticsearch/issues/52236
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
         "variable_width_histogram", // https://github.com/elastic/elasticsearch/issues/58140
-        "rate" // https://github.com/elastic/elasticsearch/issues/61351
+        "rate", // https://github.com/elastic/elasticsearch/issues/61351
+        "multi_terms" // https://github.com/elastic/elasticsearch/issues/67609
     );
 
     private TransformAggregations() {}

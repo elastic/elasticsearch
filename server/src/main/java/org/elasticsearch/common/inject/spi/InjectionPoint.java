@@ -376,7 +376,7 @@ public final class InjectionPoint {
             try {
                 injectionPoints.add(factory.create(typeLiteral, member, errors));
             } catch (ConfigurationException ignorable) {
-                if (!inject.optional()) {
+                if (inject.optional() == false) {
                     errors.merge(ignorable.getErrorMessages());
                 }
             }

@@ -110,6 +110,29 @@ process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 {"terms":{"opcode":[0,1,2,3],"boost":1.0}}
 ;
 
+inFilterInsensitive
+process where process_name in~ ("test")
+;
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+;
+
+inFilterInsensitiveList
+process where process_name in~ ("test", "best")
+;
+{"bool":{"should":[{"term"
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
+inFilterInsensitiveVerbatimMatch
+process where process_name in~ ("test*", "best")
+;
+{"bool":{"should":[{"term"
+"term":{"process_name":{"value":"test*","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
+
 functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true
 ;
@@ -145,11 +168,11 @@ process where endsWith(process_path, "x") == true and endsWith(process_path, "yx
 {"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
-twoFunctionsEqualsBooleanLiterals-caseInsensitive
-process where endsWith(process_path, "x") == true and endsWith(process_path, "yx") != true
+twoFunctionsEqualsBooleanLiterals-insensitive
+process where endsWith~(process_path, "x") == true and endsWith~(process_path, "yx") != true
 ;
-{"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","boost":1.0}}},
-{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+{"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","case_insensitive":true,"boost":1.0}}},
+{"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 endsWithKeywordFieldFunction-caseSensitive
@@ -166,11 +189,11 @@ process where endsWith(hostname, "c")
 {"wildcard":{"hostname.keyword":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
 ;
 
-endsWithFunction-caseInsensitive
-process where endsWith(user_name, "c")
+endsWithFunction-insensitive
+process where endsWith~(user_name, "c")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
-{"wildcard":{"user_name":{"wildcard":"*c","boost":1.0}}}],"boost":1.0}}
+{"wildcard":{"user_name":{"wildcard":"*c","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
 ;
 
 fieldNoEquals
@@ -240,11 +263,11 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 "params":{"v0":"constant_keyword","v1":5}
 ;
 
-startsWithFunction-caseInsensitive
-process where startsWith(user_name, "A")
+startsWithFunction-insensitive
+process where startswith~(user_name, "A")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
-{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
+{"prefix":{"user_name":{"value":"A","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
 ;
 
 startsWithFunctionSimple-caseSensitive
@@ -262,11 +285,26 @@ process where startsWith(user_name, "A") or startsWith(user_name, "B")
 {"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
+startsWithFunctionWithCondition-insensitive
+process where startswith~(user_name, "A") or startswith~(user_name, "B")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"bool":{"should":[{"prefix":{"user_name":{"value":"A","case_insensitive":true,"boost":1.0}}},
+{"prefix":{"user_name":{"value":"B","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+;
+
 stringContainsExactField-caseSensitive
 process where stringContains(process_name, "foo")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"wildcard":{"process_name":{"wildcard":"*foo*","boost":1.0}}}],"boost":1.0}}
+;
+
+stringContainsExactField-insensitive
+process where stringContains~(process_name, "foo")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"process_name":{"wildcard":"*foo*","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
 ;
 
 stringContainsExactSubField-caseSensitive
@@ -276,7 +314,14 @@ process where stringContains(hostname, "foo")
 {"wildcard":{"hostname.keyword":{"wildcard":"*foo*","boost":1.0}}}],"boost":1.0}}
 ;
 
-stringContains-caseInsensitive
+stringContains-insensitive
+process where stringContains~(process_name, "foo")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"wildcard":{"process_name":{"wildcard":"*foo*","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
+;
+
+stringContains-caseSensitive
 process where stringContains(process_name, "foo")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
@@ -297,11 +342,11 @@ process where indexOf(user_name, "A", 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
 InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
-"params":{"v0":"user_name","v1":"A","v2":2,"v3":true,"v4":0}
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":false,"v4":0}
 ;
 
-indexOfFunction-caseInsensitive
-process where indexOf(user_name, "A", 2) > 0
+indexOfFunction-insensitive
+process where indexOf~(user_name, "A", 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
 InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
@@ -318,6 +363,14 @@ InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),p
 
 betweenFunction
 process where between(process_name, "s", "e") : "yst"
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
+InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
+"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
+;
+
+betweenFunction-insensitive
+process where between~(process_name, "s", "e") : "yst"
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
 InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
@@ -452,37 +505,58 @@ process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def
 "wildcard":{"process_path":{"wildcard":"*def*","boost":1.0}}
 ;
 
+wildcardFunctionSingleArgument-insensitive
+process where wildcard~(process_path, "*\\red_ttp\\wininit.*")
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
+;
+
+wildcardFunctionTwoArguments-insensitive
+process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","case_insensitive":true,"boost":1.0}}
+;
+
+wildcardFunctionThreeArguments-insensitive
+process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","case_insensitive":true,"boost":1.0}}
+"wildcard":{"process_path":{"wildcard":"*def*","case_insensitive":true,"boost":1.0}}
+;
+
 
 addOperator
-process where serial_event_id + 2 == 41
+process where serial_event_id + 2 == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addOperatorReversed
-process where 2 + serial_event_id == 41
+process where 2 + serial_event_id == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addFunction
-process where add(serial_event_id, 2) == 41
+process where add(serial_event_id, 2) == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addFunctionReversed
-process where add(2, serial_event_id) == 41
+process where add(2, serial_event_id) == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 divideOperator
@@ -582,35 +656,35 @@ InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v
 ;
 
 subtractOperator
-process where serial_event_id - 2 == 41
+process where serial_event_id - 2 == 2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":2147483647}
 ;
 
 subtractOperatorReversed
-process where 43 - serial_event_id == 41
+process where 43 - serial_event_id == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":43,"v1":"serial_event_id","v2":41}
+"params":{"v0":43,"v1":"serial_event_id","v2":-2147483647}
 ;
 
 subtractFunction
-process where subtract(serial_event_id, 2) == 41
+process where subtract(serial_event_id, 2) == 2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":2147483647}
 ;
 
 subtractFunctionReversed
-process where subtract(43, serial_event_id) == 41
+process where subtract(43, serial_event_id) == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":43,"v1":"serial_event_id","v2":41}
+"params":{"v0":43,"v1":"serial_event_id","v2":-2147483647}
 ;
 
 eventQueryDefaultLimit

@@ -18,7 +18,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,6 +32,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -319,12 +319,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
     public void testUpdateDatabases() throws IOException {
         List<Map<String, Object>> maps = List.of(Map.of("a", 1), Map.of("a", 2));
-        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         builder.startArray();
         builder.map(Map.of("a", 1));
         builder.map(Map.of("a", 2));
         builder.endArray();
-        when(httpClient.getString("a.b?key=11111111-1111-1111-1111-111111111111")).thenReturn(Strings.toString(builder));
+        builder.close();
+        when(httpClient.getBytes("a.b?key=11111111-1111-1111-1111-111111111111")).thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY) {
             @Override

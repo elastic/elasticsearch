@@ -163,7 +163,6 @@ public class JsonLoggerTests extends ESTestCase {
         });
     }
 
-
     public void testDeprecatedMessage() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");

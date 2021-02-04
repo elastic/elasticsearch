@@ -25,12 +25,14 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             action.setGroup("Documentation");
             action.setDescription("Generates release notes from changelog files held in this checkout");
 
-            action.setChangelogs(project.getLayout()
-                .getProjectDirectory()
-                .dir("docs/changelog")
-                .getAsFileTree()
-                .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-                .getFiles());
+            action.setChangelogs(
+                project.getLayout()
+                    .getProjectDirectory()
+                    .dir("docs/changelog")
+                    .getAsFileTree()
+                    .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
+                    .getFiles()
+            );
 
             action.setReleaseNotesFile(
                 project.getLayout()
@@ -51,16 +53,19 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final TaskProvider<ValidateChangelogsTask> validateChangelogs = project.getTasks()
             .register("validateChangelogs", ValidateChangelogsTask.class);
+
         validateChangelogs.configure(action -> {
             action.setGroup("Documentation");
             action.setDescription("Validates that all the changelog YAML files are well-formed");
 
-            action.setChangelogs(project.getLayout()
-                .getProjectDirectory()
-                .dir("docs/changelog")
-                .getAsFileTree()
-                .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-                .getFiles());
+            action.setChangelogs(
+                project.getLayout()
+                    .getProjectDirectory()
+                    .dir("docs/changelog")
+                    .getAsFileTree()
+                    .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
+                    .getFiles()
+            );
         });
 
         project.getTasks().named("check").configure(task -> task.dependsOn(validateChangelogs));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -548,7 +549,7 @@ public class Querier {
         public void onResponse(final SearchResponse response) {
             try {
                 ShardSearchFailure[] failure = response.getShardFailures();
-                if (!CollectionUtils.isEmpty(failure)) {
+                if (CollectionUtils.isEmpty(failure) == false) {
                     cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
                 } else {
                     handleResponse(response, ActionListener.wrap(listener::onResponse, e -> cleanup(response, e)));

@@ -112,6 +112,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
     private List<ObjectMapper> objectMappers;
+    private boolean useNestedDirectoryWrapping = false;
 
     @Override
     @Before
@@ -136,11 +137,20 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         super.tearDown();
         FIELD_TYPES = null;
         objectMappers = null;
+        useNestedDirectoryWrapping = false;
     }
 
     @Override
     protected List<ObjectMapper> objectMappers() {
         return objectMappers;
+    }
+
+    @Override
+    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        if (useNestedDirectoryWrapping) {
+            return wrapInMockESDirectoryReader(reader);
+        }
+        return  reader;
     }
 
     public void testUnmappedFieldWithTerms() throws Exception {
@@ -551,8 +561,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void testSubAggregationOfNested() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
+        useNestedDirectoryWrapping = true;
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field("name");
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + ".name");
         NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
         builder.subAggregation(new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms)));
         testCase(

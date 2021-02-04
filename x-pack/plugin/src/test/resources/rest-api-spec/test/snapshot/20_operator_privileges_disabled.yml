@@ -14,6 +14,17 @@ setup:
         wait_for_status: green
 
 ---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_restore_2
+        snapshot: test_snapshot_2
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_restore_2
+
+---
 "Operator only settings can be set and restored by non-operator user when operator privileges is disabled":
   - skip:
       features: ["allowed_warnings"]

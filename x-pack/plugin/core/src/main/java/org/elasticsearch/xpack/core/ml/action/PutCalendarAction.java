@@ -40,7 +40,7 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
             Calendar.Builder builder = Calendar.STRICT_PARSER.apply(parser, null);
             if (builder.getId() == null) {
                 builder.setId(calendarId);
-            } else if (!Strings.isNullOrEmpty(calendarId) && !calendarId.equals(builder.getId())) {
+            } else if (Strings.isNullOrEmpty(calendarId) == false && calendarId.equals(builder.getId()) == false) {
                 // If we have both URI and body filter ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Calendar.ID.getPreferredName(),
                         builder.getId(), calendarId));
@@ -71,12 +71,12 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
                         addValidationError("Cannot create a Calendar with the reserved name [_all]",
                                 validationException);
             }
-            if (!MlStrings.isValidId(calendar.getId())) {
+            if (MlStrings.isValidId(calendar.getId()) == false) {
                 validationException = addValidationError(Messages.getMessage(
                         Messages.INVALID_ID, Calendar.ID.getPreferredName(), calendar.getId()),
                         validationException);
             }
-            if (!MlStrings.hasValidLengthForId(calendar.getId())) {
+            if (MlStrings.hasValidLengthForId(calendar.getId()) == false) {
                 validationException = addValidationError(Messages.getMessage(
                         Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT),
                         validationException);

@@ -120,7 +120,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         for (Object item : list) {
-            if (!(item instanceof Map)) {
+            if ((item instanceof Map) == false) {
                 throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data. " +
                         "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }

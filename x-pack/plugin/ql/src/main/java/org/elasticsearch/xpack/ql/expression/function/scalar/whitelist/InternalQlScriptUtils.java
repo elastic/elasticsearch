@@ -32,7 +32,7 @@ public class InternalQlScriptUtils {
     public static <T> Object docValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         if (doc.containsKey(fieldName)) {
             ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (!docValues.isEmpty()) {
+            if (docValues.isEmpty() == false) {
                 return docValues.get(0);
             }
         }

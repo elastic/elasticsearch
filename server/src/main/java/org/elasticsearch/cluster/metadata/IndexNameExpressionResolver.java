@@ -270,7 +270,7 @@ public class IndexNameExpressionResolver {
                     concreteIndices.add(writeIndex.getIndex());
                 }
             } else {
-                if (indexAbstraction.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
+                if (indexAbstraction.getIndices().size() > 1 && options.allowAliasesToMultipleIndices() == false) {
                     String[] indexNames = new String[indexAbstraction.getIndices().size()];
                     int i = 0;
                     for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
@@ -828,7 +828,7 @@ public class IndexNameExpressionResolver {
             if (result == null) {
                 return expressions;
             }
-            if (result.isEmpty() && !options.allowNoIndices()) {
+            if (result.isEmpty() && options.allowNoIndices() == false) {
                 IndexNotFoundException infe = new IndexNotFoundException((String)null);
                 infe.setResources("index_or_alias", expressions.toArray(new String[0]));
                 throw infe;

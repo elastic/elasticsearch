@@ -49,7 +49,7 @@ public class SubstringFunctionProcessor implements Processor {
         if (input == null) {
             return null;
         }
-        if (!(input instanceof String || input instanceof Character)) {
+        if ((input instanceof String || input instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (start == null || length == null) {

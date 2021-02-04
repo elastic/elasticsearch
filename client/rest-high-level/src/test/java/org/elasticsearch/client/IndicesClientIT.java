@@ -958,15 +958,17 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
+            rolloverRequest.addMaxSinglePrimarySizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertTrue(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
             Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
-            assertEquals(3, conditionStatus.size());
+            assertEquals(4, conditionStatus.size());
             assertTrue(conditionStatus.get("[max_docs: 1]"));
             assertTrue(conditionStatus.get("[max_age: 1ms]"));
             assertFalse(conditionStatus.get("[max_size: 1mb]"));
+            assertFalse(conditionStatus.get("[max_single_primary_size: 1mb]"));
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }

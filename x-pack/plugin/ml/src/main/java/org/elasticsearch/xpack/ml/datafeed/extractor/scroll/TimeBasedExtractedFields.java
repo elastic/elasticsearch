@@ -32,7 +32,7 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         super(allFields,
             Collections.emptyList(),
             Collections.emptyMap());
-        if (!allFields.contains(timeField)) {
+        if (allFields.contains(timeField) == false) {
             throw new IllegalArgumentException("timeField should also be contained in allFields");
         }
         this.timeField = Objects.requireNonNull(timeField);

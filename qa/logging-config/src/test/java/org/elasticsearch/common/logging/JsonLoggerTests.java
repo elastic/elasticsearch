@@ -142,6 +142,7 @@ public class JsonLoggerTests extends ESTestCase {
                         ),
                         allOf(
                             hasEntry("log.level", "DEPRECATION"),
+                            // event.dataset and data_stream.dataset have to be the same across the data stream
                             hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.type", "logs"),

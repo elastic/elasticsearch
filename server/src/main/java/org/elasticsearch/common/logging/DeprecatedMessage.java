@@ -30,11 +30,10 @@ public class DeprecatedMessage  {
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage compatibleDeprecationMessage(
-        DeprecationCategory category,
         String key, String xOpaqueId,
         String messagePattern,
         Object... args){
-        return getEsLogMessage(category, key, xOpaqueId, messagePattern, args);
+        return getEsLogMessage(DeprecationCategory.COMPATIBLE_API, key, xOpaqueId, messagePattern, args);
     }
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")

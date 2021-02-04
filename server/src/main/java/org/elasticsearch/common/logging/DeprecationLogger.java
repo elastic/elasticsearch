@@ -55,15 +55,15 @@ public class DeprecationLogger {
     }
 
     private DeprecationLogger(String parentLoggerName) {
-        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName,"deprecation"));
-        this.compatibleLogger = LogManager.getLogger(getLoggerName(parentLoggerName,"compatible"));
+        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName, "deprecation"));
+        this.compatibleLogger = LogManager.getLogger(getLoggerName(parentLoggerName, "compatible"));
     }
 
     private static String getLoggerName(String name, String prefix) {
         if (name.startsWith("org.elasticsearch")) {
-            name = name.replace("org.elasticsearch.", "org.elasticsearch."+prefix+".");
+            name = name.replace("org.elasticsearch.", "org.elasticsearch." + prefix + ".");
         } else {
-            name = prefix +"."+ name;
+            name = prefix + "." + name;
         }
         return name;
     }
@@ -93,8 +93,7 @@ public class DeprecationLogger {
         final String msg,
         final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
-        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(DeprecationCategory.COMPATIBLE_API,
-            key, opaqueId, msg, params);
+        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
         compatibleLogger.log(DEPRECATION, deprecationMessage);
         return this;
     }

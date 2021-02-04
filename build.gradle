@@ -170,7 +170,7 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = false
-String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/68490" /* place a PR link here when committing bwc changes */
+String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/68489" /* place a PR link here when committing bwc changes */
 /*
  * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
  * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
@@ -178,8 +178,8 @@ String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull
  */
 
 if ( BuildParams.inFipsJvm ) {
-  bwc_tests_enabled = true
-  bwc_tests_disabled_issue = ""
+  bwc_tests_enabled = false
+  bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/issues/66772"
 }
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {

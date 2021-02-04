@@ -184,6 +184,19 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
+    public void beforeShardLockDuringShardCreate(ShardRouting routing, Settings indexSettings) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.beforeShardLockDuringShardCreate(routing, indexSettings);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to invoke before shard locked callback",
+                    routing), e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
     public void beforeIndexShardDeleted(ShardId shardId,
                                         Settings indexSettings) {
         for (IndexEventListener listener : listeners) {

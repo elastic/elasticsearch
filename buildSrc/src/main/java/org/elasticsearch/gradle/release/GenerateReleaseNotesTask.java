@@ -60,7 +60,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     public void executeTask() throws IOException {
         LOGGER.info("Finding changelog files...");
 
-        final Version elasticsearchVersion = VersionProperties.getElasticsearchVersion();
+        final Version checkoutVersion = VersionProperties.getElasticsearchVersion();
 
         final List<ChangelogEntry> entries = this.changelogs.getFiles()
             .stream()
@@ -71,21 +71,21 @@ public class GenerateReleaseNotesTask extends DefaultTask {
                 // include it in the notes. An earlier patch version is OK, the release notes include changes
                 // for every patch release in a minor series.
                 log -> {
-                    final List<Version> changelogVersions = log.getVersions()
+                    final List<Version> versionsForChangelogFile = log.getVersions()
                         .stream()
                         .map(v -> Version.fromString(v, Version.Mode.RELAXED))
                         .collect(Collectors.toList());
 
-                    final Predicate<Version> includedInSameMinor = v -> v.getMajor() == elasticsearchVersion.getMajor()
-                        && v.getMinor() == elasticsearchVersion.getMinor();
+                    final Predicate<Version> includedInSameMinor = v -> v.getMajor() == checkoutVersion.getMajor()
+                        && v.getMinor() == checkoutVersion.getMinor();
 
-                    final Predicate<Version> includedInEarlierMajorOrMinor = v -> v.getMajor() < elasticsearchVersion.getMajor()
-                        || v.getMinor() < elasticsearchVersion.getMinor();
+                    final Predicate<Version> includedInEarlierMajorOrMinor = v -> v.getMajor() < checkoutVersion.getMajor()
+                        || (v.getMajor() == checkoutVersion.getMajor() && v.getMinor() < checkoutVersion.getMinor());
 
-                    boolean includedInThisMinor = changelogVersions.stream().anyMatch(includedInSameMinor);
+                    boolean includedInThisMinor = versionsForChangelogFile.stream().anyMatch(includedInSameMinor);
 
                     if (includedInThisMinor) {
-                        return false == changelogVersions.stream().anyMatch(includedInEarlierMajorOrMinor);
+                        return false == versionsForChangelogFile.stream().anyMatch(includedInEarlierMajorOrMinor);
                     } else {
                         return false;
                     }

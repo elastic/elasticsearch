@@ -429,7 +429,6 @@ public class RestoreService implements ClusterStateApplier {
                         if (request.includeGlobalState()) {
                             if (metadata.persistentSettings() != null) {
                                 Settings settings = metadata.persistentSettings();
-                                clusterSettings.validateUpdate(settings);
                                 if (request.skipOperatorOnlyState()) {
                                     // Skip any operator-only settings from the snapshot. This happens when operator privileges are enabled
                                     Set<String> operatorSettingKeys = Stream.concat(
@@ -446,6 +445,7 @@ public class RestoreService implements ClusterStateApplier {
                                             .build();
                                     }
                                 }
+                                clusterSettings.validateUpdate(settings);
                                 mdBuilder.persistentSettings(settings);
                             }
                             if (metadata.templates() != null) {

@@ -133,12 +133,13 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             original.skipOperatorOnlyState(true);
         }
+        Map<String, Object> map = convertRequestToMap(original);
         // It is not serialised as xcontent
-        XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent().createParser(
-            NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        Map<String, Object> map = parser.mapOrdered();
         assertFalse(map.containsKey("skip_operator_only"));
+
+        // Xcontent is not affected by the value of skipOperatorOnlyState
+        original.skipOperatorOnlyState(original.skipOperatorOnlyState() == false);
+        assertEquals(map, convertRequestToMap(original));
 
         // Nor does it serialise to streamInput
         final BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -150,5 +151,12 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
     public void testToStringWillIncludeSkipOperatorOnlyState() {
         RestoreSnapshotRequest original = createTestInstance();
         assertThat(original.toString(), containsString("skipOperatorOnlyState"));
+    }
+
+    private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {
+        XContentBuilder builder = request.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
+        XContentParser parser = XContentType.JSON.xContent().createParser(
+            NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
+        return parser.mapOrdered();
     }
 }

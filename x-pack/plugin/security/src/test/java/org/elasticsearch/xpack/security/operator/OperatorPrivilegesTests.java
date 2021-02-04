@@ -115,7 +115,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
         operatorPrivilegesService.maybeInterceptRequest(new ThreadContext(Settings.EMPTY), restoreSnapshotRequest);
 
-        verify(restoreSnapshotRequest).skipOperatorOnly(licensed);
+        verify(restoreSnapshotRequest).skipOperatorOnlyState(licensed);
     }
 
     public void testMaybeInterceptRequestWillNotInterceptRequestsOtherThanRestoreSnapshotRequest() {
@@ -141,7 +141,7 @@ public class OperatorPrivilegesTests extends ESTestCase {
         final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         NOOP_OPERATOR_PRIVILEGES_SERVICE.maybeInterceptRequest(threadContext, restoreSnapshotRequest);
-        verify(restoreSnapshotRequest).skipOperatorOnly(false);
+        verify(restoreSnapshotRequest).skipOperatorOnlyState(false);
 
         // The test just makes sure that other requests are also accepted without any error
         NOOP_OPERATOR_PRIVILEGES_SERVICE.maybeInterceptRequest(threadContext, mock(TransportRequest.class));

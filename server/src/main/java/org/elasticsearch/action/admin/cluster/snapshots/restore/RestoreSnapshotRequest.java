@@ -438,12 +438,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         return snapshotUuid;
     }
 
-    public boolean skipOperatorOnly() {
-        return skipOperatorOnly;
+    public boolean skipOperatorOnlyState() {
+        return skipOperatorOnlyState;
     }
 
-    public void skipOperatorOnly(boolean skipOperatorOnly) {
-        this.skipOperatorOnly = skipOperatorOnly;
+    public void skipOperatorOnlyState(boolean skipOperatorOnlyState) {
+        this.skipOperatorOnlyState = skipOperatorOnlyState;
     }
 
     /**

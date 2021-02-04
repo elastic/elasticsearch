@@ -127,9 +127,9 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     public void testSkipOperatorOnlyWillNotBeSerialised() throws IOException {
         RestoreSnapshotRequest original = createTestInstance();
-        assertFalse(original.skipOperatorOnly()); // default is false
+        assertFalse(original.skipOperatorOnlyState()); // default is false
         if (randomBoolean()) {
-            original.skipOperatorOnly(true);
+            original.skipOperatorOnlyState(true);
         }
         // It is not serialised as xcontent
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
@@ -142,6 +142,6 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         final BytesStreamOutput streamOutput = new BytesStreamOutput();
         original.writeTo(streamOutput);
         final RestoreSnapshotRequest deserialized = new RestoreSnapshotRequest(streamOutput.bytes().streamInput());
-        assertFalse(deserialized.skipOperatorOnly());
+        assertFalse(deserialized.skipOperatorOnlyState());
     }
 }

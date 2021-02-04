@@ -13,16 +13,18 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.util.PatternSet;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -33,35 +35,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty releaseHighlightsFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty breakingChangesFile = getProject().getObjects().fileProperty();
-
-    public GenerateReleaseNotesTask() {
-        final Version version = VersionProperties.getElasticsearchVersion();
-
-        this.changelogs.setFrom(
-            getProject().getLayout()
-                .getProjectDirectory()
-                .dir("docs/changelog")
-                .getAsFileTree()
-                .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-                .getFiles()
-        );
-
-        this.releaseNotesFile.set(
-            getProject().getLayout()
-                .getProjectDirectory()
-                .file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
-        );
-
-        this.releaseHighlightsFile.set(
-            getProject().getLayout().getProjectDirectory().file("docs/reference/release-notes/highlights.asciidoc")
-        );
-
-        this.breakingChangesFile.set(
-            getProject().getLayout()
-                .getProjectDirectory()
-                .file(String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor()))
-        );
-    }
 
     @InputFiles
     public FileCollection getChangelogs() {
@@ -131,5 +104,21 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         try (BreakingChangesGenerator generator = new BreakingChangesGenerator(this.breakingChangesFile.get().getAsFile())) {
             generator.generate(entries);
         }
+    }
+
+    public void setChangelogs(Set<File> files) {
+        this.changelogs.setFrom(files);
+    }
+
+    public void setReleaseNotesFile(RegularFile file) {
+        this.releaseNotesFile.set(file);
+    }
+
+    public void setReleaseHighlightsFile(RegularFile file) {
+        this.releaseHighlightsFile.set(file);
+    }
+
+    public void setBreakingChangesFile(RegularFile file) {
+        this.breakingChangesFile.set(file);
     }
 }

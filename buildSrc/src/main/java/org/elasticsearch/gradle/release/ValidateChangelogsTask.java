@@ -15,25 +15,14 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
+import java.util.Set;
 
 public class ValidateChangelogsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(ValidateChangelogsTask.class);
 
     private final ConfigurableFileCollection changelogs = getProject().getObjects().fileCollection();
-
-    public ValidateChangelogsTask() {
-        this.changelogs.setFrom(
-            getProject().getLayout()
-                .getProjectDirectory()
-                .dir("docs/changelog")
-                .getAsFileTree()
-                .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-                .getFiles()
-        );
-    }
 
     @InputFiles
     public FileCollection getChangelogs() {
@@ -47,5 +36,9 @@ public class ValidateChangelogsTask extends DefaultTask {
         for (File file : this.changelogs.getFiles()) {
             ChangelogEntry.parseChangelog(file);
         }
+    }
+
+    public void setChangelogs(Set<File> files) {
+        this.changelogs.setFrom(files);
     }
 }

@@ -21,7 +21,7 @@ public class StringProcessor implements Processor {
 
     private interface StringFunction<R> {
         default R apply(Object o) {
-            if (!(o instanceof String || o instanceof Character)) {
+            if ((o instanceof String || o instanceof Character) == false) {
                 throw new SqlIllegalArgumentException("A string/char is required; received [{}]", o);
             }
 
@@ -33,7 +33,7 @@ public class StringProcessor implements Processor {
 
     private interface NumericFunction<R> {
         default R apply(Object o) {
-            if (!(o instanceof Number)) {
+            if ((o instanceof Number) == false) {
                 throw new SqlIllegalArgumentException("A number is required; received [{}]", o);
             }
 

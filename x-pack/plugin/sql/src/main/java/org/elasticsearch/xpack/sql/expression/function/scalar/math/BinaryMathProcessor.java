@@ -60,7 +60,7 @@ public class BinaryMathProcessor extends FunctionalEnumBinaryProcessor<Number, N
 
     @Override
     protected void checkParameter(Object param) {
-        if (!(param instanceof Number)) {
+        if ((param instanceof Number) == false) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", param);
         }
     }

@@ -21,7 +21,7 @@ final class StringFunctionUtils {
      * @return the resulting String
      */
     static String substring(String s, int start, int length) {
-        if (!hasLength(s)) {
+        if (hasLength(s) == false) {
             return s;
         }
 

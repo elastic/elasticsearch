@@ -69,7 +69,7 @@ public class SslConfig {
         boolean isSSLPropertyPresent = settings.getProperty(SSL) != null;
         boolean isHttpsScheme = "https".equals(baseURI.getScheme());
 
-        if (!isSSLPropertyPresent && !isSchemaPresent) {
+        if (isSSLPropertyPresent == false && isSchemaPresent == false) {
             enabled = StringUtils.parseBoolean(SSL_DEFAULT);
         } else {
             if (isSSLPropertyPresent && isHttpsScheme && !StringUtils.parseBoolean(settings.getProperty(SSL))) {
@@ -110,7 +110,7 @@ public class SslConfig {
     }
 
     private KeyManager[] loadKeyManagers() throws GeneralSecurityException, IOException {
-        if (!StringUtils.hasText(keystoreLocation)) {
+        if (StringUtils.hasText(keystoreLocation) == false) {
             return null;
         }
 
@@ -126,7 +126,7 @@ public class SslConfig {
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
         Path path = Paths.get(source);
 
-        if (!Files.exists(path)) {
+        if (Files.exists(path) == false) {
            throw new ClientException(
                     "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI.");
         }

@@ -53,7 +53,7 @@ dependencies {
 }
 
 tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+  options.compilerArgs << "-Xlint:-unchecked"
 }
 
 tasks.named("dependencyLicenses").configure {

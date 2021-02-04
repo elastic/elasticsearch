@@ -272,7 +272,7 @@ public class SlackMessageTests extends ESTestCase {
             }
         }
 
-        if (!includeTarget) {
+        if (includeTarget == false) {
             assertThat(to, nullValue());
             to = expected.to;
         }

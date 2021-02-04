@@ -418,10 +418,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
         StoredScriptSource that = (StoredScriptSource)o;
 
-        if (lang != null ? !lang.equals(that.lang) : that.lang != null) return false;
-        if (source != null ? !source.equals(that.source) : that.source != null) return false;
-        return options != null ? options.equals(that.options) : that.options == null;
-
+        return Objects.equals(lang, that.lang)
+            && Objects.equals(source, that.source)
+            && Objects.equals(options, that.options);
     }
 
     @Override

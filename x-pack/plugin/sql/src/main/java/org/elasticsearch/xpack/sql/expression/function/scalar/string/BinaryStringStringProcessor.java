@@ -58,10 +58,10 @@ public class BinaryStringStringProcessor extends FunctionalEnumBinaryProcessor<S
 
     @Override
     protected Object doProcess(Object left, Object right) {
-        if (!(left instanceof String || left instanceof Character)) {
+        if ((left instanceof String || left instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", left);
         }
-        if (!(right instanceof String || right instanceof Character)) {
+        if ((right instanceof String || right instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", right);
         }
 

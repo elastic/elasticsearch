@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.rollup.v2;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,27 +29,22 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RollupGroup;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.WriteableZoneId;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
@@ -58,146 +52,93 @@ import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
 
 /**
- * A {@link TransportBroadcastAction} that rollups all the shards of a single index into a new one.
- *
- * TODO: Enforce that rollup-indices of indices backing a datastream must be hidden.
- *       Enforce that we don't retry on another replica if we throw an error after sending some buckets.
+ * The master rollup action that coordinates
+ *  -  creating rollup temporary index
+ *  -  calling {@link TransportRollupIndexerAction} to index rolluped up documents
+ *  -  cleaning up state
  */
-public class TransportRollupAction
-    extends TransportBroadcastAction<RollupAction.Request, RollupAction.Response, RollupAction.ShardRequest, RollupAction.ShardResponse> {
-
-    private static final int SORTER_RAM_SIZE_MB = 100;
+public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
 
     private final Client client;
     private final ClusterService clusterService;
-    private final IndicesService indicesService;
 
     @Inject
     public TransportRollupAction(Client client,
                                  ClusterService clusterService,
                                  TransportService transportService,
-                                 IndicesService indicesService,
+                                 ThreadPool threadPool,
                                  ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RollupAction.NAME, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, RollupAction.Request::new, RollupAction.ShardRequest::new, TASK_THREAD_POOL_NAME);
+        super(RollupAction.NAME, transportService, clusterService, threadPool, actionFilters, RollupAction.Request::new,
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;
-        this.indicesService = indicesService;
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, RollupAction.Request request, String[] concreteIndices) {
-        if (concreteIndices.length > 1) {
-            throw new IllegalArgumentException("multiple indices: " + Arrays.toString(concreteIndices));
-        }
-        // Random routing to limit request to a single shard
-        String routing = Integer.toString(Randomness.get().nextInt(1000));
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, null);
-    }
+    protected void masterOperation(Task task, RollupAction.Request request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) {
+        String originalIndexName = request.getSourceIndex();
+        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
 
-    @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, RollupAction.Request request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, RollupAction.Request request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
-    }
-
-    @Override
-    protected void doExecute(Task task, RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
+        final XContentBuilder mapping;
         try {
-            String tmpIndexName =  ".rolluptmp-" + request.getRollupIndex();
-            createTempRollupIndex(request, tmpIndexName,
-                ActionListener.wrap(
-                    resp -> {
-                        new Async(task, request, listener).start();
-                    },
-                    listener::onFailure
-                )
-            );
-        } catch (IOException exc) {
-            // here because the mapping could not be parsed. temp index was not created.
-            listener.onFailure(exc);
-        }
-    }
-
-    @Override
-    protected RollupAction.ShardRequest newShardRequest(int numShards, ShardRouting shard, RollupAction.Request request) {
-        return new RollupAction.ShardRequest(shard.shardId(), request);
-    }
-
-    @Override
-    protected RollupAction.ShardResponse shardOperation(RollupAction.ShardRequest request, Task task) throws IOException {
-        IndexService indexService = indicesService.indexService(request.shardId().getIndex());
-        String tmpIndexName =  ".rolluptmp-" + request.getRollupIndex();
-        RollupShardIndexer indexer = new RollupShardIndexer(client, indexService, request.shardId(),
-            request.getRollupConfig(), tmpIndexName, SORTER_RAM_SIZE_MB);
-        indexer.execute();
-        return new RollupAction.ShardResponse(request.shardId());
-    }
-
-    @Override
-    protected RollupAction.ShardResponse readShardResponse(StreamInput in) throws IOException {
-        return new RollupAction.ShardResponse(in);
-    }
-
-    @Override
-    protected RollupAction.Response newResponse(RollupAction.Request request,
-                                                AtomicReferenceArray<?> shardsResponses,
-                                                ClusterState clusterState) {
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            Object shardResponse = shardsResponses.get(i);
-            if (shardResponse == null) {
-                throw new ElasticsearchException("missing shard");
-            } else if (shardResponse instanceof Exception) {
-                throw new ElasticsearchException((Exception) shardResponse);
-            }
-        }
-        return new RollupAction.Response(true);
-    }
-
-    private class Async extends AsyncBroadcastAction {
-        private final RollupAction.Request request;
-        private final ActionListener<RollupAction.Response> listener;
-
-        protected Async(Task task, RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
-            super(task, request, listener);
-            this.request = request;
-            this.listener = listener;
+            mapping = getMapping(request.getRollupConfig());
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
         }
 
-        @Override
-        protected void finishHim() {
-            try {
-                RollupAction.Response resp = newResponse(request, shardsResponses, clusterService.state());
-                shrinkAndPublishIndex(request, ActionListener.wrap(v -> listener.onResponse(resp), listener::onFailure));
-            } catch (Exception e) {
-                deleteTmpIndex(".rolluptmp-" + request.getRollupIndex(), ActionListener.wrap(() -> listener.onFailure(e)));
-            }
-        }
-    }
-
-    private void createTempRollupIndex(RollupAction.Request request,
-                                       String tmpIndex,
-                                       ActionListener<CreateIndexResponse> listener) throws IOException {
-        CreateIndexRequest req = new CreateIndexRequest(tmpIndex, Settings.builder()
+        CreateIndexRequest req = new CreateIndexRequest(tmpIndexName, Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
-            .mapping(getMapping(request.getRollupConfig()));
-        client.admin().indices().create(req, listener);
+            .mapping(mapping);
+        RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
+        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
+        resizeRequest.setResizeType(ResizeType.CLONE);
+        resizeRequest.getTargetIndexRequest()
+            .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
+        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
+            Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(), tmpIndexName);
+
+        // 1. create hidden temporary index
+        // 2. run rollup indexer
+        // 3. make temp index read-only
+        // 4. shrink index
+        // 5. delete temporary index
+        // at any point if there is an issue, then cleanup temp index
+        client.admin().indices().create(req, ActionListener.wrap(createIndexResponse ->
+            client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
+                if (indexerResp.isCreated()) {
+                    client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
+                        if (updateSettingsResponse.isAcknowledged()) {
+                            client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
+                                if (resizeResponse.isAcknowledged()) {
+                                    publishMetadata(request, originalIndexName, tmpIndexName, listener);
+                                } else {
+                                    deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                                        new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
+                                }
+                            }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                        } else {
+                            deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                                new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]"));
+                        }
+                    }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                } else {
+                    deleteTmpIndex(originalIndexName, tmpIndexName, listener,
+                        new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]"));
+                }
+            }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e))), listener::onFailure));
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(RollupAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     private XContentBuilder getMapping(RollupActionConfig config) throws IOException {
@@ -256,37 +197,18 @@ public class TransportRollupAction
         return builder.endObject();
     }
 
-    private void shrinkAndPublishIndex(RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
-        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
-        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
-        resizeRequest.setResizeType(ResizeType.CLONE);
-        resizeRequest.getTargetIndexRequest()
-            .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
-        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
-            Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(), tmpIndexName);
-        client.admin().indices().updateSettings(updateSettingsReq,
-            ActionListener.wrap(
-                resp -> {
-                    client.admin().indices().resizeIndex(resizeRequest,
-                        ActionListener.wrap(ack -> publishMetadata(request, listener), listener::onFailure));
-                },
-                listener::onFailure
-            )
-        );
-    }
-
-    private void publishMetadata(RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
+    private void publishMetadata(RollupAction.Request request, String originalIndexName, String tmpIndexName,
+                                 ActionListener<AcknowledgedResponse> listener) {
         // update Rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 // Everything went well, time to delete the temporary index
-                deleteTmpIndex(".rolluptmp-" + request.getRollupIndex(),
-                    ActionListener.wrap(r -> listener.onResponse(new RollupAction.Response(true)), listener::onFailure));
+                deleteTmpIndex(originalIndexName, tmpIndexName, listener, null);
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 String rollupIndexName = request.getRollupIndex();
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
@@ -337,15 +259,27 @@ public class TransportRollupAction
 
             @Override
             public void onFailure(String source, Exception e) {
-                // Everything went well, time to delete the temporary index
-                deleteTmpIndex(".rolluptmp-" + request.getRollupIndex(),
-                    ActionListener.wrap(() -> listener.onFailure(
-                        new ElasticsearchException("failed to publish new cluster state with rollup metadata", e))));
+                deleteTmpIndex(originalIndexName, tmpIndexName,
+                    listener, new ElasticsearchException("failed to publish new cluster state with rollup metadata", e));
             }
         });
     }
 
-    private void deleteTmpIndex(String tmpIndex, ActionListener<AcknowledgedResponse> listener) {
-        client.admin().indices().delete(new DeleteIndexRequest(tmpIndex), listener);
+    private void deleteTmpIndex(String originalIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
+        client.admin().indices().delete(new DeleteIndexRequest(tmpIndex), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                if (e == null && acknowledgedResponse.isAcknowledged()) {
+                    listener.onResponse(acknowledgedResponse);
+                } else {
+                    listener.onFailure(new ElasticsearchException("Unable to rollup index [" + originalIndex + "]", e));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception deleteException) {
+                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex  + "]", e));
+            }
+        });
     }
 }

@@ -96,7 +96,6 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${props.getProperty('jackson')}"
   api 'org.ow2.asm:asm:9.0'
   api 'org.ow2.asm:asm-tree:9.0'
-  api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
 
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"

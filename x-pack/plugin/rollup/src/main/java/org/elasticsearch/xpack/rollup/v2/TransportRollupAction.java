@@ -218,14 +218,17 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
 
-                // Add metadata to rollup index metadata
+                // Add metadata to rollup index metadata. In the rollup index metadata we only add the name
+                // of the source index.
                 Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName).getCustomData(RollupMetadata.TYPE);
                 String rollupGroupKeyName = idxMetadata != null ?
                     idxMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
                 Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
                 rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupGroupKeyName);
 
-                DataStream dataStream = null;
+                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
+                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata));
+
                 if (originalIndex.getParentDataStream() != null) {
                     // If rolling up a backing index of a datastream, add rolled up index to backing datastream
                     DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
@@ -258,15 +261,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
                     List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());
                     backingIndices.add(rollupIndex);
-                    dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
+
+                    DataStream dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
                         backingIndices, originalDataStream.getGeneration(), dsMetadata);
-
-                }
-
-                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
-                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata));
-
-                if (dataStream != null) {
                     metadataBuilder.put(dataStream);
                 }
                 return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();

@@ -37,7 +37,7 @@ public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXCon
     private static final ParseField GROUP_FIELD = new ParseField("group");
 
     /** a map from rollup-index name to its rollup configuration */
-    private Map<String, RollupIndexMetadata> group;
+    private final Map<String, RollupIndexMetadata> group;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupGroup, Void> PARSER =

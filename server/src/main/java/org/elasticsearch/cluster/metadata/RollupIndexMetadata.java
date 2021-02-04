@@ -46,11 +46,11 @@ public class RollupIndexMetadata extends AbstractDiffable<RollupIndexMetadata> i
     private static final ParseField METRICS_FIELD = new ParseField("metrics");
 
     // the date interval used for rolling up data
-    private DateHistogramInterval dateInterval;
+    private final DateHistogramInterval dateInterval;
     // the timezone used for the date_histogram
-    private WriteableZoneId dateTimezone;
+    private final WriteableZoneId dateTimezone;
     // a map from field name to metrics supported by the rollup for this field
-    private Map<String, List<String>> metrics;
+    private final Map<String, List<String>> metrics;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupIndexMetadata, Void> PARSER =

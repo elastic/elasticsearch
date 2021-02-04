@@ -19,9 +19,9 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        final Version version = VersionProperties.getElasticsearchVersion();
-
         project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(action -> {
+            final Version version = VersionProperties.getElasticsearchVersion();
+
             action.setGroup("Documentation");
             action.setDescription("Generates release notes from changelog files held in this checkout");
 

@@ -10,15 +10,34 @@ package org.elasticsearch.gradle.release;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.util.PatternSet;
+
+import java.io.File;
 
 public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        final Provider<ValidateYamlAgainstSchemaTask> validateChangelogs = project.getTasks()
+            .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {
+                task.setGroup("Documentation");
+                task.setDescription("Validates that all the changelog YAML files are well-formed");
+
+                task.setInputFiles(
+                    project.getLayout()
+                        .getProjectDirectory()
+                        .dir("docs/changelog")
+                        .getAsFileTree()
+                        .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
+                );
+                task.setJsonSchema(new File(project.getRootDir(), "buildSrc/src/main/resources/changelog-schema.json"));
+                task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
+            });
+
         project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(action -> {
             final Version version = VersionProperties.getElasticsearchVersion();
 
@@ -49,23 +68,8 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                     .getProjectDirectory()
                     .file(String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor()))
             );
-        });
 
-        final TaskProvider<ValidateChangelogsTask> validateChangelogs = project.getTasks()
-            .register("validateChangelogs", ValidateChangelogsTask.class);
-
-        validateChangelogs.configure(action -> {
-            action.setGroup("Documentation");
-            action.setDescription("Validates that all the changelog YAML files are well-formed");
-
-            action.setChangelogs(
-                project.getLayout()
-                    .getProjectDirectory()
-                    .dir("docs/changelog")
-                    .getAsFileTree()
-                    .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-                    .getFiles()
-            );
+            action.dependsOn(validateChangelogs);
         });
 
         project.getTasks().named("check").configure(task -> task.dependsOn(validateChangelogs));

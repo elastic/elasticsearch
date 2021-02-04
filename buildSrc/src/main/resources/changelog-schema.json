@@ -1,0 +1,167 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/elastic/elasticsearch/tree/master/docs/changelog",
+  "$ref": "#/definitions/Changelog",
+  "definitions": {
+    "Changelog": {
+      "type": "object",
+      "properties": {
+        "pr": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "area": {
+          "type": "string",
+          "enum": [
+            "Aggregations",
+            "Allocation",
+            "Authorization",
+            "Cluster Coordination",
+            "Distributed",
+            "EQL",
+            "Engine",
+            "Engine changes",
+            "Features/Features",
+            "Features/ILM+SLM",
+            "Features/Indices APIs",
+            "Features/Ingest",
+            "Features/Monitoring",
+            "Geo",
+            "Infra/Core",
+            "Infra/Logging",
+            "Infra/Plugins",
+            "Infra/Scripting",
+            "Infra/Settings",
+            "Machine Learning",
+            "Packaging",
+            "Query Languages",
+            "Ranking",
+            "Rollup",
+            "Search",
+            "Security",
+            "SQL",
+            "Task Management"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "breaking",
+            "breaking-java",
+            "deprecation",
+            "feature",
+            "enhancement",
+            "bug",
+            "regression",
+            "upgrade"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^v?\\d+\\.\\d+\\.\\d+$",
+            "minItems": 1
+          }
+        },
+        "highlight": {
+          "$ref": "#/definitions/Highlight"
+        },
+        "breaking": {
+          "$ref": "#/definitions/Breaking"
+        }
+      },
+      "required": [
+        "pr",
+        "area",
+        "type",
+        "summary",
+        "versions"
+      ]
+    },
+    "Highlight": {
+      "properties": {
+        "notable": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "title",
+        "summary"
+      ]
+    },
+    "Breaking": {
+      "properties": {
+        "area": {
+          "type": "string",
+          "enum": [
+            "API",
+            "Aggregation",
+            "Allocation",
+            "Authentication",
+            "CCR",
+            "Cluster",
+            "Discovery",
+            "Engine",
+            "HTTP",
+            "Highlighters",
+            "Indices",
+            "Java",
+            "License Information",
+            "Logging",
+            "Machine learning",
+            "Mappings",
+            "Networking",
+            "Plugins",
+            "Script cache",
+            "Search Changes",
+            "Search",
+            "Security",
+            "Settings",
+            "Snapshot and Restore",
+            "Transform",
+            "Transport"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isNotable": {
+          "type": "boolean"
+        },
+        "anchor": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "area",
+        "title",
+        "body"
+      ]
+    }
+  }
+}

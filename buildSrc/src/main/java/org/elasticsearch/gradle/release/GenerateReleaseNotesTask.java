@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.release;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
@@ -23,6 +25,7 @@ import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -35,6 +38,8 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty releaseHighlightsFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty breakingChangesFile = getProject().getObjects().fileProperty();
+
+    private ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     @InputFiles
     public FileCollection getChangelogs() {
@@ -64,7 +69,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final List<ChangelogEntry> entries = this.changelogs.getFiles()
             .stream()
-            .map(ChangelogEntry::parseChangelog)
+            .map(this::parseChangelogFile)
             .filter(
                 // Only process changelogs that are included in this minor version series of ES.
                 // If this change was released in an earlier major or minor version of Elasticsearch, do not
@@ -103,6 +108,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         try (BreakingChangesGenerator generator = new BreakingChangesGenerator(this.breakingChangesFile.get().getAsFile())) {
             generator.generate(entries);
+        }
+    }
+
+    private ChangelogEntry parseChangelogFile(File file) {
+        try {
+            return yamlMapper.readValue(file, ChangelogEntry.class);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

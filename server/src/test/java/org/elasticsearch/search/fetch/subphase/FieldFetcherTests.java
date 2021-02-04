@@ -108,7 +108,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
-        System.out.println(fields);
         assertThat(fields.size(), equalTo(1));
 
         DocumentField field = fields.get("object.field");

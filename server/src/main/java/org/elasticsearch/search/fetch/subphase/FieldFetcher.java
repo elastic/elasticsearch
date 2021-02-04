@@ -47,7 +47,7 @@ public class FieldFetcher {
     }
 
     private static FieldFetcher create(SearchExecutionContext context,
-        Collection<FieldAndFormat> fieldAndFormats, List<String> nestedMappingsInScope, String scopePath) {
+        Collection<FieldAndFormat> fieldAndFormats, List<String> nestedMappingsInScope, String nestedScopePath) {
 
         // sort nestedMappingsInScope by length so we can find the shortest prefix for other fields quicker later
         if (nestedMappingsInScope.isEmpty() == false) {
@@ -72,7 +72,7 @@ public class FieldFetcher {
                 if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
-                if (field.startsWith(scopePath) == false) {
+                if (field.startsWith(nestedScopePath) == false) {
                     // this field is out of scope for this FieldFetcher (its likely nested) so ignore
                     continue;
                 }
@@ -161,7 +161,7 @@ public class FieldFetcher {
         for (String key : source.keySet()) {
             Object value = source.get(key);
             String currentPath = parentPath + key;
-            if (this.fieldContexts.keySet().contains(currentPath)) {
+            if (this.fieldContexts.containsKey(currentPath)) {
                 continue;
             }
             int currentState = step(this.unmappedFieldsFetchAutomaton, key, lastState);
@@ -182,7 +182,7 @@ public class FieldFetcher {
                 collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
             } else {
                 // we have a leaf value
-                if (this.unmappedFieldsFetchAutomaton.isAccept(currentState) && this.fieldContexts.containsKey(currentPath) == false) {
+                if (this.unmappedFieldsFetchAutomaton.isAccept(currentState)) {
                     if (value != null) {
                         DocumentField currentEntry = documentFields.get(currentPath);
                         if (currentEntry == null) {

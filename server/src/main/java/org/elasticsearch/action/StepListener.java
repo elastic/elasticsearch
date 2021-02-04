@@ -70,6 +70,12 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
         delegate.addListener(ActionListener.wrap(onResponse, onFailure), EsExecutors.newDirectExecutorService(), null);
     }
 
+    /**
+     * Combines this listener with another one, waiting for both to successfully complete and combining their results.
+     * @param other the other step listener to combine with
+     * @param fn the function that combines the results
+     * @return the combined listener
+     */
     public StepListener<Response> thenCombine(StepListener<Response> other, BinaryOperator<Response> fn) {
         final StepListener<Response> res = new StepListener<>();
         final GroupedActionListener<Response> groupedActionListener = new GroupedActionListener<>(
@@ -79,6 +85,9 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
         return res;
     }
 
+    /**
+     * Returns the future associated with the given step listener
+     */
     public Future<Response> asFuture() {
         return delegate;
     }

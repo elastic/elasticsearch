@@ -283,6 +283,7 @@ public class FrozenCacheService implements Releasable {
         freeRegions.add(chunk.sharedBytesPos);
     }
 
+    // used by tests
     int freeRegionCount() {
         return freeRegions.size();
     }
@@ -400,7 +401,7 @@ public class FrozenCacheService implements Releasable {
     }
 
     public void removeFromCache(CacheKey cacheKey) {
-        forceEvict(k -> cacheKey.equals(k));
+        forceEvict(cacheKey::equals);
     }
 
     public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
@@ -595,7 +596,7 @@ public class FrozenCacheService implements Releasable {
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
-                if (rangeToRead.v1() == rangeToRead.v2()) {
+                if (rangeToRead.v1().equals(rangeToRead.v2())) {
                     // nothing to read, skip
                     rangeListener.onResponse(null);
                     return listener;

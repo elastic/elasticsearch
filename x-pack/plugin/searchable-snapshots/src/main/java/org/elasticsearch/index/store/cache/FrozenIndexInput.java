@@ -25,7 +25,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
@@ -37,7 +36,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -73,7 +71,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         int recoveryRangeSize
     ) {
         this(
-            "SharedCachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
+            "FrozenIndexInput(" + fileInfo.physicalName() + ")",
             directory,
             fileInfo,
             context,
@@ -195,7 +193,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
             // We try to use the cache index if:
             // - the file is small enough to be fully cached
-            // TODO: implement this
             final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2;
             // - we're reading the first N bytes of the file
             final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
@@ -330,11 +327,11 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     luceneByteBufLock,
                     stopAsyncReads
                 ),
-                (channel, channelPos, relativePos, l, progressUpdater) -> this.writeCacheFile(
+                (channel, channelPos, relativePos, len, progressUpdater) -> this.writeCacheFile(
                     channel,
                     channelPos,
                     relativePos,
-                    l,
+                    len,
                     rangeToWrite.v1(),
                     progressUpdater
                 ),
@@ -362,8 +359,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                         }
 
                         // create slice that is positioned to read the given values
-                        ByteBuffer dup = byteBuffer.duplicate();
-                        // assert dup.position() == 0;
+                        final ByteBuffer dup = byteBuffer.duplicate();
                         final int newPosition = dup.position() + Math.toIntExact(relativePos);
                         assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
                         assert newPosition + len <= byteBuffer.limit();
@@ -372,7 +368,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
                         final int read = channel.read(dup, channelPos);
                         if (read < 0) {
-                            throw new EOFException("read past EOF. pos [" + channelPos + "] length: [" + dup.limit() + "]");
+                            throw new EOFException("read past EOF. pos [" + relativePos + "] length: [" + len + "]");
                         }
                         // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
                         assert read == len;
@@ -540,24 +536,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return bytesRead;
     }
 
-    /**
-     * Asserts that the range of bytes to warm in cache is aligned with {@link #fileInfo}'s part size.
-     */
-    private boolean assertRangeIsAlignedWithPart(Tuple<Long, Long> range) {
-        if (fileInfo.numberOfParts() == 1L) {
-            final long length = fileInfo.length();
-            assert range.v1() == 0L : "start of range [" + range.v1() + "] is not aligned with zero";
-            assert range.v2() == length : "end of range [" + range.v2() + "] is not aligned with file length [" + length + ']';
-        } else {
-            final long length = fileInfo.partSize().getBytes();
-            assert range.v1() % length == 0L : "start of range [" + range.v1() + "] is not aligned with part start";
-            assert range.v2() % length == 0L || (range.v2() == fileInfo.length()) : "end of range ["
-                + range.v2()
-                + "] is not aligned with part end or with file length";
-        }
-        return true;
-    }
-
     private int readCacheFile(
         final SharedBytes.IO fc,
         long channelPos,
@@ -666,86 +644,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         }
     }
 
-    /**
-     * Opens an {@link InputStream} for the given range of bytes which reads the data directly from the blob store. If the requested range
-     * spans multiple blobs then this stream will request them in turn.
-     *
-     * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
-     * @param length The number of bytes to read
-     */
-    private InputStream openInputStreamFromBlobStore(final long position, final long length) throws IOException {
-        assert assertCurrentThreadMayAccessBlobStore();
-        if (fileInfo.numberOfParts() == 1L) {
-            assert position + length <= fileInfo.partBytes(0) : "cannot read ["
-                + position
-                + "-"
-                + (position + length)
-                + "] from ["
-                + fileInfo
-                + "]";
-            stats.addBlobStoreBytesRequested(length);
-            return blobContainer.readBlob(fileInfo.partName(0), position, length);
-        } else {
-            final int startPart = getPartNumberForPosition(position);
-            final int endPart = getPartNumberForPosition(position + length - 1);
-
-            for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
-                final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                final long endInPart = (currentPart == endPart)
-                    ? getRelativePositionInPart(position + length - 1) + 1
-                    : getLengthOfPart(currentPart);
-                stats.addBlobStoreBytesRequested(endInPart - startInPart);
-            }
-
-            return new SlicedInputStream(endPart - startPart + 1) {
-                @Override
-                protected InputStream openSlice(int slice) throws IOException {
-                    final int currentPart = startPart + slice;
-                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                    final long endInPart = (currentPart == endPart)
-                        ? getRelativePositionInPart(position + length - 1) + 1
-                        : getLengthOfPart(currentPart);
-                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
-                }
-            };
-        }
-    }
-
-    /**
-     * Compute the part number that contains the byte at the given position in the corresponding Lucene file.
-     */
-    private int getPartNumberForPosition(long position) {
-        ensureValidPosition(position);
-        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
-        assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
-        assert part >= 0 : "part number [" + part + "] is negative";
-        return part;
-    }
-
-    /**
-     * Compute the position of the given byte relative to the start of its part.
-     * @param position the position of the required byte (within the corresponding Lucene file)
-     */
-    private long getRelativePositionInPart(long position) {
-        ensureValidPosition(position);
-        final long pos = position % fileInfo.partSize().getBytes();
-        assert pos < fileInfo.partBytes(getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
-        assert pos >= 0L : "position in part [" + pos + "] is negative";
-        return pos;
-    }
-
-    private long getLengthOfPart(int part) {
-        return fileInfo.partBytes(part);
-    }
-
-    private void ensureValidPosition(long position) {
-        assert position >= 0L && position < fileInfo.length() : position + " vs " + fileInfo.length();
-        // noinspection ConstantConditions in case assertions are disabled
-        if (position < 0L || position >= fileInfo.length()) {
-            throw new IllegalArgumentException("Position [" + position + "] is invalid for a file of length [" + fileInfo.length() + "]");
-        }
-    }
-
     @Override
     protected void seekInternal(long pos) throws IOException {
         if (pos > length()) {
@@ -811,12 +709,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             + ", directory="
             + directory
             + '}';
-    }
-
-    private static boolean assertFileChannelOpen(FileChannel fileChannel) {
-        assert fileChannel != null;
-        assert fileChannel.isOpen();
-        return true;
     }
 
     private static boolean isCacheFetchAsyncThread(final String threadName) {

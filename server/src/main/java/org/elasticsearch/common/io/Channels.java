@@ -84,6 +84,7 @@ public final class Channels {
      * @param channel         channel to read from
      * @param channelPosition position to read from
      * @param dest            destination {@link java.nio.ByteBuffer} to put data in
+     * @return total bytes read
      */
     public static int readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
         int read = readFromFileChannel(channel, channelPosition, dest);

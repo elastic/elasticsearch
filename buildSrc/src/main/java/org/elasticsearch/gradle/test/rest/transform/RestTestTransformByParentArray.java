@@ -31,6 +31,4 @@ public interface RestTestTransformByParentArray extends RestTestTransform<ArrayN
      * @return The name of key to find in the REST test that has a value that is an Array
      */
     String getKeyOfArrayToFind();
-
-
 }

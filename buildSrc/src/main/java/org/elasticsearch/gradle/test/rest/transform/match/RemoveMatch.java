@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gradle.test.rest.transform.match;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 
@@ -48,7 +47,14 @@ public class RemoveMatch implements RestTestTransformByParentObject {
     }
 
     @Override
+    public String getTestName() {
+        return testName;
+    }
+
+    @Override
     public void transformTest(ObjectNode matchParent) {
-        matchParent.remove(removeKey);
+        System.out.println("Match Parent in Remove : " + matchParent + " Remove Key: " + removeKey);
+        ObjectNode matchObject = (ObjectNode) matchParent.get(getKeyToFind());
+        matchObject.remove(removeKey);
     }
 }

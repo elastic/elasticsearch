@@ -109,7 +109,9 @@ public class RestTestTransformer {
      *
      * @param testName         The name of the test that is being traversed.
      * @param currentNode      The current node that is being evaluated.
-     * @param objectKeyFinders A Map of object keys to find and their associated transformation
+     * @param parentKeyName    The name of the parent key object for the current node. null if none.
+     * @param objectKeyFinders A Map of object keys to find and their associated transformation by parent Object
+     * @param arrayByObjectKeyFinders A Map of object keys to find and their associated transformation by parent Array
      */
     private void traverseTest(String testName,
                               JsonNode currentNode,

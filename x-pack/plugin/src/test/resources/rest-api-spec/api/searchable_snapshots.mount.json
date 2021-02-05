@@ -39,6 +39,11 @@
         "type":"boolean",
         "description":"Should this request wait until the operation has completed before returning",
         "default":false
+      },
+      "storage":{
+        "type":"string",
+        "description":"Selects the kind of local storage used to accelerate searches. Experimental, and defaults to `full_copy`",
+        "default":false
       }
     },
     "body":{

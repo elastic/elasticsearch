@@ -18,10 +18,8 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-
 import java.io.IOException;
 import java.time.ZoneId;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 

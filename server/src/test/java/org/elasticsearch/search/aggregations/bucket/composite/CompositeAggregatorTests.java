@@ -564,21 +564,21 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         useNestedDirectoryWrapping = true;
         SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         final String leafNameField = "name";
-        final String rootNameField = "product";
-        // TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + ".name");
-        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(leafNameField);
+        final String rootNameField = "name";
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
         NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
         builder.subAggregation(new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms)));
+        // Without after
         testCase(
             builder,
             new MatchAllDocsQuery(),
             iw -> {
                 // Sub-Docs
                 List<Document> documents = new ArrayList<>();
-                documents.add(createNestedDocument("1", nestedPath, createDocument(leafNameField, "Pens and Stuff", "price" , 10L)));
-                documents.add(createNestedDocument("1", nestedPath, createDocument(leafNameField, "Pen World", "price" , 9L)));
-                documents.add(createNestedDocument("2", nestedPath, createDocument(leafNameField, "Pens and Stuff", "price" , 5L)));
-                documents.add(createNestedDocument("2", nestedPath, createDocument(leafNameField, "Stationary", "price" , 7L)));
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price" , 10L));
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price" , 9L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price" , 5L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price" , 7L));
                 // Root docs
                 Document root;
                 root = new Document();
@@ -606,16 +606,73 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals("{keyword=Stationary}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             },
-            new KeywordFieldMapper.KeywordFieldType(leafNameField),
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
             new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
         );
     }
 
-    private Document createNestedDocument(String id, String nestedPath, Map<String, List<Object>> fields) {
+    public void testSubAggregationOfNestedAggregateAfter() throws Exception {
+        final String nestedPath = "sellers";
+        objectMappers.add(nestedObject(nestedPath));
+        useNestedDirectoryWrapping = true;
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        final String leafNameField = "name";
+        final String rootNameField = "name";
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
+        NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
+        builder.subAggregation(
+            new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms))
+                .aggregateAfter(createAfterKey("keyword", "Pens and Stuff")));
+        testCase(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> {
+                // Sub-Docs
+                List<Document> documents = new ArrayList<>();
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price" , 10L));
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price" , 9L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price" , 5L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price" , 7L));
+                // Root docs
+                Document root;
+                root = new Document();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(sequenceIDFields.primaryTerm);
+                root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
+                documents.add(root);
+
+                root = new Document();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
+                root.add(sequenceIDFields.primaryTerm);
+                documents.add(root);
+                iw.addDocuments(documents);
+            },
+            (InternalSingleBucketAggregation parent) -> {
+                assertEquals(1, parent.getAggregations().asList().size());
+                InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{keyword=Stationary}", result.afterKey().toString());
+                assertEquals("{keyword=Stationary}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            },
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        );
+    }
+
+    private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
+        assert rawFields.length % 2 == 0;
         Document doc = new Document();
         doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
         doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
-        addToDocument(doc, fields);
+        Object[] fields = new Object[rawFields.length];
+        for (int i = 0; i < fields.length; i+=2) {
+            assert rawFields[i] instanceof String;
+            fields[i] = nestedPath + "."  + rawFields[i];
+            fields[i+1] = rawFields[i+1];
+        }
+        addToDocument(doc, createDocument(fields));
         return doc;
     }
 

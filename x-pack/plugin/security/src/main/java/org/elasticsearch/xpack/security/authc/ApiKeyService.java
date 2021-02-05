@@ -88,7 +88,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.support.CountingRunner;
+import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
@@ -1245,7 +1245,7 @@ public class ApiKeyService {
     private static final class ApiKeyDocCache {
         private final Cache<String, ApiKeyService.CachedApiKeyDoc> docCache;
         private final Cache<String, BytesReference> roleDescriptorsBytesCache;
-        private final CountingRunner countingRunner;
+        private final LockingAtomicCounter lockingAtomicCounter;
 
         ApiKeyDocCache(TimeValue ttl, int maximumWeight) {
             this.docCache = CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
@@ -1259,7 +1259,7 @@ public class ApiKeyService {
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
                 .setMaximumWeight(maximumWeight * 2)
                 .build();
-            this.countingRunner = new CountingRunner();
+            this.lockingAtomicCounter = new LockingAtomicCounter();
         }
 
         public ApiKeyDoc get(String docId) {
@@ -1275,12 +1275,12 @@ public class ApiKeyService {
         }
 
         public long getInvalidationCount() {
-            return countingRunner.getCount();
+            return lockingAtomicCounter.get();
         }
 
         public void putIfNoInvalidationSince(String docId, ApiKeyDoc apiKeyDoc, long invalidationCount) {
             final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
-            countingRunner.runIfCountMatches(() -> {
+            lockingAtomicCounter.compareAndRun(invalidationCount, () -> {
                 docCache.put(docId, cachedApiKeyDoc);
                 try {
                     roleDescriptorsBytesCache.computeIfAbsent(
@@ -1290,18 +1290,20 @@ public class ApiKeyService {
                 } catch (ExecutionException e) {
                     throw new RuntimeException(e);
                 }
-            }, invalidationCount);
+            });
         }
 
         public void invalidate(Collection<String> docIds) {
-            countingRunner.incrementAndRun(() -> docIds.forEach(docCache::invalidate));
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating API key doc cache with ids: [{}]", Strings.collectionToCommaDelimitedString(docIds));
+            docIds.forEach(docCache::invalidate);
         }
 
         public void invalidateAll() {
-            countingRunner.incrementAndRun(() -> {
-                docCache.invalidateAll();
-                roleDescriptorsBytesCache.invalidateAll();
-            });
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating all API key doc cache and descriptor cache");
+            docCache.invalidateAll();
+            roleDescriptorsBytesCache.invalidateAll();
         }
     }
 }

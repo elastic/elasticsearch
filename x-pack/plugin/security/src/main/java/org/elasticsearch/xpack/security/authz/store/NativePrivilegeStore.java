@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCac
 import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
-import org.elasticsearch.xpack.security.support.CountingRunner;
+import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -416,7 +416,7 @@ public class NativePrivilegeStore {
     static final class DescriptorsAndApplicationNamesCache implements CacheInvalidatorRegistry.CacheInvalidator {
         private final Cache<String, Set<ApplicationPrivilegeDescriptor>> descriptorsCache;
         private final Cache<Set<String>, Set<String>> applicationNamesCache;
-        private final CountingRunner countingRunner;
+        private final LockingAtomicCounter lockingAtomicCounter;
 
         DescriptorsAndApplicationNamesCache(TimeValue ttl, int cacheSize) {
             this.descriptorsCache = CacheBuilder.<String, Set<ApplicationPrivilegeDescriptor>>builder()
@@ -429,7 +429,7 @@ public class NativePrivilegeStore {
                 .weigher((k, v) -> k.size() + v.size())
                 .setExpireAfterWrite(ttl)
                 .build();
-            this.countingRunner = new CountingRunner();
+            this.lockingAtomicCounter = new LockingAtomicCounter();
         }
 
         public Set<ApplicationPrivilegeDescriptor> getApplicationDescriptors(String applicationName) {
@@ -443,7 +443,7 @@ public class NativePrivilegeStore {
         public void putIfNoInvalidationSince(Set<String> applicationNamesCacheKey,
                                              Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors,
                                              long invalidationCount) {
-            countingRunner.runIfCountMatches(() -> {
+            lockingAtomicCounter.compareAndRun(invalidationCount, () -> {
                 final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
                 // Do not cache the names if expansion has no effect
                 if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
@@ -454,29 +454,27 @@ public class NativePrivilegeStore {
                     logger.debug("Caching descriptors for application: {}", entry.getKey());
                     descriptorsCache.put(entry.getKey(), entry.getValue());
                 }
-            }, invalidationCount);
+            });
         }
 
         public long getInvalidationCount() {
-            return countingRunner.getCount();
+            return lockingAtomicCounter.get();
         }
 
         public void invalidate(Collection<String> updatedApplicationNames) {
-            countingRunner.incrementAndRun(() -> {
-                logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
-                final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
-                // Always completely invalidate application names cache due to wildcard
-                applicationNamesCache.invalidateAll();
-                updatedApplicationNames.forEach(descriptorsCache::invalidate);
-            });
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
+            final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
+            // Always completely invalidate application names cache due to wildcard
+            applicationNamesCache.invalidateAll();
+            updatedApplicationNames.forEach(descriptorsCache::invalidate);
         }
 
         public void invalidateAll() {
-            countingRunner.incrementAndRun(() -> {
-                logger.debug("Invalidating all application privileges caches");
-                applicationNamesCache.invalidateAll();
-                descriptorsCache.invalidateAll();
-            });
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating all application privileges caches");
+            applicationNamesCache.invalidateAll();
+            descriptorsCache.invalidateAll();
         }
     }
 }

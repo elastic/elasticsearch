@@ -10,10 +10,10 @@ breaking:
   area: Engine
   title: Force-merges on frozen and searchable snapshot indices will fail if merging is required.
   anchor: breaking_712_engine_forcemerge_change
-  body: |-
+  details: |-
     In earlier versions a force-merge on a frozen index or a searchable snapshot
     index would incorrectly yield a successful response without performing the
     requested merge. This bug is fixed in version 7.12: from this version onwards a
     force-merge on these immutable indices will fail if the requested merge is not
     a no-op.
-
+  impact: Yeah, you're totally going to need to fix something here.

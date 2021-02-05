@@ -258,40 +258,55 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                 List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
                 final List<String> requestedStates = Arrays.asList(request.featureStates());
-                if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
-                    final Set<String> featureStatesSet;
-                    if (request.includeGlobalState() && requestedStates.isEmpty()) {
-                        // If we're including global state and feature states aren't specified, include all of them
-                        featureStatesSet = new HashSet<>(systemIndexDescriptorMap.keySet());
-                    } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
-                        // If there's exactly one value and it's "none", include no states
-                        featureStatesSet = Collections.emptySet();
-                    } else {
-                        // Otherwise, check for "none" then use the list of requested states
-                        if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
-                            throw new IllegalArgumentException("the feature_states value [" + SnapshotsService.NO_FEATURE_STATES_VALUE +
-                                "] indicates that no feature states should be snapshotted, but other feature states were requested: " +
-                                requestedStates);
+
+                // We should only use the feature states logic if we're sure we'll be able to finish the snapshot without a lower-version
+                // node taking over and causing problems. Therefore, if we're in a mixed cluster with versions that don't know how to handle
+                // feature states, skip all feature states logic, and if `feature_states` is explicitly configured, throw an exception.
+                if (currentState.nodes().getMinNodeVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+                    if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
+                        final Set<String> featureStatesSet;
+                        if (request.includeGlobalState() && requestedStates.isEmpty()) {
+                            // If we're including global state and feature states aren't specified, include all of them
+                            featureStatesSet = new HashSet<>(systemIndexDescriptorMap.keySet());
+                        } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
+                            // If there's exactly one value and it's "none", include no states
+                            featureStatesSet = Collections.emptySet();
+                        } else {
+                            // Otherwise, check for "none" then use the list of requested states
+                            if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
+                                throw new IllegalArgumentException("the feature_states value [" + SnapshotsService.NO_FEATURE_STATES_VALUE +
+                                    "] indicates that no feature states should be snapshotted, but other feature states were requested: " +
+                                    requestedStates);
+                            }
+                            featureStatesSet = new HashSet<>(requestedStates);
                         }
-                        featureStatesSet = new HashSet<>(requestedStates);
+
+                        featureStates = systemIndexDescriptorMap.keySet().stream()
+                            .filter(feature -> featureStatesSet.contains(feature))
+                            .map(feature -> new SnapshotFeatureInfo(feature, resolveFeatureIndexNames(currentState, feature)))
+                            .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
+                            .collect(Collectors.toList());
+                        final Stream<String> featureStateIndices = featureStates.stream().flatMap(feature -> feature.getIndices().stream());
+
+                        final Stream<String> associatedIndices = systemIndexDescriptorMap.keySet().stream()
+                            .filter(feature -> featureStatesSet.contains(feature))
+                            .flatMap(feature -> resolveAssociatedIndices(currentState, feature).stream());
+
+                        // Add all resolved indices from the feature states to the list of indices
+                        indices = Stream.of(indices.stream(), featureStateIndices, associatedIndices)
+                            .flatMap(s -> s)
+                            .distinct()
+                            .collect(Collectors.toList());
                     }
-
-                    featureStates = systemIndexDescriptorMap.keySet().stream()
-                        .filter(feature -> featureStatesSet.contains(feature))
-                        .map(feature -> new SnapshotFeatureInfo(feature, resolveFeatureIndexNames(currentState, feature)))
-                        .filter(featureInfo -> featureInfo.getIndices().isEmpty() == false) // Omit any empty featureStates
-                        .collect(Collectors.toList());
-                    final Stream<String> featureStateIndices = featureStates.stream().flatMap(feature -> feature.getIndices().stream());
-
-                    final Stream<String> associatedIndices = systemIndexDescriptorMap.keySet().stream()
-                        .filter(feature -> featureStatesSet.contains(feature))
-                        .flatMap(feature -> resolveAssociatedIndices(currentState, feature).stream());
-
-                    // Add all resolved indices from the feature states to the list of indices
-                    indices = Stream.of(indices.stream(), featureStateIndices, associatedIndices)
-                        .flatMap(s -> s)
-                        .distinct()
-                        .collect(Collectors.toList());
+                } else if (requestedStates.isEmpty() == false) {
+                    throw new SnapshotException(
+                        new Snapshot(repositoryName, snapshotId),
+                        "feature_states can only be used when all nodes in cluster are version ["
+                            + FEATURE_STATES_VERSION
+                            + "] or higher, but at least one node in this cluster is on version ["
+                            + currentState.nodes().getMinNodeVersion()
+                            + "]"
+                    );
                 }
 
                 final List<String> dataStreams =

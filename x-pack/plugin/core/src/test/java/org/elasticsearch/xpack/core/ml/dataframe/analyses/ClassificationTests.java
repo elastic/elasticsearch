@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
@@ -119,7 +120,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             instance.getTrainingPercent(),
             instance.getRandomizeSeed(),
             version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
-            version.onOrAfter(Version.V_8_0_0) ? instance.getEarlyStoppingEnabled() : null);
+            instance.getEarlyStoppingEnabled());
     }
 
     @Override

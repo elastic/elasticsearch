@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots.action;
@@ -104,14 +105,20 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     /**
      * Return the index settings required to make a snapshot searchable
      */
-    private static Settings buildIndexSettings(String repoUuid, String repoName, SnapshotId snapshotId, IndexId indexId) {
+    private static Settings buildIndexSettings(
+        String repoUuid,
+        String repoName,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        MountSearchableSnapshotRequest.Storage storage
+    ) {
         final Settings.Builder settings = Settings.builder();
 
         if (repoUuid.equals(RepositoryData.MISSING_UUID) == false) {
             settings.put(SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.getKey(), repoUuid);
         }
 
-        return settings.put(SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.getKey(), repoName)
+        settings.put(SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.getKey(), repoName)
             .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey(), snapshotId.getName())
             .put(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey(), snapshotId.getUUID())
             .put(SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.getKey(), indexId.getName())
@@ -119,8 +126,13 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
             .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), SearchableSnapshotAllocator.ALLOCATOR_NAME)
-            .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY)
-            .build();
+            .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY);
+
+        if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
+            settings.put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), true);
+        }
+
+        return settings.build();
     }
 
     @Override
@@ -181,7 +193,9 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
                                 .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
                                 .put(request.indexSettings())
-                                .put(buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId))
+                                .put(
+                                    buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId, request.storage())
+                                )
                                 .build()
                         )
                         // Pass through ignored index settings

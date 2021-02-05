@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
@@ -49,35 +50,35 @@ public class IPFilter {
             Setting.boolSetting(setting("filter.always_allow_bound_address"), true, Property.NodeScope);
 
     public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting(setting("http.filter.enabled"),
-            true, Property.Dynamic, Property.NodeScope);
+            true, Property.OperatorDynamic, Property.NodeScope);
 
     public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = Setting.boolSetting(setting("transport.filter.enabled"),
-            true, Property.Dynamic, Property.NodeScope);
+            true, Property.OperatorDynamic, Property.NodeScope);
 
     public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting(setting("transport.filter.allow"),
-            Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+            Collections.emptyList(), Function.identity(), Property.OperatorDynamic, Property.NodeScope);
 
     public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting(setting("transport.filter.deny"),
-            Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+            Collections.emptyList(), Function.identity(), Property.OperatorDynamic, Property.NodeScope);
 
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_DENY_SETTING = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.filter.deny", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
-            Property.Dynamic, Property.NodeScope));
+            Property.OperatorDynamic, Property.NodeScope));
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_ALLOW_SETTING = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.filter.allow", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
-            Property.Dynamic, Property.NodeScope));
+            Property.OperatorDynamic, Property.NodeScope));
 
     private static final Setting<List<String>> HTTP_FILTER_ALLOW_FALLBACK =
             Setting.listSetting("transport.profiles.default.xpack.security.filter.allow", TRANSPORT_FILTER_ALLOW_SETTING, s -> s,
                     Property.NodeScope);
     public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting(setting("http.filter.allow"),
-            HTTP_FILTER_ALLOW_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
+            HTTP_FILTER_ALLOW_FALLBACK, Function.identity(), Property.OperatorDynamic, Property.NodeScope);
 
     private static final Setting<List<String>> HTTP_FILTER_DENY_FALLBACK =
             Setting.listSetting("transport.profiles.default.xpack.security.filter.deny", TRANSPORT_FILTER_DENY_SETTING, s -> s,
                     Property.NodeScope);
     public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting(setting("http.filter.deny"),
-            HTTP_FILTER_DENY_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
+            HTTP_FILTER_DENY_FALLBACK, Function.identity(), Property.OperatorDynamic, Property.NodeScope);
 
     public static final Map<String, Object> DISABLED_USAGE_STATS = Map.of(
             "http", false,
@@ -203,7 +204,7 @@ public class IPFilter {
             return true;
         }
 
-        if (!rules.containsKey(profile)) {
+        if (rules.containsKey(profile) == false) {
             // FIXME we need to audit here
             return true;
         }

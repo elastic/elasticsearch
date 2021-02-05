@@ -12,6 +12,8 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
@@ -74,18 +76,4 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#Step4NewClusterTest")
   }
-}
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
 }

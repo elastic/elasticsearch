@@ -14,13 +14,17 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Plugin for defining system indices. Extends {@link ActionPlugin} because system indices must be accessed via APIs
@@ -59,12 +63,21 @@ public interface SystemIndexPlugin extends ActionPlugin {
     }
 
     default void cleanUpFeature(
-        Set<String> indices,
-        Client client,
+        ClusterService clusterService, Client client,
         ActionListener<ResetFeatureStateResponse> listener) {
 
+        List<String> systemIndices = getSystemIndexDescriptors(clusterService.getSettings()).stream()
+            .map(sid -> sid.getMatchingIndices(clusterService.state().getMetadata()))
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+
+        List<String> associatedIndices = new ArrayList<>(getAssociatedIndexPatterns());
+
+        List<String> allIndices = Stream.concat(systemIndices.stream(), associatedIndices.stream())
+            .collect(Collectors.toList());
+
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-        deleteIndexRequest.indices(indices.toArray(String[]::new));
+        deleteIndexRequest.indices(allIndices.toArray(String[]::new));
         client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -78,7 +91,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
         });
     }
 
-    default TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
+    default TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
         // return (indices, deleteIndexService, state) -> state;
         return this::cleanUpFeature;
     }

@@ -16,6 +16,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,7 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -207,13 +207,13 @@ public class SystemIndices {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<String> associatedIndexPatterns;
-        private final TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction;
+        private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction;
 
         public Feature(
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<String> associatedIndexPatterns,
-            TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction) {
+            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.associatedIndexPatterns = associatedIndexPatterns;
@@ -236,7 +236,7 @@ public class SystemIndices {
             return associatedIndexPatterns;
         }
 
-        public TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
+        public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
             return cleanUpFunction;
         }
     }

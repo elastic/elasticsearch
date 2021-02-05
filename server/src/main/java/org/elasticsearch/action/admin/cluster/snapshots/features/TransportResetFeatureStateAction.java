@@ -13,32 +13,31 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Set;
-
 public class TransportResetFeatureStateAction extends HandledTransportAction<ResetFeatureStateRequest, ResetFeatureStateResponse> {
 
     private final SystemIndices systemIndices;
-    private final MetadataDeleteIndexService deleteIndexService;
     private final NodeClient client;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportResetFeatureStateAction(
         TransportService transportService,
         ActionFilters actionFilters,
         SystemIndices systemIndices,
-        MetadataDeleteIndexService deleteIndexService,
-        NodeClient client
+        NodeClient client,
+        ClusterService clusterService
     ) {
         super(ResetFeatureStateAction.NAME, transportService, actionFilters,
             ResetFeatureStateRequest::new);
         this.systemIndices = systemIndices;
-        this.deleteIndexService = deleteIndexService;
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -48,10 +47,7 @@ public class TransportResetFeatureStateAction extends HandledTransportAction<Res
         ActionListener<ResetFeatureStateResponse> listener) {
 
         for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
-            feature.getCleanUpFunction().apply(
-                Set.of(".test-system-idx", ".associated-idx"),
-                client,
-                listener);
+            feature.getCleanUpFunction().apply(clusterService, client, listener);
         }
     }
 }

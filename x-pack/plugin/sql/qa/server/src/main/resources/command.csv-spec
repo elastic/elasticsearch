@@ -168,6 +168,7 @@ ST_WKTTOSQL      |SCALAR
 ST_X             |SCALAR
 ST_Y             |SCALAR
 ST_Z             |SCALAR
+ARRAY            |ARRAY
 SCORE            |SCORE
 ;
 
@@ -190,6 +191,7 @@ ASIN            |SCALAR
 ATAN            |SCALAR
 ATAN2           |SCALAR
 ASCII           |SCALAR
+ARRAY           |ARRAY
 ;
 
 showFunctionsWithPatternChar

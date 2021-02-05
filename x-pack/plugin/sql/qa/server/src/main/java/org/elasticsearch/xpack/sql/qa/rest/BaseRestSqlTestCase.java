@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
@@ -97,6 +98,11 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder columnar(Boolean columnar) {
             request.append(field(COLUMNAR_NAME, columnar));
+            return this;
+        }
+
+        public RequestObjectBuilder fieldMultiValueLeniency(Boolean fieldMultiValueLeniency) {
+            request.append(field(FIELD_MULTI_VALUE_LENIENCY_NAME, fieldMultiValueLeniency));
             return this;
         }
 

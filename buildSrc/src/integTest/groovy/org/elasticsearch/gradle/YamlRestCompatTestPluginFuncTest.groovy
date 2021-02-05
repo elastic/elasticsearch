@@ -15,7 +15,7 @@ import org.gradle.testkit.runner.TaskOutcome
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME
-    def transformTask  = YamlRestCompatTestPlugin.TRANSFORM_TASK_NAME
+    def transformTask  = ":" + YamlRestCompatTestPlugin.TRANSFORM_TASK_NAME
 
 
 

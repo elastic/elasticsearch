@@ -126,10 +126,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformationsKey.append("replace_match").append("subKey").append(testName).append(replacementNode.toString());
     }
 
-    @Input
-    public StringBuilder getTransformationsKey() {
-        return transformationsKey;
-    }
+//    @Input
+//    public StringBuilder getTransformationsKey() {
+//        return transformationsKey;
+//    }
 
     @OutputDirectory
     public File getOutputDir() {

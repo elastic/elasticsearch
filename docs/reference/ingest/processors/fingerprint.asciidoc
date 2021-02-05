@@ -17,7 +17,7 @@ content of the specified fields in a document.
 | `fields`           | yes      | n/a           | Array containing the names of the document
 fields whose content will be used to compute the fingerprint
 | `target_field`     | no       | `fingerprint` | Output field for the fingerprint.
-| `salt`             | no       | <empty string>| Salt value that will be applied to every
+| `salt`             | no       | <none>        | Salt value that will be applied to every
 fingerprint calculated by this processor
 | `method`           | no       | `SHA-1`       | The cryptographic hash function used to
 compute the fingerprint. Must be one of `MD5`, `SHA-1`, `SHA-256`, or `SHA-512`.

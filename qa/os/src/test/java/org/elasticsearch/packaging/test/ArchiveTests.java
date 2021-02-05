@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -245,10 +234,23 @@ public class ArchiveTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    /**
+     * Checks that an installation succeeds when <code>POSIXLY_CORRECT</code> is set in the environment.
+     * <p>
+     * This test purposefully ignores the existence of the Windows POSIX sub-system.
+     */
+    public void test55InstallUnderPosix() throws Exception {
+        assumeTrue("Only run this test on Unix-like systems", Platforms.WINDOWS == false);
+        sh.getEnv().put("POSIXLY_CORRECT", "1");
+        startElasticsearch();
+        stopElasticsearch();
+    }
+
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         withCustomConfig(tempConf -> {
-            final List<String> jvmOptions = List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
+            setHeap("512m", tempConf);
+            final List<String> jvmOptions = List.of("-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
@@ -266,6 +268,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test71CustomJvmOptionsDirectoryFile() throws Exception {
         final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
         try {
+            setHeap(null); // delete default options
             append(heapOptions, "-Xms512m\n-Xmx512m\n");
 
             startElasticsearch();
@@ -283,6 +286,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
         final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
         try {
+            setHeap(null); // delete default options
             /*
              * We override the heap in the first file, and disable compressed oops, and override the heap in the second file. By doing this,
              * we can test that both files are processed by the JVM options parser, and also that they are processed in lexicographic order.
@@ -306,13 +310,10 @@ public class ArchiveTests extends PackagingTestCase {
     public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
         final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
         try {
-            append(jvmOptionsIgnored, "-Xms512\n-Xmx512m\n");
+            append(jvmOptionsIgnored, "-Xthis_is_not_a_valid_option\n");
 
             startElasticsearch();
-
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
-
+            ServerUtils.runElasticsearchTests();
             stopElasticsearch();
         } finally {
             rm(jvmOptionsIgnored);
@@ -424,5 +425,4 @@ public class ArchiveTests extends PackagingTestCase {
             Platforms.onWindows(action);
         }
     }
-
 }

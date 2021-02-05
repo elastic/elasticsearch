@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
@@ -30,40 +31,23 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class InvalidateApiKeyRequestTests extends ESTestCase {
 
-    public void testCannotSpecifyBothIdAndIds() {
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new InvalidateApiKeyRequest(
+    public void testNonNullIdsCannotBeEmptyNorContainBlankId() {
+        ActionRequestValidationException validationException =
+            expectThrows(ActionRequestValidationException.class, () -> new InvalidateApiKeyRequest(
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-                randomAlphaOfLength(12),
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
                 false,
-                new String[]{randomAlphaOfLength(12)}));
-        assertThat(e.getMessage(), containsString("Must use either [id] or [ids], not both at the same time"));
-    }
-
-    public void testNonNullIdsCannotBeEmptyNorContainBlankId() {
-        InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            null,
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            false,
-            new String[]{});
-        ActionRequestValidationException validationException = invalidateApiKeyRequest.validate();
-        assertNotNull(validationException);
+                new String[] {}));
         assertThat(validationException.getMessage(), containsString("Field [ids] cannot be an empty array"));
 
-        invalidateApiKeyRequest = new InvalidateApiKeyRequest(
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            null,
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            false,
-            new String[]{randomAlphaOfLength(12), null});
-        validationException = invalidateApiKeyRequest.validate();
-        assertNotNull(validationException);
-
+        validationException =
+            expectThrows(ActionRequestValidationException.class, () -> new InvalidateApiKeyRequest(
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                false,
+                new String[] { randomAlphaOfLength(12), null }));
         assertThat(validationException.getMessage(), containsString("Field [ids] must not contain blank id, "
             + "but got blank id at index position: [1]"));
     }
@@ -73,9 +57,9 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         final InvalidateApiKeyRequest request = new InvalidateApiKeyRequest(
             randomBlankString.get(), // realm name
             randomBlankString.get(), // user name
-            randomBlankString.get(), // key id
             randomBlankString.get(), // key name
-            randomBoolean() // owned by user
+            randomBoolean(), // owned by user
+            null
         );
         assertThat(request.getRealmName(), nullValue());
         assertThat(request.getUserName(), nullValue());
@@ -232,7 +216,6 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         final InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            null,
             randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
             false,
             new String[]{randomAlphaOfLength(12), randomAlphaOfLength(12)});

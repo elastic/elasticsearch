@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
@@ -594,16 +595,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
 
-        final InvalidateApiKeyRequest invalidateApiKeyRequest;
-        if (randomBoolean()) {
-            invalidateApiKeyRequest = new InvalidateApiKeyRequest(randomFrom(randomAlphaOfLength(8), null),
-                    randomFrom(randomAlphaOfLength(8), null), null, randomFrom(randomAlphaOfLength(8), null), randomBoolean(),
-                    randomFrom(randomArray(3, String[]::new, () -> randomAlphaOfLength(8)), null));
-        } else {
-            invalidateApiKeyRequest = new InvalidateApiKeyRequest(randomFrom(randomAlphaOfLength(8), null),
-                    randomFrom(randomAlphaOfLength(8), null), randomAlphaOfLength(8), randomFrom(randomAlphaOfLength(8), null),
-                    randomBoolean());
-        }
+        final InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
+            randomFrom(randomAlphaOfLength(8), null),
+            randomFrom(randomAlphaOfLength(8), null),
+            randomFrom(randomAlphaOfLength(8), null),
+            randomBoolean(),
+            randomFrom(randomArray(1,3, String[]::new, () -> randomAlphaOfLength(8)), null)
+        );
+
         auditTrail.accessGranted(requestId, authentication, InvalidateApiKeyAction.NAME, invalidateApiKeyRequest, authorizationInfo);
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));

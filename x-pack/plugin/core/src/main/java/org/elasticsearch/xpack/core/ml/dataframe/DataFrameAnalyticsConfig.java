@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
@@ -34,6 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
@@ -236,6 +238,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 builder.field(VERSION.getPreferredName(), version);
             }
             if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                assertNoAuthorizationHeader(headers);
                 builder.field(HEADERS.getPreferredName(), headers);
             }
             if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
@@ -408,6 +411,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = headers;
+            assertNoAuthorizationHeader(this.headers);
             return this;
         }
 

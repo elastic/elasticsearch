@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.assembler;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -30,6 +32,8 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class ExecutionManager {
 
@@ -65,13 +69,29 @@ public class ExecutionManager {
         for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
+            List<String> keyFields = new ArrayList<>(keyExtractors.size());
+
+            // extract top-level fields used as keys to optimize query lookups
+            // this process gets skipped for nested fields
+            for (HitExtractor extractor : keyExtractors) {
+                if (extractor instanceof AbstractFieldHitExtractor) {
+                    AbstractFieldHitExtractor hitExtractor = (AbstractFieldHitExtractor) extractor;
+                    // no nested fields
+                    if (hitExtractor.hitName() == null) {
+                        keyFields.add(hitExtractor.fieldName());
+                    } else {
+                        keyFields = emptyList();
+                        break;
+                    }
+                }
+            }
 
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec) {
                 SearchSourceBuilder source = ((EsQueryExec) query).source(session);
                 QueryRequest original = () -> source;
-                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName);
+                BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields);
                 Criterion<BoxedQueryRequest> criterion =
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i == 0 && descending);
                 criteria.add(criterion);

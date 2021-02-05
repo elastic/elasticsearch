@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -55,8 +56,17 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
-        if (indexAbstraction.getParentDataStream() != null) {
-            rolloverTarget = indexAbstraction.getParentDataStream().getName();
+        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
+            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
+            if (dataStream.getWriteIndex().getIndex().equals(index) == false) {
+                logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    index.getName(), dataStream.getName(),
+                    LifecycleSettings.LIFECYCLE_NAME_SETTING.get(metadata.index(index).getSettings()));
+                listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
+                return;
+            }
+            rolloverTarget = dataStream.getName();
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());

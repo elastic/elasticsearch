@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.azure;
 
@@ -67,7 +56,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -145,7 +133,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "account");
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(UTF_8));
+        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
         secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
         clientSettings.setSecureSettings(secureSettings);
 
@@ -154,9 +142,9 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                 return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
                     maxRetries + 1,
-                    1,
-                    1L,
-                    5L,
+                    60,
+                    50L,
+                    100L,
                     // The SDK doesn't work well with ip endponts. Secondary host endpoints that contain
                     // a path causes the sdk to rewrite the endpoint with an invalid path, that's the reason why we provide just the host +
                     // port.
@@ -171,11 +159,6 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             @Override
             long getSizeThresholdForMultiBlockUpload() {
                 return ByteSizeUnit.MB.toBytes(1);
-            }
-
-            @Override
-            int getMaxUploadParallelism() {
-                return 1;
             }
 
             @Override
@@ -408,21 +391,24 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         assertThat(blocks.isEmpty(), is(true));
     }
 
-    public void testRetryUntilFail() throws IOException {
-        final AtomicBoolean requestReceived = new AtomicBoolean(false);
+    public void testRetryUntilFail() throws Exception {
+        final int maxRetries = randomIntBetween(2, 5);
+        final AtomicInteger requestsReceived = new AtomicInteger(0);
         httpServer.createContext("/account/container/write_blob_max_retries", exchange -> {
             try {
-                if (requestReceived.compareAndSet(false, true)) {
-                    throw new AssertionError("Should not receive two requests");
-                } else {
-                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                requestsReceived.incrementAndGet();
+                if (Streams.readFully(exchange.getRequestBody()).length() > 0) {
+                    throw new AssertionError("Should not receive any data");
                 }
+            } catch (IOException e) {
+              // Suppress the exception since it's expected that the
+              // connection is closed before anything can be read
             } finally {
                 exchange.close();
             }
         });
 
-        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(2, 5));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
         try (InputStream stream = new InputStream() {
             @Override
             public int read() throws IOException {
@@ -441,6 +427,11 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             final IOException ioe = expectThrows(IOException.class, () ->
                 blobContainer.writeBlob("write_blob_max_retries", stream, randomIntBetween(1, 128), randomBoolean()));
             assertThat(ioe.getMessage(), is("Unable to write blob write_blob_max_retries"));
+            // The mock http server uses 1 thread to process the requests, it's possible that the
+            // call to writeBlob throws before all the requests have been processed in the http server,
+            // as the http server thread might get de-scheduled and the sdk keeps sending requests
+            // as it fails to read the InputStream to write.
+            assertBusy(() -> assertThat(requestsReceived.get(), equalTo(maxRetries + 1)));
         }
     }
 

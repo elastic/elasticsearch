@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -99,12 +100,12 @@ public class DataFrameDataExtractor {
     }
 
     public void cancel() {
-        LOGGER.debug("[{}] Data extractor was cancelled", context.jobId);
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor was cancelled", context.jobId));
         isCancelled = true;
     }
 
     public Optional<List<Row>> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -127,7 +128,7 @@ public class DataFrameDataExtractor {
             // We've set allow_partial_search_results to false which means if something
             // goes wrong the request will throw.
             SearchResponse searchResponse = request.get();
-            LOGGER.debug("[{}] Search response was obtained", context.jobId);
+            LOGGER.trace(() -> new ParameterizedMessage("[{}] Search response was obtained", context.jobId));
 
             List<Row> rows = processSearchResponse(searchResponse);
 
@@ -153,7 +154,7 @@ public class DataFrameDataExtractor {
         long from = lastSortKey + 1;
         long to = from + context.scrollSize;
 
-        LOGGER.debug(() -> new ParameterizedMessage(
+        LOGGER.trace(() -> new ParameterizedMessage(
             "[{}] Searching docs with [{}] in [{}, {})", context.jobId, DestinationIndex.INCREMENTAL_ID, from, to));
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
@@ -283,7 +284,7 @@ public class DataFrameDataExtractor {
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
         Row row = new Row(extractedValues, hit, isTraining);
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
+        LOGGER.trace(() -> new ParameterizedMessage("[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
             context.jobId, row.getSortKey(), isTraining, Arrays.toString(row.values)));
         return row;
     }
@@ -306,7 +307,7 @@ public class DataFrameDataExtractor {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
         long rows = searchResponse.getHits().getTotalHits().value;
-        LOGGER.debug("[{}] Data summary rows [{}]", context.jobId, rows);
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data summary rows [{}]", context.jobId, rows));
         return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
@@ -96,7 +97,7 @@ public class MetricAggExtractor implements BucketExtractor {
             throw new SqlIllegalArgumentException("Cannot find an aggregation named {}", name);
         }
 
-        if (!containsValues(agg)) {
+        if (containsValues(agg) == false) {
             return null;
         }
 
@@ -120,7 +121,7 @@ public class MetricAggExtractor implements BucketExtractor {
             if (object == null) {
                 return object;
             } else if (object instanceof Number) {
-                return DateUtils.asDateTime(((Number) object).longValue(), zoneId);
+                return DateUtils.asDateTimeWithMillis(((Number) object).longValue(), zoneId);
             } else {
                 throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
             }

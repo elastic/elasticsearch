@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_search_changes]]
-=== Search Changes
+==== Search Changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -164,7 +164,7 @@ return an error.
 *Details* +
 Range queries on date fields used to misinterpret small numbers (e.g. four digits like 1000)
 as a year when no additional format was set, but would interpret other numeric values as
-milliseconds since epoch. We now treat all numeric values in absence of a specific `format` 
+milliseconds since epoch. We now treat all numeric values in absence of a specific `format`
 parameter as milliseconds since epoch. If you want to query for years instead, with a missing
 `format` you now need to quote the input value (e.g. "1984").
 

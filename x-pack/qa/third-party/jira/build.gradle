@@ -3,6 +3,8 @@ import groovy.json.JsonSlurper
 import javax.net.ssl.HttpsURLConnection
 import java.nio.charset.StandardCharsets
 
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -55,6 +57,11 @@ if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     keystore 'xpack.notification.jira.account.test.secure_password', jiraPassword
   }
   integTest.finalizedBy "cleanJira"
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("integTest").configure{enabled = false }
 }
 
 /** List all issues associated to a given Jira project **/

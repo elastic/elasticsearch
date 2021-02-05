@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -212,7 +201,7 @@ final class DynamicFieldsBuilder {
             RuntimeFieldType runtimeFieldType = parser.parse(fullName, mapping, parserContext);
             Runtime.createDynamicField(runtimeFieldType, context);
         } else {
-            Mapper.Builder builder = parseMapping(name, mappingType, mapping, dateFormatter, context);
+            Mapper.Builder builder = parseDynamicTemplateMapping(name, mappingType, mapping, dateFormatter, context);
             CONCRETE.createDynamicField(builder, context);
         }
         return true;
@@ -227,15 +216,16 @@ final class DynamicFieldsBuilder {
         String dynamicType = matchType.defaultMappingType();
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
-        return parseMapping(name, mappingType, mapping, null, context);
+        return parseDynamicTemplateMapping(name, mappingType, mapping, null, context);
     }
 
-    private static Mapper.Builder parseMapping(String name,
+    private static Mapper.Builder parseDynamicTemplateMapping(String name,
                                                String mappingType,
                                                Map<String, Object> mapping,
                                                DateFormatter dateFormatter,
                                                ParseContext context) {
         Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
+        parserContext = parserContext.createDynamicTemplateFieldContext(parserContext);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
             throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");

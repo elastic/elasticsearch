@@ -57,8 +57,6 @@ include::modules/discovery/discovery-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
-include::modules/http.asciidoc[]
-
 include::settings/ilm-settings.asciidoc[]
 
 include::modules/indices/index_management.asciidoc[]
@@ -93,11 +91,11 @@ include::settings/slm-settings.asciidoc[]
 
 include::settings/transform-settings.asciidoc[]
 
-include::modules/transport.asciidoc[]
-
 include::modules/threadpool.asciidoc[]
 
 include::settings/notification-settings.asciidoc[]
+
+include::setup/advanced-configuration.asciidoc[]
 
 include::setup/important-settings.asciidoc[]
 

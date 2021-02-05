@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ilm;
 
@@ -99,7 +88,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             phaseName += randomAlphaOfLength(5);
         }
         Map<String, Phase> phases = Collections.singletonMap(phaseName,
-            new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
+            new Phase(phaseName, TimeValue.ZERO, phaseName.equals("delete") ? Collections.singletonMap(DeleteAction.NAME,
+                new DeleteAction()) : Collections.emptyMap()));
         if (invalid) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new LifecyclePolicy(lifecycleName, phases));
             assertThat(e.getMessage(), equalTo("Lifecycle does not support phase [" + phaseName + "]"));
@@ -192,6 +182,17 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         }
     }
 
+    public void testValidateEmptyDeletePhase() {
+        Map<String, LifecycleAction> actions = new HashMap<>();
+
+        Phase delete = new Phase("delete", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("delete", delete);
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new LifecyclePolicy(lifecycleName, phases));
+        assertThat(e.getMessage(), equalTo("phase [" + delete.getName() + "] must define actions"));
+    }
+
     public static LifecyclePolicy createRandomPolicy(String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(Arrays.asList("hot", "warm", "cold", "delete"));
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
@@ -205,6 +206,17 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                     return VALID_COLD_ACTIONS;
                 case "delete":
                     return VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, Boolean> allowEmptyActions = (phase) -> {
+            switch (phase) {
+                case "hot":
+                case "warm":
+                case "cold":
+                    return true;
+                case "delete":
+                    return false;
                 default:
                     throw new IllegalArgumentException("invalid phase [" + phase + "]");
             }};
@@ -238,7 +250,12 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
-            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+            List<String> actionNames;
+            if (allowEmptyActions.apply(phase)) {
+                actionNames = randomSubsetOf(validActions.apply(phase));
+            } else {
+                actionNames = randomSubsetOf(randomIntBetween(1, validActions.apply(phase).size()), validActions.apply(phase));
+            }
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }

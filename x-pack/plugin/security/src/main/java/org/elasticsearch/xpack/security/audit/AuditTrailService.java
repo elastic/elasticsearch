@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -147,6 +149,11 @@ public class AuditTrailService {
         public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication,
                                              String action, String indices, String requestName, TransportAddress remoteAddress,
                                              AuthorizationInfo authorizationInfo) {}
+
+        @Override
+        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                               TransportRequest transportRequest,
+                                               TransportResponse transportResponse) { }
     }
 
     private static class CompositeAuditTrail implements AuditTrail {
@@ -251,6 +258,15 @@ public class AuditTrailService {
                                  AuthorizationInfo authorizationInfo) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.accessDenied(requestId, authentication, action, transportRequest, authorizationInfo);
+            }
+        }
+
+        @Override
+        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                               TransportRequest transportRequest,
+                                               TransportResponse transportResponse) {
+            for (AuditTrail auditTrail : auditTrails) {
+                auditTrail.coordinatingActionResponse(requestId, authentication, action, transportRequest, transportResponse);
             }
         }
 

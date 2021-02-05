@@ -20,7 +20,7 @@ sub-fields.
 
 IMPORTANT: An `aggregate_metric_double` field stores a single numeric
 <<doc-values,doc value>> for each metric sub-field. Array values are not
-supported.  `min`, `max`, and `sum` values are `double` numbers. `value_count`
+supported. `min`, `max`, and `sum` values are `double` numbers. `value_count`
 is a positive `long` number.
 
 [source,console]
@@ -71,7 +71,7 @@ maximum value of all `max` sub-fields.
 * A <<search-aggregations-metrics-sum-aggregation,`sum`>> aggregation returns the
 sum of the values of all `sum` sub-fields.
 
-*A  <<search-aggregations-metrics-valuecount-aggregation,`value_count`>>
+* A <<search-aggregations-metrics-valuecount-aggregation,`value_count`>>
 aggregation returns the sum of the values of all `value_count` sub-fields.
 
 * A <<search-aggregations-metrics-avg-aggregation,`avg`>> aggregation. There is no

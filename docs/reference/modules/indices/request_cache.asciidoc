@@ -32,14 +32,14 @@ Scripted queries that use the API calls which are non-deterministic, such as
 The cache is smart -- it keeps the same _near real-time_ promise as uncached
 search.
 
-Cached results are invalidated automatically whenever the shard refreshes, but
-only if the data in the shard has actually changed.  In other words, you will
-always get the same results from the cache as you would for an uncached search
-request.
+Cached results are invalidated automatically whenever the shard refreshes to
+pick up changes to the documents or when you update the mapping. In other
+words you will always get the same results from the cache as you would for an
+uncached search request.
 
 The longer the refresh interval, the longer that cached entries will remain
-valid. If the cache is full, the least recently used cache keys will be
-evicted.
+valid even if there are changes to the documents. If the cache is full, the
+least recently used cache keys will be evicted.
 
 The cache can be expired manually with the <<indices-clearcache,`clear-cache` API>>:
 

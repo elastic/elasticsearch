@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -68,7 +57,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 
@@ -689,25 +678,25 @@ public class TextFieldMapperTests extends MapperTestCase {
             // "standard" will be replaced with MockSynonymAnalyzer
             b.startObject("synfield").field("type", "text").field("analyzer", "standard").field("index_phrases", true).endObject();
         }));
-        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
 
-        Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(queryShardContext);
+        Query q = new MatchPhraseQueryBuilder("field", "two words").toQuery(searchExecutionContext);
         assertThat(q, is(new PhraseQuery("field._index_phrase", "two words")));
 
-        Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(queryShardContext);
+        Query q2 = new MatchPhraseQueryBuilder("field", "three words here").toQuery(searchExecutionContext);
         assertThat(q2, is(new PhraseQuery("field._index_phrase", "three words", "words here")));
 
-        Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+        Query q3 = new MatchPhraseQueryBuilder("field", "two words").slop(1).toQuery(searchExecutionContext);
         assertThat(q3, is(new PhraseQuery(1, "field", "two", "words")));
 
-        Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(queryShardContext);
+        Query q4 = new MatchPhraseQueryBuilder("field", "singleton").toQuery(searchExecutionContext);
         assertThat(q4, is(new TermQuery(new Term("field", "singleton"))));
 
-        Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+        Query q5 = new MatchPhraseQueryBuilder("field", "sparkle a stopword").toQuery(searchExecutionContext);
         assertThat(q5,
             is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        MatchQuery matchQuery = new MatchQuery(queryShardContext);
+        MatchQuery matchQuery = new MatchQuery(searchExecutionContext);
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
         Query q6 = matchQuery.parse(MatchQuery.Type.PHRASE, "synfield", "motor dogs");
         assertThat(q6, is(new MultiPhraseQuery.Builder()
@@ -783,8 +772,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         }));
-        QueryShardContext qsc = createQueryShardContext(ms);
-        QueryStringQueryParser parser = new QueryStringQueryParser(qsc, "f");
+        SearchExecutionContext context = createSearchExecutionContext(ms);
+        QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
         assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
             .add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
@@ -908,10 +897,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("synfield", "some text which we will index")));
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check indexing
 
-        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(searchExecutionContext);
             Query expected = new SpanNearQuery.Builder("field", true)
                 .addClause(new SpanTermQuery(new Term("field", "two")))
                 .addClause(new FieldMaskingSpanQuery(
@@ -922,7 +911,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "three words here").toQuery(searchExecutionContext);
             Query expected = new SpanNearQuery.Builder("field", true)
                 .addClause(new SpanTermQuery(new Term("field", "three")))
                 .addClause(new SpanTermQuery(new Term("field", "words")))
@@ -934,7 +923,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").slop(1).toQuery(searchExecutionContext);
             MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
             mpq.setSlop(1);
             mpq.add(new Term("field", "two"));
@@ -943,7 +932,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "singleton").toQuery(searchExecutionContext);
             assertThat(
                 q,
                 is(new SynonymQuery.Builder("field._index_prefix").addTerm(new Term("field._index_prefix", "singleton")).build())
@@ -952,7 +941,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         {
 
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "sparkle a stopword").toQuery(searchExecutionContext);
             Query expected = new SpanNearQuery.Builder("field", true)
                 .addClause(new SpanTermQuery(new Term("field", "sparkle")))
                 .addGap(1)
@@ -964,7 +953,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            MatchQuery matchQuery = new MatchQuery(searchExecutionContext);
             matchQuery.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "motor dogs");
             Query expected = new SpanNearQuery.Builder("synfield", true)
@@ -984,7 +973,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQuery matchQuery = new MatchQuery(queryShardContext);
+            MatchQuery matchQuery = new MatchQuery(searchExecutionContext);
             matchQuery.setPhraseSlop(1);
             matchQuery.setAnalyzer(new MockSynonymAnalyzer());
             Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "two dogs");
@@ -996,7 +985,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query q = new MatchPhrasePrefixQueryBuilder("field", "motor d").toQuery(queryShardContext);
+            Query q = new MatchPhrasePrefixQueryBuilder("field", "motor d").toQuery(searchExecutionContext);
             MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("field");
             mpq.add(new Term("field", "motor"));
             mpq.add(new Term("field", "d"));

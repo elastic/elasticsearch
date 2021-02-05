@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardPath;
@@ -39,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66278")
 public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -48,6 +48,8 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             .put(super.nodeSettings(nodeOrdinal))
             // ensure the cache is definitely used
             .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(1L, ByteSizeUnit.GB))
+            // to make cache synchronization predictable
+            .put(CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L))
             .build();
     }
 
@@ -111,10 +113,10 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         }
         assertFalse("no cache files found", cacheFiles.isEmpty());
 
-        CacheService cacheService = internalCluster().getInstance(CacheService.class, dataNode);
+        final CacheService cacheService = internalCluster().getInstance(CacheService.class, dataNode);
         cacheService.synchronizeCache();
 
-        PersistentCache persistentCache = cacheService.getPersistentCache();
+        final PersistentCache persistentCache = cacheService.getPersistentCache();
         assertThat(persistentCache.getNumDocs(), equalTo((long) cacheFiles.size()));
 
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
@@ -141,19 +143,19 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             }
         });
 
-        persistentCache = internalCluster().getInstance(CacheService.class, dataNode).getPersistentCache();
-        assertThat(persistentCache.getNumDocs(), equalTo((long) cacheFiles.size()));
+        final CacheService cacheServiceAfterRestart = internalCluster().getInstance(CacheService.class, dataNode);
+        final PersistentCache persistentCacheAfterRestart = cacheServiceAfterRestart.getPersistentCache();
         ensureGreen(restoredIndexName);
 
         cacheFiles.forEach(cacheFile -> assertTrue(cacheFile + " should have survived node restart", Files.exists(cacheFile)));
+        assertThat("Cache files should be loaded in cache", persistentCacheAfterRestart.getNumDocs(), equalTo((long) cacheFiles.size()));
 
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
 
-        assertBusy(() -> cacheFiles.forEach(cacheFile -> assertFalse(cacheFile + " should have been cleaned up", Files.exists(cacheFile))));
-        cacheService = internalCluster().getInstance(CacheService.class, dataNode);
-        cacheService.synchronizeCache();
-
-        persistentCache = cacheService.getPersistentCache();
-        assertThat(persistentCache.getNumDocs(), equalTo(0L));
+        assertBusy(() -> {
+            cacheFiles.forEach(cacheFile -> assertFalse(cacheFile + " should have been cleaned up", Files.exists(cacheFile)));
+            cacheServiceAfterRestart.synchronizeCache();
+            assertThat(persistentCacheAfterRestart.getNumDocs(), equalTo(0L));
+        });
     }
 }

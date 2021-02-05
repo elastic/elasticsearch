@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security;
 
@@ -91,7 +92,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                var usage = new SecurityFeatureSetUsage(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY), enabled,
+                var usage = new SecurityFeatureSetUsage(enabled,
                         realmsUsageRef.get(), rolesUsageRef.get(), roleMappingUsageRef.get(), sslUsage, auditUsage,
                         ipFilterUsage, anonymousUsage, tokenServiceUsage, apiKeyServiceUsage, fips140Usage, operatorPrivilegesUsage);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));

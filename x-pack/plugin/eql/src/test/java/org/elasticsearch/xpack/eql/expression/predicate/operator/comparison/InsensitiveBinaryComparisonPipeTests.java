@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
@@ -55,7 +56,7 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
             pipe.right(),
             pipe.asProcessor().function());
         assertEquals(newPipe,
-            pipe.transformPropertiesOnly(v -> Objects.equals(v, pipe.expression()) ? newExpression : v, Expression.class));
+            pipe.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, pipe.expression()) ? newExpression : v));
 
         InsensitiveBinaryComparisonPipe anotherPipe = randomInstance();
         Source newLoc = randomValueOtherThan(anotherPipe.source(), SourceTests::randomSource);
@@ -66,7 +67,7 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
             anotherPipe.right(),
             anotherPipe.asProcessor().function());
         assertEquals(newPipe,
-            anotherPipe.transformPropertiesOnly(v -> Objects.equals(v, anotherPipe.source()) ? newLoc : v, Source.class));
+            anotherPipe.transformPropertiesOnly(Source.class, v -> Objects.equals(v, anotherPipe.source()) ? newLoc : v));
     }
 
     @Override

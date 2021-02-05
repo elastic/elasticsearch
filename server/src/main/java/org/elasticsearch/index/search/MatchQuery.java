@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search;
@@ -53,7 +42,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -61,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
@@ -144,7 +132,7 @@ public class MatchQuery {
 
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
-    protected final QueryShardContext context;
+    protected final SearchExecutionContext context;
 
     protected Analyzer analyzer;
 
@@ -173,7 +161,7 @@ public class MatchQuery {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    public MatchQuery(QueryShardContext context) {
+    public MatchQuery(SearchExecutionContext context) {
         this.context = context;
     }
 
@@ -238,13 +226,6 @@ public class MatchQuery {
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);
         }
-        Set<String> fields = context.simpleMatchToIndexNames(fieldName);
-        if (fields.contains(fieldName)) {
-            assert fields.size() == 1;
-            // this field is a concrete field or an alias so we use the
-            // field type name directly
-            fieldName = fieldType.name();
-        }
         // We check here that the field supports text searches -
         // if it doesn't, we can bail out early without doing any further parsing.
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
@@ -268,7 +249,7 @@ public class MatchQuery {
          * a prefix query instead
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
-            final Term term = new Term(fieldName, value.toString());
+            final Term term = new Term(fieldType.name(), value.toString());
             if (type == Type.BOOLEAN_PREFIX
                     && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
@@ -277,7 +258,7 @@ public class MatchQuery {
             }
         }
 
-        return parseInternal(type, fieldName, builder, value);
+        return parseInternal(type, fieldType.name(), builder, value);
     }
 
     protected final Query parseInternal(Type type, String fieldName, MatchQueryBuilder builder, Object value) throws IOException {
@@ -576,7 +557,7 @@ public class MatchQuery {
             OffsetAttribute offsetAtt = stream.addAttribute(OffsetAttribute.class);
 
             stream.reset();
-            if (!stream.incrementToken()) {
+            if (stream.incrementToken() == false) {
                 throw new AssertionError();
             }
             final Term term = new Term(field, termAtt.getBytesRef());

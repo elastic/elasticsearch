@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
-import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
@@ -86,6 +89,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
+                new SimplifyComparisonsArithmetics(DataTypes::areCompatible),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),
@@ -113,11 +117,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> {
-                // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
-                if (e instanceof InsensitiveBinaryComparison) {
-                    InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
-
+            return filter.transformExpressionsUp(InsensitiveBinaryComparison.class, cmp -> {
+                Expression result = cmp;
+                if (cmp instanceof InsensitiveWildcardEquals || cmp instanceof InsensitiveWildcardNotEquals) {
+                    // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
                     Expression target = null;
                     String wildString = null;
 
@@ -128,16 +131,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
 
                     if (target != null) {
-                        Expression like = new Like(e.source(), target, StringUtils.toLikePattern(wildString), true);
-                        if (e instanceof InsensitiveNotEquals) {
-                            like = new Not(e.source(), like);
+                        Expression like = new Like(cmp.source(), target, StringUtils.toLikePattern(wildString), true);
+                        if (cmp instanceof InsensitiveWildcardNotEquals) {
+                            like = new Not(cmp.source(), like);
                         }
 
-                        e = like;
+                        result = like;
                     }
                 }
-
-                return e;
+                return result;
             });
         }
 
@@ -158,21 +160,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
 
-            return filter.transformExpressionsUp(e -> {
+            return filter.transformExpressionsUp(BinaryComparison.class, cmp -> {
+                Expression result = cmp;
                 // expr == null || expr != null
-                if (e instanceof Equals || e instanceof NotEquals) {
-                    BinaryComparison cmp = (BinaryComparison) e;
-
+                if (cmp instanceof Equals || cmp instanceof NotEquals) {
                     if (cmp.right().foldable() && cmp.right().fold() == null) {
-                        if (e instanceof Equals) {
-                            e = new IsNull(e.source(), cmp.left());
+                        if (cmp instanceof Equals) {
+                            result = new IsNull(cmp.source(), cmp.left());
                         } else {
-                            e = new IsNotNull(e.source(), cmp.left());
+                            result = new IsNotNull(cmp.source(), cmp.left());
                         }
                     }
                 }
-
-                return e;
+                return result;
             });
         }
     }
@@ -189,7 +189,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 plan = new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filter.condition()));
             } else if (child instanceof UnaryPlan) {
                 UnaryPlan up = (UnaryPlan) child;
-                plan = child.replaceChildren(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
+                plan = child.replaceChildrenSameSize(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
             }
 
             return plan;
@@ -322,8 +322,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // collect constraints for each filter
             join.queries().forEach(k ->
-                k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
-                                  , Filter.class));
+                k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
+                ));
 
             if (constraints.isEmpty() == false) {
                 List<KeyedFilter> queries = join.queries().stream()
@@ -431,13 +431,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         // preserve the order for the base query, everything else needs to be ascending
                         List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
-                        orderedQueries.add((KeyedFilter) filter.replaceChildren(singletonList(order)));
+                        orderedQueries.add((KeyedFilter) filter.replaceChildrenSameSize(singletonList(order)));
                         baseFilter = false;
                     }
 
                     KeyedFilter until = join.until();
                     OrderBy order = new OrderBy(until.source(), until.child(), ascendingOrders);
-                    until = (KeyedFilter) until.replaceChildren(singletonList(order));
+                    until = (KeyedFilter) until.replaceChildrenSameSize(singletonList(order));
 
                     OrderDirection direction = orderBy.order().get(0).direction();
                     plan = join.with(orderedQueries, until, direction);

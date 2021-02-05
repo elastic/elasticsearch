@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -198,11 +198,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             latestSparseBucketTimeStamp = new Date(in.readVLong());
         }
         in.readVLong(); // throw away inputRecordCount
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            logTime = in.readOptionalInstant();
-        } else {
-            logTime = null;
-        }
+        logTime = in.readOptionalInstant();
     }
 
     public String getJobid() {
@@ -526,9 +522,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeVLong(getInputRecordCount());
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalInstant(logTime);
-        }
+        out.writeOptionalInstant(logTime);
     }
 
     @Override

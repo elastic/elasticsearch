@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -75,12 +64,17 @@ public class SystemIndexManager implements ClusterStateListener {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we may think we don't have some
             // indices but they may not have been restored from the cluster state on disk
-            logger.debug("system indices manager waiting until state has been recovered");
+            logger.debug("Waiting until state has been recovered");
             return;
         }
 
         // If this node is not a master node, exit.
         if (state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+            logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }
 
@@ -101,6 +95,8 @@ public class SystemIndexManager implements ClusterStateListener {
             } else {
                 isUpgradeInProgress.set(false);
             }
+        } else {
+            logger.trace("Update already in progress");
         }
     }
 
@@ -137,7 +133,7 @@ public class SystemIndexManager implements ClusterStateListener {
     UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
         final State indexState = calculateIndexState(clusterState, descriptor);
 
-        final String indexDescription = "Index [" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
+        final String indexDescription = "[" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
 
         // The messages below will be logged on every cluster state update, which is why even in the index closed / red
         // cases, the log levels are DEBUG.
@@ -230,14 +226,17 @@ public class SystemIndexManager implements ClusterStateListener {
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
     }
 
-    /** Checks whether an index's mappings are up-to-date */
+    /**
+     * Checks whether an index's mappings are up-to-date. If an index is encountered that has
+     * a version higher than Version.CURRENT, it is still considered up-to-date.
+     */
     private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
             return false;
         }
 
-        return Version.CURRENT.equals(readMappingVersion(descriptor, mappingMetadata));
+        return Version.CURRENT.onOrBefore(readMappingVersion(descriptor, mappingMetadata));
     }
 
     /**

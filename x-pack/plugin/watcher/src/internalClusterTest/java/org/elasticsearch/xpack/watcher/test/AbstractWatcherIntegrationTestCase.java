@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test;
 
@@ -202,6 +203,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         // Clear all internal watcher state for the next test method:
         logger.info("[#{}]: clearing watcher state", getTestName());
         stopWatcher();
+        // Wait for all pending tasks to complete, this to avoid any potential incoming writes
+        // to watcher history data stream to recreate the data stream after it has been created.
+        // Otherwise ESIntegTestCase test cluster's wipe cluster logic that deletes all indices may fail,
+        // because it attempts to remove the write index of an existing data stream.
+        waitNoPendingTasksOnAll();
         String[] dataStreamsToDelete = {HistoryStoreField.DATA_STREAM};
         client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(dataStreamsToDelete));
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(dataStreamsToDelete);

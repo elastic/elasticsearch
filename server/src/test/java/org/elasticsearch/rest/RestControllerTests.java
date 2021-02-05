@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -62,11 +51,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -100,8 +89,7 @@ public class RestControllerTests extends ESTestCase {
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
-        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -121,8 +109,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", true)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -158,8 +145,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", false)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -173,8 +159,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition("header.1", true),
             new RestHeaderDefinition("header.2", false)));
-        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -228,8 +213,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
         RestRequest.Method secondMethod =
@@ -263,7 +247,7 @@ public class RestControllerTests extends ESTestCase {
                 h -> {
                     assertSame(handler, h);
                     return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-                }, client, circuitBreakerService, usageService, CompatibleVersion.CURRENT_VERSION);
+                }, client, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/wrapped", handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -326,8 +310,7 @@ public class RestControllerTests extends ESTestCase {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService,
-            CompatibleVersion.CURRENT_VERSION);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (r, c, client) -> c.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -376,15 +359,17 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWorksWithNewlineDelimitedJson() {
-        final String mimeType = "application/x-ndjson";
+        final String mediaType = "application/x-ndjson";
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mimeType))).build();
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mediaType))).build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                assertThat(request.contentParser().useCompatibility(), is(false));
+
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
@@ -400,9 +385,9 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWithContentStream() {
-        final String mimeType = randomFrom("application/json", "application/smile");
+        final String mediaType = randomFrom("application/json", "application/smile");
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        final List<String> contentTypeHeader = Collections.singletonList(mimeType);
+        final List<String> contentTypeHeader = Collections.singletonList(mediaType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
             .withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
@@ -410,6 +395,8 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                assertThat(request.contentParser().useCompatibility(), is(false));
+
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
@@ -638,24 +625,18 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            (a,c,h)->Version.CURRENT.minimumRestCompatibilityVersion());//always return compatible version
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
-        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        final List<String> mimeTypeList = Collections.singletonList(mimeType);
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
-            .withPath("/foo")
-            .withHeaders(Map.of("Content-Type", mimeTypeList, "Accept", mimeTypeList))
-            .build();
+        final String mediaType = randomCompatibleMediaType(version);
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         // dispatch to a compatible handler
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                assertThat(request.contentParser().useCompatibility(), is(true));
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -674,29 +655,67 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleRequestToNewlyAddedHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService,
-            (a,c,h)->Version.CURRENT.minimumRestCompatibilityVersion());//always return compatible version
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
-        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
-        final List<String> mimeTypeList = Collections.singletonList(mimeType);
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(content), RestRequest.parseContentType(mimeTypeList))
-            .withPath("/foo")
-            .withHeaders(Map.of("Content-Type", mimeTypeList, "Accept", mimeTypeList))
-            .build();
+        final String mediaType = randomCompatibleMediaType(version);
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
 
         // dispatch to a CURRENT newly added handler
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                assertThat(request.contentParser().useCompatibility(), is(true));
+
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
                 // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
                 // when only response shape has changed
+                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+
+            @Override
+            public Version compatibleWithVersion() {
+                return Version.CURRENT;
+            }
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    private FakeRestRequest requestWithContent(String mediaType) {
+        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        final List<String> mediaTypeList = Collections.singletonList(mediaType);
+        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), RestRequest.parseContentType(mediaTypeList))
+            .withPath("/foo")
+            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
+            .build();
+    }
+
+    public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final byte version = Version.CURRENT.major;
+
+        final String mediaType = randomCompatibleMediaType(version);
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        // dispatch to a CURRENT newly added handler
+        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                // the media type is in application/vnd.elasticsearch form but with compatible-with=CURRENT.
+                // Hence compatibility is not used.
+                assertThat(request.contentParser().useCompatibility(), is(false));
+
+                XContentBuilder xContentBuilder = channel.newBuilder();
                 assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
@@ -727,14 +746,6 @@ public class RestControllerTests extends ESTestCase {
                     return Version.fromString(version + ".0.0");
                 }
             }));
-    }
-
-    private String randomCompatibleMimeType(byte version) {
-        String subtype = randomFrom(Stream.of(XContentType.values())
-            .map(XContentType::mediaTypeWithoutParameters)
-            .toArray(String[]::new))
-            .split("/")[1];
-        return randomFrom("application/vnd.elasticsearch+" + subtype + ";compatible-with=" + version);
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

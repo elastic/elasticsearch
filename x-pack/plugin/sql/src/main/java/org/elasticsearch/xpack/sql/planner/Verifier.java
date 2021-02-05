@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -24,7 +25,7 @@ abstract class Verifier {
             if (p instanceof UnplannedExec) {
                 failures.add(fail(p, "Unplanned item"));
             }
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {
                     failures.add(fail(e, "Unresolved expression"));
                 }
@@ -41,7 +42,7 @@ abstract class Verifier {
             if (p instanceof Unexecutable) {
                 failures.add(fail(p, "Unexecutable item"));
             }
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {
                     failures.add(fail(e, "Unresolved expression"));
                 }

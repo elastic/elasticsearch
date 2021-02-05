@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
@@ -68,7 +57,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;
-    private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = Math.min(Runtime.getRuntime().availableProcessors(), 8) * 2;
+    private static final int DEFAULT_EVENT_LOOP_THREAD_COUNT = 1;
     private static final int PENDING_CONNECTION_QUEUE_SIZE = -1; // see ConnectionProvider.ConnectionPoolSpec.pendingAcquireMaxCount
 
     static final Setting<Integer> EVENT_LOOP_THREAD_COUNT = Setting.intSetting(
@@ -144,13 +133,12 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     private static ByteBufAllocator createByteBufAllocator() {
-        int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
+        int nHeapArena = 1;
         int pageSize = PooledByteBufAllocator.defaultPageSize();
         int maxOrder = PooledByteBufAllocator.defaultMaxOrder();
         int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
         int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
         int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
-        boolean useCacheForAllThreads = PooledByteBufAllocator.defaultUseCacheForAllThreads();
 
         return new PooledByteBufAllocator(false,
             nHeapArena,
@@ -160,7 +148,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             tinyCacheSize,
             smallCacheSize,
             normalCacheSize,
-            useCacheForAllThreads);
+            false);
     }
 
     AzureBlobServiceClient createClient(AzureStorageSettings settings,

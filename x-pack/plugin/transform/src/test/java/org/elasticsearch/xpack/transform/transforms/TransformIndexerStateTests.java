@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -25,7 +26,6 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -89,14 +89,12 @@ public class TransformIndexerStateTests extends ESTestCase {
 
     private Client client;
     private ThreadPool threadPool;
-    private String executorName;
     private TransformAuditor auditor;
     private TransformConfigManager transformConfigManager;
 
     class MockedTransformIndexer extends TransformIndexer {
 
         private final ThreadPool threadPool;
-        private final String executorName;
 
         private TransformState persistedState;
         private int saveStateListenerCallCount = 0;
@@ -106,7 +104,6 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         MockedTransformIndexer(
             ThreadPool threadPool,
-            String executorName,
             TransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
             TransformAuditor auditor,
@@ -119,7 +116,6 @@ public class TransformIndexerStateTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                executorName,
                 transformsConfigManager,
                 checkpointProvider,
                 auditor,
@@ -134,7 +130,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 context
             );
             this.threadPool = threadPool;
-            this.executorName = executorName;
 
             persistedState = new TransformState(
                 context.getTaskState(),
@@ -174,7 +169,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            threadPool.executor(executorName).execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
         }
 
         @Override
@@ -182,7 +177,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             if (doProcessLatch != null) {
                 doProcessLatch.countDown();
             }
-            threadPool.executor(executorName).execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
+            threadPool.executor(ThreadPool.Names.GENERIC)
+                .execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
         }
 
         @Override
@@ -236,9 +232,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
         client = new NoOpClient(getTestName());
-        // we need "generic" as part of the name, because it is asserted
-        executorName = ThreadPool.Names.GENERIC + "-" + getTestName();
-        threadPool = new TestThreadPool(executorName, new ScalingExecutorBuilder(executorName, 4, 10, TimeValue.timeValueSeconds(30)));
+        threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
     }
 
     @After
@@ -275,7 +269,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 stateRef,
                 null,
                 threadPool,
-                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -301,7 +294,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -331,7 +323,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -362,7 +353,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -406,7 +396,6 @@ public class TransformIndexerStateTests extends ESTestCase {
                 state,
                 null,
                 threadPool,
-                executorName,
                 auditor,
                 new TransformIndexerStats(),
                 context
@@ -481,7 +470,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             state,
             null,
             threadPool,
-            executorName,
             auditor,
             new TransformIndexerStats(),
             context
@@ -542,7 +530,7 @@ public class TransformIndexerStateTests extends ESTestCase {
     ) {
         // we need to simulate that this is called from the task, which offloads it to the generic threadpool
         CountDownLatch latch = new CountDownLatch(1);
-        threadPool.executor(executorName).execute(() -> {
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
             indexer.setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
             latch.countDown();
         });
@@ -575,7 +563,6 @@ public class TransformIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Consumer<String> failureConsumer,
         ThreadPool threadPool,
-        String executorName,
         TransformAuditor auditor,
         TransformIndexerStats jobStats,
         TransformContext context
@@ -585,7 +572,6 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
-            executorName,
             transformConfigManager,
             checkpointProvider,
             auditor,

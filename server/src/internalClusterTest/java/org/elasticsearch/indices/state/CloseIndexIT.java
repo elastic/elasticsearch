@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices.state;
 
@@ -34,9 +23,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -51,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -474,10 +464,11 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
     }
 
-    public void testCommitIdInSearcher() throws Exception {
+    public void testSearcherId() throws Exception {
         final String indexName = "test_commit_id";
+        final int numberOfShards = randomIntBetween(1, 5);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
@@ -486,19 +477,42 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(indexName));
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
-        final String nodeWithPrimary = Iterables.get(internalCluster().nodesInclude(indexName), 0);
-        IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeWithPrimary)
-            .indexService(resolveIndex(indexName)).getShard(0);
-        final String commitId;
-        try (Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier(randomFrom(Engine.SearcherScope.values()))) {
-            assertNotNull(searcherSupplier.getCommitId());
-            commitId = searcherSupplier.getCommitId();
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            ensureGreen(indexName);
         }
-        internalCluster().restartNode(nodeWithPrimary);
+        String[] searcherIds = new String[numberOfShards];
+        Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
+        for (String node : allocatedNodes) {
+            IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
+            for (IndexShard shard : indexService) {
+                try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
+                    assertNotNull(searcher.getSearcherId());
+                    if (searcherIds[shard.shardId().id()] != null) {
+                        assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
+                    } else {
+                        searcherIds[shard.shardId().id()] = searcher.getSearcherId();
+                    }
+                }
+            }
+        }
+        for (String node : allocatedNodes) {
+            if (randomBoolean()) {
+                internalCluster().restartNode(node);
+            }
+        }
         ensureGreen(indexName);
-        shard = internalCluster().getInstance(IndicesService.class, nodeWithPrimary).indexService(resolveIndex(indexName)).getShard(0);
-        try (Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier(randomFrom(Engine.SearcherScope.values()))) {
-            assertThat(searcherSupplier.getCommitId(), equalTo(commitId));
+        allocatedNodes = internalCluster().nodesInclude(indexName);
+        for (String node : allocatedNodes) {
+            IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
+            for (IndexShard shard : indexService) {
+                try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
+                    assertNotNull(searcher.getSearcherId());
+                    assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
+                }
+            }
         }
     }
 

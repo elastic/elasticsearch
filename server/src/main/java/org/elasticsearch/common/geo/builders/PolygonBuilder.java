@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.geo.builders;
@@ -171,7 +160,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
                     "invalid number of points in LinearRing (found [" + points.size() + "] - must be >= 4)");
         }
 
-        if (!points.get(0).equals(points.get(points.size() - 1))) {
+        if (points.get(0).equals(points.get(points.size() - 1)) == false) {
                 throw new IllegalArgumentException("invalid LinearRing found (coordinates are not closed)");
         }
     }
@@ -199,18 +188,21 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
      * @return coordinates of the polygon
      */
     public Coordinate[][][] coordinates() {
-        int numEdges = shell.coordinates.size()-1; // Last point is repeated
-        for (int i = 0; i < holes.size(); i++) {
-            numEdges += holes.get(i).coordinates.size()-1;
-            validateHole(shell, this.holes.get(i));
+        LineStringBuilder shell = filterRing(this.shell);
+        LineStringBuilder[] holes = new LineStringBuilder[this.holes.size()];
+        int numEdges = shell.coordinates.size() - 1; // Last point is repeated
+        for (int i = 0; i < this.holes.size(); i++) {
+            holes[i] = filterRing(this.holes.get(i));
+            numEdges += holes[i].coordinates.size() - 1;
+            validateHole(shell, holes[i]);
         }
 
         Edge[] edges = new Edge[numEdges];
-        Edge[] holeComponents = new Edge[holes.size()];
+        Edge[] holeComponents = new Edge[holes.length];
         final AtomicBoolean translated = new AtomicBoolean(false);
         int offset = createEdges(0, orientation, shell, null, edges, 0, translated);
-        for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, orientation, shell, this.holes.get(i), edges, offset, translated);
+        for (int i = 0; i < holes.length; i++) {
+            int length = createEdges(i+1, orientation, shell, holes[i], edges, offset, translated);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -221,6 +213,33 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         numHoles = merge(edges, 0, intersections(-DATELINE, edges), holeComponents, numHoles);
 
         return compose(edges, holeComponents, numHoles);
+    }
+
+    /**
+     * This method removes duplicated points and coplanar points on vertical lines (vertical lines
+     * do not cross the dateline).
+     */
+    private static LineStringBuilder filterRing(LineStringBuilder linearRing) {
+        int numPoints = linearRing.coordinates.size();
+        List<Coordinate> coordinates = new ArrayList<>();
+        coordinates.add(linearRing.coordinates.get(0));
+        for (int i = 1; i < numPoints - 1; i++) {
+            if (linearRing.coordinates.get(i - 1).x == linearRing.coordinates.get(i).x) {
+                if (linearRing.coordinates.get(i - 1).y == linearRing.coordinates.get(i).y) {
+                    // same point
+                    continue;
+                }
+                if (linearRing.coordinates.get(i - 1).x == linearRing.coordinates.get(i + 1).x &&
+                    linearRing.coordinates.get(i - 1).y > linearRing.coordinates.get(i).y !=
+                        linearRing.coordinates.get(i + 1).y > linearRing.coordinates.get(i).y) {
+                    // coplanar
+                    continue;
+                }
+            }
+            coordinates.add(linearRing.coordinates.get(i));
+        }
+        coordinates.add(linearRing.coordinates.get(numPoints - 1));
+        return new LineStringBuilder(coordinates);
     }
 
     @Override
@@ -408,7 +427,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
                         prev.component = visitID;
                         prev = visitedEdge.get(prev.coordinate).v1();
                         ++splitIndex;
-                    } while (!current.coordinate.equals(prev.coordinate));
+                    } while (current.coordinate.equals(prev.coordinate) == false);
                     ++connectedComponents;
                 } else {
                     visitedEdge.put(current.coordinate, new Tuple<Edge, Edge>(prev, current));

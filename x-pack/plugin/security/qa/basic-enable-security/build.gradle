@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.test.rest.JavaRestTestPlugin
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
@@ -12,6 +13,11 @@ dependencies {
 tasks.named("javaRestTest").configure {
   description = "Run tests against a cluster that doesn't have security"
   systemProperty 'tests.has_security', 'false'
+}
+
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
 }
 
 testClusters {
@@ -31,6 +37,9 @@ tasks.register("javaRestTestWithSecurity", StandaloneRestIntegTestTask) {
   systemProperty 'tests.has_security', 'true'
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
+  onlyIf {
+    BuildParams.inFipsJvm == false
+  }
   doFirst {
     testClusters.javaRestTest {
       // TODO Rene: revisit if using dedicated new cluster definitions would be more efficient.

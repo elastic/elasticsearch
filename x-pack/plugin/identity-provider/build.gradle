@@ -53,7 +53,7 @@ dependencies {
 }
 
 tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+  options.compilerArgs << "-Xlint:-unchecked"
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -354,7 +354,7 @@ tasks.named("test").configure {
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 

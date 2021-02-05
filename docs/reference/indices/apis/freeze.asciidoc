@@ -13,8 +13,11 @@ Freezes an index.
 
 `POST /<index>/_freeze`
 
-//[[freeze-index-api-prereqs]]
-//==== {api-prereq-title}
+[[freeze-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
 
 [[freeze-index-api-desc]]
 ==== {api-description-title}

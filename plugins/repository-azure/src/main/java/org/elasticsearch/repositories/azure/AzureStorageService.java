@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
@@ -29,6 +18,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -36,8 +26,6 @@ import java.net.URL;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static com.azure.storage.blob.BlobAsyncClient.BLOB_DEFAULT_NUMBER_OF_BUFFERS;
-import static com.azure.storage.blob.BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE;
 import static java.util.Collections.emptyMap;
 
 public class AzureStorageService {
@@ -56,10 +44,22 @@ public class AzureStorageService {
     public static final long MAX_BLOCK_NUMBER = 50000;
 
     /**
+     * Default block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
+     * stream into several part, each of block_size length, and will upload each part in its own request.
+     */
+    private static final ByteSizeValue DEFAULT_BLOCK_SIZE = new ByteSizeValue(
+        Math.max(
+            ByteSizeUnit.MB.toBytes(5), // minimum value
+            Math.min(
+                MAX_BLOCK_SIZE.getBytes(),
+                JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)),
+        ByteSizeUnit.BYTES);
+
+    /**
      * The maximum size of a Block Blob.
      * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
      */
-    public static final long MAX_BLOB_SIZE = MAX_BLOCK_NUMBER * MAX_BLOCK_SIZE.getBytes();
+    public static final long MAX_BLOB_SIZE = MAX_BLOCK_NUMBER * DEFAULT_BLOCK_SIZE.getBytes();
 
     /**
      * Maximum allowed blob size in Azure blob store.
@@ -68,8 +68,7 @@ public class AzureStorageService {
 
     // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
     private static final long DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB).getBytes();
-    private static final long DEFAULT_UPLOAD_BLOCK_SIZE = BLOB_DEFAULT_UPLOAD_BLOCK_SIZE;
-    private static final int DEFAULT_MAX_PARALLELISM = BLOB_DEFAULT_NUMBER_OF_BUFFERS;
+    private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
 
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
@@ -127,11 +126,6 @@ public class AzureStorageService {
     // non-static, package private for testing
     long getSizeThresholdForMultiBlockUpload() {
         return DEFAULT_MAX_SINGLE_UPLOAD_SIZE;
-    }
-
-    // non-static, package private for testing
-    int getMaxUploadParallelism() {
-        return DEFAULT_MAX_PARALLELISM;
     }
 
     int getMaxReadRetries(String clientName) {

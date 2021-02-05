@@ -62,9 +62,12 @@ public class JavadocExtractor {
 
     public ParsedJavaClass parseClass(String className) throws IOException {
         InputStream classStream = resolver.openClassFile(className);
+        ParsedJavaClass parsed = new ParsedJavaClass(GPLv2);
+        if (classStream == null) {
+            return parsed;
+        }
         ClassFileVisitor visitor = new ClassFileVisitor();
         CompilationUnit cu = StaticJavaParser.parse(classStream);
-        ParsedJavaClass parsed = new ParsedJavaClass(GPLv2);
         visitor.visit(cu, parsed);
         return parsed;
     }

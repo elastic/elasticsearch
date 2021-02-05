@@ -146,7 +146,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("log.logger", "compatible.test"),
+                            hasEntry("log.logger", "deprecation.test"),
                             hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
                             hasEntry("elasticsearch.node.name", "sample-name"),

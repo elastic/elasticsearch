@@ -34,7 +34,6 @@ public class DeprecationLogger {
     public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
 
     private final Logger logger;
-    private final Logger compatibleLogger;
 
     /**
      * Creates a new deprecation logger for the supplied class. Internally, it delegates to
@@ -56,7 +55,6 @@ public class DeprecationLogger {
 
     private DeprecationLogger(String parentLoggerName) {
         this.logger = LogManager.getLogger(getLoggerName(parentLoggerName, "deprecation"));
-        this.compatibleLogger = LogManager.getLogger(getLoggerName(parentLoggerName, "compatible"));
     }
 
     private static String getLoggerName(String name, String prefix) {
@@ -94,7 +92,7 @@ public class DeprecationLogger {
         final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
         ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
-        compatibleLogger.log(DEPRECATION, deprecationMessage);
+        logger.log(DEPRECATION, deprecationMessage);
         return this;
     }
 

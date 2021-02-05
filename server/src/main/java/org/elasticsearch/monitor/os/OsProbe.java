@@ -669,9 +669,8 @@ public class OsProbe {
         List<String> meminfoLines = readProcMeminfo();
         final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
         assert memTotalLines.size() <= 1 : memTotalLines;
-        final Optional<String> maybeMemTotalLine = memTotalLines.size() == 1 ? Optional.of(memTotalLines.get(0)) : Optional.empty();
-        if (maybeMemTotalLine.isPresent()) {
-            final String memTotalLine = maybeMemTotalLine.get();
+        if (memTotalLines.size() == 1) {
+            final String memTotalLine = memTotalLines.get(0);
             int beginIdx = memTotalLine.indexOf("MemTotal:");
             int endIdx = memTotalLine.lastIndexOf(" kB");
             if (beginIdx + 9 < endIdx) {

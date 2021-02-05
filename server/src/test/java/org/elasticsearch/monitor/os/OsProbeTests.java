@@ -282,6 +282,20 @@ public class OsProbeTests extends ESTestCase {
         probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
 
+        // MemTotal line with invalid unit
+        meminfoLines = Arrays.asList(
+            "MemTotal:       39646240 MB",
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB",
+            "SwapCached:            0 kB",
+            "Active:         43637908 kB",
+            "Inactive:        8130280 kB"
+        );
+        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+
         // MemTotal line with random valid value
         long memTotalInKb = randomLongBetween(1, Long.MAX_VALUE / 1024L);
         meminfoLines = Arrays.asList(
@@ -296,6 +310,13 @@ public class OsProbeTests extends ESTestCase {
         );
         probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
+    }
+
+    public void testGetTotalMemoryOnDebian8() throws Exception {
+        // tests the workaround for JDK bug on debian8: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
+        final OsProbe osProbe = new OsProbe();
+        assumeTrue("runs only on Debian 8", osProbe.isDebian8());
+        assertThat(osProbe.getTotalPhysicalMemorySize(), greaterThan(0L));
     }
 
     private static List<String> getProcSelfGroupLines(String hierarchy) {

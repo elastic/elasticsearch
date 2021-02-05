@@ -83,7 +83,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Nullability nullable() {
-        return Nullability.FALSE;
+        return (Expressions.isNull(pattern) || Expressions.isNull(input)) ? Nullability.TRUE : Nullability.UNKNOWN;
     }
 
     @Override

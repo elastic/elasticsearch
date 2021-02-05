@@ -99,7 +99,7 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
             this.name = name;
             this.arguments = new ArrayList<>();
             for (Object a : arguments) {
-                this.arguments.add(Argument.class.isAssignableFrom(a.getClass()) ? (Argument) a : new Argument(a));
+                this.arguments.add(new Argument(a));
             }
         }
 

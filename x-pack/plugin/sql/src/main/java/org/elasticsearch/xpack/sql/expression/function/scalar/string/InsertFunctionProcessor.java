@@ -54,7 +54,7 @@ public class InsertFunctionProcessor implements Processor {
         if ((input instanceof String || input instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
-        if (!(replacement instanceof String || replacement instanceof Character)) {
+        if ((replacement instanceof String || replacement instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", replacement);
         }
 

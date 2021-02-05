@@ -166,23 +166,6 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
     public void testGetDate() {
         ZoneId zoneId = randomZone();
-        long millis = randomNonNegativeLong();
-        ZonedDateTime zdt = asDateTimeWithMillis(millis, zoneId);
-        List<Object> documentFieldValues = Collections.singletonList(StringUtils.toString(zdt));
-        DocumentField field = new DocumentField("my_date_field", documentFieldValues);
-        SearchHit hit = new SearchHit(1, null, singletonMap("my_date_field", field), null);
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DATETIME, zoneId, true);
-        assertEquals(DateUtils.asDateTimeWithMillis(millis, zoneId), extractor.extract(hit));
-
-        // Before date_nanos support timestamps were returned as millis
-        documentFieldValues = Collections.singletonList(Long.toString(millis));
-        field = new DocumentField("my_date_field", documentFieldValues);
-        hit = new SearchHit(1, null, singletonMap("my_date_field", field), null);
-        assertEquals(DateUtils.asDateTimeWithMillis(millis, zoneId), extractor.extract(hit));
-    }
-
-    public void testGetDateNanos() {
-        ZoneId zoneId = randomZone();
         long totalNanos = randomLongBetween(72000000000000L, Long.MAX_VALUE);
         long millis = toMilliSeconds(totalNanos);
         long nanosOnly = (int) (totalNanos % 1_000_000_000);

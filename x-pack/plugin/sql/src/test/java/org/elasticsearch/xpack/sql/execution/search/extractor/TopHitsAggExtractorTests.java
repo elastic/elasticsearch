@@ -94,11 +94,6 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
                 searchHitsOf(StringUtils.toString(DateUtils.asDateTimeWithMillis(value, zoneId))), null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
         assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
-
-        // Before date_nanos support timestamps were returned as millis
-        agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
-        bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
     }
 
     private SearchHits searchHitsOf(Object value) {

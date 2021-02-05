@@ -70,7 +70,6 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -359,6 +358,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        AnalysisPlugin,
@@ -637,7 +637,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService);
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService);
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
-        OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
             threadPool,
             originSettingClient,
@@ -854,8 +854,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     dataFrameAnalyticsManager.get(),
                     dataFrameAnalyticsAuditor.get(),
                     memoryTracker.get(),
-                    expressionResolver,
-                    MlIndexTemplateRegistry.INFERENCE_TEMPLATE),
+                    expressionResolver),
                 new SnapshotUpgradeTaskExecutor(settings,
                     clusterService,
                     autodetectProcessManager.get(),
@@ -1085,10 +1084,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         List<String> templateNames =
             Arrays.asList(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
-                MlMetaIndex.indexName(),
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                InferenceIndexConstants.LATEST_INDEX_NAME);
+                AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
@@ -1165,10 +1162,38 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
-            new SystemIndexDescriptor(MlMetaIndex.indexName(), "Contains scheduling and anomaly tracking metadata"),
-            new SystemIndexDescriptor(MlConfigIndex.indexName(), "Contains ML configuration data"),
-            new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlMetaIndex.indexName() + "*")
+                .setPrimaryIndex(MlMetaIndex.indexName())
+                .setDescription("Contains scheduling and anomaly tracking metadata")
+                .setMappings(MlMetaIndex.mapping())
+                .setSettings(MlMetaIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ML_ORIGIN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlConfigIndex.indexName() + "*")
+                .setPrimaryIndex(MlConfigIndex.indexName())
+                .setDescription("Contains ML configuration data")
+                .setMappings(MlConfigIndex.mapping())
+                .setSettings(MlConfigIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ML_ORIGIN)
+                .build(),
+            getInferenceIndexSecurityDescriptor()
         );
+    }
+
+    public static SystemIndexDescriptor getInferenceIndexSecurityDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
+            .setPrimaryIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setDescription("Contains ML model configuration and statistics")
+            .setMappings(InferenceIndexConstants.mapping())
+            .setSettings(InferenceIndexConstants.settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ML_ORIGIN)
+            .build();
     }
 
     @Override

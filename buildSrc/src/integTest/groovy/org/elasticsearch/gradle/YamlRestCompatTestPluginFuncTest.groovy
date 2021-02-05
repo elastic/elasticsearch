@@ -14,7 +14,10 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
-    def intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME;
+    def intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME
+    def transformTask  = YamlRestCompatTestPlugin.TRANSFORM_TASK_NAME
+
+
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
@@ -39,7 +42,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
+        result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
     def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:minor"() {
@@ -91,7 +94,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
-        result.task(':transformCompatTests').outcome == TaskOutcome.SUCCESS
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).exists()
@@ -119,7 +122,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':transformCompatTests').outcome == TaskOutcome.UP_TO_DATE
+        result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
     }
 
     def "yamlRestCompatTest is wired into check and checkRestCompat"() {
@@ -148,7 +151,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
+        result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
 
         when:
         buildFile << """
@@ -162,7 +165,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
-        result.task(':transformCompatTests').outcome == TaskOutcome.SKIPPED
+        result.task(transformTask).outcome == TaskOutcome.SKIPPED
 
     }
 }

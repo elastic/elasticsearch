@@ -10,12 +10,10 @@
 
 * **Hot**: The index is actively being updated and queried.
 * **Warm**: The index is no longer being updated but is still being queried.
-* **Cold**: The index is no longer being updated and is seldom queried. The
-information still needs to be searchable, but it's okay if those queries are
-slower.
-* **Frozen**: The index is no longer being updated and is even more seldom queried. The
-information still needs to be searchable, but it's okay if those queries are
-extremely slow.
+* **Cold**: The index is no longer being updated and is queried infrequently. The information still
+needs to be searchable, but it's okay if those queries are slower.
+* **Frozen**: The index is no longer being updated and is queried rarely. The information still
+needs to be searchable, but it's okay if those queries are extremely slow.
 * **Delete**: The index is no longer needed and can safely be removed.
 
 An index's _lifecycle policy_ specifies which phases 

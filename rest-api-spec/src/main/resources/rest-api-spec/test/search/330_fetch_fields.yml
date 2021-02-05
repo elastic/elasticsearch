@@ -263,8 +263,8 @@ setup:
 ---
 "Test token count":
   - skip:
-      version: " - 7.99.99"
-      reason: "support for token_count isn't yet backported"
+      version: " - 7.9.99"
+      reason: "support for token_count was instroduced in 7.10"
   - do:
       indices.create:
         index:  test

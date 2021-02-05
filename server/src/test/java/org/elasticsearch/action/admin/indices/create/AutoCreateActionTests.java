@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -37,9 +26,11 @@ public class AutoCreateActionTests extends ESTestCase {
         {
             Metadata.Builder mdBuilder = new Metadata.Builder();
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
-            mdBuilder.put("1", new ComposableIndexTemplate(List.of("legacy-logs-*"), null, null, 10L, null, null, null, null));
-            mdBuilder.put("2", new ComposableIndexTemplate(List.of("logs-*"), null, null, 20L, null, null, dataStreamTemplate, null));
-            mdBuilder.put("3", new ComposableIndexTemplate(List.of("logs-foobar"), null, null, 30L, null, null, dataStreamTemplate, null));
+            mdBuilder.put("1", new ComposableIndexTemplate.Builder().indexPatterns(List.of("legacy-logs-*")).priority(10L).build());
+            mdBuilder.put("2", new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*")).priority(20L)
+              .dataStreamTemplate(dataStreamTemplate).build());
+            mdBuilder.put("3", new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*")).priority(30L)
+              .dataStreamTemplate(dataStreamTemplate).build());
             metadata = mdBuilder.build();
         }
 

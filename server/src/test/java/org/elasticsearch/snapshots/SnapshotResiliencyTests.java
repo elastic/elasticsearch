@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -117,7 +106,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -1496,8 +1485,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     Collections.emptyList(),
                     emptyMap(),
                     null,
-                    emptyMap()
-                );
+                    emptyMap(),
+                    List.of(),
+                    emptyMap());
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService =
                         new SnapshotShardsService(settings, clusterService, repositoriesService, transportService, indicesService);
@@ -1512,6 +1502,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool, shardStateAction, actionFilters));
                 final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
                 peerRecoverySourceService = new PeerRecoverySourceService(transportService, indicesService, recoverySettings);
+
+                final SystemIndices systemIndices = new SystemIndices(Map.of());
+
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
@@ -1535,19 +1528,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             shardStateAction,
                             actionFilters,
                             new IndexingPressure(settings),
-                            new SystemIndices(Map.of()))),
+                            systemIndices)),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
                     indicesService,
                     allocationService, new AliasValidator(), shardLimitValidator, environment, indexScopedSettings,
-                    threadPool, namedXContentRegistry, new SystemIndices(Map.of()), false);
+                    threadPool, namedXContentRegistry, systemIndices, false);
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
                         transportService, clusterService, threadPool,
                         metadataCreateIndexService,
-                        actionFilters, indexNameExpressionResolver
+                        actionFilters, indexNameExpressionResolver, systemIndices
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
                 final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
@@ -1560,30 +1553,29 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(), client),
                         client, actionFilters, indexNameExpressionResolver,
                         new IndexingPressure(settings),
-                        new SystemIndices(Map.of())
+                        systemIndices
                     ));
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                    actionFilters, indexingMemoryLimits, new SystemIndices(Map.of()));
+                    actionFilters, indexingMemoryLimits, systemIndices);
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
                     metadataCreateIndexService,
-                    new MetadataIndexUpgradeService(
+                    new IndexMetadataVerifier(
                         settings, namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        new SystemIndices(Map.of()),
                         null),
-                    clusterSettings,
                         shardLimitValidator
                 );
                 actions.put(PutMappingAction.INSTANCE,
                     new TransportPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
-                        actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList())));
+                        actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList()),
+                        new SystemIndices(Map.of())));
                 actions.put(AutoPutMappingAction.INSTANCE,
                     new TransportAutoPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
-                        actionFilters, indexNameExpressionResolver));
+                        actionFilters, indexNameExpressionResolver, systemIndices));
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
                 final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -1633,7 +1625,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         snapshotsService, actionFilters, indexNameExpressionResolver
                     ));
                 client.initialize(actions, transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(),
+                    () -> clusterService.localNode().getId(),
+                    transportService.getLocalNodeConnection(),
+                    transportService.getRemoteClusterService(),
                     new NamedWriteableRegistry(List.of()));
             }
 

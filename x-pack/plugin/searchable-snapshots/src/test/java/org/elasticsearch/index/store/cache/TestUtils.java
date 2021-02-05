@@ -1,23 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -34,6 +38,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -52,7 +57,7 @@ import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertTrue;
@@ -62,6 +67,10 @@ public final class TestUtils {
     private TestUtils() {}
 
     public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
+        return randomPopulateAndReads(cacheFile, (fileChannel, aLong, aLong2) -> {});
+    }
+
+    public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
         final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
         final List<Future<Integer>> futures = new ArrayList<>();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -69,11 +78,12 @@ public final class TestUtils {
             random()
         );
         for (int i = 0; i < between(0, 10); i++) {
-            final long start = randomLongBetween(0L, cacheFile.getLength() - 1L);
-            final long end = randomLongBetween(start + 1L, cacheFile.getLength());
+            final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
+            final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
             final Tuple<Long, Long> range = Tuple.tuple(start, end);
             futures.add(
                 cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
+                    consumer.apply(channel, from, to);
                     ranges.add(Tuple.tuple(from, to));
                     progressUpdater.accept(to);
                 }, deterministicTaskQueue.getThreadPool().generic())
@@ -142,6 +152,13 @@ public final class TestUtils {
         });
     }
 
+    public static void assertCacheFileEquals(CacheFile expected, CacheFile actual) {
+        assertThat(actual.getLength(), equalTo(expected.getLength()));
+        assertThat(actual.getFile(), equalTo(expected.getFile()));
+        assertThat(actual.getCacheKey(), equalTo(expected.getCacheKey()));
+        assertThat(actual.getCompletedRanges(), equalTo(expected.getCompletedRanges()));
+    }
+
     public static void assertCounter(IndexInputStats.Counter counter, long total, long count, long min, long max) {
         assertThat(counter.total(), equalTo(total));
         assertThat(counter.count(), equalTo(count));
@@ -159,6 +176,10 @@ public final class TestUtils {
     ) {
         assertCounter(timedCounter, total, count, min, max);
         assertThat(timedCounter.totalNanoseconds(), equalTo(totalNanoseconds));
+    }
+
+    public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
+        return cacheFile.getCompletedRanges().stream().mapToLong(range -> range.v2() - range.v1()).sum();
     }
 
     /**
@@ -254,7 +275,7 @@ public final class TestUtils {
         }
 
         @Override
-        public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+        public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
 
@@ -287,7 +308,7 @@ public final class TestUtils {
     public static class NoopBlobStoreCacheService extends BlobStoreCacheService {
 
         public NoopBlobStoreCacheService() {
-            super(null, null, mock(Client.class), null);
+            super(null, mock(Client.class), null);
         }
 
         @Override
@@ -304,6 +325,47 @@ public final class TestUtils {
             BytesReference content,
             ActionListener<Void> listener
         ) {
+            listener.onResponse(null);
+        }
+    }
+
+    public static class SimpleBlobStoreCacheService extends BlobStoreCacheService {
+
+        private final ConcurrentHashMap<String, CachedBlob> blobs = new ConcurrentHashMap<>();
+
+        public SimpleBlobStoreCacheService() {
+            super(null, mock(Client.class), null);
+        }
+
+        @Override
+        protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+            CachedBlob blob = blobs.get(CachedBlob.generateId(repository, name, path, offset));
+            if (blob != null) {
+                listener.onResponse(blob);
+            } else {
+                listener.onResponse(CachedBlob.CACHE_MISS);
+            }
+        }
+
+        @Override
+        public void putAsync(
+            String repository,
+            String name,
+            String path,
+            long offset,
+            BytesReference content,
+            ActionListener<Void> listener
+        ) {
+            final CachedBlob cachedBlob = new CachedBlob(
+                Instant.ofEpochMilli(0),
+                Version.CURRENT,
+                repository,
+                name,
+                path,
+                new BytesArray(content.toBytesRef(), true),
+                offset
+            );
+            blobs.put(cachedBlob.generatedId(), cachedBlob);
             listener.onResponse(null);
         }
     }
@@ -342,7 +404,7 @@ public final class TestUtils {
         @Override
         public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
             final AtomicInteger counter = files.computeIfAbsent(path, p -> new AtomicInteger(0));
-            return new FilterFileChannel(delegate.newFileChannel(toDelegate(path), options, attrs)) {
+            return new FilterFileChannel(super.newFileChannel(path, options, attrs)) {
 
                 @Override
                 public void force(boolean metaData) throws IOException {

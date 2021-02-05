@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
@@ -49,7 +39,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             SignificantTermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
@@ -146,6 +136,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         };
     }
 
+    private final SignificantTermsAggregatorSupplier aggregatorSupplier;
     private final IncludeExclude includeExclude;
     private final String executionHint;
     private final QueryBuilder backgroundFilter;
@@ -162,7 +153,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       AggregationContext context,
                                       AggregatorFactory parent,
                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                      Map<String, Object> metadata) throws IOException {
+                                      Map<String, Object> metadata,
+                                      SignificantTermsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         if (config.hasValues()) {
@@ -172,6 +164,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
         }
 
+        this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.backgroundFilter = backgroundFilter;
@@ -197,9 +190,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        SignificantTermsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry()
-            .getAggregator(SignificantTermsAggregationBuilder.REGISTRY_KEY, config);
-
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection .
@@ -332,7 +322,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if ("global_ordinals".equals(value)) {
                 return GLOBAL_ORDINALS;
             } else if ("global_ordinals_hash".equals(value)) {
-                deprecationLogger.deprecate("global_ordinals_hash",
+                deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "global_ordinals_hash",
                     "global_ordinals_hash is deprecated. Please use [global_ordinals] instead.");
                 return GLOBAL_ORDINALS;
             } else if ("map".equals(value)) {

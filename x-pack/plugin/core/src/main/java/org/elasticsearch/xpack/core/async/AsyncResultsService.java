@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.async;
@@ -81,7 +82,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             // EQL doesn't store initial or intermediate results so we only need to update expiration time in store for only in case of
             // async search
             if (updateInitialResultsInStore & expirationTime > 0) {
-                store.updateExpirationTime(searchId.getDocId(), expirationTime,
+                store.extendExpirationTime(searchId.getDocId(), expirationTime,
                     ActionListener.wrap(
                         p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener),
                         exc -> {
@@ -123,7 +124,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             }
 
             if (expirationTimeMillis != -1) {
-                task.setExpirationTime(expirationTimeMillis);
+                task.extendExpirationTime(expirationTimeMillis);
             }
             addCompletionListener.apply(task, new ActionListener<>() {
                 @Override

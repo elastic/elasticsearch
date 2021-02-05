@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -26,7 +15,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.TaskResultsService;
 
@@ -57,11 +45,31 @@ public class SystemIndices {
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(descriptorsMap);
-        this.systemIndexDescriptors = descriptorsMap.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toUnmodifiableList());
+        this.systemIndexDescriptors = descriptorsMap.values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableList());
+        checkForDuplicateAliases(this.systemIndexDescriptors);
         this.runAutomaton = buildCharacterRunAutomaton(systemIndexDescriptors);
+    }
+
+    private void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
+        final Map<String, Integer> aliasCounts = new HashMap<>();
+
+        for (SystemIndexDescriptor descriptor : descriptors) {
+            final String aliasName = descriptor.getAliasName();
+            if (aliasName != null) {
+                aliasCounts.compute(aliasName, (alias, existingCount) -> 1 + (existingCount == null ? 0 : existingCount));
+            }
+        }
+
+        final List<String> duplicateAliases = aliasCounts.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue() > 1)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .collect(Collectors.toList());
+
+        if (duplicateAliases.isEmpty() == false) {
+            throw new IllegalStateException("Found aliases associated with multiple system index descriptors: " + duplicateAliases + "");
+        }
     }
 
     /**
@@ -114,7 +122,7 @@ public class SystemIndices {
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
         Optional<Automaton> automaton = descriptors.stream()
-            .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
     }
@@ -152,8 +160,8 @@ public class SystemIndices {
     }
 
     private static boolean overlaps(SystemIndexDescriptor a1, SystemIndexDescriptor a2) {
-        Automaton a1Automaton = Regex.simpleMatchToAutomaton(a1.getIndexPattern());
-        Automaton a2Automaton = Regex.simpleMatchToAutomaton(a2.getIndexPattern());
+        Automaton a1Automaton = SystemIndexDescriptor.buildAutomaton(a1.getIndexPattern(), null);
+        Automaton a2Automaton = SystemIndexDescriptor.buildAutomaton(a2.getIndexPattern(), null);
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
@@ -170,5 +178,9 @@ public class SystemIndices {
             }
         });
         return Map.copyOf(map);
+    }
+
+    Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return this.systemIndexDescriptors;
     }
 }

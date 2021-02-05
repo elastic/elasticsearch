@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams.action;
@@ -9,6 +10,7 @@ package org.elasticsearch.xpack.datastreams.action;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
@@ -74,6 +77,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    @Override
+    protected void doExecute(Task task, DataStreamsStatsAction.Request request, ActionListener<DataStreamsStatsAction.Response> listener) {
+        request.indicesOptions(DataStreamsActionUtil.updateIndicesOptions(request.indicesOptions()));
+        super.doExecute(task, request, listener);
     }
 
     @Override

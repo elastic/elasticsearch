@@ -26,6 +26,12 @@ GET /_field_caps?fields=rating
 
 `POST /<target>/_field_caps?fields=<fields>`
 
+[[search-field-caps-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata`, `read`, or `manage` <<privileges-list-indices,index
+privilege>> for the target data stream, index, or index alias.
 
 [[search-field-caps-api-desc]]
 ==== {api-description-title}
@@ -33,6 +39,10 @@ GET /_field_caps?fields=rating
 
 The field capabilities API returns the information about the capabilities of
 fields among multiple indices.
+
+The field capabilities API returns <<runtime,runtime fields>> like any
+other field. For example, a runtime field with a type of
+`keyword` is returned as any other field that belongs to the `keyword` family.
 
 
 [[search-field-caps-api-path-params]]

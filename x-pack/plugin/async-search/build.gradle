@@ -8,9 +8,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-async-search'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
 addQaCheckDependencies()
 
 dependencies {

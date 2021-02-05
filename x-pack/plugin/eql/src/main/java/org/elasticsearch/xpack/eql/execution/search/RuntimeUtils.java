@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
@@ -123,7 +124,7 @@ public final class RuntimeUtils {
             Pipe proc = ((ComputedRef) ref).processor();
             // collect hitNames
             Set<String> hitNames = new LinkedHashSet<>();
-            proc = proc.transformDown(l -> {
+            proc = proc.transformDown(ReferenceInput.class, l -> {
                 HitExtractor he = createExtractor(l.context(), cfg);
                 hitNames.add(he.hitName());
 
@@ -132,7 +133,7 @@ public final class RuntimeUtils {
                 }
 
                 return new HitExtractorInput(l.source(), l.expression(), he);
-            }, ReferenceInput.class);
+            });
             String hitName = null;
             if (hitNames.size() == 1) {
                 hitName = hitNames.iterator().next();
@@ -179,6 +180,37 @@ public final class RuntimeUtils {
             }
             if (filter != null) {
                 bool.filter(filter);
+            }
+
+            source.query(bool);
+        }
+        return source;
+    }
+
+    public static SearchSourceBuilder replaceFilter(List<QueryBuilder> oldFilters,
+                                                    List<QueryBuilder> newFilters,
+                                                    SearchSourceBuilder source) {
+        BoolQueryBuilder bool = null;
+        QueryBuilder query = source.query();
+
+        if (query instanceof BoolQueryBuilder) {
+            bool = (BoolQueryBuilder) query;
+            if (oldFilters != null) {
+                bool.filter().removeAll(oldFilters);
+            }
+
+            if (newFilters != null) {
+                bool.filter().addAll(newFilters);
+            }
+        }
+        // no bool query means no old filters
+        else {
+            bool = boolQuery();
+            if (query != null) {
+                bool.filter(query);
+            }
+            if (newFilters != null) {
+                bool.filter().addAll(newFilters);
             }
 
             source.query(bool);

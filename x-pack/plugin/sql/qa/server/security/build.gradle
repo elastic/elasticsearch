@@ -16,7 +16,7 @@ artifacts {
 }
 
 // Tests are pushed down to subprojects and will be checked there.
-testingConventions.enabled = false
+tasks.named("testingConventions").configure { enabled = false }
 
 subprojects {
   // Use tests from the root security qa project in subprojects
@@ -47,7 +47,7 @@ subprojects {
     into testArtifactsDir
   }
 
-  integTest {
+  tasks.named("integTest").configure {
     dependsOn copyTestClasses
     testClassesDirs += project.files(testArtifactsDir)
     classpath += configurations.testArtifacts
@@ -57,5 +57,5 @@ subprojects {
       "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
   }
 
-  testingConventions.enabled = false
+  tasks.named("testingConventions").configure { enabled = false }
 }

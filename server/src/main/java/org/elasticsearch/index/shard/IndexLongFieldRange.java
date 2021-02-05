@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -33,8 +22,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
-
-import static org.elasticsearch.index.shard.ShardLongFieldRange.LONG_FIELD_RANGE_VERSION_INTRODUCED;
 
 /**
  * Class representing an (inclusive) range of {@code long} values in a field in an index which may comprise multiple shards. This
@@ -76,6 +63,13 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
      */
     public boolean isComplete() {
         return shards == null;
+    }
+
+    /**
+     * @return whether this range includes information from all shards and can be used meaningfully.
+     */
+    public boolean containsAllShardRanges() {
+        return isComplete() && this != IndexLongFieldRange.UNKNOWN;
     }
 
     // exposed for testing
@@ -120,33 +114,26 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
-            if (this == NO_SHARDS) {
-                out.writeByte(WIRE_TYPE_NO_SHARDS);
-            } else if (this == UNKNOWN) {
-                out.writeByte(WIRE_TYPE_UNKNOWN);
-            } else if (this == EMPTY) {
-                out.writeByte(WIRE_TYPE_EMPTY);
+        if (this == NO_SHARDS) {
+            out.writeByte(WIRE_TYPE_NO_SHARDS);
+        } else if (this == UNKNOWN) {
+            out.writeByte(WIRE_TYPE_UNKNOWN);
+        } else if (this == EMPTY) {
+            out.writeByte(WIRE_TYPE_EMPTY);
+        } else {
+            out.writeByte(WIRE_TYPE_OTHER);
+            if (shards == null) {
+                out.writeBoolean(false);
             } else {
-                out.writeByte(WIRE_TYPE_OTHER);
-                if (shards == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    out.writeVIntArray(shards);
-                }
-                out.writeZLong(min);
-                out.writeZLong(max);
+                out.writeBoolean(true);
+                out.writeVIntArray(shards);
             }
+            out.writeZLong(min);
+            out.writeZLong(max);
         }
     }
 
     public static IndexLongFieldRange readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().before(LONG_FIELD_RANGE_VERSION_INTRODUCED)) {
-            // conservative treatment for BWC
-            return UNKNOWN;
-        }
-
         final byte type = in.readByte();
         switch (type) {
             case WIRE_TYPE_NO_SHARDS:

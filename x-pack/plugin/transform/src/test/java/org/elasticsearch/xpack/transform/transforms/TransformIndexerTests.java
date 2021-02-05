@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -28,14 +29,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
@@ -46,7 +53,9 @@ import org.junit.Before;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +64,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
@@ -103,7 +114,6 @@ public class TransformIndexerTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                executorName,
                 transformsConfigManager,
                 checkpointProvider,
                 auditor,
@@ -262,8 +272,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final long initialPageSize = pageSize == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : pageSize;
@@ -330,8 +343,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         SearchResponse searchResponse = new SearchResponse(
             new InternalSearchResponse(
@@ -388,8 +404,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
@@ -454,6 +473,73 @@ public class TransformIndexerTests extends ESTestCase {
             failureMessage.get(),
             matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
         );
+    }
+
+    public void testInitializeFunction_WithNoWarnings() {
+        String transformId = randomAlphaOfLength(10);
+        SourceConfig sourceConfig =
+            new SourceConfig(
+                generateRandomStringArray(10, 10, false, false),
+                QueryConfigTests.randomQueryConfig(),
+                new HashMap<>() {{
+                    put("field-A", singletonMap("script", "some script"));
+                    put("field-B", emptyMap());
+                    put("field-C", singletonMap("script", "some script"));
+                }});
+        SyncConfig syncConfig = new TimeSyncConfig("field", null);
+        LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
+        TransformConfig config =
+            new TransformConfig(
+                transformId, sourceConfig, randomDestConfig(), null, syncConfig, null, null, latestConfig, null, null, null, null);
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        auditor.addExpectation(
+            new MockTransformAuditor.UnseenAuditExpectation(
+                "warn when all the group-by fields are script-based runtime fields",
+                Level.WARNING,
+                transformId,
+                "all the group-by fields are script-based runtime fields"));
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+        createMockIndexer(config, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
+        auditor.assertAllExpectationsMatched();
+    }
+
+    public void testInitializeFunction_WithWarnings() {
+        String transformId = randomAlphaOfLength(10);
+        SourceConfig sourceConfig =
+            new SourceConfig(
+                generateRandomStringArray(10, 10, false, false),
+                QueryConfigTests.randomQueryConfig(),
+                new HashMap<>() {{
+                    put("field-A", singletonMap("script", "some script"));
+                    put("field-B", singletonMap("script", "some script"));
+                    put("field-C", singletonMap("script", "some script"));
+                    put("field-t", singletonMap("script", "some script"));
+                }});
+        SyncConfig syncConfig = new TimeSyncConfig("field-t", null);
+        LatestConfig latestConfig = new LatestConfig(Arrays.asList("field-A", "field-B"), "sort");
+        TransformConfig config =
+            new TransformConfig(
+                transformId, sourceConfig, randomDestConfig(), null, syncConfig, null, null, latestConfig, null, null, null, null);
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "warn when all the group-by fields are script-based runtime fields",
+                Level.WARNING,
+                transformId,
+                "all the group-by fields are script-based runtime fields"));
+        auditor.addExpectation(
+            new MockTransformAuditor.SeenAuditExpectation(
+                "warn when the sync time field is a script-based runtime field",
+                Level.WARNING,
+                transformId,
+                "sync time field is a script-based runtime field"));
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+        createMockIndexer(config, null, null, null, null, threadPool, ThreadPool.Names.GENERIC, auditor, context);
+        auditor.assertAllExpectationsMatched();
     }
 
     private MockedTransformIndexer createMockIndexer(

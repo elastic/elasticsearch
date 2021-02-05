@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest;
@@ -46,6 +35,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -81,6 +71,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,6 +105,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+    public static final String CERTIFICATE_AUTHORITIES = "certificate_authorities";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
@@ -1001,14 +993,25 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
         String keystorePath = settings.get(TRUSTSTORE_PATH);
+
+        if (certificateAuthorities != null && keystorePath != null) {
+            throw new IllegalStateException("Cannot set both " + CERTIFICATE_AUTHORITIES + " and " + TRUSTSTORE_PATH
+                + ". Please configure one of these.");
+
+        }
         if (keystorePath != null) {
+            if (inFipsJvm()) {
+                throw new IllegalStateException("Keystore " + keystorePath + "cannot be used in FIPS 140 mode. Please configure "
+                    + CERTIFICATE_AUTHORITIES + " with a PEM encoded trusted CA/certificate instead");
+            }
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
             if (keystorePass == null) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
             }
             Path path = PathUtils.get(keystorePath);
-            if (!Files.exists(path)) {
+            if (Files.exists(path) == false) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
@@ -1020,7 +1023,24 @@ public abstract class ESRestTestCase extends ESTestCase {
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
                 SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
                 builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
-            } catch (KeyStoreException |NoSuchAlgorithmException |KeyManagementException |CertificateException e) {
+            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
+                throw new RuntimeException("Error setting up ssl", e);
+            }
+        }
+        if (certificateAuthorities != null) {
+            Path path = PathUtils.get(certificateAuthorities);
+            if (Files.exists(path) == false) {
+                throw new IllegalStateException(CERTIFICATE_AUTHORITIES + " is set but points to a non-existing file");
+            }
+            try {
+                KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+                keyStore.load(null, null);
+                Certificate cert = PemUtils.readCertificates(List.of(path)).get(0);
+                keyStore.setCertificateEntry(cert.toString(), cert);
+                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
+                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
+                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
+            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
                 throw new RuntimeException("Error setting up ssl", e);
             }
         }
@@ -1055,7 +1075,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return runningTasks;
     }
 
-    protected static void assertOK(Response response) {
+    public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
@@ -1185,9 +1205,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
+    /**
+     * Deprecation message emitted since {@link Version#V_7_12_0} for the rest of the 7.x series. Can be removed in v9 since it is not
+     * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
+     * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
+     */
+    private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards " +
+            "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' " +
+            "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
+
     protected static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest(new Request("POST", "/" + index + "/_close"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");
+        closeRequest.setOptions(expectVersionSpecificWarnings(v -> v.compatible(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE)));
+        assertOK(client().performRequest(closeRequest));
     }
 
     protected static void openIndex(String index) throws IOException {
@@ -1298,8 +1328,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         switch (name) {
             case ".watches":
-            case "logstash-index-template":
-            case ".logstash-management":
             case "security_audit_log":
             case ".slm-history":
             case ".async-search":
@@ -1433,13 +1461,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected void syncedFlush(String indexName) throws Exception {
         final List<String> deprecationMessages = List.of(
             "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.");
+        final List<String> fixedDeprecationMessages = List.of(
+            "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.");
         final List<String> transitionMessages = List.of(
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version.");
         final WarningsHandler warningsHandler;
         if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
             warningsHandler = warnings -> warnings.equals(transitionMessages) == false;
         } else if (minimumNodeVersion().onOrAfter(Version.V_7_6_0)) {
-            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false;
+            warningsHandler = warnings -> warnings.equals(deprecationMessages) == false && warnings.equals(transitionMessages) == false &&
+                warnings.equals(fixedDeprecationMessages) == false;
         } else if (nodeVersions.stream().anyMatch(n -> n.onOrAfter(Version.V_8_0_0))) {
             warningsHandler = warnings -> warnings.isEmpty() == false && warnings.equals(transitionMessages) == false;
         } else {

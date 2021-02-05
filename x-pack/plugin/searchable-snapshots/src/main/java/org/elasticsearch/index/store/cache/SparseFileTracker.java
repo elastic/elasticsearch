@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.cache;
 
@@ -38,6 +39,12 @@ public class SparseFileTracker {
     private final long length;
 
     /**
+     * Number of bytes that were initially present in the case where the sparse file tracker was initialized with some completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
+     */
+    private final long initialLength;
+
+    /**
      * Creates a new empty {@link SparseFileTracker}
      *
      * @param description a description for the sparse file tracker
@@ -60,6 +67,7 @@ public class SparseFileTracker {
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
         }
+        long initialLength = 0;
         if (ranges.isEmpty() == false) {
             synchronized (mutex) {
                 Range previous = null;
@@ -77,10 +85,12 @@ public class SparseFileTracker {
                     final boolean added = this.ranges.add(range);
                     assert added : range + " already exist in " + this.ranges;
                     previous = range;
+                    initialLength += range.end - range.start;
                 }
                 assert invariant();
             }
         }
+        this.initialLength = initialLength;
     }
 
     public long getLength() {
@@ -102,6 +112,15 @@ public class SparseFileTracker {
             }
         }
         return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
+    }
+
+    /**
+     * Returns the number of bytes that were initially present in the case where the sparse file tracker was initialized with some
+     * completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
+     */
+    public long getInitialLength() {
+        return initialLength;
     }
 
     /**

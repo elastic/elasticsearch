@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
@@ -175,7 +176,7 @@ public final class DestinationIndex {
         Map<String, Object> mappingsAsMap = mappings.sourceAsMap();
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
         checkResultsFieldIsNotPresentInProperties(config, properties);
-        properties.putAll(createAdditionalMappings(config, Collections.unmodifiableMap(properties), fieldCapabilitiesResponse));
+        properties.putAll(createAdditionalMappings(config, fieldCapabilitiesResponse));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
@@ -210,12 +211,11 @@ public final class DestinationIndex {
     }
 
     private static Map<String, Object> createAdditionalMappings(DataFrameAnalyticsConfig config,
-                                                                Map<String, Object> mappingsProperties,
                                                                 FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> properties = new HashMap<>();
         properties.put(INCREMENTAL_ID, Map.of("type", NumberFieldMapper.NumberType.LONG.typeName()));
         properties.putAll(
-            config.getAnalysis().getExplicitlyMappedFields(
+            config.getAnalysis().getResultMappings(
                 config.getDest().getResultsField(), fieldCapabilitiesResponse));
         return properties;
     }
@@ -259,10 +259,7 @@ public final class DestinationIndex {
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(
             fieldCapabilitiesResponse -> {
                 // Determine mappings to be added to the destination index
-                Map<String, Object> addedMappings =
-                    Map.of(
-                        PROPERTIES,
-                        createAdditionalMappings(config, Collections.unmodifiableMap(destPropertiesAsMap), fieldCapabilitiesResponse));
+                Map<String, Object> addedMappings = Map.of(PROPERTIES, createAdditionalMappings(config, fieldCapabilitiesResponse));
 
                 // Add the mappings to the destination index
                 PutMappingRequest putMappingRequest =

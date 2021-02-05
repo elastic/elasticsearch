@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform;
@@ -17,7 +18,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
@@ -36,8 +36,6 @@ import java.util.Arrays;
 import java.util.List;
 
 public class TransformInfoTransportAction extends XPackInfoFeatureTransportAction {
-
-    private final XPackLicenseState licenseState;
 
     private static final Logger logger = LogManager.getLogger(TransformInfoTransportAction.class);
 
@@ -61,11 +59,9 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
     @Inject
     public TransformInfoTransportAction(
         TransportService transportService,
-        ActionFilters actionFilters,
-        XPackLicenseState licenseState
+        ActionFilters actionFilters
     ) {
         super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -75,7 +71,7 @@ public class TransformInfoTransportAction extends XPackInfoFeatureTransportActio
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
+        return true;
     }
 
     @Override

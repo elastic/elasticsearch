@@ -6,14 +6,13 @@
 <titleabbrev>Rollup</titleabbrev>
 ++++
 
-Aggregates an index's time series data and stores the results in another index.
-For example, you can roll up hourly data into daily or weekly summaries.
+Aggregates an index's time series data and stores the results in a new read-only
+index. For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
 ----
-POST /my-index-000001/_rollup
+POST /my-index-000001/_rollup/rollup-my-index-000001
 {
-  "rollup_index": "my-rollup-index",
   "groups": {
     "date_histogram": {
       "field": "@timestamp",
@@ -38,20 +37,27 @@ POST /my-index-000001/_rollup
   ]
 }
 ----
-// CONSOLE
-// TEST[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/65544"]
+// TEST[setup:my_index]
+// TEST[s/my-keyword-field/http.request.method/]
+// TEST[s/my-other-keyword-field/user.id/]
+// TEST[s/my-numeric-field/http.response.bytes/]
 
 
 [[rollup-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_rollup`
+`PUT /<index>/_rollup/<rollup-index>`
 
 [[rollup-api-prereqs]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the `manage` or
-`manage_rollup` cluster privilege to use this API. See <<security-privileges>>.
+* You can only roll up an index that contains:
+
+** A <<date,`date`>> or <<date_nanos,`date_nanos`>> timestamp field
+** One or more <<number,numeric>> fields
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index you roll up.
 
 [[rollup-api-path-params]]
 ==== {api-path-parms-title}
@@ -62,18 +68,19 @@ Index to roll up. Cannot be a <<data-streams,data stream>> or
 <<indices-aliases,index alias>>. Does not support <<multi-index,multi-target
 syntax>> or wildcards (`*`).
 
+`<rollup-index>`::
+(Required, string)
+New index that stores the rollup results. Cannot be an existing index,
+a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
++
+The request creates this index with
+<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the source
+`<index>` is a backing index for a data stream, this index is a backing index
+for the same stream.
+
 [role="child_attributes"]
 [[rollup-api-request-body]]
 ==== {api-request-body-title}
-
-`rollup_index`::
-(Required, string)
-Index that stores the rollup results. Cannot be a <<data-streams,data stream>>
-or <<indices-aliases,index alias>>.
-+
-If this index does not exist, the request creates it. If the `<index>` is a
-backing index for a data stream, this new index is a backing index for the same
-stream.
 
 `groups`::
 (Required, object)
@@ -81,7 +88,7 @@ Aggregates and stores fields in the rollup.
 +
 .Properties of `groups`
 [%collapsible%open]
-====
+=====
 `date_histogram`::
 (Required,
 <<search-aggregations-bucket-datehistogram-aggregation,`date_histogram`
@@ -90,7 +97,7 @@ Groups documents based on a provided time interval.
 +
 .Properties of `date_histogram`
 [%collapsible%open]
-=====
+======
 `field`::
 (Required, string)
 <<date,`date`>> or <<date_nanos,`date_nanos`>> field containing a timestamp. If
@@ -104,15 +111,15 @@ Time interval used to group documents. For differences between
 +
 TIP: Choose this value carefully. You won't be able to use a smaller interval
 later. For example, you can't aggregate daily rollups into hourly
-summaries. However, smaller time intervals can greatly increase the size of your
-`rollup_index`.
+summaries. However, smaller time intervals can greatly increase the size of the
+resulting rollup index.
 
 `time_zone`::
 (Optional, string)
 Time zone for the `field`. Valid values are ISO 8601 UTC offsets, such as
 `+01:00` or `-08:00`, and IANA time zone IDs, such as `America/Los_Angeles`.
 Defaults to `+00:00` (UTC).
-=====
+======
 
 `histogram`::
 (Optional, <<search-aggregations-bucket-histogram-aggregation,`histogram`
@@ -121,7 +128,7 @@ Groups and stores <<number,numeric>> field values based on a provided interval.
 +
 .Properties of `histogram`
 [%collapsible%open]
-=====
+======
 `fields`::
 (Required*, array of strings)
 Array of <<number,numeric>> fields to group. If you specify a `histogram`
@@ -131,7 +138,7 @@ object, this property is required.
 (Required*, integer)
 Numeric interval used to group the `fields`. If you specify a `histogram`
 object, this property is required.
-=====
+======
 
 `terms`::
 (Optional, <<search-aggregations-bucket-terms-aggregation,`terms`
@@ -140,31 +147,31 @@ Stores values for <<keyword,keyword family>> and <<number,numeric>> fields.
 +
 .Properties of `terms`
 [%collapsible%open]
-=====
+======
 `fields`::
 (Required*, array of strings)
 Array of <<keyword,keyword family>> and <<number,numeric>> fields to store. If
 you specify a `terms` object, this property is required.
 +
 TIP: Avoid storing high-cardinality fields. High-cardinality fields can greatly
-increase the size of your `rollup_index`.
+increase the size of the resulting rollup index.
+======
 =====
-====
 
 `metrics`::
-(Optional, array of objects)
-Collects and stores metrics for <<number,numeric>> fields.
+(Required, array of objects)
+Collects and stores metrics for <<number,numeric>> fields. You must specify at
+least one `metrics` object.
 +
 .Properties of `metrics` objects
 [%collapsible%open]
-====
+=====
 `field`::
-(Required*, string)
-<<number,Numeric>> field to collect metrics for. If you specify a `metrics`
-object, this property is required.
+(Required, string)
+<<number,Numeric>> field to collect metrics for.
 
 `metrics`::
-(Required*, array of strings)
+(Required, array of strings)
 Array of metrics to collect. Each value corresponds to a
 <<search-aggregations-metrics,metric aggregation>>. Valid values are
 <<search-aggregations-metrics-min-aggregation,`min`>>,
@@ -172,13 +179,14 @@ Array of metrics to collect. Each value corresponds to a
 <<search-aggregations-metrics-sum-aggregation,`sum`>>,
 <<search-aggregations-metrics-avg-aggregation,`avg`>>, and
 <<search-aggregations-metrics-valuecount-aggregation,`value_count`>>. You must
-specify at least one value. If you specify a `metrics` object, this property is
-required.
+specify at least one value.
 +
-NOTE: The `avg` metric stores both the `sum` and `value_count` values. This lets
-you accurately average rollups over larger time intervals. For example, you can
-accurately roll up hourly averages into daily averages.
-====
+NOTE: The rollup index stores these metrics in an
+<<aggregate-metric-double,`aggregate_metric_double`>> field. The `avg` metric
+stores both the `sum` and `value_count` values. This lets you accurately average
+rollups over larger time intervals. For example, you can accurately roll up
+hourly averages into daily averages.
+=====
 
 `page_size`::
 (Optional, integer)
@@ -187,3 +195,7 @@ values run faster but require more memory.
 +
 NOTE: This argument only affects the speed and memory usage of the rollup
 operation. It does not affect the rollup results.
+
+`timeout`::
+(Optional, <<time-units,time value>>)
+Time to wait for the request to complete. Defaults to `20s` (20 seconds).

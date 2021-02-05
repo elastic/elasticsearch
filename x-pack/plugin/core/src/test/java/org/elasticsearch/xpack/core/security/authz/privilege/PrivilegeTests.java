@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
@@ -256,6 +257,26 @@ public class PrivilegeTests extends ESTestCase {
                 "cluster:admin/ilm/start",
                 "cluster:admin/ilm/stop",
                 "cluster:admin/slm/execute",
+                "cluster:admin/whatever");
+
+        }
+    }
+
+    public void testIngestPipelinePrivileges() {
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_INGEST_PIPELINES, "cluster:admin/ingest/pipeline/get",
+                "cluster:admin/ingest/pipeline/put",
+                "cluster:admin/ingest/pipeline/delete",
+                "cluster:admin/ingest/pipeline/simulate");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_INGEST_PIPELINES, "cluster:admin/whatever");
+        }
+
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_PIPELINE,
+                "cluster:admin/ingest/pipeline/get",
+                "cluster:admin/ingest/pipeline/simulate");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.READ_PIPELINE,"cluster:admin/ingest/pipeline/put",
+                "cluster:admin/ingest/pipeline/delete",
                 "cluster:admin/whatever");
 
         }

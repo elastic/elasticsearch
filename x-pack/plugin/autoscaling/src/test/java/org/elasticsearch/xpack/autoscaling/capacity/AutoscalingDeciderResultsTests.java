@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.capacity;
@@ -126,7 +127,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         autoscalingCapacities.add(larger);
         Randomness.shuffle(autoscalingCapacities);
         AutoscalingCapacity.Builder expectedBuilder = AutoscalingCapacity.builder()
-            .total(expectedStorage.tier().storage(), expectedMemory.tier().memory());
+            .total(expectedStorage.total().storage(), expectedMemory.total().memory());
         if (node) {
             expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory());
         }

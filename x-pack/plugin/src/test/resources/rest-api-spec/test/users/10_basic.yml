@@ -25,7 +25,7 @@ teardown:
         username: "joe"
         body:  >
             {
-              "password" : "s3krit",
+              "password" : "s3krit-password",
               "roles" : [ "superuser" ],
               "full_name" : "Bazooka Joe",
               "email" : "joe@bazooka.gum",
@@ -38,7 +38,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -60,7 +60,7 @@ teardown:
         body:  >
             {
               "username": "joe",
-              "password" : "s3krit",
+              "password" : "s3krit-password",
               "roles" : [ "superuser" ],
               "full_name" : "Bazooka Joe",
               "email" : "joe@bazooka.gum",
@@ -73,7 +73,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 
@@ -96,7 +96,7 @@ teardown:
         body:  >
             {
               "username": "joey",
-              "password" : "s3krit",
+              "password" : "s3krit-password",
               "roles" : [ "superuser" ],
               "full_name" : "Bazooka Joe",
               "email" : "joe@bazooka.gum",
@@ -150,5 +150,5 @@ teardown:
   - do:
       catch: unauthorized
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       security.authenticate: {}

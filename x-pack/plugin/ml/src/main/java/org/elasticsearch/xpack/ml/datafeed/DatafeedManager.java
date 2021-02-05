@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -113,7 +114,7 @@ public class DatafeedManager {
             finishHandler
         );
 
-        datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), task.getDatafeedStartTime(), datafeedContextListener);
+        datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), datafeedContextListener);
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
@@ -184,12 +185,12 @@ public class DatafeedManager {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
                     }
-                    holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
+                    holder.problemTracker.reportExtractionProblem(e);
                 } catch (DatafeedJob.AnalysisProblemException e) {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
                     }
-                    holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
+                    holder.problemTracker.reportAnalysisProblem(e);
                     if (e.shouldStop) {
                         holder.stop("lookback_analysis_error", TimeValue.timeValueSeconds(20), e);
                         return;
@@ -241,10 +242,10 @@ public class DatafeedManager {
                         holder.problemTracker.reportNonEmptyDataCount();
                     } catch (DatafeedJob.ExtractionProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
+                        holder.problemTracker.reportExtractionProblem(e);
                     } catch (DatafeedJob.AnalysisProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
+                        holder.problemTracker.reportAnalysisProblem(e);
                         if (e.shouldStop) {
                             holder.stop("realtime_analysis_error", TimeValue.timeValueSeconds(20), e);
                             return;
@@ -472,7 +473,7 @@ public class DatafeedManager {
 
                                 @Override
                                 public void onResponse(CloseJobAction.Response response) {
-                                    if (!response.isClosed()) {
+                                    if (response.isClosed() == false) {
                                         logger.error("[{}] job close action was not acknowledged", getJobId());
                                     }
                                 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.eql;
@@ -39,7 +28,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
-    private String resultPosition = "head";
+    private String resultPosition = "tail";
 
     private int size = 10;
     private int fetchSize = 1000;
@@ -226,20 +215,18 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
         return size == that.size &&
-                fetchSize == that.fetchSize &&
-                resultPosition == that.resultPosition &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(filter, that.filter) &&
-                Objects.equals(size, that.size) &&
-                Objects.equals(fetchSize, that.fetchSize) &&
-                Objects.equals(timestampField, that.timestampField) &&
-                Objects.equals(tiebreakerField, that.tiebreakerField) &&
-                Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(query, that.query) &&
-                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-                Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(keepOnCompletion, that.keepOnCompletion);
+            fetchSize == that.fetchSize &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Objects.equals(filter, that.filter) &&
+            Objects.equals(timestampField, that.timestampField) &&
+            Objects.equals(tiebreakerField, that.tiebreakerField) &&
+            Objects.equals(eventCategoryField, that.eventCategoryField) &&
+            Objects.equals(query, that.query) &&
+            Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
+            Objects.equals(keepAlive, that.keepAlive) &&
+            Objects.equals(keepOnCompletion, that.keepOnCompletion) &&
+            Objects.equals(resultPosition, that.resultPosition);
     }
 
     @Override
@@ -254,10 +241,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             tiebreakerField,
             eventCategoryField,
             query,
-            resultPosition,
             waitForCompletionTimeout,
             keepAlive,
-            keepOnCompletion);
+            keepOnCompletion,
+            resultPosition);
     }
 
     public String[] indices() {

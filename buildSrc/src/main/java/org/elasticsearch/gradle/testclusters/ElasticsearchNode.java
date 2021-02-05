@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -120,6 +109,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
     private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
 
+    private final String clusterName;
     private final String path;
     private final String name;
     private final Project project;
@@ -151,8 +141,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
-    private final Path esStdoutFile;
-    private final Path esStderrFile;
+    private final Path esLogFile;
     private final Path esStdinFile;
     private final Path tmpDir;
 
@@ -169,6 +158,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private boolean preserveDataDir = false;
 
     ElasticsearchNode(
+        String clusterName,
         String path,
         String name,
         Project project,
@@ -178,6 +168,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         ExecOperations execOperations,
         File workingDirBase
     ) {
+        this.clusterName = clusterName;
         this.path = path;
         this.name = name;
         this.project = project;
@@ -192,11 +183,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
-        esStdoutFile = confPathLogs.resolve("es.stdout.log");
-        esStderrFile = confPathLogs.resolve("es.stderr.log");
+        esLogFile = confPathLogs.resolve(clusterName + ".log");
         esStdinFile = workingDir.resolve("es.stdin");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
+        defaultConfig.put("cluster.name", clusterName);
 
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getElasticsearch());
@@ -446,7 +437,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * @return stream of log lines
      */
     public Stream<String> logLines() throws IOException {
-        return Files.lines(esStdoutFile, StandardCharsets.UTF_8);
+        return Files.lines(esLogFile, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -511,7 +502,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
 
-            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", "-x", key));
+            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", key));
 
             for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
                 File file = entry.getValue();
@@ -562,11 +553,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void logToProcessStdout(String message) {
         try {
-            if (Files.exists(esStdoutFile.getParent()) == false) {
-                Files.createDirectories(esStdoutFile.getParent());
+            if (Files.exists(esLogFile.getParent()) == false) {
+                Files.createDirectories(esLogFile.getParent());
             }
             Files.write(
-                esStdoutFile,
+                esLogFile,
                 ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
@@ -635,7 +626,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void installModules() {
-        logToProcessStdout("Installing " + modules.size() + "modules");
+        logToProcessStdout("Installing " + modules.size() + " modules");
         for (Provider<File> module : modules) {
             Path destination = getDistroDir().resolve("modules")
                 .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
@@ -752,6 +743,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
                     .collect(Collectors.joining(" "));
         }
+        if (systemProperties.containsKey("io.netty.leakDetection.level") == false) {
+            systemPropertiesString = systemPropertiesString + " -Dio.netty.leakDetection.level=paranoid";
+        }
         String jvmArgsString = "";
         if (jvmArgs.isEmpty() == false) {
             jvmArgsString = " " + jvmArgs.stream().peek(argument -> {
@@ -801,9 +795,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getESEnvironment());
 
-        // don't buffer all in memory, make sure we don't block on the default pipes
-        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
+        // Just toss the output since we rely on the normal log file written by Elasticsearch
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
@@ -888,10 +882,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
         reaper.unregister(toString());
-        if (tailLogs) {
-            logFileContents("Standard output of node", esStdoutFile);
-            logFileContents("Standard error of node", esStderrFile);
-        }
         esProcess = null;
         // Clean up the ports file in case this is started again.
         try {
@@ -904,6 +894,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        logFileContents("Log output of node", esLogFile, tailLogs);
     }
 
     @Override
@@ -956,7 +947,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         );
     }
 
-    private void logFileContents(String description, Path from) {
+    private void logFileContents(String description, Path from, boolean tailLogs) {
         final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
         LinkedList<String> ring = new LinkedList<>();
         try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
@@ -972,7 +963,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         String previousMessage = normalizeLogLine(ring.getLast());
                         if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(previousMessage::contains)
                             && (previousMessage.contains("ERROR") || previousMessage.contains("WARN"))) {
-                            errorsAndWarnings.put(previousMessage, errorsAndWarnings.getOrDefault(previousMessage, 0) + 1);
+                            errorsAndWarnings.put(ring.getLast(), errorsAndWarnings.getOrDefault(previousMessage, 0) + 1);
                         }
                     } else {
                         // We combine multi line log messages to make sure we never break exceptions apart
@@ -985,31 +976,47 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to tail log " + this, e);
+            if (tailLogs) {
+                throw new UncheckedIOException("Failed to tail log " + this, e);
+            }
+            return;
         }
 
-        if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
-            LOGGER.error("\n=== {} `{}` ===", description, this);
+        boolean foundNettyLeaks = false;
+        for (String logLine : errorsAndWarnings.keySet()) {
+            if (logLine.contains("ResourceLeakDetector]")) {
+                tailLogs = true;
+                foundNettyLeaks = true;
+                break;
+            }
         }
-        if (errorsAndWarnings.isEmpty() == false) {
-            LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
-            errorsAndWarnings.forEach((message, count) -> {
-                LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                if (count > 1) {
-                    LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
-                }
-            });
-        }
-
-        ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
-
-        if (ring.isEmpty() == false) {
-            LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
-            ring.forEach(message -> {
-                if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+        if (tailLogs) {
+            if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
+                LOGGER.error("\n=== {} `{}` ===", description, this);
+            }
+            if (errorsAndWarnings.isEmpty() == false) {
+                LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
+                errorsAndWarnings.forEach((message, count) -> {
                     LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                }
-            });
+                    if (count > 1) {
+                        LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
+                    }
+                });
+            }
+
+            ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
+
+            if (ring.isEmpty() == false) {
+                LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
+                ring.forEach(message -> {
+                    if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+                        LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
+                    }
+                });
+            }
+        }
+        if (foundNettyLeaks) {
+            throw new TestClustersException("Found Netty ByteBuf leaks in node logs.");
         }
     }
 
@@ -1218,7 +1225,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             String content = new String(Files.readAllBytes(jvmOptions));
             Map<String, String> expansions = jvmOptionExpansions();
             for (String origin : expansions.keySet()) {
-                if (!content.contains(origin)) {
+                if (content.contains(origin) == false) {
                     throw new IOException("template property " + origin + " not found in template.");
                 }
                 content = content.replace(origin, expansions.get(origin));
@@ -1447,13 +1454,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    Path getEsStdoutFile() {
-        return esStdoutFile;
-    }
-
-    @Internal
-    Path getEsStderrFile() {
-        return esStderrFile;
+    Path getEsLogFile() {
+        return esLogFile;
     }
 
     private static class FileEntry implements Named {

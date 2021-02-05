@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.junit.After;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -105,12 +107,30 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
     }
 
+    public void testStatsExistingHiddenDataStream() throws Exception {
+        String dataStreamName = createDataStream(true);
+        long timestamp = createDocument(dataStreamName);
+
+        DataStreamsStatsAction.Response stats = getDataStreamsStats(true);
+        assertEquals(1, stats.getSuccessfulShards());
+        assertEquals(0, stats.getFailedShards());
+        assertEquals(1, stats.getDataStreamCount());
+        assertEquals(1, stats.getBackingIndices());
+        assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(1, stats.getDataStreams()[0].getBackingIndices());
+        assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+    }
+
     public void testStatsClosedBackingIndexDataStream() throws Exception {
         String dataStreamName = createDataStream();
         createDocument(dataStreamName);
         assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
         assertTrue(
-            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-000001")).actionGet().isAcknowledged()
+            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-*-000001")).actionGet().isAcknowledged()
         );
 
         assertBusy(
@@ -205,6 +225,10 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private String createDataStream() throws Exception {
+        return createDataStream(false);
+    }
+
+    private String createDataStream(boolean hidden) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template idxTemplate = new Template(
             null,
@@ -218,7 +242,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
+            new ComposableIndexTemplate.DataStreamTemplate(hidden),
             null
         );
         assertTrue(
@@ -256,7 +280,17 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private DataStreamsStatsAction.Response getDataStreamsStats() throws Exception {
-        return client().execute(DataStreamsStatsAction.INSTANCE, new DataStreamsStatsAction.Request()).get();
+        return getDataStreamsStats(false);
+    }
+
+    private DataStreamsStatsAction.Response getDataStreamsStats(boolean includeHidden) throws Exception {
+        DataStreamsStatsAction.Request request = new DataStreamsStatsAction.Request();
+        if (includeHidden) {
+            request.indicesOptions(
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES), EnumSet.of(IndicesOptions.WildcardStates.HIDDEN))
+            );
+        }
+        return client().execute(DataStreamsStatsAction.INSTANCE, request).get();
     }
 
     private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {

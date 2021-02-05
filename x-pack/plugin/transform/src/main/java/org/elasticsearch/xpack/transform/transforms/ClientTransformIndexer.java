@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -58,7 +60,6 @@ class ClientTransformIndexer extends TransformIndexer {
 
     ClientTransformIndexer(
         ThreadPool threadPool,
-        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
@@ -77,7 +78,6 @@ class ClientTransformIndexer extends TransformIndexer {
     ) {
         super(
             ExceptionsHelper.requireNonNull(threadPool, "threadPool"),
-            executorName,
             transformsConfigManager,
             checkpointProvider,
             auditor,
@@ -346,23 +346,58 @@ class ClientTransformIndexer extends TransformIndexer {
                     listener.onResponse(null);
                 }
             }, statsExc -> {
-                logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
-                auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
-                // for auto stop shutdown the task
+                if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
+                    // this should never happen, but indicates a race condition in state persistence:
+                    // - there should be only 1 save persistence at a time
+                    // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
+                    //   seqNoPrimaryTermAndIndex
+                    // - for tests fail(assert), so we can debug the problem
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
+                            transformConfig.getId()
+                        ),
+                        statsExc
+                    );
+                    auditor.warning(
+                        getJobId(),
+                        "Failure updating stats of transform, unexpected version conflict of internal state, resetting to recover: "
+                            + statsExc.getMessage()
+                    );
+                    assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
+                } else {
+                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                    auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                }
                 if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
                     context.shutdown();
                 }
                 listener.onFailure(statsExc);
             })
         );
-
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "[{}] Updated state document from [{}] to [{}]",
+                transformConfig.getId(),
+                expectedValue,
+                newValue
+            )
+        );
         boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
-        assert updated : "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+        if (updated == false) {
+            logger.warn(
+                "[{}] Unexpected change to internal state detected, expected [{}], got [{}]",
+                transformConfig.getId(),
+                expectedValue,
+                seqNoPrimaryTermAndIndex.get()
+            );
+            assert updated : "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+        }
     }
 
     @Nullable

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -27,7 +16,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,7 +32,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
@@ -278,8 +266,8 @@ public class HighlightBuilderTests extends ESTestCase {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
+        SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,
+                null, null, null, null, null, null, xContentRegistry(), namedWriteableRegistry,
                 null, null, System::currentTimeMillis, null, null, () -> true, null, emptyMap()) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -287,12 +275,12 @@ public class HighlightBuilderTests extends ESTestCase {
                 return builder.build(new ContentPath(1)).fieldType();
             }
         };
-        mockShardContext.setMapUnmappedFieldAsString(true);
+        mockContext.setMapUnmappedFieldAsString(true);
 
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
-            highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockShardContext);
-            SearchHighlightContext highlight = highlightBuilder.build(mockShardContext);
+            highlightBuilder = Rewriteable.rewrite(highlightBuilder, mockContext);
+            SearchHighlightContext highlight = highlightBuilder.build(mockContext);
             for (SearchHighlightContext.Field field : highlight.fields()) {
                 String encoder = highlightBuilder.encoder() != null ? highlightBuilder.encoder() : HighlightBuilder.DEFAULT_ENCODER;
                 assertEquals(encoder, field.fieldOptions().encoder());
@@ -329,9 +317,9 @@ public class HighlightBuilderTests extends ESTestCase {
                 }
                 Query expectedValue = null;
                 if (fieldBuilder.highlightQuery != null) {
-                    expectedValue = Rewriteable.rewrite(fieldBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
+                    expectedValue = Rewriteable.rewrite(fieldBuilder.highlightQuery, mockContext).toQuery(mockContext);
                 } else if (highlightBuilder.highlightQuery != null) {
-                    expectedValue = Rewriteable.rewrite(highlightBuilder.highlightQuery, mockShardContext).toQuery(mockShardContext);
+                    expectedValue = Rewriteable.rewrite(highlightBuilder.highlightQuery, mockContext).toQuery(mockContext);
                 }
                 assertEquals(expectedValue, fieldOptions.highlightQuery());
             }

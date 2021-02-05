@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations;
@@ -173,7 +174,7 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
                         "single document. Use a script to combine multiple geo_point-values-per-doc into a single value.");
                 }
 
-                if (index > values.size()) {
+                if (index >= values.size()) {
                     values = bigArrays.grow(values, index + 1);
                 }
 

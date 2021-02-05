@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -58,13 +59,13 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.io.IOException;
@@ -141,7 +142,7 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, 
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         return client.prepareSearch(indices)
                 // always track total hits accurately
@@ -150,7 +151,7 @@ public class Querier {
                         includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
     }
-    
+
     protected static void logSearchResponse(SearchResponse response, Logger logger) {
         List<Aggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
@@ -160,7 +161,7 @@ public class Querier {
         for (int i = 0; i < aggs.size(); i++) {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
-        
+
         logger.trace("Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
                 response.getHits().getTotalHits().relation.toString(),
@@ -177,7 +178,7 @@ public class Querier {
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     * 
+     *
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
@@ -191,6 +192,7 @@ public class Querier {
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
+        // Note: when updating this value propagate it to the limitations.asciidoc page as well.
         private static final int MAXIMUM_SIZE = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
         private final boolean noLimit;
 
@@ -226,7 +228,9 @@ public class Querier {
             }
 
             // 1. consume all pages received
-            consumeRowSet(page.rowSet());
+            if (consumeRowSet(page.rowSet()) == false) {
+                return;
+            }
 
             Cursor cursor = page.next();
             // 1a. trigger a next call if there's still data
@@ -242,7 +246,7 @@ public class Querier {
             sendResponse();
         }
 
-        private void consumeRowSet(RowSet rowSet) {
+        private boolean consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
             for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
                 List<Object> row = new ArrayList<>(rrs.columnCount());
@@ -251,8 +255,10 @@ public class Querier {
                 if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
                     onFailure(new SqlIllegalArgumentException(
                             "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT", MAXIMUM_SIZE));
+                    return false;
                 }
             }
+            return true;
         }
 
         private void sendResponse() {
@@ -308,7 +314,7 @@ public class Querier {
             if (log.isTraceEnabled()) {
                 logSearchResponse(response, log);
             }
-            
+
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
@@ -436,10 +442,10 @@ public class Querier {
                 Pipe proc = ((ComputedRef) ref).processor();
 
                 // wrap only agg inputs
-                proc = proc.transformDown(l -> {
+                proc = proc.transformDown(AggPathInput.class, l -> {
                     BucketExtractor be = createExtractor(l.context(), totalCount);
                     return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
-                }, AggPathInput.class);
+                });
 
                 return new ComputingExtractor(proc.asProcessor());
             }
@@ -495,7 +501,7 @@ public class Querier {
                 Pipe proc = ((ComputedRef) ref).processor();
                 // collect hitNames
                 Set<String> hitNames = new LinkedHashSet<>();
-                proc = proc.transformDown(l -> {
+                proc = proc.transformDown(ReferenceInput.class, l -> {
                     HitExtractor he = createExtractor(l.context());
                     hitNames.add(he.hitName());
 
@@ -504,7 +510,7 @@ public class Querier {
                     }
 
                     return new HitExtractorInput(l.source(), l.expression(), he);
-                }, ReferenceInput.class);
+                });
                 String hitName = null;
                 if (hitNames.size() == 1) {
                     hitName = hitNames.iterator().next();
@@ -543,7 +549,7 @@ public class Querier {
         public void onResponse(final SearchResponse response) {
             try {
                 ShardSearchFailure[] failure = response.getShardFailures();
-                if (!CollectionUtils.isEmpty(failure)) {
+                if (CollectionUtils.isEmpty(failure) == false) {
                     cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
                 } else {
                     handleResponse(response, ActionListener.wrap(listener::onResponse, e -> cleanup(response, e)));

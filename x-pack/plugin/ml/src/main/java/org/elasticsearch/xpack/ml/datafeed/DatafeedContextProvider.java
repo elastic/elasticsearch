@@ -1,29 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 
-import java.util.Collections;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 
 public class DatafeedContextProvider {
@@ -39,21 +32,12 @@ public class DatafeedContextProvider {
         this.resultsProvider = Objects.requireNonNull(jobResultsProvider);
     }
 
-    public void buildDatafeedContext(String datafeedId, long datafeedStartTimeMs, ActionListener<DatafeedContext> listener) {
-        DatafeedContext.Builder context = DatafeedContext.builder(datafeedStartTimeMs);
-
-        Consumer<Result<ModelSnapshot>> modelSnapshotListener = resultSnapshot -> {
-            context.setModelSnapshot(resultSnapshot == null ? null : resultSnapshot.result);
-            listener.onResponse(context.build());
-        };
+    public void buildDatafeedContext(String datafeedId, ActionListener<DatafeedContext> listener) {
+        DatafeedContext.Builder context = DatafeedContext.builder();
 
         Consumer<DatafeedTimingStats> timingStatsListener = timingStats -> {
             context.setTimingStats(timingStats);
-            resultsProvider.getModelSnapshot(
-                context.getJob().getId(),
-                context.getJob().getModelSnapshotId(),
-                modelSnapshotListener,
-                listener::onFailure);
+            listener.onResponse(context.build());
         };
 
         ActionListener<RestartTimeInfo> restartTimeInfoListener = ActionListener.wrap(
@@ -82,34 +66,5 @@ public class DatafeedContextProvider {
         );
 
         datafeedConfigProvider.getDatafeedConfig(datafeedId, datafeedListener);
-    }
-
-    public void buildDatafeedContextForJob(String jobId, ClusterState clusterState,  ActionListener<DatafeedContext> listener) {
-        ActionListener<Set<String>> datafeedListener = ActionListener.wrap(
-            datafeeds -> {
-                assert datafeeds.size() <= 1;
-                if (datafeeds.isEmpty()) {
-                    // This job has no datafeed attached to it
-                    listener.onResponse(null);
-                    return;
-                }
-
-                String datafeedId = datafeeds.iterator().next();
-                PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-                if (datafeedTask == null) {
-                    // This datafeed is not started
-                    listener.onResponse(null);
-                    return;
-                }
-
-                @SuppressWarnings("unchecked")
-                StartDatafeedAction.DatafeedParams taskParams = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
-                buildDatafeedContext(datafeedId, taskParams.getStartTime(), listener);
-            },
-            listener::onFailure
-        );
-
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singleton(jobId), datafeedListener);
     }
 }

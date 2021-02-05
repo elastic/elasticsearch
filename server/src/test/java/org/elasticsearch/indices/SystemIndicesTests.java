@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -99,5 +88,62 @@ public class SystemIndicesTests extends ESTestCase {
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
+    }
+
+    public void testPatternWithSimpleRange() {
+
+        final SystemIndices systemIndices = new SystemIndices(Map.of("test", List.of(new SystemIndexDescriptor(".test-[abc]", ""))));
+
+        assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-c"), equalTo(true));
+
+        assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-d"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-="), equalTo(false));
+    }
+
+    public void testPatternWithSimpleRangeAndRepeatOperator() {
+        final SystemIndices systemIndices = new SystemIndices(Map.of("test", List.of(new SystemIndexDescriptor(".test-[a]+", ""))));
+
+        assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-aaa"), equalTo(true));
+
+        assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(false));
+    }
+
+    public void testPatternWithComplexRange() {
+        final SystemIndices systemIndices = new SystemIndices(Map.of("test", List.of(new SystemIndexDescriptor(".test-[a-c]", ""))));
+
+        assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-b"), equalTo(true));
+        assertThat(systemIndices.isSystemIndex(".test-c"), equalTo(true));
+
+        assertThat(systemIndices.isSystemIndex(".test-aa"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-d"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-"), equalTo(false));
+        assertThat(systemIndices.isSystemIndex(".test-="), equalTo(false));
+    }
+
+    public void testOverlappingDescriptorsWithRanges() {
+        String source1 = "source1";
+        String source2 = "source2";
+
+        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".test-[ab]*", "");
+        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".test-a*", "");
+
+        Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
+        descriptors.put(source1, List.of(pattern1));
+        descriptors.put(source2, List.of(pattern2));
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> SystemIndices.checkForOverlappingPatterns(descriptors));
+
+        assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
+            "] from [" + source1 + "] overlaps with other system index descriptors:"));
+
+        assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
     }
 }

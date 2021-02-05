@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
@@ -95,7 +96,7 @@ public class GeometryDocValueReader {
     /**
      * Visit the triangle tree with the provided visitor
      */
-    protected void visit(TriangleTreeReader.Visitor visitor) {
+    public void visit(TriangleTreeReader.Visitor visitor) {
         Extent extent = getExtent();
         int thisMaxX = extent.maxX();
         int thisMinX = extent.minX();
@@ -105,4 +106,5 @@ public class GeometryDocValueReader {
             TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY);
         }
     }
+
 }

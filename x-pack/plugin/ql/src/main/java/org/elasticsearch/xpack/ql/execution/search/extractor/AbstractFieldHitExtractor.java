@@ -1,9 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.StringJoiner;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -18,19 +29,11 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.StringJoiner;
-
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
+
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
@@ -74,7 +77,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         this.hitName = hitName;
 
         if (hitName != null) {
-            if (!name.contains(hitName)) {
+            if (name.contains(hitName) == false) {
                 throw new QlIllegalArgumentException("Hitname [{}] specified but not part of the name [{}]", hitName, name);
             }
         }
@@ -128,16 +131,13 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             // if the field was ignored because it was malformed and ignore_malformed was turned on
             if (fullFieldName != null
                     && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
-                    && isFromDocValuesOnly(dataType) == false
-                    && dataType.isNumeric()) {
+                    && isFromDocValuesOnly(dataType) == false) {
                 /*
-                 * ignore_malformed makes sense for extraction from _source for numeric fields only.
-                 * And we check here that the data type is actually a numeric one to rule out
-                 * any non-numeric sub-fields (for which the "parent" field should actually be extracted from _source).
+                 * We check here the presence of the field name (fullFieldName including the parent name) in the list
+                 * of _ignored fields (due to malformed data, which was ignored).
                  * For example, in the case of a malformed number, a "byte" field with "ignore_malformed: true"
                  * with a "text" sub-field should return "null" for the "byte" parent field and the actual malformed
-                 * data for the "text" sub-field. Also, the _ignored section of the response contains the full field
-                 * name, thus the need to do the comparison with that and not only the field name.
+                 * data for the "text" sub-field.
                  */
                 if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fullFieldName)) {
                     return null;
@@ -201,7 +201,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                     }
                     return result;
                 }
-            } else if (DataTypes.isString(dataType)) {
+            } else if (DataTypes.isString(dataType) || dataType == DataTypes.IP) {
                 return values.toString();
             } else {
                 return values;
@@ -213,9 +213,10 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above.
                     || dataType == DATETIME
+                    || dataType == DATETIME_NANOS
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }
-    
+
     private static NumberType numberType(DataType dataType) {
         return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
     }
@@ -233,7 +234,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         Deque<Tuple<Integer, Map<String, Object>>> queue = new ArrayDeque<>();
         queue.add(new Tuple<>(-1, map));
 
-        while (!queue.isEmpty()) {
+        while (queue.isEmpty() == false) {
             Tuple<Integer, Map<String, Object>> tuple = queue.removeLast();
             int idx = tuple.v1();
             Map<String, Object> subMap = tuple.v2();

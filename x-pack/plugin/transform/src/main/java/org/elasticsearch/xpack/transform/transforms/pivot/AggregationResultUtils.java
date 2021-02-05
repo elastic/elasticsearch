@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -64,6 +66,8 @@ public final class AggregationResultUtils {
 
     private static final Map<String, BucketKeyExtractor> BUCKET_KEY_EXTRACTOR_MAP;
     private static final BucketKeyExtractor DEFAULT_BUCKET_KEY_EXTRACTOR = new DefaultBucketKeyExtractor();
+    private static final BucketKeyExtractor DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR = new DatesAsEpochBucketKeyExtractor();
+
     static {
         Map<String, BucketKeyExtractor> tempMap = new HashMap<>();
         tempMap.put(GeoTileGroupSource.class.getName(), new GeoTileBucketKeyExtractor());
@@ -87,7 +91,8 @@ public final class AggregationResultUtils {
         Collection<AggregationBuilder> aggregationBuilders,
         Collection<PipelineAggregationBuilder> pipelineAggs,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        boolean datesAsEpoch
     ) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
@@ -104,7 +109,7 @@ public final class AggregationResultUtils {
                 updateDocument(
                     document,
                     destinationFieldName,
-                    getBucketKeyExtractor(singleGroupSource).value(value, fieldTypeMap.get(destinationFieldName))
+                    getBucketKeyExtractor(singleGroupSource, datesAsEpoch).value(value, fieldTypeMap.get(destinationFieldName))
                 );
             });
 
@@ -128,8 +133,11 @@ public final class AggregationResultUtils {
         });
     }
 
-    static BucketKeyExtractor getBucketKeyExtractor(SingleGroupSource groupSource) {
-        return BUCKET_KEY_EXTRACTOR_MAP.getOrDefault(groupSource.getClass().getName(), DEFAULT_BUCKET_KEY_EXTRACTOR);
+    static BucketKeyExtractor getBucketKeyExtractor(SingleGroupSource groupSource, boolean datesAsEpoch) {
+        return BUCKET_KEY_EXTRACTOR_MAP.getOrDefault(
+            groupSource.getClass().getName(),
+            datesAsEpoch ? DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR : DEFAULT_BUCKET_KEY_EXTRACTOR
+        );
     }
 
     static AggValueExtractor getExtractor(Aggregation aggregation) {
@@ -408,6 +416,24 @@ public final class AggregationResultUtils {
     }
 
     static class DefaultBucketKeyExtractor implements BucketKeyExtractor {
+
+        @Override
+        public Object value(Object key, String type) {
+            if (isNumericType(type) && key instanceof Double) {
+                return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
+            } else if ((DateFieldMapper.CONTENT_TYPE.equals(type) || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type))
+                && key instanceof Long) {
+                    // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
+                    // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
+                    return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
+                }
+
+            return key;
+        }
+
+    }
+
+    static class DatesAsEpochBucketKeyExtractor implements BucketKeyExtractor {
 
         @Override
         public Object value(Object key, String type) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -15,7 +16,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -27,7 +28,8 @@ import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermsQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -46,6 +48,10 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     private DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Builder builder) {
         super(name, scriptFactory::newFactory, builder);
+    }
+
+    DoubleScriptFieldType(String name) {
+        this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 
     DoubleScriptFieldType(
@@ -85,7 +91,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
     }
@@ -98,7 +104,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         checkAllowExpensiveQueries(context);
         return NumberType.doubleRangeQuery(
@@ -111,13 +117,13 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }

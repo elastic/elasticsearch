@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.sql;
@@ -25,8 +26,8 @@ public class SqlFeatureSetUsage extends XPackFeatureSet.Usage {
         stats = in.readMap();
     }
 
-    public SqlFeatureSetUsage(boolean available, Map<String, Object> stats) {
-        super(XPackField.SQL, available, true);
+    public SqlFeatureSetUsage(Map<String, Object> stats) {
+        super(XPackField.SQL, true, true);
         this.stats = stats;
     }
 

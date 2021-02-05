@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
@@ -148,9 +137,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (hardBounds != null || extendedBounds != null) {
-            return null;
-        }
         long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();
         if (fixedRoundingPoints == null) {
             return null;
@@ -169,11 +155,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (rangeSupplier == null) {
             return null;
         }
-        RangeAggregator.Range[] ranges = new RangeAggregator.Range[fixedRoundingPoints.length];
-        for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
-            ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
-        }
-        ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
+        RangeAggregator.Range[] ranges = ranges(hardBounds, fixedRoundingPoints);
         return new DateHistogramAggregator.FromDateRange(
             parent,
             factories,
@@ -198,6 +180,27 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             keyed,
             fixedRoundingPoints
         );
+    }
+
+    private static RangeAggregator.Range[] ranges(LongBounds hardBounds, long[] fixedRoundingPoints) {
+        if (hardBounds == null) {
+            RangeAggregator.Range[] ranges = new RangeAggregator.Range[fixedRoundingPoints.length];
+            for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
+                ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
+            }
+            ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
+            return ranges;
+        }
+        List<RangeAggregator.Range> ranges = new ArrayList<>(fixedRoundingPoints.length);
+        for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
+            if (hardBounds.contain(fixedRoundingPoints[i])) {
+                ranges.add(new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]));
+            }
+        }
+        if (hardBounds.contain(fixedRoundingPoints[fixedRoundingPoints.length - 1])) {
+            ranges.add(new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null));
+        }
+        return ranges.toArray(RangeAggregator.Range[]::new);
     }
 
     private final ValuesSource.Numeric valuesSource;
@@ -312,7 +315,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
+                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
                 keyed, metadata());

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -569,6 +570,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     public void testDefaultOptionsWithSigningAndMultipleEncryptionKeys() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final KeyStoreWrapper usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         final Path dir = createTempDir();
 

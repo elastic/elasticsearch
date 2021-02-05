@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.index.store.cache;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
@@ -45,7 +45,7 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
 
@@ -62,6 +62,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
     private final int defaultRangeSize;
+    private final int recoveryRangeSize;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
@@ -73,7 +74,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
-        int rangeSize
+        int rangeSize,
+        int recoveryRangeSize
     ) {
         this(
             "CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
@@ -84,7 +86,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             0L,
             fileInfo.length(),
             new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
-            rangeSize
+            rangeSize,
+            recoveryRangeSize
         );
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
@@ -99,7 +102,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long offset,
         long length,
         CacheFileReference cacheFileReference,
-        int rangeSize
+        int rangeSize,
+        int recoveryRangeSize
     ) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
@@ -107,6 +111,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
+        this.recoveryRangeSize = recoveryRangeSize;
     }
 
     @Override
@@ -124,7 +129,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     private long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT) ? defaultRangeSize : fileInfo.partSize().getBytes();
+        return (context != CACHE_WARMING_CONTEXT)
+            ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
+            : fileInfo.partSize().getBytes();
     }
 
     private Tuple<Long, Long> computeRange(long position) {
@@ -281,21 +288,17 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + (position + length)
                 + "] vs "
                 + rangeToWrite;
-            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
-                final int read;
-                if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
-                    final ByteBuffer duplicate = b.duplicate();
-                    duplicate.limit(duplicate.position() + toIntBytes(rangeToRead.v2() - rangeToRead.v1()));
-                    read = readCacheFile(channel, position, duplicate);
-                    assert duplicate.position() <= b.limit();
-                    b.position(duplicate.position());
-                } else {
-                    read = readCacheFile(channel, position, b);
-                }
-                return read;
-            }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
+            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
+            assert rangeToRead.v2() - rangeToRead.v1() == b.remaining() : b.remaining() + " vs " + rangeToRead;
+
+            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
+                rangeToWrite,
+                rangeToRead,
+                channel -> readCacheFile(channel, position, b),
+                this::writeCacheFile,
+                directory.cacheFetchAsyncExecutor()
+            );
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
@@ -428,8 +431,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
+     * @return a tuple with {@code Tuple<Persistent Cache Length, Prefetched Length>} values
      */
-    public void prefetchPart(final int part) throws IOException {
+    public Tuple<Long, Long> prefetchPart(final int part) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
@@ -449,7 +453,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     partRange.v2(),
                     cacheFileReference
                 );
-                return;
+                return Tuple.tuple(cacheFile.getInitialLength(), 0L);
             }
 
             final long rangeStart = range.v1();
@@ -504,6 +508,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
             }
             assert totalBytesRead == rangeLength;
+            return Tuple.tuple(cacheFile.getInitialLength(), rangeLength);
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
@@ -607,86 +612,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         }
     }
 
-    /**
-     * Opens an {@link InputStream} for the given range of bytes which reads the data directly from the blob store. If the requested range
-     * spans multiple blobs then this stream will request them in turn.
-     *
-     * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
-     * @param length The number of bytes to read
-     */
-    private InputStream openInputStreamFromBlobStore(final long position, final long length) throws IOException {
-        assert assertCurrentThreadMayAccessBlobStore();
-        if (fileInfo.numberOfParts() == 1L) {
-            assert position + length <= fileInfo.partBytes(0) : "cannot read ["
-                + position
-                + "-"
-                + (position + length)
-                + "] from ["
-                + fileInfo
-                + "]";
-            stats.addBlobStoreBytesRequested(length);
-            return blobContainer.readBlob(fileInfo.partName(0), position, length);
-        } else {
-            final int startPart = getPartNumberForPosition(position);
-            final int endPart = getPartNumberForPosition(position + length - 1);
-
-            for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
-                final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                final long endInPart = (currentPart == endPart)
-                    ? getRelativePositionInPart(position + length - 1) + 1
-                    : getLengthOfPart(currentPart);
-                stats.addBlobStoreBytesRequested(endInPart - startInPart);
-            }
-
-            return new SlicedInputStream(endPart - startPart + 1) {
-                @Override
-                protected InputStream openSlice(int slice) throws IOException {
-                    final int currentPart = startPart + slice;
-                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                    final long endInPart = (currentPart == endPart)
-                        ? getRelativePositionInPart(position + length - 1) + 1
-                        : getLengthOfPart(currentPart);
-                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
-                }
-            };
-        }
-    }
-
-    /**
-     * Compute the part number that contains the byte at the given position in the corresponding Lucene file.
-     */
-    private int getPartNumberForPosition(long position) {
-        ensureValidPosition(position);
-        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
-        assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
-        assert part >= 0 : "part number [" + part + "] is negative";
-        return part;
-    }
-
-    /**
-     * Compute the position of the given byte relative to the start of its part.
-     * @param position the position of the required byte (within the corresponding Lucene file)
-     */
-    private long getRelativePositionInPart(long position) {
-        ensureValidPosition(position);
-        final long pos = position % fileInfo.partSize().getBytes();
-        assert pos < fileInfo.partBytes(getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
-        assert pos >= 0L : "position in part [" + pos + "] is negative";
-        return pos;
-    }
-
-    private long getLengthOfPart(int part) {
-        return fileInfo.partBytes(part);
-    }
-
-    private void ensureValidPosition(long position) {
-        assert position >= 0L && position < fileInfo.length() : position + " vs " + fileInfo.length();
-        // noinspection ConstantConditions in case assertions are disabled
-        if (position < 0L || position >= fileInfo.length()) {
-            throw new IllegalArgumentException("Position [" + position + "] is invalid for a file of length [" + fileInfo.length() + "]");
-        }
-    }
-
     @Override
     protected void seekInternal(long pos) throws IOException {
         if (pos > length()) {
@@ -729,7 +654,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             this.offset + offset,
             length,
             cacheFileReference,
-            defaultRangeSize
+            defaultRangeSize,
+            recoveryRangeSize
         );
         slice.isClone = true;
         return slice;

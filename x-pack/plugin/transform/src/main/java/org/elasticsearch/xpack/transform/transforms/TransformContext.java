@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -29,6 +30,7 @@ class TransformContext {
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
     private volatile Instant changesLastDetectedAt;
+    private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
@@ -107,6 +109,14 @@ class TransformContext {
         return changesLastDetectedAt;
     }
 
+    void setLastSearchTime(Instant time) {
+        lastSearchTime = time;
+    }
+
+    Instant getLastSearchTime() {
+        return lastSearchTime;
+    }
+
     public boolean shouldStopAtCheckpoint() {
         return shouldStopAtCheckpoint;
     }
@@ -120,18 +130,16 @@ class TransformContext {
     }
 
     void markAsFailed(String failureMessage) {
-        taskListener
-            .fail(
-                failureMessage,
-                ActionListener
-                    .wrap(
-                        r -> {
-                            // Successfully marked as failed, reset counter so that task can be restarted
-                            failureCount.set(0);
-                        },
-                        e -> {}
-                    )
-            );
+        taskListener.fail(
+            failureMessage,
+            ActionListener.wrap(
+                r -> {
+                    // Successfully marked as failed, reset counter so that task can be restarted
+                    failureCount.set(0);
+                },
+                e -> {}
+            )
+        );
     }
 
 }

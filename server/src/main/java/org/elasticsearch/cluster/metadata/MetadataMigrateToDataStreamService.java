@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -111,8 +100,8 @@ public class MetadataMigrateToDataStreamService {
     static ClusterState migrateToDataStream(ClusterState currentState,
                                             Function<IndexMetadata, MapperService> mapperSupplier,
                                             MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
-            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_8_0_0);
+        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_11_0)) {
+            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_7_11_0);
         }
 
         validateRequest(currentState, request);
@@ -142,14 +131,12 @@ public class MetadataMigrateToDataStreamService {
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] does not exist");
         }
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-
-        if (alias.getWriteIndex() == null) {
+        if (ia.getWriteIndex() == null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] must specify a write index");
         }
 
         // check for "clean" alias without routing or filter query
-        AliasMetadata aliasMetadata = alias.getFirstAliasMetadata();
+        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(ia);
         assert aliasMetadata != null : "alias metadata may not be null";
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");

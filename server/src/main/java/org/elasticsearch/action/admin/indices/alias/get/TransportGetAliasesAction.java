@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
@@ -30,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndices;
@@ -112,7 +102,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         }
         if (systemIndicesNames.isEmpty() == false) {
-            deprecationLogger.deprecate("open_system_index_access",
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", systemIndicesNames);
         } else {
@@ -125,7 +115,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             .filter(alias -> systemIndices.isSystemIndex(alias))
             .collect(Collectors.toList());
         if (systemAliases.isEmpty() == false) {
-            deprecationLogger.deprecate("open_system_alias_access",
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_alias_access",
                 "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct" +
                     "access to system indices and their aliases will not be allowed", systemAliases);
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -475,6 +477,10 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
         Request postDataRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
+        // Post data is deprecated, so expect a deprecation warning
+        postDataRequest.setOptions(RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+                "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false));
         postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"response_time\":100, \"time\":\"2019-07-01 00:00:00Z\" }");
         client().performRequest(postDataRequest);
         postDataRequest.setJsonEntity("{ \"airline\":\"LOT\", \"response_time\":100, \"time\":\"2019-07-01 02:00:00Z\" }");

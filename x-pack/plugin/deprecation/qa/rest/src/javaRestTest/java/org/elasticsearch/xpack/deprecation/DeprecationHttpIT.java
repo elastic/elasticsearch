@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.deprecation;
 
@@ -33,8 +34,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
+import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -61,16 +65,16 @@ public class DeprecationHttpIT extends ESRestTestCase {
             .startObject("transient")
             .field(
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
-                !TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY)
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false
             )
             .field(
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(),
-                !TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY)
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY) == false
             )
             // There should be no warning for this field
             .field(
                 TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(),
-                !TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY)
+                TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY) == false
             )
             .endObject()
             .endObject();
@@ -223,7 +227,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
     /**
      * Check that deprecation messages can be recorded to an index
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65589")
     public void testDeprecationMessagesCanBeIndexed() throws Exception {
         try {
             configureWriteDeprecationLogsToIndex(true);
@@ -239,7 +242,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
             assertBusy(() -> {
                 Response response;
                 try {
-                    response = client().performRequest(new Request("GET", ".logs-deprecation-elasticsearch/_search"));
+                    client().performRequest(new Request("POST", "/.logs-deprecation-elasticsearch/_refresh?ignore_unavailable=true"));
+                    response = client().performRequest(new Request("GET", "/.logs-deprecation-elasticsearch/_search"));
                 } catch (Exception e) {
                     // It can take a moment for the index to be created. If it doesn't exist then the client
                     // throws an exception. Translate it into an assertion error so that assertBusy() will
@@ -273,39 +277,43 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     hasItems(
                         allOf(
                             hasKey("@timestamp"),
-                            hasKey("cluster.name"),
-                            hasKey("cluster.uuid"),
-                            hasKey("log.logger"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasKey("elasticsearch.cluster.name"),
+                            hasKey("elasticsearch.cluster.uuid"),
+                            hasEntry(X_OPAQUE_ID_FIELD_NAME, "some xid"),
+                            hasEntry("elasticsearch.event.category", "settings"),
+                            hasKey("elasticsearch.node.id"),
+                            hasKey("elasticsearch.node.name"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("ecs.version", "1.6"),
-                            hasEntry("key", "deprecated_settings"),
+                            hasEntry("ecs.version", "1.7"),
+                            hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
-                            hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead"),
-                            hasKey("node.id"),
-                            hasKey("node.name"),
-                            hasEntry("x-opaque-id", "some xid")
+                            hasKey("log.logger"),
+                            hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
                         ),
                         allOf(
                             hasKey("@timestamp"),
-                            hasKey("cluster.name"),
-                            hasKey("cluster.uuid"),
-                            hasKey("log.logger"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                            hasKey("elasticsearch.cluster.name"),
+                            hasKey("elasticsearch.cluster.uuid"),
+                            hasEntry(X_OPAQUE_ID_FIELD_NAME, "some xid"),
+                            hasEntry("elasticsearch.event.category", "api"),
+                            hasKey("elasticsearch.node.id"),
+                            hasKey("elasticsearch.node.name"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("data_stream.namespace", "default"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("ecs.version", "1.6"),
-                            hasEntry("key", "deprecated_route"),
+                            hasEntry("ecs.version", "1.7"),
+                            hasEntry(KEY_FIELD_NAME, "deprecated_route"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
-                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests"),
-                            hasKey("node.id"),
-                            hasKey("node.name"),
-                            hasEntry("x-opaque-id", "some xid")
+                            hasKey("log.logger"),
+                            hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
                         )
                     )
                 );
-            });
+            }, 30, TimeUnit.SECONDS);
         } finally {
             configureWriteDeprecationLogsToIndex(null);
             client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));

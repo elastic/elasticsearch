@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -22,6 +11,7 @@ package org.elasticsearch.packaging.test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -31,10 +21,16 @@ import org.junit.BeforeClass;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -118,9 +114,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
-        try {
-            startElasticsearch();
-
+        startElasticsearchAndThen(() -> {
             final Totals actualTotals = fetchFilesystemTotals();
 
             assertThat(actualTotals.totalInBytes, equalTo(total));
@@ -140,9 +134,49 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             assertThat(updatedActualTotals.totalInBytes, equalTo(updatedTotal));
             assertThat(updatedActualTotals.availableInBytes, equalTo(updatedAvailable));
+        });
+    }
+
+    /**
+     * Check that the _cat API can list the plugin correctly.
+     */
+    public void test40CatApiFiltersPlugin() throws Exception {
+        install();
+
+        int total = 20 * 1024 * 1024;
+        int available = 10 * 1024 * 1024;
+
+        installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
+
+        final Path quotaPath = getRootTempDir().resolve("quota.properties");
+        Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available));
+
+        sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
+
+        startElasticsearchAndThen(() -> {
+            final String uri = "http://localhost:9200/_cat/plugins?include_bootstrap=true&h=component,type";
+            String response = ServerUtils.makeRequest(Request.Get(uri)).trim();
+            assertThat(response, not(emptyString()));
+
+            List<String> lines = response.lines().collect(Collectors.toList());
+            assertThat(lines, hasSize(1));
+
+            final String[] fields = lines.get(0).split(" ");
+            assertThat(fields, arrayContaining("quota-aware-fs", "bootstrap"));
+        });
+    }
+
+    private void startElasticsearchAndThen(CheckedRunnable<Exception> runnable) throws Exception {
+        boolean started = false;
+        try {
+            startElasticsearch();
+            started = true;
+
+            runnable.run();
         } finally {
-            stopElasticsearch();
-            Files.deleteIfExists(quotaPath);
+            if (started) {
+                stopElasticsearch();
+            }
         }
     }
 
@@ -156,18 +190,22 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         }
     }
 
-    private Totals fetchFilesystemTotals() throws Exception {
-        final String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
+    private Totals fetchFilesystemTotals() {
+        try {
+            final String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_nodes/stats"));
 
-        final ObjectMapper mapper = new ObjectMapper();
-        final JsonNode rootNode = mapper.readTree(response);
+            final ObjectMapper mapper = new ObjectMapper();
+            final JsonNode rootNode = mapper.readTree(response);
 
-        assertThat("Some nodes failed", rootNode.at("/_nodes/failed").intValue(), equalTo(0));
+            assertThat("Some nodes failed", rootNode.at("/_nodes/failed").intValue(), equalTo(0));
 
-        final String nodeId = rootNode.get("nodes").fieldNames().next();
+            final String nodeId = rootNode.get("nodes").fieldNames().next();
 
-        final JsonNode fsNode = rootNode.at("/nodes/" + nodeId + "/fs/total");
+            final JsonNode fsNode = rootNode.at("/nodes/" + nodeId + "/fs/total");
 
-        return new Totals(fsNode.get("total_in_bytes").intValue(), fsNode.get("available_in_bytes").intValue());
+            return new Totals(fsNode.get("total_in_bytes").intValue(), fsNode.get("available_in_bytes").intValue());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch filesystem totals: " + e.getMessage(), e);
+        }
     }
 }

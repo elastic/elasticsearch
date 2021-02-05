@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store;
 
@@ -9,6 +10,7 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -21,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -34,11 +35,12 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -49,7 +51,8 @@ import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -107,8 +110,8 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     public void testCachedBytesReadsAndWrites() throws Exception {
         // a cache service with a low range size but enough space to not evict the cache file
-        final ByteSizeValue rangeSize = randomCacheRangeSize();
-        final ByteSizeValue cacheSize = new ByteSizeValue(1, ByteSizeUnit.GB);
+        final ByteSizeValue rangeSize = new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES);
+        final ByteSizeValue cacheSize = new ByteSizeValue(10, ByteSizeUnit.MB);
 
         executeTestCaseWithCache(cacheSize, rangeSize, (fileName, fileContent, directory) -> {
             try (IndexInput input = directory.openInput(fileName, newIOContext(random()))) {
@@ -535,9 +538,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     private void executeTestCase(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
         executeTestCase(
             randomCacheService(),
+            randomFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), randomBoolean())
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -549,18 +554,28 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
         executeTestCase(
             defaultCacheService(),
+            defaultFrozenCacheService(),
             Settings.builder()
                 .put(SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(), uncachedChunkSize)
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), false)
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
     }
 
     private void executeTestCaseWithDefaultCache(final TriConsumer<String, byte[], SearchableSnapshotDirectory> test) throws Exception {
-        executeTestCaseWithCache(
-            CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY),
-            CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getDefault(Settings.EMPTY),
+        executeTestCase(
+            defaultCacheService(),
+            createFrozenCacheService(
+                ByteSizeValue.ofMb(10),
+                new ByteSizeValue(randomLongBetween(MAX_FILE_LENGTH, MAX_FILE_LENGTH * 2), ByteSizeUnit.BYTES)
+            ),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
+                .build(),
             test
         );
     }
@@ -572,9 +587,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
     ) throws Exception {
         executeTestCase(
             createCacheService(cacheSize, cacheRangeSize),
+            createFrozenCacheService(cacheSize, cacheRangeSize),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
+                .put(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.getKey(), randomBoolean())
                 .build(),
             test
         );
@@ -582,11 +599,12 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
     private void executeTestCase(
         final CacheService cacheService,
+        final FrozenCacheService frozenCacheService,
         final Settings indexSettings,
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) throws Exception {
 
-        final byte[] fileContent = randomUnicodeOfLength(randomIntBetween(10, MAX_FILE_LENGTH)).getBytes(StandardCharsets.UTF_8);
+        final byte[] fileContent = randomByteArrayOfLength(randomIntBetween(10, MAX_FILE_LENGTH));
         final String fileExtension = randomAlphaOfLength(3);
         final String fileName = randomAlphaOfLength(10) + '.' + fileExtension;
         final SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
@@ -602,17 +620,13 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, "_checksum", Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
-        final Path shardDir;
-        try {
-            shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final Path shardDir = randomShardPath(shardId);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-        final Path cacheDir = createTempDir();
+        final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
 
         try (
             CacheService ignored = cacheService;
+            FrozenCacheService ignored2 = frozenCacheService;
             SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                 () -> blobContainer,
                 () -> snapshot,
@@ -626,7 +640,8 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 cacheService,
                 cacheDir,
                 shardPath,
-                threadPool
+                threadPool,
+                frozenCacheService
             ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long fileLength) {
@@ -654,7 +669,9 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             );
             DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
             RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
-            final boolean loaded = directory.loadSnapshot(recoveryState);
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final boolean loaded = directory.loadSnapshot(recoveryState, future);
+            future.get();
             assertThat("Failed to load snapshot", loaded, is(true));
             assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
             assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.settings;
 
@@ -735,6 +724,28 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(diff.getAsList("foo.bar.quux", null), Arrays.asList("a", "b", "c"));
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+    }
+
+    public void testDiffWithDependentSettings() {
+        final String dependedSettingName = "this.setting.is.depended.on";
+        Setting<Integer> dependedSetting = Setting.intSetting(dependedSettingName, 1, Property.Dynamic, Property.NodeScope);
+
+        final String dependentSettingName = "this.setting.depends.on.another";
+        Setting<Integer> dependentSetting = new Setting<>(dependentSettingName,
+            (s) -> Integer.toString(dependedSetting.get(s) + 10),
+            (s) -> Setting.parseInt(s, 1, dependentSettingName),
+            Property.Dynamic, Property.NodeScope);
+
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(dependedSetting, dependentSetting)));
+
+        // Ensure that the value of the dependent setting is correctly calculated based on the "source" settings
+        Settings diff = settings.diff(Settings.builder().put(dependedSettingName, 2).build(), Settings.EMPTY);
+        assertThat(diff.getAsInt(dependentSettingName, null), equalTo(12));
+
+        // Ensure that the value is correctly calculated if neither is set
+        diff = settings.diff(Settings.EMPTY, Settings.EMPTY);
+        assertThat(diff.getAsInt(dependedSettingName, null), equalTo(1));
+        assertThat(diff.getAsInt(dependentSettingName, null), equalTo(11));
     }
 
     public void testDiffWithAffixAndComplexMatcher() {

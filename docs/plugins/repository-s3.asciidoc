@@ -27,7 +27,7 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket"
+    "bucket": "my-bucket"
   }
 }
 ----
@@ -48,8 +48,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket",
-    "client": "my_alternate_client"
+    "bucket": "my-bucket",
+    "client": "my-alternate-client"
   }
 }
 ----
@@ -241,8 +241,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket_name",
-    "another_setting": "setting_value"
+    "bucket": "my-bucket",
+    "another_setting": "setting-value"
   }
 }
 ----
@@ -251,8 +251,12 @@ PUT _snapshot/my_s3_repository
 The following settings are supported:
 
 `bucket`::
-
-    The name of the bucket to be used for snapshots. (Mandatory)
+(Required)
+Name of the S3 bucket to use for snapshots.
++
+The bucket name must adhere to Amazon's
+https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules[S3
+bucket naming rules].
 
 `client`::
 
@@ -340,8 +344,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "client": "my_client_name",
-    "bucket": "my_bucket_name",
+    "client": "my-client",
+    "bucket": "my-bucket",
     "endpoint": "my.s3.endpoint"
   }
 }

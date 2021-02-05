@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -52,7 +41,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -457,6 +446,16 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public boolean isCacheable() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
@@ -486,22 +485,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected QueryShardContext createQueryShardContext(MapperService mapperService) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(queryShardContext.isFieldMapped(anyString()))
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        when(searchExecutionContext.isFieldMapped(anyString()))
             .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
-        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
-        when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
+        when(searchExecutionContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
+        when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
+        when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
-        return queryShardContext;
+        return searchExecutionContext;
     }
 }

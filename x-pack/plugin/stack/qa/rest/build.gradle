@@ -14,7 +14,7 @@ restResources {
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),
                           password: System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')]
 
-yamlRestTest {
+tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.cluster.username', clusterCredentials.username
   systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }

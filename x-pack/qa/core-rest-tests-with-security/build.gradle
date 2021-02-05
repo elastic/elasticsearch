@@ -13,7 +13,7 @@ restResources {
   }
 }
 
-integTest {
+tasks.named("integTest").configure {
     systemProperty 'tests.rest.blacklist',
       [
         'index/10_with_id/Index with ID',

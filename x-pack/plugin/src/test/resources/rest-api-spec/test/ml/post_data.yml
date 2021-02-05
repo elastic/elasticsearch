@@ -46,7 +46,13 @@ setup:
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
+  - skip:
+      features:
+        - "warnings"
+
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -123,7 +129,13 @@ setup:
 ---
 "Test flush with skip_time":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -146,6 +158,8 @@ setup:
 
   # Send some data that should be ignored
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -160,6 +174,8 @@ setup:
 
   # Send data that will create results for the bucket after the skipped one
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -191,8 +207,12 @@ setup:
   - skip:
       reason: "https://github.com/elastic/elasticsearch/issues/34747"
       version: "6.5.0 - "
+      features:
+        - "warnings"
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: missing
       ml.post_data:
         job_id: not_a_job
@@ -207,6 +227,8 @@ setup:
             time: 1403481700
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: /parse_exception/
       ml.post_data:
         job_id: post-data-job
@@ -222,6 +244,8 @@ setup:
             time: 1403481700
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: /parse_exception/
       ml.post_data:
         job_id: post-data-job
@@ -280,12 +304,18 @@ setup:
 ---
 "Test flushing and posting a closed job":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
       catch: /status_exception/
       ml.flush_job:
         job_id: post-data-closed-job
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: /status_exception/
       ml.post_data:
         job_id: post-data-closed-job

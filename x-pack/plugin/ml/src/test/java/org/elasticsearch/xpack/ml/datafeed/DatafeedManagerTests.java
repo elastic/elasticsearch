@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -474,16 +475,15 @@ public class DatafeedManagerTests extends ESTestCase {
     private void givenDatafeedHasNeverRunBefore(Job job, DatafeedConfig datafeed) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<DatafeedContext> datafeedContextListener = (ActionListener<DatafeedContext>) invocationOnMock.getArguments()[2];
-            DatafeedContext datafeedContext = DatafeedContext.builder(0L)
+            ActionListener<DatafeedContext> datafeedContextListener = (ActionListener<DatafeedContext>) invocationOnMock.getArguments()[1];
+            DatafeedContext datafeedContext = DatafeedContext.builder()
                 .setJob(job)
                 .setDatafeedConfig(datafeed)
-                .setModelSnapshot(null)
                 .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
                 .setTimingStats(new DatafeedTimingStats(job.getId()))
                 .build();
             datafeedContextListener.onResponse(datafeedContext);
             return null;
-        }).when(datafeedContextProvider).buildDatafeedContext(eq(DATAFEED_ID), anyLong(), any());
+        }).when(datafeedContextProvider).buildDatafeedContext(eq(DATAFEED_ID), any());
     }
 }

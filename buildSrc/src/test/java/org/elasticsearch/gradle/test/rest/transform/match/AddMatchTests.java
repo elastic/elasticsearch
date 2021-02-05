@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
@@ -45,9 +44,8 @@ public class AddMatchTests extends GradleUnitTestCase {
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
-    private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-    private static final boolean humanDebug = true; // useful for humans trying to debug these tests
+    private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
 
     @Test
@@ -58,7 +56,6 @@ public class AddMatchTests extends GradleUnitTestCase {
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
         JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
-
         assertEquals("adding matches is only supported for named tests",
             expectThrows(NullPointerException.class, () -> transformer.transformRestTests(
                 new LinkedList<>(tests),
@@ -76,13 +73,11 @@ public class AddMatchTests extends GradleUnitTestCase {
         RestTestTransformer transformer = new RestTestTransformer();
         JsonNode addNode = MAPPER.convertValue(123456789, JsonNode.class);
         validateTest(tests, true);
-
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
             Collections.singletonList(new AddMatch("my_number", addNode, "Basic"))
         );
         printTest(testName, transformedTests);
-
         validateTest(tests, false);
     }
 
@@ -153,21 +148,25 @@ public class AddMatchTests extends GradleUnitTestCase {
         ArrayNode lastTestParentArray = (ArrayNode) lastTestChild;
 
         AtomicBoolean lastTestHasMatchObject = new AtomicBoolean(false);
+        AtomicBoolean lastTestHasAddedObject = new AtomicBoolean(false);
         lastTestParentArray.elements().forEachRemaining(node -> {
             assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
             ObjectNode childObject = (ObjectNode) node;
             JsonNode matchObject = childObject.get("match");
             if (matchObject != null) {
                 lastTestHasMatchObject.set(true);
-                if (beforeTransformation) {
-                    assertThat(matchObject.get("my_number"), CoreMatchers.nullValue());
-                } else {
-                    assertThat(matchObject.get("my_number"), CoreMatchers.is(123456789));
-
+                if (lastTestHasAddedObject.get() == false && matchObject.get("my_number") != null) {
+                    lastTestHasAddedObject.set(true);
                 }
+
             }
         });
         assertTrue(lastTestHasMatchObject.get());
+        if (beforeTransformation) {
+            assertFalse(lastTestHasAddedObject.get());
+        } else {
+            assertTrue(lastTestHasAddedObject.get());
+        }
     }
 
 

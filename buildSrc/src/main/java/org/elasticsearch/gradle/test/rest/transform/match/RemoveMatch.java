@@ -53,7 +53,6 @@ public class RemoveMatch implements RestTestTransformByParentObject {
 
     @Override
     public void transformTest(ObjectNode matchParent) {
-        System.out.println("Match Parent in Remove : " + matchParent + " Remove Key: " + removeKey);
         ObjectNode matchObject = (ObjectNode) matchParent.get(getKeyToFind());
         matchObject.remove(removeKey);
     }

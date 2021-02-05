@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
@@ -45,7 +44,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
-    private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
@@ -57,7 +55,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
-
         validateTest(tests, true, true);
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
@@ -74,10 +71,7 @@ public class RemoveMatchTests extends GradleUnitTestCase {
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
-
-
         validateTest(tests, true, false);
-
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
             Collections.singletonList(new RemoveMatch("_type", "Basic"))
@@ -212,7 +206,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
                 }
             });
         }
-
     }
 
 

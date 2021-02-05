@@ -167,7 +167,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             SQLException.class,
             () -> doWithQuery(
                 () -> esWithLeniency(false),
-                "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword" + " FROM test",
+                "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword FROM test",
                 results -> {}
             )
         );

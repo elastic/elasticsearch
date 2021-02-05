@@ -60,8 +60,8 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolv
     public abstract Processor asProcessor();
 
     /**
-     * Resolve {@link Attribute}s which are unprocessable into
-     * {@link Pipe}s that are.
+     * Resolve {@link Attribute}s that are unprocessable into
+     * {@link Pipe}s.
      *
      * @return {@code this} if the resolution doesn't change the
      *      definition, a new {@link Pipe} otherwise

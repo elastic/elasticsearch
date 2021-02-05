@@ -44,6 +44,9 @@ public class RestRepositoryAnalyseAction extends BaseRestHandler {
             request.paramAsDouble("rare_action_probability", analyseRepositoryRequest.getRareActionProbability())
         );
         analyseRepositoryRequest.maxBlobSize(request.paramAsSize("max_blob_size", analyseRepositoryRequest.getMaxBlobSize()));
+        analyseRepositoryRequest.maxTotalDataSize(
+            request.paramAsSize("max_total_data_size", analyseRepositoryRequest.getMaxTotalDataSize())
+        );
         analyseRepositoryRequest.timeout(request.paramAsTime("timeout", analyseRepositoryRequest.getTimeout()));
         analyseRepositoryRequest.detailed(request.paramAsBoolean("detailed", analyseRepositoryRequest.getDetailed()));
 

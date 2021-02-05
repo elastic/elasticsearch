@@ -49,6 +49,7 @@ setup:
         read_node_count: 2
         early_read_node_count: 1
         rare_action_probability: 0.01
+        max_total_data_size: 5mb
 
   - is_true: coordinating_node.id
   - is_true: coordinating_node.name
@@ -59,6 +60,7 @@ setup:
   - match: { early_read_node_count: 1 }
   - match: { rare_action_probability: 0.01 }
   - match: { max_blob_size: 1mb }
+  - match: { max_total_data_size: 5mb }
   - is_true: seed
   - is_true: blob_path
   - is_false: details

@@ -46,11 +46,12 @@ and to measure the performance characteristics of your storage system.
 
 The default values for the parameters to this API are deliberately low to
 reduce the impact of running an analysis. A realistic experiment should set
-`blob_count` to at least `2000` and `max_blob_size` to at least `2gb`, and will
-almost certainly need to increase the `timeout` to allow time for the process
-to complete successfully. You should run the analysis on a multi-node cluster
-of a similar size to your production cluster so that it can detect any problems
-that only arise when the repository is accessed by many nodes at once.
+`blob_count` to at least `2000`, `max_blob_size` to at least `2gb`, and
+`max_total_data_size` to at least `1tb`, and will almost certainly need to
+increase the `timeout` to allow time for the process to complete successfully.
+You should run the analysis on a multi-node cluster of a similar size to your
+production cluster so that it can detect any problems that only arise when the
+repository is accessed by many nodes at once.
 
 If the analysis is successful this API returns details of the testing process,
 optionally including how long each operation took. You can use this information
@@ -112,9 +113,9 @@ master-eligible nodes in the cluster for execution.
 For most blob-level tasks, the executing node first writes a blob to the
 repository, and then instructs some of the other nodes in the cluster to
 attempt to read the data it just wrote. The size of the blob is chosen
-randomly, according to the `max_blob_size` parameter. If any of these reads
-fails then the repository does not implement the necessary read-after-write
-semantics that {es} requires.
+randomly, according to the `max_blob_size` and `max_total_data_size`
+parameters. If any of these reads fails then the repository does not implement
+the necessary read-after-write semantics that {es} requires.
 
 For some blob-level tasks, the executing node will instruct some of its peers
 to attempt to read the data before the writing process completes. These reads
@@ -154,6 +155,11 @@ at least `2000`.
 (Optional, <<size-units, size units>>) The maximum size of a blob to be written
 during the test. Defaults to `10mb`. For realistic experiments you should set
 this to at least `2gb`.
+
+`max_total_data_size`::
+(Optional, <<size-units, size units>>) An upper limit on the total size of all
+the blobs written during the test. Defaults to `1gb`. For realistic experiments
+you should set this to at least `1tb`.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
@@ -247,6 +253,11 @@ parameter.
 (string)
 The limit on the size of a blob written during the test, equal to the
 `?max_blob_size` parameter.
+
+`max_total_data_size`::
+(string)
+The limit on the total size of all blob written during the test, equal to the
+`?max_total_data_size` parameter.
 
 `seed`::
 (long)

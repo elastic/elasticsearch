@@ -312,6 +312,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             }
             blobSizes.add(maxBlobSize);
 
+            // TODO account for max total blob size
             for (int i = 0; i < request.getBlobCount(); i++) {
                 final long targetLength = blobSizes.get(random.nextInt(blobSizes.size()));
                 final boolean smallBlob = targetLength <= Integer.MAX_VALUE; // we only use the non-atomic API for larger blobs
@@ -507,6 +508,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
                         request.readNodeCount,
                         request.earlyReadNodeCount,
                         request.maxBlobSize,
+                        request.maxTotalDataSize,
                         request.seed,
                         request.rareActionProbability,
                         blobPath,
@@ -556,6 +558,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
         private double rareActionProbability = 0.02;
         private TimeValue timeout = TimeValue.timeValueSeconds(30);
         private ByteSizeValue maxBlobSize = ByteSizeValue.ofMb(10);
+        private ByteSizeValue maxTotalDataSize = ByteSizeValue.ofGb(1);
         private boolean detailed = false;
         private DiscoveryNode reroutedFrom = null;
 
@@ -574,6 +577,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
             maxBlobSize = new ByteSizeValue(in);
+            maxTotalDataSize = new ByteSizeValue(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
         }
@@ -595,6 +599,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);
             maxBlobSize.writeTo(out);
+            maxTotalDataSize.writeTo(out);
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
         }
@@ -633,6 +638,13 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             this.maxBlobSize = maxBlobSize;
         }
 
+        public void maxTotalDataSize(ByteSizeValue maxTotalDataSize) {
+            if (maxTotalDataSize.getBytes() <= 0) {
+                throw new IllegalArgumentException("maxTotalDataSize must be >0, but was [" + maxTotalDataSize + "]");
+            }
+            this.maxTotalDataSize = maxTotalDataSize;
+        }
+
         public void detailed(boolean detailed) {
             this.detailed = detailed;
         }
@@ -659,6 +671,10 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
 
         public ByteSizeValue getMaxBlobSize() {
             return maxBlobSize;
+        }
+
+        public ByteSizeValue getMaxTotalDataSize() {
+            return maxTotalDataSize;
         }
 
         public boolean getDetailed() {
@@ -733,6 +749,8 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
                 + timeout
                 + ", maxBlobSize="
                 + maxBlobSize
+                + ", maxTotalDataSize="
+                + maxTotalDataSize
                 + ", detailed="
                 + detailed
                 + "]";
@@ -756,6 +774,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
         private final int readNodeCount;
         private final int earlyReadNodeCount;
         private final ByteSizeValue maxBlobSize;
+        private final ByteSizeValue maxTotalDataSize;
         private final long seed;
         private final double rareActionProbability;
         private final String blobPath;
@@ -773,6 +792,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             int readNodeCount,
             int earlyReadNodeCount,
             ByteSizeValue maxBlobSize,
+            ByteSizeValue maxTotalDataSize,
             long seed,
             double rareActionProbability,
             String blobPath,
@@ -789,6 +809,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             this.readNodeCount = readNodeCount;
             this.earlyReadNodeCount = earlyReadNodeCount;
             this.maxBlobSize = maxBlobSize;
+            this.maxTotalDataSize = maxTotalDataSize;
             this.seed = seed;
             this.rareActionProbability = rareActionProbability;
             this.blobPath = blobPath;
@@ -808,6 +829,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             maxBlobSize = new ByteSizeValue(in);
+            maxTotalDataSize = new ByteSizeValue(in);
             seed = in.readLong();
             rareActionProbability = in.readDouble();
             blobPath = in.readString();
@@ -827,6 +849,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             maxBlobSize.writeTo(out);
+            maxTotalDataSize.writeTo(out);
             out.writeLong(seed);
             out.writeDouble(rareActionProbability);
             out.writeString(blobPath);
@@ -861,6 +884,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             builder.field("read_node_count", readNodeCount);
             builder.field("early_read_node_count", earlyReadNodeCount);
             builder.field("max_blob_size", maxBlobSize);
+            builder.field("max_total_data_size", maxTotalDataSize);
             builder.field("seed", seed);
             builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);

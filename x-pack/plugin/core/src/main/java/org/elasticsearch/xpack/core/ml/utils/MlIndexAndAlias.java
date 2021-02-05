@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.util.Arrays;
@@ -160,6 +161,48 @@ public final class MlIndexAndAlias {
         }
         // If the alias is set, there is nothing more to do.
         loggingListener.onResponse(false);
+    }
+
+    public static void createSystemIndexIfNecessary(Client client,
+                                                    ClusterState clusterState,
+                                                    SystemIndexDescriptor descriptor,
+                                                    ActionListener<Boolean> finalListener) {
+
+        final String primaryIndex = descriptor.getPrimaryIndex();
+
+        // The check for existence of the index is against the cluster state, so very cheap
+        if (hasIndex(clusterState, primaryIndex)) {
+            finalListener.onResponse(true);
+            return;
+        }
+
+        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
+            created -> {
+                if (created) {
+                    waitForShardsReady(client, primaryIndex, finalListener);
+                } else {
+                    finalListener.onResponse(false);
+                }
+            },
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    finalListener.onResponse(true);
+                } else {
+                    finalListener.onFailure(e);
+                }
+            }
+        );
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(primaryIndex);
+        createIndexRequest.settings(descriptor.getSettings());
+        createIndexRequest.mapping(descriptor.getMappings());
+        createIndexRequest.origin(ML_ORIGIN);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
+            ActionListener.<CreateIndexResponse>wrap(
+                r -> indexCreatedListener.onResponse(r.isAcknowledged()),
+                indexCreatedListener::onFailure
+            ), client.admin().indices()::create);
     }
 
     private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {
@@ -308,5 +351,9 @@ public final class MlIndexAndAlias {
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().getTemplates().containsKey(templateName);
+    }
+
+    public static boolean hasIndex(ClusterState state, String index) {
+        return state.getMetadata().getIndicesLookup().containsKey(index);
     }
 }

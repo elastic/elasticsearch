@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
@@ -610,86 +609,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             }
             final long endTimeNanos = stats.currentTimeNanos();
             stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
-        }
-    }
-
-    /**
-     * Opens an {@link InputStream} for the given range of bytes which reads the data directly from the blob store. If the requested range
-     * spans multiple blobs then this stream will request them in turn.
-     *
-     * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
-     * @param length The number of bytes to read
-     */
-    private InputStream openInputStreamFromBlobStore(final long position, final long length) throws IOException {
-        assert assertCurrentThreadMayAccessBlobStore();
-        if (fileInfo.numberOfParts() == 1L) {
-            assert position + length <= fileInfo.partBytes(0) : "cannot read ["
-                + position
-                + "-"
-                + (position + length)
-                + "] from ["
-                + fileInfo
-                + "]";
-            stats.addBlobStoreBytesRequested(length);
-            return blobContainer.readBlob(fileInfo.partName(0), position, length);
-        } else {
-            final int startPart = getPartNumberForPosition(position);
-            final int endPart = getPartNumberForPosition(position + length - 1);
-
-            for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
-                final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                final long endInPart = (currentPart == endPart)
-                    ? getRelativePositionInPart(position + length - 1) + 1
-                    : getLengthOfPart(currentPart);
-                stats.addBlobStoreBytesRequested(endInPart - startInPart);
-            }
-
-            return new SlicedInputStream(endPart - startPart + 1) {
-                @Override
-                protected InputStream openSlice(int slice) throws IOException {
-                    final int currentPart = startPart + slice;
-                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                    final long endInPart = (currentPart == endPart)
-                        ? getRelativePositionInPart(position + length - 1) + 1
-                        : getLengthOfPart(currentPart);
-                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
-                }
-            };
-        }
-    }
-
-    /**
-     * Compute the part number that contains the byte at the given position in the corresponding Lucene file.
-     */
-    private int getPartNumberForPosition(long position) {
-        ensureValidPosition(position);
-        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
-        assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
-        assert part >= 0 : "part number [" + part + "] is negative";
-        return part;
-    }
-
-    /**
-     * Compute the position of the given byte relative to the start of its part.
-     * @param position the position of the required byte (within the corresponding Lucene file)
-     */
-    private long getRelativePositionInPart(long position) {
-        ensureValidPosition(position);
-        final long pos = position % fileInfo.partSize().getBytes();
-        assert pos < fileInfo.partBytes(getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
-        assert pos >= 0L : "position in part [" + pos + "] is negative";
-        return pos;
-    }
-
-    private long getLengthOfPart(int part) {
-        return fileInfo.partBytes(part);
-    }
-
-    private void ensureValidPosition(long position) {
-        assert position >= 0L && position < fileInfo.length() : position + " vs " + fileInfo.length();
-        // noinspection ConstantConditions in case assertions are disabled
-        if (position < 0L || position >= fileInfo.length()) {
-            throw new IllegalArgumentException("Position [" + position + "] is invalid for a file of length [" + fileInfo.length() + "]");
         }
     }
 

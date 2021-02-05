@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -225,16 +226,12 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(nodeProcessors));
     }
 
-    public void testClusterStatusWhenStateNotRecovered() throws Exception {
-        internalCluster().startMasterOnlyNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+    public void testClusterStatusWhenStateNotRecovered() {
+        internalCluster().startMasterOnlyNode(Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 1).build());
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
-        if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode();
-        } else {
-            internalCluster().startDataOnlyNode();
-        }
+        internalCluster().startDataOnlyNode();
         // wait for the cluster status to settle
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();

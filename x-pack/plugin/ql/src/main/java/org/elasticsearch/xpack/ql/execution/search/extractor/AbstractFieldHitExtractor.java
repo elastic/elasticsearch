@@ -116,7 +116,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         this.hitName = hitName;
 
         if (hitName != null) {
-            if (!name.contains(hitName)) {
+            if (name.contains(hitName) == false) {
                 throw new QlIllegalArgumentException("Hitname [{}] specified but not part of the name [{}]", hitName, name);
             }
         }
@@ -291,8 +291,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         Deque<Tuple<Integer, Map<String, Object>>> queue = new ArrayDeque<>();
         queue.add(new Tuple<>(-1, map));
 
-        while (!queue.isEmpty()) {
-            Tuple<Integer, Map<String, Object>> tuple = queue.removeFirst();
+        while (queue.isEmpty() == false) {
+            Tuple<Integer, Map<String, Object>> tuple = queue.removeLast();
             int idx = tuple.v1();
             Map<String, Object> subMap = tuple.v2();
 

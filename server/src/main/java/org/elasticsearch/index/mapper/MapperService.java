@@ -414,10 +414,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
     }
 
-    public ObjectMapper getObjectMapper(String name) {
-        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
-    }
-
     /**
      * Return the index-time analyzer associated with a particular field
      * @param field                     the field name

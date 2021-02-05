@@ -192,12 +192,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         RoleDescriptor that = (RoleDescriptor) o;
 
-        if (!name.equals(that.name)) return false;
-        if (!Arrays.equals(clusterPrivileges, that.clusterPrivileges)) return false;
-        if (!Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges)) return false;
-        if (!Arrays.equals(indicesPrivileges, that.indicesPrivileges)) return false;
-        if (!Arrays.equals(applicationPrivileges, that.applicationPrivileges)) return false;
-        if (!metadata.equals(that.getMetadata())) return false;
+        if (name.equals(that.name) == false) return false;
+        if (Arrays.equals(clusterPrivileges, that.clusterPrivileges) == false) return false;
+        if (Arrays.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) == false) return false;
+        if (Arrays.equals(indicesPrivileges, that.indicesPrivileges) == false) return false;
+        if (Arrays.equals(applicationPrivileges, that.applicationPrivileges) == false) return false;
+        if (metadata.equals(that.getMetadata()) == false) return false;
         return Arrays.equals(runAs, that.runAs);
     }
 
@@ -730,12 +730,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             IndicesPrivileges that = (IndicesPrivileges) o;
 
-            if (!Arrays.equals(indices, that.indices)) return false;
+            if (Arrays.equals(indices, that.indices) == false) return false;
             if (allowRestrictedIndices != that.allowRestrictedIndices) return false;
-            if (!Arrays.equals(privileges, that.privileges)) return false;
-            if (!Arrays.equals(grantedFields, that.grantedFields)) return false;
-            if (!Arrays.equals(deniedFields, that.deniedFields)) return false;
-            return !(query != null ? !query.equals(that.query) : that.query != null);
+            if (Arrays.equals(privileges, that.privileges) == false) return false;
+            if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
+            if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
+            return Objects.equals(query, that.query);
         }
 
         @Override

@@ -16,9 +16,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -55,6 +55,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -66,6 +67,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,6 +82,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
@@ -152,8 +155,7 @@ public class RestoreService implements ClusterStateApplier {
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetadataCreateIndexService createIndexService,
-                          IndexMetadataVerifier indexMetadataVerifier, ClusterSettings clusterSettings,
-                          ShardLimitValidator shardLimitValidator) {
+                          IndexMetadataVerifier indexMetadataVerifier, ShardLimitValidator shardLimitValidator) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
@@ -191,9 +193,7 @@ public class RestoreService implements ClusterStateApplier {
             // Read snapshot info and metadata from the repository
             final String repositoryName = request.repository();
             Repository repository = repositoriesService.repository(repositoryName);
-            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
-            repository.getRepositoryData(repositoryDataListener);
-            repositoryDataListener.whenComplete(repositoryData -> {
+            ActionListener<RepositoryData> repoDataListener = ActionListener.wrap(repositoryData -> {
                 final String snapshotName = request.snapshot();
                 final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                     .filter(s -> snapshotName.equals(s.getName())).findFirst();
@@ -429,6 +429,22 @@ public class RestoreService implements ClusterStateApplier {
                         if (request.includeGlobalState()) {
                             if (metadata.persistentSettings() != null) {
                                 Settings settings = metadata.persistentSettings();
+                                if (request.skipOperatorOnlyState()) {
+                                    // Skip any operator-only settings from the snapshot. This happens when operator privileges are enabled
+                                    Set<String> operatorSettingKeys = Stream.concat(
+                                        settings.keySet().stream(), currentState.metadata().persistentSettings().keySet().stream())
+                                        .filter(k -> {
+                                            final Setting<?> setting = clusterSettings.get(k);
+                                            return setting != null && setting.isOperatorOnly();
+                                        })
+                                        .collect(Collectors.toSet());
+                                    if (false == operatorSettingKeys.isEmpty()) {
+                                        settings = Settings.builder()
+                                            .put(settings.filter(k -> false == operatorSettingKeys.contains(k)))
+                                            .put(currentState.metadata().persistentSettings().filter(operatorSettingKeys::contains))
+                                            .build();
+                                    }
+                                }
                                 clusterSettings.validateUpdate(settings);
                                 mdBuilder.persistentSettings(settings);
                             }
@@ -443,6 +459,7 @@ public class RestoreService implements ClusterStateApplier {
                                     if (RepositoriesMetadata.TYPE.equals(cursor.key) == false
                                             && DataStreamMetadata.TYPE.equals(cursor.key) == false
                                             && cursor.value instanceof Metadata.NonRestorableCustom == false) {
+                                        // TODO: Check request.skipOperatorOnly for Autoscaling policies (NonRestorableCustom)
                                         // Don't restore repositories while we are working with them
                                         // TODO: Should we restore them at the end?
                                         // Also, don't restore data streams here, we already added them to the metadata builder above
@@ -499,7 +516,7 @@ public class RestoreService implements ClusterStateApplier {
                     }
 
                     private void validateExistingIndex(IndexMetadata currentIndexMetadata, IndexMetadata snapshotIndexMetadata,
-                        String renamedIndex, boolean partial) {
+                                                       String renamedIndex, boolean partial) {
                         // Index exist - checking that it's closed
                         if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
                             // TODO: Enable restore for open indices
@@ -594,6 +611,10 @@ public class RestoreService implements ClusterStateApplier {
                     }
                 });
             }, listener::onFailure);
+            // fork handling the above listener to the generic pool since it loads various pieces of metadata from the repository over a
+            // longer period of time
+            repository.getRepositoryData(new ThreadedActionListener<>(logger, clusterService.getClusterApplierService().threadPool(),
+                    ThreadPool.Names.GENERIC, repoDataListener, false));
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot",
                 request.repository() + ":" + request.snapshot()), e);

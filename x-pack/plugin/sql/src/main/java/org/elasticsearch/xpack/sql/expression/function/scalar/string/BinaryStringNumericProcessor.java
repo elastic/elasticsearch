@@ -82,7 +82,7 @@ public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<
 
     @Override
     protected Object doProcess(Object left, Object right) {
-        if (!(left instanceof String || left instanceof Character)) {
+        if ((left instanceof String || left instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", left);
         }
         // count can be negative, the case is handled by the code, but it must still be int-convertible

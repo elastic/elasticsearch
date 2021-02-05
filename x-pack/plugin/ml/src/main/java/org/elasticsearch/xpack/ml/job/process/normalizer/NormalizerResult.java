@@ -189,7 +189,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(other instanceof NormalizerResult)) {
+        if ((other instanceof NormalizerResult) == false) {
             return false;
         }
 

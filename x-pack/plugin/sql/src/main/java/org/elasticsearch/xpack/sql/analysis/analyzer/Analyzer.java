@@ -148,7 +148,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     public LogicalPlan verify(LogicalPlan plan) {
         Collection<Failure> failures = verifier.verify(plan);
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
         return plan;
@@ -180,7 +180,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         boolean qualified = u.qualifier() != null;
 
         for (Attribute attribute : attrList) {
-            if (!attribute.synthetic()) {
+            if (attribute.synthetic() == false) {
                 boolean match = qualified ?
                         Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
                         // if the field is unqualified
@@ -337,7 +337,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // if the grouping is unresolved but the aggs are, use the latter to resolve the former.
                 // solves the case of queries declaring an alias in SELECT and referring to it in GROUP BY.
                 // e.g. SELECT x AS a ... GROUP BY a
-                if (!a.expressionsResolved() && Resolvables.resolved(a.aggregates())) {
+                if (a.expressionsResolved() == false && Resolvables.resolved(a.aggregates())) {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
                     List<Tuple<Attribute, Expression>> resolvedAliases = Expressions.aliases(a.aggregates());
@@ -370,7 +370,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             else if (plan instanceof Join) {
                 Join j = (Join) plan;
-                if (!j.duplicatesResolved()) {
+                if (j.duplicatesResolved() == false) {
                     LogicalPlan deduped = dedupRight(j.left(), j.right());
                     return new Join(j.source(), j.left(), deduped, j.type(), j.condition());
                 }
@@ -378,7 +378,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // try resolving the order expression (the children are resolved as this point)
             else if (plan instanceof OrderBy) {
                 OrderBy o = (OrderBy) plan;
-                if (!o.resolved()) {
+                if (o.resolved() == false) {
                     List<Order> resolvedOrder = new ArrayList<>(o.order().size());
                     for (Order order : o.order()) {
                         resolvedOrder.add(resolveExpression(order, o.child()));
@@ -542,7 +542,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Aggregate) {
                 Aggregate agg = (Aggregate) plan;
 
-                if (!Resolvables.resolved(agg.aggregates())) {
+                if (Resolvables.resolved(agg.aggregates()) == false) {
                     return agg;
                 }
 
@@ -659,13 +659,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                 AttributeSet missing = resolvedRefs.subtract(child.outputSet());
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     // Add missing attributes but project them away afterwards
                     List<Attribute> failedAttrs = new ArrayList<>();
                     LogicalPlan newChild = propagateMissing(o.child(), missing, failedAttrs);
 
                     // resolution failed and the failed expressions might contain resolution information so copy it over
-                    if (!failedAttrs.isEmpty()) {
+                    if (failedAttrs.isEmpty() == false) {
                         List<Order> newOrders = new ArrayList<>();
                         // transform the orders with the failed information
                         for (Order order : o.order()) {
@@ -682,7 +682,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return new Project(o.source(), new OrderBy(o.source(), newChild, maybeResolved), o.child().output());
                 }
 
-                if (!maybeResolved.equals(o.order())) {
+                if (maybeResolved.equals(o.order()) == false) {
                     return new OrderBy(o.source(), o.child(), maybeResolved);
                 }
             }
@@ -697,13 +697,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                 AttributeSet missing = resolvedRefs.subtract(f.child().outputSet());
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     // Again, add missing attributes and project them away
                     List<Attribute> failedAttrs = new ArrayList<>();
                     LogicalPlan newChild = propagateMissing(f.child(), missing, failedAttrs);
 
                     // resolution failed and the failed expressions might contain resolution information so copy it over
-                    if (!failedAttrs.isEmpty()) {
+                    if (failedAttrs.isEmpty() == false) {
                         // transform the orders with the failed information
                         Expression transformed = f.condition().transformUp(UnresolvedAttribute.class,
                             ua -> resolveMetadataToMessage(ua, failedAttrs, "filter")
@@ -715,7 +715,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return new Project(f.source(), new Filter(f.source(), newChild, maybeResolved), f.child().output());
                 }
 
-                if (!maybeResolved.equals(f.condition())) {
+                if (maybeResolved.equals(f.condition()) == false) {
                     return new Filter(f.source(), f.child(), maybeResolved);
                 }
             }
@@ -737,7 +737,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         static <E extends Expression> E tryResolveExpression(E exp, LogicalPlan plan) {
             E resolved = resolveExpression(exp, plan);
-            if (!resolved.resolved()) {
+            if (resolved.resolved() == false) {
                 // look at unary trees but ignore subqueries
                 if (plan.children().size() == 1 && !(plan instanceof SubQueryAlias)) {
                     return tryResolveExpression(resolved, plan.children().get(0));
@@ -766,7 +766,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // SELECT x AS i ... GROUP BY i
                 for (Attribute m : missing) {
                     // but we can't add an agg if the group is missing
-                    if (!Expressions.match(a.groupings(), m::semanticEquals)) {
+                    if (Expressions.match(a.groupings(), m::semanticEquals) == false) {
                         // pass failure information to help the verifier
                         m = new UnresolvedAttribute(m.source(), m.name(), m.qualifier(), null, null,
                                 new AggGroupingFailure(Expressions.names(a.groupings())));
@@ -774,7 +774,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                 }
                 // propagation failed, return original plan
-                if (!failed.isEmpty()) {
+                if (failed.isEmpty() == false) {
                     return plan;
                 }
                 return new Aggregate(a.source(), a.child(), a.groupings(), combine(a.aggregates(), missing));
@@ -901,7 +901,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                 }
 
-                if (!uf.childrenResolved()) {
+                if (uf.childrenResolved() == false) {
                     return uf;
                 }
 
@@ -961,7 +961,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (child instanceof NamedExpression) {
                         return child;
                     }
-                    if (!child.resolved()) {
+                    if (child.resolved() == false) {
                         return ua;
                     }
                     if (child instanceof Cast) {
@@ -1056,7 +1056,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // (salary cannot be pushed down to Aggregate since there's no grouping and thus the function wasn't resolved either)
 
                 // so try resolving the condition in one go through a 'dummy' aggregate
-                if (!condition.resolved()) {
+                if (condition.resolved() == false) {
                     // that's why try to resolve the condition
                     Aggregate tryResolvingCondition = new Aggregate(agg.source(), agg.child(), agg.groupings(),
                             combine(agg.aggregates(), new Alias(f.source(), ".having", condition)));
@@ -1076,7 +1076,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                 missing = findMissingAggregate(agg, condition);
 
-                if (!missing.isEmpty()) {
+                if (missing.isEmpty() == false) {
                     Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
                             combine(agg.aggregates(), missing));
                     Filter newFilter = new Filter(f.source(), newAgg, condition);
@@ -1185,7 +1185,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private Expression implicitCast(Expression e) {
-            if (!e.childrenResolved()) {
+            if (e.childrenResolved() == false) {
                 return e;
             }
 

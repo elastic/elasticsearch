@@ -123,30 +123,28 @@ public final class MappingParser {
                 fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap);
             }
-
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> removed = (Map<String, Object>) mapping.remove("_meta");
-            if (removed != null) {
-                /*
-                 * It may not be required to copy meta here to maintain immutability but the cost is pretty low here.
-                 *
-                 * Note: this copy can not be replaced by Map#copyOf because we rely on consistent serialization order since we do
-                 * byte-level checks on the mapping between what we receive from the master and what we have locally. As Map#copyOf
-                 * is not necessarily the same underlying map implementation, we could end up with a different iteration order.
-                 * For reference, see MapperService#assertSerializtion and GitHub issues #10302 and #10318.
-                 *
-                 * Do not change this to Map#copyOf or any other method of copying meta that could change the iteration order.
-                 *
-                 * TODO:
-                 *  - this should almost surely be a copy as a LinkedHashMap to have the ordering guarantees that we are relying on
-                 *  - investigate the above note about whether or not we need to be copying here, the ideal outcome would be to not
-                 */
-                meta = Collections.unmodifiableMap(new HashMap<>(removed));
-            }
-
-            checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
         }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> removed = (Map<String, Object>) mapping.remove("_meta");
+        if (removed != null) {
+            /*
+             * It may not be required to copy meta here to maintain immutability but the cost is pretty low here.
+             *
+             * Note: this copy can not be replaced by Map#copyOf because we rely on consistent serialization order since we do
+             * byte-level checks on the mapping between what we receive from the master and what we have locally. As Map#copyOf
+             * is not necessarily the same underlying map implementation, we could end up with a different iteration order.
+             * For reference, see MapperService#assertSerializtion and GitHub issues #10302 and #10318.
+             *
+             * Do not change this to Map#copyOf or any other method of copying meta that could change the iteration order.
+             *
+             * TODO:
+             *  - this should almost surely be a copy as a LinkedHashMap to have the ordering guarantees that we are relying on
+             *  - investigate the above note about whether or not we need to be copying here, the ideal outcome would be to not
+             */
+            meta = Collections.unmodifiableMap(new HashMap<>(removed));
+        }
+        checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
 
         return new Mapping(
             rootObjectMapper,

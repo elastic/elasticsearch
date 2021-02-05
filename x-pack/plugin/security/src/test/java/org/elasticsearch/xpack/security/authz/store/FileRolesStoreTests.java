@@ -378,7 +378,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 writer.append("    - 'MONITOR'");
             }
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 

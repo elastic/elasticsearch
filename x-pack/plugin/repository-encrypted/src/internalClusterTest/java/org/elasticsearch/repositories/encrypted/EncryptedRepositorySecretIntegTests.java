@@ -8,7 +8,6 @@
 package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -40,7 +39,6 @@ import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -549,7 +547,6 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         internalCluster().startNodes(2, Settings.builder().setSecureSettings(secureSettingsWithPassword).build());
         ensureStableCluster(2);
         createRepository(repositoryName, repositorySettings, true);
-        // create empty smapshot
         final String snapshotName = randomName();
         logger.info("-->  create empty snapshot {}:{}", repositoryName, snapshotName);
         CreateSnapshotResponse createSnapshotResponse = client().admin()
@@ -575,14 +572,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
             wrongPassword
         );
-        Set<String> nodesWithWrongPassword = new HashSet<>();
-        do {
-            String masterNodeName = internalCluster().getMasterName();
-            logger.info("-->  restart master node {}", masterNodeName);
-            internalCluster().restartNode(masterNodeName, new InternalTestCluster.RestartCallback());
-            nodesWithWrongPassword.add(masterNodeName);
-            ensureStableCluster(2);
-        } while (false == nodesWithWrongPassword.contains(internalCluster().getMasterName()));
+
+        internalCluster().fullRestart();
+        ensureStableCluster(2);
         // maybe recreate the repository
         if (randomBoolean()) {
             deleteRepository(repositoryName);
@@ -594,9 +586,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         ).repository(repositoryName);
         RepositoryException e = expectThrows(
             RepositoryException.class,
-            () -> PlainActionFuture.<RepositoryData, Exception>get(
-                f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.wrap(f, blobStoreRepository::getRepositoryData))
-            )
+            () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
@@ -626,13 +616,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
             goodPassword
         );
-        do {
-            String masterNodeName = internalCluster().getMasterName();
-            logger.info("-->  restart master node {}", masterNodeName);
-            internalCluster().restartNode(masterNodeName, new InternalTestCluster.RestartCallback());
-            nodesWithWrongPassword.remove(masterNodeName);
-            ensureStableCluster(2);
-        } while (nodesWithWrongPassword.contains(internalCluster().getMasterName()));
+        internalCluster().fullRestart();
+        ensureStableCluster(2);
         // ensure get snapshot works
         getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());

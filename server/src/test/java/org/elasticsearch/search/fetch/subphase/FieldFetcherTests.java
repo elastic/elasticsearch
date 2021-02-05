@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -496,6 +497,97 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues(), hasItems(1, 2, "foo"));
     }
 
+    public void testNestedFields() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+        .startObject("_doc")
+            .startObject("properties")
+              .startObject("f1")
+                .field("type", "keyword")
+              .endObject()
+              .startObject("obj")
+                .field("type", "nested")
+                .startObject("properties")
+                    .startObject("f2").field("type", "keyword").endObject()
+                    .startObject("f3").field("type", "keyword").endObject()
+                    .startObject("inner_nested")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("f4").field("type", "keyword").endObject()
+                        .endObject()
+                  .endObject()
+                .endObject()
+              .endObject()
+            .endObject()
+        .endObject()
+        .endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("f1", "value1")
+            .startArray("obj")
+              .startObject()
+                .field("f2", "value2a")
+                .startObject("inner_nested")
+                    .field("f4", "value4a")
+                .endObject()
+              .endObject()
+              .startObject()
+                .field("f2", "value2b")
+                .field("f3", "value3b")
+                .startObject("inner_nested")
+                    .field("f4", "value4b")
+                .endObject()
+              .endObject()
+            .endArray()
+          .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false), null);
+        assertEquals(2, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("f1", "obj"));
+        assertEquals("value1", fields.get("f1").getValue());
+        List<Object> obj = fields.get("obj").getValues();
+        assertEquals(2, obj.size());
+        Object obj0 = obj.get(0);
+        assertEquals(2, ((Map<?,?>) obj0).size());
+        assertEquals("value2a", eval("f2.0", obj0));
+        assertNull(eval("f3", obj0));
+        assertEquals("value4a", eval("inner_nested.0.f4.0", obj0));
+
+        Object obj1 = obj.get(1);
+        assertEquals(3, ((Map<?,?>) obj1).size());
+        assertEquals("value2b", eval("f2.0", obj1));
+        assertEquals("value3b", eval("f3.0", obj1));
+        assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
+
+        fields = fetchFields(mapperService, source, fieldAndFormatList("obj*", null, false), null);
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("obj"));
+        obj = fields.get("obj").getValues();
+        assertEquals(2, ((Map<?, ?>) obj.get(0)).size());
+        obj0 = obj.get(0);
+        assertEquals(2, ((Map<?,?>) obj0).size());
+        assertEquals("value2a", eval("f2.0", obj0));
+        assertNull(eval("f3", obj0));
+        assertEquals("value4a", eval("inner_nested.0.f4.0", obj0));
+
+        obj1 = obj.get(1);
+        assertEquals(3, ((Map<?,?>) obj1).size());
+        assertEquals("value2b", eval("f2.0", obj1));
+        assertEquals("value3b", eval("f3.0", obj1));
+        assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
+
+        fields = fetchFields(mapperService, source, fieldAndFormatList("obj*", null, false), null);
+        assertEquals(1, fields.size());
+        assertThat(fields.keySet(), containsInAnyOrder("obj"));
+        obj = fields.get("obj").getValues();
+        assertEquals(2, obj.size());
+        obj0 = obj.get(0);
+        assertEquals("value4a", eval("inner_nested.0.f4.0", obj0));
+        obj1 = obj.get(1);
+        assertEquals("value4b", eval("inner_nested.0.f4.0", obj1));
+    }
+
     public void testUnmappedFieldsInsideObject() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("_doc")
@@ -693,7 +785,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), null, fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
         return fieldFetcher.fetch(sourceLookup, ignoreFields != null ? ignoreFields : Collections.emptySet());
     }
 

@@ -120,3 +120,20 @@ A snapshot of a {search-snap} index contains only a small amount of metadata
 which identifies its original index snapshot. It does not contain any data from
 the original index. The restore of a backup will fail to restore any
 {search-snap} indices whose original index snapshot is unavailable.
+
+[discrete]
+[[searchable-snapshots-shared-cache]]
+=== Shared snapshot cache
+
+experimental::[]
+
+By default a {search-snap} copies the whole snapshot into the local cluster as
+described above. You can also configure a shared snapshot cache which is used
+to hold a copy of just the frequently-accessed parts of shards of indices which
+are mounted with `?storage=shared_cache`. If you configure a node to have a
+shared cache then that node will reserve space for the cache when it starts up.
+
+`xpack.searchable.snapshot.shared_cache.size`::
+(<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
+The size of the space reserved for the shared cache. Defaults to `0b`, meaning
+that the node has no shared cache.

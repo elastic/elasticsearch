@@ -82,6 +82,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
+`filter_path`::
+(Optional, string)
+Comma-separated list of filters for the API response. See
+<<common-options-response-filtering>>.
+
 `ignore_unavailable`::
 (Optional, Boolean) If `true`, missing or closed indices are not included in the
 response. Defaults to `true`.

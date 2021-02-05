@@ -21,6 +21,8 @@
             value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
     </module>
 
+    <!-- See CONTRIBUTING.md for our guidelines on Javadoc -->
+
     <module name="MissingJavadocMethod">
         <property name="severity" value="warning" />
         <!-- Exclude short methods from this check - we don't want to have to document getters -->
@@ -36,7 +38,9 @@
             value="A description and other related documentation for a package should be written up in the package-info.java" />
     </module>
 
-    <module name="MissingJavadocType">
+    <!-- Use our fork of this Checkstyle rule, so that we can ignore test classes -->
+    <module name="org.elasticsearch.gradle.checkstyle.MissingJavadocTypeCheck">
+        <property name="ignorePattern" value="^.*(Tests?|IT)$"/>
         <property name="severity" value="warning"/>
         <message key="javadoc.missing" value="Types should explain their purpose" />
     </module>

@@ -9,18 +9,26 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.exception.AddressNotFoundException;
+import com.maxmind.geoip2.model.AsnResponse;
+import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.CountryResponse;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
 
 /**
@@ -31,6 +39,7 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
+    private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
     final SetOnce<DatabaseReader> databaseReader;
@@ -38,7 +47,8 @@ class DatabaseReaderLazyLoader implements Closeable {
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
-    DatabaseReaderLazyLoader(final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+        this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
         this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
@@ -123,7 +133,49 @@ class DatabaseReaderLazyLoader implements Closeable {
         return Files.newInputStream(databasePath);
     }
 
-    DatabaseReader get() throws IOException {
+    CityResponse getCity(InetAddress ipAddress) {
+        SpecialPermission.check();
+        return AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
+            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+                try {
+                    return get().city(ip);
+                } catch (AddressNotFoundException e) {
+                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }));
+    }
+
+    CountryResponse getCountry(InetAddress ipAddress) {
+        SpecialPermission.check();
+        return AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
+            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+                try {
+                    return get().country(ip);
+                } catch (AddressNotFoundException e) {
+                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }));
+    }
+
+    AsnResponse getAsn(InetAddress ipAddress) {
+        SpecialPermission.check();
+        return AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
+            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+                try {
+                    return get().asn(ip);
+                } catch (AddressNotFoundException e) {
+                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }));
+    }
+
+    private DatabaseReader get() throws IOException {
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {

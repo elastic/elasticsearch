@@ -14,15 +14,17 @@ public class SearchHitFieldRef extends FieldReference {
     private final String name;
     private final DataType dataType;
     private final String hitName;
+    private final boolean asMultiValue;
 
-    public SearchHitFieldRef(String name, DataType dataType) {
-        this(name, dataType, null);
+    public SearchHitFieldRef(String name, DataType dataType, boolean asMultiValue) {
+        this(name, dataType, null, asMultiValue);
     }
 
-    public SearchHitFieldRef(String name, DataType dataType, String hitName) {
+    public SearchHitFieldRef(String name, DataType dataType, String hitName, boolean asMultiValue) {
         this.name = name;
         this.dataType = dataType;
         this.hitName = hitName;
+        this.asMultiValue = asMultiValue;
     }
 
     public String hitName() {
@@ -36,6 +38,10 @@ public class SearchHitFieldRef extends FieldReference {
 
     public DataType getDataType() {
         return dataType;
+    }
+
+    public boolean asArray() {
+        return asMultiValue;
     }
 
     @Override

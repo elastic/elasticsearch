@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -21,18 +23,23 @@ import java.math.BigInteger;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ARRAY;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IF_MULTIVALUE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ONE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -43,7 +50,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, randomZone(), hitName, false);
+        return new FieldHitExtractor(name, null, randomZone(), hitName, FAIL_IF_MULTIVALUE);
     }
 
     @Override
@@ -68,8 +75,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             randomValueOtherThan(instance.dataType(), () -> randomFrom(SqlDataTypes.types())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
             instance.hitName() + "mutated",
-            randomBoolean()
-        );
+            randomFrom(MultiValueHandling.values()));
     }
 
     public void testGetDottedValueWithDocValues() {
@@ -121,14 +127,14 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         List<Object> documentFieldValues = Collections.singletonList(StringUtils.toString(zdt));
         DocumentField field = new DocumentField("my_date_nanos_field", documentFieldValues);
         SearchHit hit = new SearchHit(1, null, singletonMap("my_date_nanos_field", field), null);
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_nanos_field", DATETIME, zoneId, true);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_nanos_field", DATETIME, zoneId, EXTRACT_ONE);
         assertEquals(zdt, extractor.extract(hit));
     }
 
     public void testToString() {
         assertEquals(
             "hit.field@hit@Europe/Berlin",
-            new FieldHitExtractor("hit.field", null, ZoneId.of("Europe/Berlin"), "hit", false).toString()
+            new FieldHitExtractor("hit.field", null, ZoneId.of("Europe/Berlin"), "hit", FAIL_IF_MULTIVALUE).toString()
         );
     }
 
@@ -159,7 +165,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     }
     
     public void testMultiValuedSourceAllowed() {
-        FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, true);
+        FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, EXTRACT_ONE);
         Object valueA = randomValue();
         Object valueB = randomValue();
         DocumentField field = new DocumentField("a", asList(valueA, valueB));
@@ -167,9 +173,37 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         assertEquals(valueA, fe.extract(hit));
     }
 
+    // "a": null
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    public void testMultiValueNull() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
+        assertEquals(singletonList(null), fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, singletonList(null))), null)));
+    }
+
+    // "a": [] / missing
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    public void testMultiValueEmpty() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
+        assertEquals(singletonList(null), fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, emptyList())), null)));
+    }
+
+    // "a": [int1, int2, ..]
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    public void testMultiValueImmediateFromMap() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
+        List<Integer> list = randomList(2, 10, ESTestCase::randomInt);
+        assertEquals(list, fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, list.stream().map(x -> (Object) x).collect(Collectors.toList()))), null)));
+    }
+
     public void testGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, FAIL_IF_MULTIVALUE);
 
         Map<String, Object> map = new HashMap<>(2);
         map.put("coordinates", asList(1d, 2d));
@@ -182,7 +216,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, FAIL_IF_MULTIVALUE);
     
         Map<String, Object> map1 = new HashMap<>(2);
         map1.put("coordinates", asList(1d, 2d));
@@ -196,7 +230,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     
-        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, true);
+        FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, EXTRACT_ONE);
         assertEquals(new GeoShape(3, 4), lenientFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
             new DocumentField(fieldName, singletonList(map2))), null)));
     }
@@ -205,9 +239,12 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         return new FieldHitExtractor(fieldName, null, UTC);
     }
 
+    private static FieldHitExtractor getArrayFieldHitExtractor(String fieldName, DataType dataType) {
+        return new FieldHitExtractor(fieldName, dataType, UTC, EXTRACT_ARRAY);
+    }
+
     private Object randomValue() {
-        Supplier<Object> value = randomFrom(
-            Arrays.asList(
+        Supplier<Object> value = randomFrom(asList(
                 () -> randomAlphaOfLength(10),
                 ESTestCase::randomLong,
                 ESTestCase::randomDouble,

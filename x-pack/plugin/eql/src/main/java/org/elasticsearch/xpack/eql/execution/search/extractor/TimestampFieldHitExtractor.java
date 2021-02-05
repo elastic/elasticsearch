@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.eql.execution.search.extractor;
 public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     public TimestampFieldHitExtractor(FieldHitExtractor target) {
-        super(target.fieldName(), target.dataType(), target.zoneId(), target.hitName(),
-                target.arrayLeniency());
+        super(target.fieldName(), target.dataType(), target.zoneId(), target.hitName(), target.multiValueExtraction());
     }
 
     @Override

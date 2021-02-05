@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.xpack.ql.type.ArrayDataType;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
@@ -29,6 +30,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.xpack.ql.type.ArrayDataType.of;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
@@ -47,6 +49,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.baseType;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isArray;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
@@ -87,6 +91,33 @@ public class SqlDataTypes {
     public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
     public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2,  false, false, false);
     public static final DataType SHAPE =     new DataType("shape",     Integer.MAX_VALUE, false, false, false);
+
+    // arrays
+    // note: only field types can form arrays currently; this excludes SQL's specific types (time, date, intervals)
+    public static final DataType BOOLEAN_ARRAY      = of(BOOLEAN);
+    // integer numeric
+    public static final DataType BYTE_ARRAY         = of(BYTE);
+    public static final DataType SHORT_ARRAY        = of(SHORT);
+    public static final DataType INTEGER_ARRAY      = of(INTEGER);
+    public static final DataType LONG_ARRAY         = of(LONG);
+    // decimal numeric
+    public static final DataType DOUBLE_ARRAY       = of(DOUBLE);
+    public static final DataType FLOAT_ARRAY        = of(FLOAT);
+    public static final DataType HALF_FLOAT_ARRAY   = of(HALF_FLOAT);
+    public static final DataType SCALED_FLOAT_ARRAY = of(SCALED_FLOAT);
+    // string
+    public static final DataType KEYWORD_ARRAY      = of(KEYWORD);
+    public static final DataType TEXT_ARRAY         = of(TEXT);
+    // date
+    public static final DataType DATETIME_ARRAY     = of(DATETIME);
+    // ip
+    public static final DataType IP_ARRAY           = of(IP);
+    // binary
+    public static final DataType BINARY_ARRAY       = of(BINARY);
+    // geo
+    public static final DataType GEO_SHAPE_ARRAY    = of(GEO_SHAPE);
+    public static final DataType GEO_POINT_ARRAY    = of(GEO_POINT);
+    public static final DataType SHAPE_ARRAY        = of(SHAPE);
     // @formatter:on
 
     private static final Map<String, DataType> ODBC_TO_ES = new HashMap<>(mapSize(38));
@@ -137,6 +168,8 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_MINUTE", INTERVAL_HOUR_TO_MINUTE);
         ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_SECOND", INTERVAL_HOUR_TO_SECOND);
         ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
+
+        // Note: array types can't be used for casting
     }
 
     private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Stream.of(
@@ -157,17 +190,42 @@ public class SqlDataTypes {
             INTERVAL_MINUTE_TO_SECOND,
             GEO_SHAPE,
             GEO_POINT,
-            SHAPE))
+            SHAPE,
+            // arrays
+            BOOLEAN_ARRAY,
+            BYTE_ARRAY,
+            SHORT_ARRAY,
+            INTEGER_ARRAY,
+            LONG_ARRAY,
+            DOUBLE_ARRAY,
+            FLOAT_ARRAY,
+            HALF_FLOAT_ARRAY,
+            SCALED_FLOAT_ARRAY,
+            KEYWORD_ARRAY,
+            TEXT_ARRAY,
+            DATETIME_ARRAY,
+            IP_ARRAY,
+            BINARY_ARRAY,
+            GEO_SHAPE_ARRAY,
+            GEO_POINT_ARRAY,
+            SHAPE_ARRAY))
             .sorted(Comparator.comparing(DataType::typeName))
             .collect(toUnmodifiableList());
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
             .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
+    private static final Map<DataType, DataType> TYPE_TO_ARRAY = TYPES.stream()
+        .filter(DataTypes::isArray)
+        .collect(toUnmodifiableMap(e -> ((ArrayDataType) e).baseType(), t -> t));
+
     private static final Map<String, DataType> ES_TO_TYPE;
 
     static {
-        Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(Collectors.toMap(DataType::esType, t -> t));
+        Map<String, DataType> map = TYPES.stream()
+            .filter(e -> e.esType() != null)
+            .filter(e -> isArray(e) == false)
+            .collect(Collectors.toMap(DataType::esType, t -> t));
         map.put("date_nanos", DATETIME);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
@@ -175,9 +233,9 @@ public class SqlDataTypes {
     private static final Map<String, DataType> SQL_TO_ES;
 
     static {
-        Map<String, DataType> sqlToEs = new HashMap<>(mapSize(45));
+        Map<String, DataType> sqlToEs = new HashMap<>(mapSize(TYPES.size() + ODBC_TO_ES.size() - /*obj., nest.*/2 + /*"special" ones*/3));
         // first add ES types
-        for (DataType type : SqlDataTypes.types()) {
+        for (DataType type : types()) {
             if (type != OBJECT && type != NESTED) {
                 sqlToEs.put(type.typeName().toUpperCase(Locale.ROOT), type);
             }
@@ -231,6 +289,10 @@ public class SqlDataTypes {
         return null;
     }
 
+    public static DataType arrayType(DataType base) {
+        return TYPE_TO_ARRAY.get(base);
+    }
+
     public static boolean isNullOrInterval(DataType type) {
         return type == NULL || isInterval(type);
     }
@@ -267,7 +329,8 @@ public class SqlDataTypes {
     }
 
     public static boolean isGeo(DataType type) {
-        return type == GEO_POINT || type == GEO_SHAPE || type == SHAPE;
+        DataType dt = baseType(type);
+        return dt == GEO_POINT || dt == GEO_SHAPE || dt == SHAPE;
     }
 
     public static String format(DataType type) {
@@ -275,12 +338,13 @@ public class SqlDataTypes {
     }
 
     public static boolean isFromDocValuesOnly(DataType dataType) {
-        return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
-                || dataType == DATE         // because of date formats
-                || dataType == DATETIME
-                || dataType == SCALED_FLOAT // because of scaling_factor
-                || dataType == GEO_POINT
-                || dataType == SHAPE;
+        DataType dt = baseType(dataType);
+        return dt == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
+                || dt == DATE         // because of date formats
+                || dt == DATETIME
+                || dt == SCALED_FLOAT // because of scaling_factor
+                || dt == GEO_POINT
+                || dt == SHAPE;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -305,6 +369,9 @@ public class SqlDataTypes {
     }
 
     public static SQLType sqlType(DataType dataType) {
+        if (isArray(dataType)) { // needs to be on top, since any other "isType()" below could also match for array types
+            return JDBCType.ARRAY;
+        }
         if (dataType == UNSUPPORTED) {
             return JDBCType.OTHER;
         }
@@ -427,7 +494,8 @@ public class SqlDataTypes {
      * data, this is the length in characters. For datetime datatypes, this is the length in characters of the
      * String representation (assuming the maximum allowed defaultPrecision of the fractional seconds component).
      */
-    public static int defaultPrecision(DataType dataType) {
+    public static int defaultPrecision(DataType dt) {
+        DataType dataType = baseType(dt);
         if (dataType == UNSUPPORTED) {
             return dataType.size();
         }
@@ -547,7 +615,8 @@ public class SqlDataTypes {
         return 0;
     }
 
-    public static int displaySize(DataType dataType) {
+    public static int displaySize(DataType dt) {
+        DataType dataType = baseType(dt);
         if (dataType == UNSUPPORTED) {
             return dataType.size();
         }

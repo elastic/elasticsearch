@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -27,9 +28,8 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         super(in);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName,
-                             boolean arrayLeniency) {
-        super(name, dataType, zoneId, hitName, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, MultiValueHandling multiValueHandling) {
+        super(name, dataType, zoneId, hitName, multiValueHandling);
     }
 
     @Override

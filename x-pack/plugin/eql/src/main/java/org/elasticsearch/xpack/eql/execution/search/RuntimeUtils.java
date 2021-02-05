@@ -42,6 +42,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IF_MULTIVALUE;
 
 public final class RuntimeUtils {
 
@@ -117,7 +118,7 @@ public final class RuntimeUtils {
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
-            return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), false);
+            return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), FAIL_IF_MULTIVALUE);
         }
 
         if (ref instanceof ComputedRef) {

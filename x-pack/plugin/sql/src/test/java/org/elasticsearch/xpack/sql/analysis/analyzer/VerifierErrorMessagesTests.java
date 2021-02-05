@@ -1257,4 +1257,53 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:34: Binary field [binary] cannot be used for ordering unless it has the doc_values setting enabled",
             error("SELECT binary FROM test ORDER BY binary"));
     }
+
+    public void testArrayInProjection() {
+        accept("SELECT ARRAY(int) FROM test WHERE int > 4");
+    }
+
+    public void testArrayInWhere() {
+        assertEquals("1:35: [ARRAY()] may be used in the SELECT clause only, but found in [WHERE]",
+            error("SELECT ARRAY(int) FROM test WHERE ARRAY(int) > 1"));
+
+        assertEquals("1:8: [ARRAY()] may be used in the SELECT clause only, but found in [WHERE]",
+            error("SELECT ARRAY(int) a FROM test WHERE a IS NOT NULL"));
+    }
+
+    public void testArrayInGroupBy() {
+        assertEquals("1:38: [ARRAY()] may be used in the SELECT clause only, but found in [GROUP BY]",
+            error("SELECT ARRAY(int) FROM test GROUP BY ARRAY(int)"));
+    }
+
+    public void testArrayInOrderBy() {
+        assertEquals("1:38: [ARRAY()] may be used in the SELECT clause only, but found in [ORDER BY]",
+            error("SELECT ARRAY(int) FROM test ORDER BY ARRAY(int)"));
+    }
+
+    public void testArrayAsFunctionArgument() {
+        assertEquals("1:12: [ARRAY()] cannot be an argument to a function",
+            error("SELECT SUM(ARRAY(int)) FROM test"));
+    }
+
+    public void testArrayAsFunctionArgumentInExpression() {
+        assertEquals("1:8: [ARRAY()] cannot be an argument to a function",
+            error("SELECT ARRAY(int) + 1 FROM test")); // SUM(ARRAY(int) + 1) would just be SUM(ADD(ARRAY(int), 1), same test
+    }
+
+    public void testArrayFunctionParameter() {
+        assertEquals("1:8: ARRAY()'s argument must be an index field, found [SUM(int)]",
+            error("SELECT ARRAY(SUM(int)) FROM test"));
+
+        assertEquals("1:8: ARRAY()'s argument must be an index field, found [int + 1]",
+            error("SELECT ARRAY(int + 1) FROM test"));
+
+        assertEquals("1:8: ARRAY()'s argument must be an index field, found [1]",
+            error("SELECT ARRAY(1) FROM test"));
+    }
+
+    public void testUnsupportedArrayType() {
+        //  type's checked upstream from function's checked
+        assertEquals("1:14: Cannot use field [unsupported] with unsupported type [ip_range]",
+            error("SELECT ARRAY(unsupported) FROM test"));
+    }
 }

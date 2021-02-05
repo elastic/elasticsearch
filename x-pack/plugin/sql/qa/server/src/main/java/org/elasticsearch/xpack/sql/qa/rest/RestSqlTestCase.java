@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -37,13 +37,13 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -82,9 +82,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         if (columnar) {
-            expected.put("values", singletonList(Arrays.asList("test", "test")));
+            expected.put("values", singletonList(asList("test", "test")));
         } else {
-            expected.put("rows", Arrays.asList(singletonList("test"), singletonList("test")));
+            expected.put("rows", asList(singletonList("test"), singletonList("test")));
         }
         assertResponse(expected, runSql(mode, "SELECT * FROM test", columnar));
     }
@@ -125,7 +125,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             if (i == 0) {
                 expected.put(
                     "columns",
-                    Arrays.asList(
+                    asList(
                         columnInfo(mode, "text", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                         columnInfo(mode, "number", "long", JDBCType.BIGINT, 20),
                         columnInfo(mode, "s", "double", JDBCType.DOUBLE, 25),
@@ -137,20 +137,17 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             if (columnar) {
                 expected.put(
                     "values",
-                    Arrays.asList(
-                        Arrays.asList("text" + i, "text" + (i + 1)),
-                        Arrays.asList(i, i + 1),
-                        Arrays.asList(Math.sqrt(i), Math.sqrt(i + 1)),
-                        Arrays.asList(value, value)
+                    asList(
+                        asList("text" + i, "text" + (i + 1)),
+                        asList(i, i + 1),
+                        asList(Math.sqrt(i), Math.sqrt(i + 1)),
+                        asList(value, value)
                     )
                 );
             } else {
                 expected.put(
                     "rows",
-                    Arrays.asList(
-                        Arrays.asList("text" + i, i, Math.sqrt(i), value),
-                        Arrays.asList("text" + (i + 1), i + 1, Math.sqrt(i + 1), value)
-                    )
+                    asList(asList("text" + i, i, Math.sqrt(i), value), asList("text" + (i + 1), i + 1, Math.sqrt(i + 1), value))
                 );
             }
             cursor = (String) response.remove("cursor");
@@ -254,10 +251,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonMap("test", singletonMap("type", "text")));
         if (columnar) {
-            expected.put("values", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+            expected.put("values", asList(singletonMap("test", "test"), singletonMap("test", "test")));
         } else {
             // TODO: what exactly is this test suppossed to do. We need to check the 2074 issue above.
-            expected.put("rows", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+            expected.put("rows", asList(singletonMap("test", "test"), singletonMap("test", "test")));
         }
         expected.put("size", 2);
 
@@ -279,7 +276,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo(mode, "name", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo(mode, "score", "long", JDBCType.BIGINT, 20),
                 columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)
@@ -287,9 +284,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         Number value = xContentDependentFloatingNumberValue(mode, 1f);
         if (columnar) {
-            expected.put("values", Arrays.asList(singletonList("test"), singletonList(10), singletonList(value)));
+            expected.put("values", asList(singletonList("test"), singletonList(10), singletonList(value)));
         } else {
-            expected.put("rows", singletonList(Arrays.asList("test", 10, value)));
+            expected.put("rows", singletonList(asList("test", 10, value)));
         }
 
         assertResponse(expected, runSql(mode, "SELECT *, SCORE() FROM test ORDER BY SCORE()", columnar));
@@ -439,16 +436,16 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo(mode, "gender", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo(mode, "cnt", "long", JDBCType.BIGINT, 20),
                 columnInfo(mode, "cnt_dist", "long", JDBCType.BIGINT, 20)
             )
         );
         if (columnar) {
-            expected.put("values", Arrays.asList(Arrays.asList("f", "m"), Arrays.asList(6, 5), Arrays.asList(3, 3)));
+            expected.put("values", asList(asList("f", "m"), asList(6, 5), asList(3, 3)));
         } else {
-            expected.put("rows", Arrays.asList(Arrays.asList("f", 6, 3), Arrays.asList("m", 5, 3)));
+            expected.put("rows", asList(asList("f", 6, 3), asList("m", 5, 3)));
         }
 
         Map<String, Object> response = runSql(
@@ -706,15 +703,15 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> expected = new HashMap<>();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo(mode, "param", "integer", JDBCType.INTEGER, 11)
             )
         );
         if (columnar) {
-            expected.put("values", Arrays.asList(singletonList("foo"), singletonList(10)));
+            expected.put("values", asList(singletonList("foo"), singletonList(10)));
         } else {
-            expected.put("rows", Arrays.asList(Arrays.asList("foo", 10)));
+            expected.put("rows", asList(asList("foo", 10)));
         }
 
         String params = mode.equals("jdbc")
@@ -728,6 +725,110 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                         .columnar(columnarValue(columnar))
                         .params("[" + params + "]")
                         .toString(),
+                    ContentType.APPLICATION_JSON
+                ),
+                StringUtils.EMPTY,
+                mode
+            )
+        );
+    }
+
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    public void testBasicQueryWithMultiValues() throws IOException {
+        List<Long> values = randomList(1, 5, ESTestCase::randomLong);
+        String field = randomAlphaOfLength(5);
+        index("{\"" + field + "\": " + values + "}");
+
+        String mode = randomMode();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo(mode, "ARRAY(" + field + ")", "long_array", JDBCType.ARRAY, 20)));
+        expected.put("rows", singletonList(singletonList(values)));
+
+        assertResponse(
+            expected,
+            runSql(
+                new StringEntity(query("SELECT ARRAY(" + field + ") FROM test").mode(mode).toString(), ContentType.APPLICATION_JSON),
+                StringUtils.EMPTY,
+                mode
+            )
+        );
+    }
+
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    public void testBasicQueryWithMultiValuesAndMultiPathAndMultiDoc() throws IOException {
+        // formatter will leave first argument as is, but fold the following on a line
+        index(
+            "{"
+                + "  \"a\": ["
+                + "    {"
+                + "      \"b\": ["
+                + "        {"
+                + "          \"c\": {"
+                + "            \"d\": 2"
+                + "          }"
+                + "        },"
+                + "        {"
+                + "          \"c\": ["
+                + "            {"
+                + "              \"d\": [3, 4]"
+                + "            }"
+                + "          ]"
+                + "        }"
+                + "      ]"
+                + "    },"
+                + "    {"
+                + "      \"b\": {"
+                + "        \"c\": {"
+                + "          \"d\": 5"
+                + "        }"
+                + "      }"
+                + "    }"
+                + "  ]"
+                + "}",
+            // spotless collapses everything that fits in one line -> these are more legible compacted
+            "{\"a.b\": { \"c\": {\"d\": 6}}}",
+            "{\"a.b\": { \"c.d\": 7}, \"a.b.c.d\": 8}"
+        );
+
+        String mode = randomMode();
+        boolean columnar = randomBoolean();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo(mode, "ARRAY(a.b.c.d)", "long_array", JDBCType.ARRAY, 20)));
+        if (columnar) {
+            expected.put("values", singletonList(asList(asList(2, 3, 4, 5), singletonList(6), asList(8, 7))));
+        } else {
+            expected.put("rows", asList(singletonList(asList(2, 3, 4, 5)), singletonList(singletonList(6)), singletonList(asList(8, 7))));
+        }
+
+        assertResponse(
+            expected,
+            runSql(
+                new StringEntity(
+                    query("SELECT ARRAY(a.b.c.d) FROM test").mode(mode).columnar(columnarValue(columnar)).toString(),
+                    ContentType.APPLICATION_JSON
+                ),
+                StringUtils.EMPTY,
+                mode
+            )
+        );
+    }
+
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    public void testFilteringQueryWithMultiValuesAndWithout() throws IOException {
+        index("{\"a\": [2, 3, 4, 5]}", "{\"a\": 6}", "{\"a\": [7, 8]}");
+        String mode = randomMode();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            asList(columnInfo(mode, "ARRAY(a)", "long_array", JDBCType.ARRAY, 20), columnInfo(mode, "a", "long", JDBCType.BIGINT, 20))
+        );
+        expected.put("values", asList(asList(singletonList(6), asList(7, 8)), asList(6, 7)));
+
+        assertResponse(
+            expected,
+            runSql(
+                new StringEntity(
+                    query("SELECT ARRAY(a), a FROM test WHERE a > 5").mode(mode).columnar(true).fieldMultiValueLeniency(true).toString(),
                     ContentType.APPLICATION_JSON
                 ),
                 StringUtils.EMPTY,

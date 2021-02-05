@@ -251,6 +251,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         TermsAggregator aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
                         Terms result = reduce(aggregator, context.bigArrays());
                         assertEquals(5, result.getBuckets().size());
                         assertEquals("", result.getBuckets().get(0).getKeyAsString());
@@ -320,6 +321,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator, context.bigArrays());
                     assertEquals(10, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
@@ -355,6 +357,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(5, result.getBuckets().size());
                     assertEquals("val001", result.getBuckets().get(0).getKeyAsString());
@@ -379,6 +382,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(8, result.getBuckets().size());
                     assertEquals("val002", result.getBuckets().get(0).getKeyAsString());
@@ -408,6 +412,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val010", result.getBuckets().get(0).getKeyAsString());
@@ -425,6 +430,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
@@ -443,6 +449,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
@@ -461,6 +468,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
@@ -479,6 +487,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(2, result.getBuckets().size());
                     assertEquals("val001", result.getBuckets().get(0).getKeyAsString());
@@ -534,6 +543,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     TermsAggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator, context.bigArrays());
                     assertEquals(2, result.getBuckets().size());
                     assertEquals(0L, result.getBuckets().get(0).getKey());
@@ -551,6 +561,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(4, result.getBuckets().size());
                     assertEquals(1L, result.getBuckets().get(0).getKey());
@@ -574,6 +585,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(2, result.getBuckets().size());
                     assertEquals(0.0, result.getBuckets().get(0).getKey());
@@ -591,6 +603,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals(4, result.getBuckets().size());
                     assertEquals(1.0, result.getBuckets().get(0).getKey());
@@ -757,6 +770,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     Aggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator, context.bigArrays());
                     assertEquals(size, result.getBuckets().size());
                     for (int i = 0; i < size; i++) {
@@ -783,6 +797,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
                         result = ((Filter) reduce(aggregator, context.bigArrays())).getAggregations().get("_name2");
                         int expectedFilteredCounts = 0;
                         for (Integer count : filteredCounts.values()) {
@@ -856,6 +871,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     Aggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator, context.bigArrays());
                     assertEquals(size, result.getBuckets().size());
                     for (int i = 0; i < size; i++) {
@@ -885,6 +901,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     Aggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator, context.bigArrays());
                     assertEquals("_name", result.getName());
                     assertEquals(0, result.getBuckets().size());
@@ -894,6 +911,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals("_name", result.getName());
                     assertEquals(0, result.getBuckets().size());
@@ -903,6 +921,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     result = reduce(aggregator, context.bigArrays());
                     assertEquals("_name", result.getName());
                     assertEquals(0, result.getBuckets().size());
@@ -926,6 +945,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         Aggregator aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
                         Terms result = reduce(aggregator, context.bigArrays());
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
@@ -962,6 +982,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         Aggregator aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                        aggregator.postCollection();
                         Terms result = reduce(aggregator, context.bigArrays());
                         assertEquals("_name", result.getName());
                         assertEquals(1, result.getBuckets().size());
@@ -1034,6 +1055,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     Aggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator, context.bigArrays());
                     assertEquals("_name", result.getName());
                     assertEquals(1, result.getBuckets().size());
@@ -1082,6 +1104,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     Aggregator aggregator = createAggregator(aggregationBuilder, context);
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
                     Terms result = reduce(aggregator, context.bigArrays());
                     assertEquals(3, result.getBuckets().size());
                     assertEquals("a", result.getBuckets().get(0).getKeyAsString());
@@ -1575,6 +1598,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(builder, searcher, fieldType);
         aggregator.preCollection();
         searcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
         return aggregator.buildTopLevel();
     }
 

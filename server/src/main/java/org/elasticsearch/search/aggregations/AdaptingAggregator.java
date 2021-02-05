@@ -85,6 +85,11 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
+    public final void postCollection() throws IOException {
+        delegate.postCollection();
+    }
+
+    @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] delegateResults = delegate.buildAggregations(owningBucketOrds);
         InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];

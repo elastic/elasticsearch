@@ -45,8 +45,8 @@ or the {ilm-init} APIs.
 === Create a lifecycle policy
 
 A lifecycle policy specifies the phases in the index lifecycle
-and the actions to perform in each phase. A lifecycle can have up to four phases:
-`hot`, `warm`, `cold`, and `delete`.
+and the actions to perform in each phase. A lifecycle can have up to five phases:
+`hot`, `warm`, `cold`, `frozen`, and `delete`.
 
 For example, you might define a `timeseries_policy` that has two phases:
 

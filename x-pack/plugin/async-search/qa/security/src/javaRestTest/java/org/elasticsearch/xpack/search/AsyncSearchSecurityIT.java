@@ -145,7 +145,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             Response delResp = deleteAsyncSearch(id, user);
             assertOK(delResp);
 
-            // check that user with 'manage' and 'manage-security' privileges can delete an async
+            // check that user with 'manage' privileges can delete an async
             // search submitted by a different user
             Response newResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
             assertOK(newResp);

@@ -89,11 +89,11 @@ class ScrollDataExtractor implements DataExtractor {
 
     @Override
     public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
         Optional<InputStream> stream = tryNextStream();
-        if (!stream.isPresent()) {
+        if (stream.isPresent() == false) {
             hasNext = false;
         }
         return stream;

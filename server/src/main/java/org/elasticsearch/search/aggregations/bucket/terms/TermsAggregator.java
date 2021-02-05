@@ -162,7 +162,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     protected final BucketCountThresholds bucketCountThresholds;
     protected final BucketOrder order;
     protected final Comparator<InternalTerms.Bucket<?>> partiallyBuiltBucketComparator;
-    protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
+    protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
 
     public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
@@ -183,22 +183,31 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         } else {
             this.collectMode = collectMode;
         }
+        aggsUsedForSorting = aggsUsedForSorting(this, order);
+    }
+
+    /**
+     * Walks through bucket order and extracts all aggregations used for sorting
+     */
+    public static Set<Aggregator> aggsUsedForSorting(Aggregator root, BucketOrder order) {
+        Set<Aggregator> aggsUsedForSorting = new HashSet<>();
         // Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof Aggregation){
+        if (order instanceof Aggregation) {
             AggregationPath path = ((Aggregation) order).path();
-            aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
+            aggsUsedForSorting.add(path.resolveTopmostAggregator(root));
         } else if (order instanceof CompoundOrder) {
             CompoundOrder compoundOrder = (CompoundOrder) order;
             for (BucketOrder orderElement : compoundOrder.orderElements()) {
                 if (orderElement instanceof Aggregation) {
                     AggregationPath path = ((Aggregation) orderElement).path();
-                    aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
+                    aggsUsedForSorting.add(path.resolveTopmostAggregator(root));
                 }
             }
         }
+        return aggsUsedForSorting;
     }
 
-    static boolean descendsFromNestedAggregator(Aggregator parent) {
+    public static boolean descendsFromNestedAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent.getClass() == NestedAggregator.class) {
                 return true;

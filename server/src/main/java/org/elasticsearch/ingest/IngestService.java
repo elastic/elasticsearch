@@ -604,7 +604,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             sb.append(pipelineName);
         }
         String tag = processor.getTag();
-        if(tag != null && !tag.isEmpty()){
+        if (tag != null && tag.isEmpty() == false) {
             sb.append(":");
             sb.append(tag);
         }

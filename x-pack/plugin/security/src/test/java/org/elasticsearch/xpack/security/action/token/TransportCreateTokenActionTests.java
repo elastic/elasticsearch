@@ -284,7 +284,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             authenticationService, securityContext);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("_kerberos");
-        final char[] invalidBase64Chars = "!\"#$%&\\'()*,./:;<>?@[]^_`{|}~\t\n\r".toCharArray();
+        final char[] invalidBase64Chars = "!\"#$%&\\'()*,.:;<>?@[]^_`{|}~\t\n\r".toCharArray();
         final String kerberosTicketValue = Strings.arrayToDelimitedString(
             randomArray(1, 10, Character[]::new,
                 () -> invalidBase64Chars[randomIntBetween(0, invalidBase64Chars.length - 1)]), "");

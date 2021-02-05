@@ -40,7 +40,7 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
             DataFrameAnalyticsConfigUpdate.Builder updateBuilder = DataFrameAnalyticsConfigUpdate.PARSER.apply(parser, null);
             if (updateBuilder.getId() == null) {
                 updateBuilder.setId(id);
-            } else if (!Strings.isNullOrEmpty(id) && !id.equals(updateBuilder.getId())) {
+            } else if (Strings.isNullOrEmpty(id) == false && id.equals(updateBuilder.getId()) == false) {
                 // If we have both URI and body ID, they must be identical
                 throw new IllegalArgumentException(
                     Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, updateBuilder.getId(), id));

@@ -115,7 +115,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     private static URI parseUrl(String u) throws JdbcSQLException {
-        if (!canAccept(u)) {
+        if (canAccept(u) == false) {
             throw new JdbcSQLException("Expected [" + URL_PREFIX + "] url, received [" + u + "]");
         }
 

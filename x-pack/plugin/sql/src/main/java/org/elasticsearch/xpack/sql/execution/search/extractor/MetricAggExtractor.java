@@ -97,7 +97,7 @@ public class MetricAggExtractor implements BucketExtractor {
             throw new SqlIllegalArgumentException("Cannot find an aggregation named {}", name);
         }
 
-        if (!containsValues(agg)) {
+        if (containsValues(agg) == false) {
             return null;
         }
 

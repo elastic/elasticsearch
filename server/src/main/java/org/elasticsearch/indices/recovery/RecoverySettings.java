@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
+import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -19,14 +21,60 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.os.OsProbe;
+import org.elasticsearch.node.NodeRoleSettings;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING =
-        Setting.byteSizeSetting("indices.recovery.max_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB),
-            Property.Dynamic, Property.NodeScope);
+        Setting.byteSizeSetting(
+            "indices.recovery.max_bytes_per_sec",
+            s -> {
+                final ByteSizeValue defaultMaxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
+                final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(s);
+                final List<DiscoveryNodeRole> dataRoles =
+                    roles.stream().filter(DiscoveryNodeRole::canContainData).collect(Collectors.toUnmodifiableList());
+                if (dataRoles.isEmpty()) {
+                    // if the node is not a data node, this value doesn't matter, use the default
+                    return defaultMaxBytesPerSec.getStringRep();
+                }
+                if ((dataRoles.size() > 1 || dataRoles.get(0).roleName().equals("data_cold") == false) ||
+                    roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
+                    // if the node is not a dedicated cold node, use the default
+                    return defaultMaxBytesPerSec.getStringRep();
+                }
+                /*
+                 * Now we are looking at a node that has a single data role, that data role is the cold data role, and the node does not
+                 * have the master role. In this case, we are going to set the recovery size as a function of the memory size. We are making
+                 * an assumption here that the size of the instance is correlated with I/O resources. That is we are assuming that the
+                 * larger the instance, the more disk and networking capacity it has available.
+                 */
+                if (JavaVersion.current().compareTo(JavaVersion.parse("14")) < 0) {
+                    // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
+                    return defaultMaxBytesPerSec.getStringRep();
+                }
+                final ByteSizeValue totalPhysicalMemory = new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize());
+                final ByteSizeValue maxBytesPerSec;
+                if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
+                    maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
+                } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(8, ByteSizeUnit.GB)) <= 0) {
+                    maxBytesPerSec = new ByteSizeValue(60, ByteSizeUnit.MB);
+                } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(16, ByteSizeUnit.GB)) <= 0) {
+                    maxBytesPerSec = new ByteSizeValue(90, ByteSizeUnit.MB);
+                } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(32, ByteSizeUnit.GB)) <= 0) {
+                    maxBytesPerSec = new ByteSizeValue(125, ByteSizeUnit.MB);
+                } else {
+                    maxBytesPerSec = new ByteSizeValue(250, ByteSizeUnit.MB);
+                }
+                return maxBytesPerSec.getStringRep();
+            },
+            Property.Dynamic,
+            Property.NodeScope);
 
     /**
      * Controls the maximum number of file chunk requests that can be sent concurrently from the source node to the target node.

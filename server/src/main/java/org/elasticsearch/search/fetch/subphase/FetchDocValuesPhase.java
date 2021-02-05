@@ -18,6 +18,7 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -70,7 +71,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(f.field, hitField);
                     }
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup()));
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup(), Collections.emptySet()));
                 }
             }
         };

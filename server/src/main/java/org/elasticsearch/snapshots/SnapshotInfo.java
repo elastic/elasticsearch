@@ -526,7 +526,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(END_TIME_IN_MILLIS, endTime);
             builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(Math.max(0L, endTime - startTime)));
         }
-        if (verbose || !shardFailures.isEmpty()) {
+        if (verbose || shardFailures.isEmpty() == false) {
             builder.startArray(FAILURES);
             for (SnapshotShardFailure shardFailure : shardFailures) {
                 shardFailure.toXContent(builder, params);

@@ -194,24 +194,25 @@ public class HttpRequest implements ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         HttpRequest that = (HttpRequest) o;
-
-        if (port != that.port) return false;
-        if (!host.equals(that.host)) return false;
-        if (scheme != that.scheme) return false;
-        if (method != that.method) return false;
-        if (path != null ? !path.equals(that.path) : that.path != null) return false;
-        if (!params.equals(that.params)) return false;
-        if (!headers.equals(that.headers)) return false;
-        if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
-        if (connectionTimeout != null ? !connectionTimeout.equals(that.connectionTimeout) : that.connectionTimeout != null) return false;
-        if (readTimeout != null ? !readTimeout.equals(that.readTimeout) : that.readTimeout != null) return false;
-        if (proxy != null ? !proxy.equals(that.proxy) : that.proxy != null) return false;
-        return !(body != null ? !body.equals(that.body) : that.body != null);
-
+        return port == that.port
+            && Objects.equals(host, that.host)
+            && scheme == that.scheme
+            && method == that.method
+            && Objects.equals(path, that.path)
+            && Objects.equals(params, that.params)
+            && Objects.equals(headers, that.headers)
+            && Objects.equals(auth, that.auth)
+            && Objects.equals(connectionTimeout, that.connectionTimeout)
+            && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(proxy, that.proxy)
+            && Objects.equals(body, that.body);
     }
 
     @Override
@@ -227,7 +228,7 @@ public class HttpRequest implements ToXContentObject {
         sb.append("host=[").append(host).append("], ");
         sb.append("port=[").append(port).append("], ");
         sb.append("path=[").append(path).append("], ");
-        if (!headers.isEmpty()) {
+        if (headers.isEmpty() == false) {
             sb.append(sanitizeHeaders(headers).entrySet().stream()
                 .map(header -> header.getKey() + ": " + header.getValue())
                 .collect(Collectors.joining(", ", "headers=[", "], ")));

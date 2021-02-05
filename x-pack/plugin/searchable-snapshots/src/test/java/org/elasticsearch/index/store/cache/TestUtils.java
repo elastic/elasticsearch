@@ -9,6 +9,7 @@ package org.elasticsearch.index.store.cache;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -36,6 +38,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -322,6 +325,47 @@ public final class TestUtils {
             BytesReference content,
             ActionListener<Void> listener
         ) {
+            listener.onResponse(null);
+        }
+    }
+
+    public static class SimpleBlobStoreCacheService extends BlobStoreCacheService {
+
+        private final ConcurrentHashMap<String, CachedBlob> blobs = new ConcurrentHashMap<>();
+
+        public SimpleBlobStoreCacheService() {
+            super(null, mock(Client.class), null);
+        }
+
+        @Override
+        protected void getAsync(String repository, String name, String path, long offset, ActionListener<CachedBlob> listener) {
+            CachedBlob blob = blobs.get(CachedBlob.generateId(repository, name, path, offset));
+            if (blob != null) {
+                listener.onResponse(blob);
+            } else {
+                listener.onResponse(CachedBlob.CACHE_MISS);
+            }
+        }
+
+        @Override
+        public void putAsync(
+            String repository,
+            String name,
+            String path,
+            long offset,
+            BytesReference content,
+            ActionListener<Void> listener
+        ) {
+            final CachedBlob cachedBlob = new CachedBlob(
+                Instant.ofEpochMilli(0),
+                Version.CURRENT,
+                repository,
+                name,
+                path,
+                new BytesArray(content.toBytesRef(), true),
+                offset
+            );
+            blobs.put(cachedBlob.generatedId(), cachedBlob);
             listener.onResponse(null);
         }
     }

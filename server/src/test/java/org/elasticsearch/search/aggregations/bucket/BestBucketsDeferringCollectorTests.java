@@ -209,6 +209,9 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                     public void preCollection() throws IOException {}
 
                     @Override
+                    public void postCollection() throws IOException {}
+
+                    @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
                         LeafBucketCollector delegate = deferringCollector.getLeafCollector(ctx);
                         return leafCollector.apply(deferringCollector, delegate);
@@ -239,5 +242,10 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         @Override
         public void preCollection() throws IOException {}
+
+        @Override
+        public void postCollection() throws IOException {
+
+        }
     }
 }

@@ -28,11 +28,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -108,22 +104,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
-    }
-
-    public void testConfigMappingReservedFields() throws Exception {
-        Set<String> overridden = new HashSet<>(KEYWORDS);
-
-        // These are not reserved because they're data types, not field names
-        overridden.add(Job.TYPE);
-        overridden.add(DatafeedConfig.TYPE);
-        // ModelPlotConfig has an 'enabled' the same as one of the keywords
-        overridden.remove(ModelPlotConfig.ENABLED_FIELD.getPreferredName());
-
-        Set<String> expected = collectConfigDocFieldNames();
-        expected.removeAll(overridden);
-        expected.addAll(INTERNAL_FIELDS);
-
-        compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
     }
 
     private void compareFields(Set<String> expected, Set<String> reserved) {
@@ -274,11 +254,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
         return collectFieldNames(AnomalyDetectorsIndex.resultsMapping());
-    }
-
-    private Set<String> collectConfigDocFieldNames() throws IOException {
-        // Only the mappings for the config index should be added below.  Do NOT add mappings for other indexes here.
-        return collectFieldNames(MlConfigIndex.mapping());
     }
 
     private Set<String> collectFieldNames(String mapping) throws IOException {

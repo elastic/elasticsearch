@@ -172,7 +172,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             return "Cannot update mappings in "
                 + violations
                 + ": system indices can only use mappings from their descriptors, "
-                + "but the mappings in the request did not match those in the descriptors(s)";
+                + "but the mappings in the request [" + requestMappings + "] did not match those in the descriptor(s)";
         }
 
         return null;

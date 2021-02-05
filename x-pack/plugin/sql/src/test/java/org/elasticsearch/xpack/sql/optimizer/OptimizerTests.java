@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
@@ -704,7 +705,7 @@ public class OptimizerTests extends ESTestCase {
         assertFalse(iif.foldable());
         assertEquals("myField", Expressions.name(iif.elseResult()));
     }
-    
+
     //
     // Logical simplifications
     //
@@ -846,12 +847,12 @@ public class OptimizerTests extends ESTestCase {
         Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
         Order firstOrderBy = new Order(EMPTY, firstField, OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondOrderBy = new Order(EMPTY, secondField, OrderDirection.ASC, Order.NullsPosition.LAST);
-        
+
         OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), asList(secondField, firstField), asList(secondAlias, firstAlias)),
                 asList(firstOrderBy, secondOrderBy));
         LogicalPlan result = new SortAggregateOnOrderBy().apply(orderByPlan);
-        
+
         assertTrue(result instanceof OrderBy);
         List<Order> order = ((OrderBy) result).order();
         assertEquals(2, order.size());
@@ -859,7 +860,7 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(order.get(1).child() instanceof FieldAttribute);
         assertEquals("first_field", ((FieldAttribute) order.get(0).child()).name());
         assertEquals("second_field", ((FieldAttribute) order.get(1).child()).name());
-        
+
         assertTrue(((OrderBy) result).child() instanceof Aggregate);
         Aggregate agg = (Aggregate) ((OrderBy) result).child();
         List<?> groupings = agg.groupings();
@@ -878,12 +879,12 @@ public class OptimizerTests extends ESTestCase {
         Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
         Order firstOrderBy = new Order(EMPTY, firstAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondOrderBy = new Order(EMPTY, secondAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
-        
+
         OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), asList(secondAlias, firstAlias), asList(secondAlias, firstAlias)),
                 asList(firstOrderBy, secondOrderBy));
         LogicalPlan result = new SortAggregateOnOrderBy().apply(orderByPlan);
-        
+
         assertTrue(result instanceof OrderBy);
         List<Order> order = ((OrderBy) result).order();
         assertEquals(2, order.size());
@@ -891,7 +892,7 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(order.get(1).child() instanceof Alias);
         assertEquals("first_alias", ((Alias) order.get(0).child()).name());
         assertEquals("second_alias", ((Alias) order.get(1).child()).name());
-        
+
         assertTrue(((OrderBy) result).child() instanceof Aggregate);
         Aggregate agg = (Aggregate) ((OrderBy) result).child();
         List<?> groupings = agg.groupings();
@@ -996,14 +997,14 @@ public class OptimizerTests extends ESTestCase {
     public void testReplaceAttributesWithTarget() {
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute b = getFieldAttribute("b");
-        
+
         Alias aAlias = new Alias(EMPTY, "aAlias", a);
         Alias bAlias = new Alias(EMPTY, "bAlias", b);
-        
+
         Project p = new Project(EMPTY, FROM(), asList(aAlias, bAlias));
         Filter f = new Filter(EMPTY, p, new And(EMPTY, greaterThanOf(aAlias.toAttribute(), L(1)),
             greaterThanOf(bAlias.toAttribute(), L(2))));
-        
+
         ReplaceReferenceAttributeWithSource rule = new ReplaceReferenceAttributeWithSource();
         Expression condition = f.condition();
         assertTrue(condition instanceof And);
@@ -1029,13 +1030,13 @@ public class OptimizerTests extends ESTestCase {
     public void testSumIsReplacedWithStats() {
         FieldAttribute fa = getFieldAttribute();
         Sum sum = new Sum(EMPTY, fa);
-        
+
         Alias sumAlias = new Alias(EMPTY, "sum", sum);
-        
+
         Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
         assertTrue(optimizedPlan instanceof Aggregate);
-        Aggregate p = (Aggregate) optimizedPlan; 
+        Aggregate p = (Aggregate) optimizedPlan;
         assertEquals(1, p.aggregates().size());
         assertTrue(p.aggregates().get(0) instanceof Alias);
         Alias alias = (Alias) p.aggregates().get(0);
@@ -1044,8 +1045,8 @@ public class OptimizerTests extends ESTestCase {
     }
 
     /**
-     * Once the root cause of https://github.com/elastic/elasticsearch/issues/45251 is fixed in the <code>sum</code> ES aggregation 
-     * (can differentiate between <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>), 
+     * Once the root cause of https://github.com/elastic/elasticsearch/issues/45251 is fixed in the <code>sum</code> ES aggregation
+     * (can differentiate between <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>),
      * remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and re-enable the following test.
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45251")

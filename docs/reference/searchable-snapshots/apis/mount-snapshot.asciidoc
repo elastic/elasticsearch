@@ -49,6 +49,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `false`.
 
+`storage`::
++
+experimental::[]
++
+(Optional, string) Selects the kind of local storage used to accelerate
+searches of the mounted index. If `full_copy`, each node holding a shard of the
+searchable snapshot index makes a full copy of the shard to its local storage.
+If `shared_cache`, the shard uses the
+<<searchable-snapshots-shared-cache,shared cache>>. Defaults to `full_copy`.
+
 [[searchable-snapshots-api-mount-request-body]]
 ==== {api-request-body-title}
 

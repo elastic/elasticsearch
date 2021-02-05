@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.operator;
@@ -369,6 +370,7 @@ public class Constants {
         "indices:admin/xpack/ccr/put_follow",
         "indices:admin/xpack/ccr/unfollow",
         "indices:admin/xpack/rollup",
+        "indices:admin/xpack/rollup_indexer",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
         "indices:data/read/async_search/submit",

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.optimizer;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
@@ -87,6 +89,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
+                new SimplifyComparisonsArithmetics(DataTypes::areCompatible),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneLiteralsInOrderBy(),

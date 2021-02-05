@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
@@ -290,6 +291,7 @@ public class SqlDataTypes {
                     || (DataTypes.isString(left) && DataTypes.isString(right))
                     || (left.isNumeric() && right.isNumeric())
                     || (isDateBased(left) && isDateBased(right))
+                    || (isInterval(left) && isDateBased(right)) || (isDateBased(left) && isInterval(right))
                     || (isInterval(left) && isInterval(right) && Intervals.compatibleInterval(left, right) != null);
         }
     }

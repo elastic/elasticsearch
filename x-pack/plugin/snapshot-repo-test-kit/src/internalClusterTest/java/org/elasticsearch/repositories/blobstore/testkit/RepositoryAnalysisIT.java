@@ -78,7 +78,7 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
             }
         }
 
-        final RepositoryAnalyseAction.Request request = new RepositoryAnalyseAction.Request("test-repo");
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
 
         if (randomBoolean()) {
             request.concurrency(between(1, 5));
@@ -98,7 +98,7 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
 
         request.timeout(TimeValue.timeValueSeconds(5));
 
-        final RepositoryAnalyseAction.Response response = client().execute(RepositoryAnalyseAction.INSTANCE, request).actionGet();
+        final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet();
 
         assertThat(response.status(), equalTo(RestStatus.OK));
     }
@@ -164,9 +164,9 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
     static class DisruptableBlobStore implements BlobStore {
 
         private final Map<String, DisruptableBlobContainer> blobContainers = ConcurrentCollections.newConcurrentMap();
-        private Semaphore writeSemaphore = new Semaphore(new RepositoryAnalyseAction.Request("dummy").getConcurrency());
-        private int maxBlobCount = new RepositoryAnalyseAction.Request("dummy").getBlobCount();
-        private long maxBlobSize = new RepositoryAnalyseAction.Request("dummy").getMaxBlobSize().getBytes();
+        private Semaphore writeSemaphore = new Semaphore(new RepositoryAnalyzeAction.Request("dummy").getConcurrency());
+        private int maxBlobCount = new RepositoryAnalyzeAction.Request("dummy").getBlobCount();
+        private long maxBlobSize = new RepositoryAnalyzeAction.Request("dummy").getMaxBlobSize().getBytes();
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {

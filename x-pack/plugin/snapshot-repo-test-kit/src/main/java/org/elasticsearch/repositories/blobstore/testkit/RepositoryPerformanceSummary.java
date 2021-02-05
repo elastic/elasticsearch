@@ -134,7 +134,7 @@ public class RepositoryPerformanceSummary implements Writeable, ToXContentFragme
             );
         }
 
-        public void add(BlobAnalyseAction.Response response) {
+        public void add(BlobAnalyzeAction.Response response) {
             writeCount.add(1L);
             writeBytes.add(response.getWriteBytes());
             writeThrottledNanos.add(response.getWriteThrottledNanos());
@@ -142,7 +142,7 @@ public class RepositoryPerformanceSummary implements Writeable, ToXContentFragme
 
             final long checksumBytes = response.getChecksumBytes();
 
-            for (final BlobAnalyseAction.ReadDetail readDetail : response.getReadDetails()) {
+            for (final BlobAnalyzeAction.ReadDetail readDetail : response.getReadDetails()) {
                 readCount.add(1L);
                 readBytes.add(checksumBytes);
                 readWaitNanos.add(readDetail.getFirstByteNanos());

@@ -140,20 +140,20 @@ import java.util.stream.Collectors;
  * unnecessary resources.
  *
  */
-public class BlobAnalyseAction extends ActionType<BlobAnalyseAction.Response> {
+public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(BlobAnalyseAction.class);
+    private static final Logger logger = LogManager.getLogger(BlobAnalyzeAction.class);
 
-    public static final BlobAnalyseAction INSTANCE = new BlobAnalyseAction();
-    public static final String NAME = "cluster:admin/repository/analyse/blob";
+    public static final BlobAnalyzeAction INSTANCE = new BlobAnalyzeAction();
+    public static final String NAME = "cluster:admin/repository/analyze/blob";
 
-    private BlobAnalyseAction() {
+    private BlobAnalyzeAction() {
         super(NAME, Response::new);
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private static final Logger logger = BlobAnalyseAction.logger;
+        private static final Logger logger = BlobAnalyzeAction.logger;
 
         private final RepositoriesService repositoriesService;
         private final TransportService transportService;
@@ -190,10 +190,10 @@ public class BlobAnalyseAction extends ActionType<BlobAnalyseAction.Response> {
     static class BlobAnalysis {
         private final TransportService transportService;
         private final CancellableTask task;
-        private final BlobAnalyseAction.Request request;
+        private final BlobAnalyzeAction.Request request;
         private final BlobStoreRepository repository;
         private final BlobContainer blobContainer;
-        private final ActionListener<BlobAnalyseAction.Response> listener;
+        private final ActionListener<BlobAnalyzeAction.Response> listener;
         private final Random random;
         private final boolean checksumWholeBlob;
         private final long checksumStart;
@@ -207,10 +207,10 @@ public class BlobAnalyseAction extends ActionType<BlobAnalyseAction.Response> {
         BlobAnalysis(
             TransportService transportService,
             CancellableTask task,
-            BlobAnalyseAction.Request request,
+            BlobAnalyzeAction.Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<BlobAnalyseAction.Response> listener
+            ActionListener<BlobAnalyzeAction.Response> listener
         ) {
             this.transportService = transportService;
             this.task = task;
@@ -677,7 +677,7 @@ public class BlobAnalyseAction extends ActionType<BlobAnalyseAction.Response> {
 
         @Override
         public String toString() {
-            return "BlobAnalyseAction.Request{" + getDescription() + "}";
+            return "BlobAnalyzeAction.Request{" + getDescription() + "}";
         }
 
         @Override

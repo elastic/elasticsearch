@@ -26,7 +26,7 @@ public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTest
         logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
         registerRepository(repository, repositoryType, true, repositorySettings);
 
-        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyse");
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyze");
         request.addParameter("blob_count", "10");
         request.addParameter("concurrency", "4");
         request.addParameter("max_blob_size", "1mb");

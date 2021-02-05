@@ -26,7 +26,7 @@ setup:
 
   - do:
       catch: bad_request
-      snapshot.repository_analyse:
+      snapshot.repository_analyze:
         repository: test_repo_readonly
 
   - match: { status: 400 }
@@ -41,7 +41,7 @@ setup:
       reason: "introduced in 8.0"
 
   - do:
-      snapshot.repository_analyse:
+      snapshot.repository_analyze:
         repository: test_repo
         blob_count: 10
         concurrency: 5
@@ -84,7 +84,7 @@ setup:
       reason: "introduced in 8.0"
 
   - do:
-      snapshot.repository_analyse:
+      snapshot.repository_analyze:
         repository: test_repo
         blob_count: 10
         concurrency: 5

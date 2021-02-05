@@ -70,18 +70,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
- * Action which distributes a bunch of {@link BlobAnalyseAction}s over the nodes in the cluster, with limited concurrency, and collects
+ * Action which distributes a bunch of {@link BlobAnalyzeAction}s over the nodes in the cluster, with limited concurrency, and collects
  * the results. Tries to fail fast by cancelling everything if any child task fails, or the timeout is reached, to avoid consuming
  * unnecessary resources. On completion, does a best-effort wait until the blob list contains all the expected blobs, then deletes them all.
  */
-public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.Response> {
+public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(RepositoryAnalyseAction.class);
+    private static final Logger logger = LogManager.getLogger(RepositoryAnalyzeAction.class);
 
-    public static final RepositoryAnalyseAction INSTANCE = new RepositoryAnalyseAction();
-    public static final String NAME = "cluster:admin/repository/analyse";
+    public static final RepositoryAnalyzeAction INSTANCE = new RepositoryAnalyzeAction();
+    public static final String NAME = "cluster:admin/repository/analyze";
 
-    private RepositoryAnalyseAction() {
+    private RepositoryAnalyzeAction() {
         super(NAME, Response::new);
     }
 
@@ -98,7 +98,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             ClusterService clusterService,
             RepositoriesService repositoriesService
         ) {
-            super(NAME, transportService, actionFilters, RepositoryAnalyseAction.Request::new, ThreadPool.Names.SAME);
+            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, ThreadPool.Names.SAME);
             this.transportService = transportService;
             this.clusterService = clusterService;
             this.repositoriesService = repositoriesService;
@@ -156,7 +156,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
                     snapshotNodes.remove(state.nodes().getMasterNode());
                 }
                 final DiscoveryNode targetNode = snapshotNodes.get(new Random(request.getSeed()).nextInt(snapshotNodes.size()));
-                RepositoryAnalyseAction.logger.trace("rerouting analysis [{}] to [{}]", request.getDescription(), targetNode);
+                RepositoryAnalyzeAction.logger.trace("rerouting analysis [{}] to [{}]", request.getDescription(), targetNode);
                 transportService.sendChildRequest(
                     targetNode,
                     NAME,
@@ -205,7 +205,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
         private final int workerCount;
         private final GroupedActionListener<Void> workersListener;
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
-        private final List<BlobAnalyseAction.Response> responses;
+        private final List<BlobAnalyzeAction.Response> responses;
         private final RepositoryPerformanceSummary.Builder summary = new RepositoryPerformanceSummary.Builder();
 
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
@@ -318,7 +318,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
                 final boolean smallBlob = targetLength <= Integer.MAX_VALUE; // we only use the non-atomic API for larger blobs
                 final VerifyBlobTask verifyBlobTask = new VerifyBlobTask(
                     nodes.get(random.nextInt(nodes.size())),
-                    new BlobAnalyseAction.Request(
+                    new BlobAnalyzeAction.Request(
                         request.getRepositoryName(),
                         blobPath,
                         "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random),
@@ -352,13 +352,13 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
                 );
                 transportService.sendChildRequest(
                     thisTask.node,
-                    BlobAnalyseAction.NAME,
+                    BlobAnalyzeAction.NAME,
                     thisTask.request,
                     task,
                     transportRequestOptions,
-                    new TransportResponseHandler<BlobAnalyseAction.Response>() {
+                    new TransportResponseHandler<BlobAnalyzeAction.Response>() {
                         @Override
-                        public void handleResponse(BlobAnalyseAction.Response response) {
+                        public void handleResponse(BlobAnalyzeAction.Response response) {
                             logger.trace("finished [{}]", thisTask);
                             expectedBlobs.add(thisTask.request.getBlobName()); // each task cleans up its own mess on failure
                             if (request.detailed) {
@@ -378,8 +378,8 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
                         }
 
                         @Override
-                        public BlobAnalyseAction.Response read(StreamInput in) throws IOException {
-                            return new BlobAnalyseAction.Response(in);
+                        public BlobAnalyzeAction.Response read(StreamInput in) throws IOException {
+                            return new BlobAnalyzeAction.Response(in);
                         }
                     }
                 );
@@ -532,9 +532,9 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
 
         private static class VerifyBlobTask {
             final DiscoveryNode node;
-            final BlobAnalyseAction.Request request;
+            final BlobAnalyzeAction.Request request;
 
-            VerifyBlobTask(DiscoveryNode node, BlobAnalyseAction.Request request) {
+            VerifyBlobTask(DiscoveryNode node, BlobAnalyzeAction.Request request) {
                 this.node = node;
                 this.request = request;
             }
@@ -779,7 +779,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
         private final double rareActionProbability;
         private final String blobPath;
         private final RepositoryPerformanceSummary summary;
-        private final List<BlobAnalyseAction.Response> blobResponses;
+        private final List<BlobAnalyzeAction.Response> blobResponses;
         private final long listingTimeNanos;
         private final long deleteTimeNanos;
 
@@ -797,7 +797,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             double rareActionProbability,
             String blobPath,
             RepositoryPerformanceSummary summary,
-            List<BlobAnalyseAction.Response> blobResponses,
+            List<BlobAnalyzeAction.Response> blobResponses,
             long listingTimeNanos,
             long deleteTimeNanos
         ) {
@@ -834,7 +834,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
             rareActionProbability = in.readDouble();
             blobPath = in.readString();
             summary = new RepositoryPerformanceSummary(in);
-            blobResponses = in.readList(BlobAnalyseAction.Response::new);
+            blobResponses = in.readList(BlobAnalyzeAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
         }
@@ -892,7 +892,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
 
             if (blobResponses.size() > 0) {
                 builder.startArray("details");
-                for (BlobAnalyseAction.Response blobResponse : blobResponses) {
+                for (BlobAnalyzeAction.Response blobResponse : blobResponses) {
                     blobResponse.toXContent(builder, params);
                 }
                 builder.endArray();

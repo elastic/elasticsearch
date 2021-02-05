@@ -5,7 +5,7 @@
 <titleabbrev>Repository analysis</titleabbrev>
 ++++
 
-Analyses a repository, reporting its performance characteristics and any
+Analyzes a repository, reporting its performance characteristics and any
 incorrect behaviour found.
 
 ////
@@ -24,13 +24,13 @@ PUT /_snapshot/my_repository
 
 [source,console]
 ----
-POST /_snapshot/my_repository/_analyse?blob_count=10&max_blob_size=1mb&timeout=120s
+POST /_snapshot/my_repository/_analyze?blob_count=10&max_blob_size=1mb&timeout=120s
 ----
 
 [[repo-analysis-api-request]]
 ==== {api-request-title}
 
-`POST /_snapshot/<repository>/_analyse`
+`POST /_snapshot/<repository>/_analyze`
 
 [[repo-analysis-api-desc]]
 ==== {api-description-title}

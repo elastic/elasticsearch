@@ -18,7 +18,7 @@ public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTest
 
     protected abstract Settings repositorySettings();
 
-    public void testRepositorySpeedTest() throws Exception {
+    public void testRepositoryAnalysis() throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
 
@@ -26,7 +26,7 @@ public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTest
         logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
         registerRepository(repository, repositoryType, true, repositorySettings);
 
-        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_speed_test");
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/_analyse");
         request.addParameter("blob_count", "10");
         request.addParameter("concurrency", "4");
         request.addParameter("max_blob_size", "1mb");

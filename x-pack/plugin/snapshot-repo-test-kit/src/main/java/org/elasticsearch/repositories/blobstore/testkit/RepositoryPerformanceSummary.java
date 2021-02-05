@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 
-public class SpeedTestSummary implements Writeable, ToXContentFragment {
+public class RepositoryPerformanceSummary implements Writeable, ToXContentFragment {
 
     private final long writeCount;
     private final long writeBytes;
@@ -30,7 +30,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
     private final long readThrottledNanos;
     private final long readElapsedNanos;
 
-    public SpeedTestSummary(
+    public RepositoryPerformanceSummary(
         long writeCount,
         long writeBytes,
         long writeThrottledNanos,
@@ -54,7 +54,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         this.readElapsedNanos = readElapsedNanos;
     }
 
-    public SpeedTestSummary(StreamInput in) throws IOException {
+    public RepositoryPerformanceSummary(StreamInput in) throws IOException {
         writeCount = in.readVLong();
         writeBytes = in.readVLong();
         writeThrottledNanos = in.readVLong();
@@ -119,8 +119,8 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         private final LongAdder readThrottledNanos = new LongAdder();
         private final LongAdder readElapsedNanos = new LongAdder();
 
-        public SpeedTestSummary build() {
-            return new SpeedTestSummary(
+        public RepositoryPerformanceSummary build() {
+            return new RepositoryPerformanceSummary(
                 writeCount.longValue(),
                 writeBytes.longValue(),
                 writeThrottledNanos.longValue(),
@@ -134,7 +134,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
             );
         }
 
-        public void add(BlobSpeedTestAction.Response response) {
+        public void add(BlobAnalyseAction.Response response) {
             writeCount.add(1L);
             writeBytes.add(response.getWriteBytes());
             writeThrottledNanos.add(response.getWriteThrottledNanos());
@@ -142,7 +142,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
 
             final long checksumBytes = response.getChecksumBytes();
 
-            for (final BlobSpeedTestAction.ReadDetail readDetail : response.getReadDetails()) {
+            for (final BlobAnalyseAction.ReadDetail readDetail : response.getReadDetails()) {
                 readCount.add(1L);
                 readBytes.add(checksumBytes);
                 readWaitNanos.add(readDetail.getFirstByteNanos());

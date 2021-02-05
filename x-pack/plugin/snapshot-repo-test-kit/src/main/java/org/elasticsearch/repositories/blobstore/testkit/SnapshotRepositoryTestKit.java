@@ -28,8 +28,8 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
-            new ActionHandler<>(RepositorySpeedTestAction.INSTANCE, RepositorySpeedTestAction.TransportAction.class),
-            new ActionHandler<>(BlobSpeedTestAction.INSTANCE, BlobSpeedTestAction.TransportAction.class),
+            new ActionHandler<>(RepositoryAnalyseAction.INSTANCE, RepositoryAnalyseAction.TransportAction.class),
+            new ActionHandler<>(BlobAnalyseAction.INSTANCE, BlobAnalyseAction.TransportAction.class),
             new ActionHandler<>(GetBlobChecksumAction.INSTANCE, GetBlobChecksumAction.TransportAction.class)
         );
     }
@@ -44,6 +44,6 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestRepositorySpeedTestAction());
+        return List.of(new RestRepositoryAnalyseAction());
     }
 }

@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class RepositorySpeedTestIT extends AbstractSnapshotIntegTestCase {
+public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
 
     // These tests are incomplete and do not currently verify that the speed test picks up on any particular repository-side failures
     // TODO complete these tests
@@ -78,7 +78,7 @@ public class RepositorySpeedTestIT extends AbstractSnapshotIntegTestCase {
             }
         }
 
-        final RepositorySpeedTestAction.Request request = new RepositorySpeedTestAction.Request("test-repo");
+        final RepositoryAnalyseAction.Request request = new RepositoryAnalyseAction.Request("test-repo");
 
         if (randomBoolean()) {
             request.concurrency(between(1, 5));
@@ -98,7 +98,7 @@ public class RepositorySpeedTestIT extends AbstractSnapshotIntegTestCase {
 
         request.timeout(TimeValue.timeValueSeconds(5));
 
-        final RepositorySpeedTestAction.Response response = client().execute(RepositorySpeedTestAction.INSTANCE, request).actionGet();
+        final RepositoryAnalyseAction.Response response = client().execute(RepositoryAnalyseAction.INSTANCE, request).actionGet();
 
         assertThat(response.status(), equalTo(RestStatus.OK));
     }
@@ -164,13 +164,13 @@ public class RepositorySpeedTestIT extends AbstractSnapshotIntegTestCase {
     static class DisruptableBlobStore implements BlobStore {
 
         private final Map<String, DisruptableBlobContainer> blobContainers = ConcurrentCollections.newConcurrentMap();
-        private Semaphore writeSemaphore = new Semaphore(new RepositorySpeedTestAction.Request("dummy").getConcurrency());
-        private int maxBlobCount = new RepositorySpeedTestAction.Request("dummy").getBlobCount();
-        private long maxBlobSize = new RepositorySpeedTestAction.Request("dummy").getMaxBlobSize().getBytes();
+        private Semaphore writeSemaphore = new Semaphore(new RepositoryAnalyseAction.Request("dummy").getConcurrency());
+        private int maxBlobCount = new RepositoryAnalyseAction.Request("dummy").getBlobCount();
+        private long maxBlobSize = new RepositoryAnalyseAction.Request("dummy").getMaxBlobSize().getBytes();
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            assertThat(path.buildAsString(), startsWith("temp-speed-test-"));
+            assertThat(path.buildAsString(), startsWith("temp-analysis-"));
             return blobContainers.computeIfAbsent(
                 path.buildAsString(),
                 ignored -> new DisruptableBlobContainer(path, this::deleteContainer, writeSemaphore, maxBlobCount, maxBlobSize)

@@ -19,14 +19,14 @@ setup:
             location: "test_repo_loc"
 
 ---
-"Speed test fails on readonly repositories":
+"Analysis fails on readonly repositories":
   - skip:
       version: "- 7.99.99"
       reason: "introduced in 8.0"
 
   - do:
       catch: bad_request
-      snapshot.repository_speed_test:
+      snapshot.repository_analyse:
         repository: test_repo_readonly
 
   - match: { status: 400 }
@@ -35,13 +35,13 @@ setup:
 
 
 ---
-"Speed test without details":
+"Analysis without details":
   - skip:
       version: "- 7.99.99"
       reason: "introduced in 8.0"
 
   - do:
-      snapshot.repository_speed_test:
+      snapshot.repository_analyse:
         repository: test_repo
         blob_count: 10
         concurrency: 5
@@ -76,13 +76,13 @@ setup:
   - gte: { summary.read.total_elapsed_nanos: 0}
 
 ---
-"Speed test with details":
+"Analysis with details":
   - skip:
       version: "- 7.99.99"
       reason: "introduced in 8.0"
 
   - do:
-      snapshot.repository_speed_test:
+      snapshot.repository_analyse:
         repository: test_repo
         blob_count: 10
         concurrency: 5

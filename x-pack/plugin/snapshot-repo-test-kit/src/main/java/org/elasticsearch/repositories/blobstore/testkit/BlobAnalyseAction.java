@@ -140,20 +140,20 @@ import java.util.stream.Collectors;
  * unnecessary resources.
  *
  */
-public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response> {
+public class BlobAnalyseAction extends ActionType<BlobAnalyseAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(BlobSpeedTestAction.class);
+    private static final Logger logger = LogManager.getLogger(BlobAnalyseAction.class);
 
-    public static final BlobSpeedTestAction INSTANCE = new BlobSpeedTestAction();
-    public static final String NAME = "cluster:admin/repository/speed_test/blob";
+    public static final BlobAnalyseAction INSTANCE = new BlobAnalyseAction();
+    public static final String NAME = "cluster:admin/repository/analyse/blob";
 
-    private BlobSpeedTestAction() {
+    private BlobAnalyseAction() {
         super(NAME, Response::new);
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private static final Logger logger = BlobSpeedTestAction.logger;
+        private static final Logger logger = BlobAnalyseAction.logger;
 
         private final RepositoriesService repositoriesService;
         private final TransportService transportService;
@@ -180,20 +180,20 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             logger.trace("handling [{}]", request);
 
             assert task instanceof CancellableTask;
-            new BlobSpeedTest(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener).run();
+            new BlobAnalysis(transportService, (CancellableTask) task, request, blobStoreRepository, blobContainer, listener).run();
         }
     }
 
     /**
-     * Speed test of a single blob, performing the write(s) and orchestrating the read(s).
+     * Analysis on a single blob, performing the write(s) and orchestrating the read(s).
      */
-    static class BlobSpeedTest {
+    static class BlobAnalysis {
         private final TransportService transportService;
         private final CancellableTask task;
-        private final BlobSpeedTestAction.Request request;
+        private final BlobAnalyseAction.Request request;
         private final BlobStoreRepository repository;
         private final BlobContainer blobContainer;
-        private final ActionListener<BlobSpeedTestAction.Response> listener;
+        private final ActionListener<BlobAnalyseAction.Response> listener;
         private final Random random;
         private final boolean checksumWholeBlob;
         private final long checksumStart;
@@ -204,13 +204,13 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
         private final StepListener<WriteDetails> write1Step = new StepListener<>();
         private final StepListener<WriteDetails> write2Step = new StepListener<>();
 
-        BlobSpeedTest(
+        BlobAnalysis(
             TransportService transportService,
             CancellableTask task,
-            BlobSpeedTestAction.Request request,
+            BlobAnalyseAction.Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<BlobSpeedTestAction.Response> listener
+            ActionListener<BlobAnalyseAction.Response> listener
         ) {
             this.transportService = transportService;
             this.task = task;
@@ -414,7 +414,7 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
 
         private void cleanUpAndReturnFailure(Exception exception) {
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("speed test failed [{}] cleaning up", request.getDescription()), exception);
+                logger.trace(new ParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
             }
             try {
                 blobContainer.deleteBlobsIgnoringIfNotExists(List.of(request.blobName));
@@ -422,7 +422,7 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                 exception.addSuppressed(ioException);
                 logger.warn(
                     new ParameterizedMessage(
-                        "failure during post-failure cleanup while speed-testing repository [{}], you may need to manually remove [{}/{}]",
+                        "failure during post-failure cleanup while analysing repository [{}], you may need to manually remove [{}/{}]",
                         request.getRepositoryName(),
                         request.getBlobPath(),
                         request.getBlobName()
@@ -482,7 +482,7 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                             request.getRepositoryName(),
                             "node ["
                                 + nodeResponse.node
-                                + "] failed during speed test: expected to read ["
+                                + "] failed during analysis: expected to read ["
                                 + checksumStart
                                 + "-"
                                 + checksumEnd
@@ -653,7 +653,7 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
 
         @Override
         public String getDescription() {
-            return "blob speed test ["
+            return "blob analysis ["
                 + repositoryName
                 + ":"
                 + blobPath
@@ -672,7 +672,7 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
 
         @Override
         public String toString() {
-            return "BlobSpeedTestAction.Request{" + getDescription() + "}";
+            return "BlobAnalyseAction.Request{" + getDescription() + "}";
         }
 
         @Override

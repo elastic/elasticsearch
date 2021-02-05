@@ -34,11 +34,10 @@ public class OperatorOnlyRegistry {
         "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity",
-        // Repository speed test actions are not mentioned in core, literal strings are needed.
-        // TODO consider whether these are operator-only actions
-        "cluster:admin/repository/speed_test",
-        "cluster:admin/repository/speed_test/blob",
-        "cluster:admin/repository/speed_test/blob/read"
+        // Repository analysis actions are not mentioned in core, literal strings are needed.
+        "cluster:admin/repository/analyse",
+        "cluster:admin/repository/analyse/blob",
+        "cluster:admin/repository/analyse/blob/read"
         );
 
     private final ClusterSettings clusterSettings;

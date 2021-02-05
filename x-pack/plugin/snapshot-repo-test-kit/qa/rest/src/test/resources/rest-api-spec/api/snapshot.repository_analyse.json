@@ -1,15 +1,15 @@
 {
-  "snapshot.repository_speed_test":{
+  "snapshot.repository_analyse":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Performs a speed test on a repository"
+      "description":"Analyses a repository for correctness and performance"
     },
     "stability":"stable",
     "visibility":"public",
     "url":{
       "paths":[
         {
-          "path":"/_snapshot/{repository}/_speed_test",
+          "path":"/_snapshot/{repository}/_analyse",
           "methods":[
             "POST"
           ],

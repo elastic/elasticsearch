@@ -70,18 +70,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
- * Action which distributes a bunch of {@link BlobSpeedTestAction}s over the nodes in the cluster, with limited concurrency, and collects
+ * Action which distributes a bunch of {@link BlobAnalyseAction}s over the nodes in the cluster, with limited concurrency, and collects
  * the results. Tries to fail fast by cancelling everything if any child task fails, or the timeout is reached, to avoid consuming
  * unnecessary resources. On completion, does a best-effort wait until the blob list contains all the expected blobs, then deletes them all.
  */
-public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAction.Response> {
+public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(RepositorySpeedTestAction.class);
+    private static final Logger logger = LogManager.getLogger(RepositoryAnalyseAction.class);
 
-    public static final RepositorySpeedTestAction INSTANCE = new RepositorySpeedTestAction();
-    public static final String NAME = "cluster:admin/repository/speed_test";
+    public static final RepositoryAnalyseAction INSTANCE = new RepositoryAnalyseAction();
+    public static final String NAME = "cluster:admin/repository/analyse";
 
-    private RepositorySpeedTestAction() {
+    private RepositoryAnalyseAction() {
         super(NAME, Response::new);
     }
 
@@ -98,7 +98,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             ClusterService clusterService,
             RepositoriesService repositoriesService
         ) {
-            super(NAME, transportService, actionFilters, RepositorySpeedTestAction.Request::new, ThreadPool.Names.SAME);
+            super(NAME, transportService, actionFilters, RepositoryAnalyseAction.Request::new, ThreadPool.Names.SAME);
             this.transportService = transportService;
             this.clusterService = clusterService;
             this.repositoriesService = repositoriesService;
@@ -137,7 +137,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             if (request.getReroutedFrom() != null) {
                 assert false : request.getReroutedFrom();
                 throw new IllegalArgumentException(
-                    "speed test of repository ["
+                    "analysis of repository ["
                         + request.getRepositoryName()
                         + "] rerouted from ["
                         + request.getReroutedFrom()
@@ -149,16 +149,14 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             final List<DiscoveryNode> snapshotNodes = getSnapshotNodes(state.nodes());
             if (snapshotNodes.isEmpty()) {
                 listener.onFailure(
-                    new IllegalArgumentException(
-                        "no snapshot nodes found for speed test of repository [" + request.getRepositoryName() + "]"
-                    )
+                    new IllegalArgumentException("no snapshot nodes found for analysis of repository [" + request.getRepositoryName() + "]")
                 );
             } else {
                 if (snapshotNodes.size() > 1) {
                     snapshotNodes.remove(state.nodes().getMasterNode());
                 }
                 final DiscoveryNode targetNode = snapshotNodes.get(new Random(request.getSeed()).nextInt(snapshotNodes.size()));
-                RepositorySpeedTestAction.logger.trace("rerouting speed test [{}] to [{}]", request.getDescription(), targetNode);
+                RepositoryAnalyseAction.logger.trace("rerouting analysis [{}] to [{}]", request.getDescription(), targetNode);
                 transportService.sendChildRequest(
                     targetNode,
                     NAME,
@@ -199,7 +197,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final long timeoutTimeMillis;
 
         // choose the blob path nondeterministically to avoid clashes, assuming that the actual path doesn't matter for reproduction
-        private final String blobPath = "temp-speed-test-" + UUIDs.randomBase64UUID();
+        private final String blobPath = "temp-analysis-" + UUIDs.randomBase64UUID();
 
         private final Queue<VerifyBlobTask> queue = ConcurrentCollections.newQueue();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
@@ -207,8 +205,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final int workerCount;
         private final GroupedActionListener<Void> workersListener;
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
-        private final List<BlobSpeedTestAction.Response> responses;
-        private final SpeedTestSummary.Builder summary = new SpeedTestSummary.Builder();
+        private final List<BlobAnalyseAction.Response> responses;
+        private final RepositoryPerformanceSummary.Builder summary = new RepositoryPerformanceSummary.Builder();
 
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private OptionalLong listingStartTimeNanos = OptionalLong.empty();
@@ -287,7 +285,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             if (timeoutTimeMillis < currentTimeMillisSupplier.getAsLong()) {
                 if (failure.compareAndSet(
                     null,
-                    new RepositoryVerificationException(request.repositoryName, "speed test timed out after [" + request.getTimeout() + "]")
+                    new RepositoryVerificationException(request.repositoryName, "analysis timed out after [" + request.getTimeout() + "]")
                 )) {
                     transportService.getTaskManager().cancelTaskAndDescendants(task, "timed out", false, ActionListener.wrap(() -> {}));
                 }
@@ -301,7 +299,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         public void run() {
             assert queue.isEmpty() && failure.get() == null : "must only run action once";
 
-            logger.info("running speed test of repository [{}] using path [{}]", request.getRepositoryName(), blobPath);
+            logger.info("running analysis of repository [{}] using path [{}]", request.getRepositoryName(), blobPath);
 
             final Random random = new Random(request.getSeed());
 
@@ -319,10 +317,10 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                 final boolean smallBlob = targetLength <= Integer.MAX_VALUE; // we only use the non-atomic API for larger blobs
                 final VerifyBlobTask verifyBlobTask = new VerifyBlobTask(
                     nodes.get(random.nextInt(nodes.size())),
-                    new BlobSpeedTestAction.Request(
+                    new BlobAnalyseAction.Request(
                         request.getRepositoryName(),
                         blobPath,
-                        "speed-test-" + i + "-" + UUIDs.randomBase64UUID(random),
+                        "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random),
                         targetLength,
                         random.nextLong(),
                         nodes,
@@ -353,13 +351,13 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                 );
                 transportService.sendChildRequest(
                     thisTask.node,
-                    BlobSpeedTestAction.NAME,
+                    BlobAnalyseAction.NAME,
                     thisTask.request,
                     task,
                     transportRequestOptions,
-                    new TransportResponseHandler<BlobSpeedTestAction.Response>() {
+                    new TransportResponseHandler<BlobAnalyseAction.Response>() {
                         @Override
-                        public void handleResponse(BlobSpeedTestAction.Response response) {
+                        public void handleResponse(BlobAnalyseAction.Response response) {
                             logger.trace("finished [{}]", thisTask);
                             expectedBlobs.add(thisTask.request.getBlobName()); // each task cleans up its own mess on failure
                             if (request.detailed) {
@@ -379,8 +377,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         }
 
                         @Override
-                        public BlobSpeedTestAction.Response read(StreamInput in) throws IOException {
-                            return new BlobSpeedTestAction.Response(in);
+                        public BlobAnalyseAction.Response read(StreamInput in) throws IOException {
+                            return new BlobAnalyseAction.Response(in);
                         }
                     }
                 );
@@ -399,7 +397,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private void tryListAndCleanup(final int retryCount) {
             if (timeoutTimeMillis < currentTimeMillisSupplier.getAsLong() || task.isCancelled()) {
                 logger.warn(
-                    "speed test of repository [{}] failed in cleanup phase after [{}] attempts, attempting best-effort cleanup "
+                    "analysis of repository [{}] failed in cleanup phase after [{}] attempts, attempting best-effort cleanup "
                         + "but you may need to manually remove [{}]",
                     request.getRepositoryName(),
                     retryCount,
@@ -517,11 +515,11 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                     )
                 );
             } else {
-                logger.debug(new ParameterizedMessage("speed test of repository [{}] failed", request.repositoryName), exception);
+                logger.debug(new ParameterizedMessage("analysis of repository [{}] failed", request.repositoryName), exception);
                 listener.onFailure(
                     new RepositoryVerificationException(
                         request.getRepositoryName(),
-                        "speed test failed, you may need to manually remove [" + blobPath + "]",
+                        "analysis failed, you may need to manually remove [" + blobPath + "]",
                         exception
                     )
                 );
@@ -530,9 +528,9 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
         private static class VerifyBlobTask {
             final DiscoveryNode node;
-            final BlobSpeedTestAction.Request request;
+            final BlobAnalyseAction.Request request;
 
-            VerifyBlobTask(DiscoveryNode node, BlobSpeedTestAction.Request request) {
+            VerifyBlobTask(DiscoveryNode node, BlobAnalyseAction.Request request) {
                 this.node = node;
                 this.request = request;
             }
@@ -715,7 +713,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
         @Override
         public String getDescription() {
-            return "speed test [repository="
+            return "analysis [repository="
                 + repositoryName
                 + ", blobCount="
                 + blobCount
@@ -759,8 +757,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final long seed;
         private final double rareActionProbability;
         private final String blobPath;
-        private final SpeedTestSummary summary;
-        private final List<BlobSpeedTestAction.Response> blobResponses;
+        private final RepositoryPerformanceSummary summary;
+        private final List<BlobAnalyseAction.Response> blobResponses;
         private final long listingTimeNanos;
         private final long deleteTimeNanos;
 
@@ -776,8 +774,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             long seed,
             double rareActionProbability,
             String blobPath,
-            SpeedTestSummary summary,
-            List<BlobSpeedTestAction.Response> blobResponses,
+            RepositoryPerformanceSummary summary,
+            List<BlobAnalyseAction.Response> blobResponses,
             long listingTimeNanos,
             long deleteTimeNanos
         ) {
@@ -811,8 +809,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             seed = in.readLong();
             rareActionProbability = in.readDouble();
             blobPath = in.readString();
-            summary = new SpeedTestSummary(in);
-            blobResponses = in.readList(BlobSpeedTestAction.Response::new);
+            summary = new RepositoryPerformanceSummary(in);
+            blobResponses = in.readList(BlobAnalyseAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
         }
@@ -851,6 +849,11 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             builder.endObject();
 
             builder.field("repository", repositoryName);
+
+            // TODO add "consistency": "no problems found"
+
+            // TODO wrap the speed test results into an inner object
+
             builder.field("blob_count", blobCount);
             builder.field("concurrency", concurrency);
             builder.field("read_node_count", readNodeCount);
@@ -863,7 +866,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
             if (blobResponses.size() > 0) {
                 builder.startArray("details");
-                for (BlobSpeedTestAction.Response blobResponse : blobResponses) {
+                for (BlobAnalyseAction.Response blobResponse : blobResponses) {
                     blobResponse.toXContent(builder, params);
                 }
                 builder.endArray();

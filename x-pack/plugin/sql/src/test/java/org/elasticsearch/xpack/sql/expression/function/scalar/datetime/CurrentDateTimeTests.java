@@ -92,7 +92,8 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
         IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
                 SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json")));
 
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution,
+            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version()));
         ParsingException e = expectThrows(ParsingException.class, () ->
             analyzer.analyze(parser.createStatement("SELECT CURRENT_TIMESTAMP(100000000000000)"), true));
         assertEquals("line 1:27: invalid precision; [100000000000000] out of [integer] range", e.getMessage());

@@ -176,4 +176,22 @@ final class TypeUtils {
         }
         return dataType;
     }
+
+    static EsType baseType(EsType type) throws SQLException {
+        String typeName = type.getName();
+        return isArray(type)
+            ? of(typeName.substring(0, typeName.length() - "_ARRAY".length()).toLowerCase(Locale.ROOT))
+            : type;
+    }
+
+    static EsType arrayOf(EsType type) throws SQLException {
+        if (isArray(type)) {
+            throw new SQLException("multidimentional array types not supported");
+        }
+        return ENUM_NAME_TO_TYPE.get(type.name().toLowerCase(Locale.ROOT) + "_array");
+    }
+
+    static boolean isArray(EsType type) {
+        return type.getName().endsWith("_ARRAY");
+    }
 }

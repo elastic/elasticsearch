@@ -24,6 +24,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
@@ -242,6 +243,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
                     processorTag,
                     "method",
                     String.format(
+                        Locale.ROOT,
                         "[%s] must be one of the supported hash methods [%s]",
                         method,
                         Strings.arrayToCommaDelimitedString(SUPPORTED_DIGESTS)

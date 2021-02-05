@@ -58,6 +58,7 @@ public class AsyncPersistentSearch {
     private final AtomicInteger pendingShardsToQueryCount;
     private final ShardQueryResultsReducer shardQueryResultsReducer;
     private final Queue<AsyncShardQueryAndFetch> pendingShardsToQuery;
+    private final List<SearchShard> searchShards;
 
     private final AtomicInteger runningShardQueries = new AtomicInteger(0);
     private final AtomicBoolean searchRunning = new AtomicBoolean(true);
@@ -93,17 +94,19 @@ public class AsyncPersistentSearch {
         this.onCompletionListener = onCompletionListener;
         this.pendingShardsToQueryCount = new AtomicInteger(searchShards.size());
         this.shardQueryResultsReducer = new ShardQueryResultsReducer(searchShards.size(), maxShardsPerReduceRequest);
+
         // Query and reduce ordering by shard id
-        final List<SearchShard> searchShardsCopy = new ArrayList<>(searchShards);
-        Collections.sort(searchShardsCopy);
+        this.searchShards = new ArrayList<>(searchShards);
+        Collections.sort(this.searchShards);
         Queue<AsyncShardQueryAndFetch> pendingShardQueries = new PriorityQueue<>();
-        for (int i = 0; i < searchShards.size(); i++) {
-            SearchShard searchShard = searchShards.get(i);
+        final long expireAbsoluteTime = expirationTime.millis() + searchTimeProvider.getAbsoluteStartMillis();
+        for (int i = 0; i < this.searchShards.size(); i++) {
+            SearchShard searchShard = this.searchShards.get(i);
             PersistentSearchShardId persistentSearchShardId = new PersistentSearchShardId(searchShard, asyncSearchId, i);
             ShardSearchRequest shardSearchRequest =
                 buildShardSearchRequest(searchRequest, originalIndices, searchTimeProvider, aliasFiltersByIndex, searchShard.getShardId());
-            final ExecutePersistentQueryFetchRequest request = new ExecutePersistentQueryFetchRequest(persistentSearchShardId,
-                expirationTime.millis() + searchTimeProvider.getAbsoluteStartMillis(),
+            ExecutePersistentQueryFetchRequest request = new ExecutePersistentQueryFetchRequest(persistentSearchShardId,
+                expireAbsoluteTime,
                 shardSearchRequest);
             pendingShardQueries.add(new AsyncShardQueryAndFetch(persistentSearchShardId, request));
         }

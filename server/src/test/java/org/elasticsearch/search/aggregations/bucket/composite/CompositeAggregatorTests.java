@@ -667,21 +667,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
     }
 
-    private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
-        assert rawFields.length % 2 == 0;
-        Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
-        Object[] fields = new Object[rawFields.length];
-        for (int i = 0; i < fields.length; i+=2) {
-            assert rawFields[i] instanceof String;
-            fields[i] = nestedPath + "."  + rawFields[i];
-            fields[i+1] = rawFields[i+1];
-        }
-        addToDocument(doc, createDocument(fields));
-        return doc;
-    }
-
     public void testWithKeywordAndMissingBucket() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -2552,6 +2537,21 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             }
         }
         return map;
+    }
+
+    private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
+        assert rawFields.length % 2 == 0;
+        Document doc = new Document();
+        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        Object[] fields = new Object[rawFields.length];
+        for (int i = 0; i < fields.length; i+=2) {
+            assert rawFields[i] instanceof String;
+            fields[i] = nestedPath + "."  + rawFields[i];
+            fields[i+1] = rawFields[i+1];
+        }
+        addToDocument(doc, createDocument(fields));
+        return doc;
     }
 
     private static long asLong(String dateTime) {

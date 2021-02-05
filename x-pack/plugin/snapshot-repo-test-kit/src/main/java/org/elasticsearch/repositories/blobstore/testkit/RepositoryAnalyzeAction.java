@@ -874,11 +874,6 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             builder.endObject();
 
             builder.field("repository", repositoryName);
-
-            // TODO add "consistency": "no problems found"
-
-            // TODO wrap the speed test results into an inner object
-
             builder.field("blob_count", blobCount);
             builder.field("concurrency", concurrency);
             builder.field("read_node_count", readNodeCount);
@@ -888,6 +883,12 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             builder.field("seed", seed);
             builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);
+
+            builder.startArray("bugs_detected");
+            // nothing to report here, if we detected a bug then we would have thrown an exception, but we include this to emphasise
+            // that we are only detecting bugs, not guaranteeing their absence
+            builder.endArray();
+
             builder.field("summary", summary);
 
             if (blobResponses.size() > 0) {

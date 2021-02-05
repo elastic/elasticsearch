@@ -274,6 +274,12 @@ The probability of performing rare actions during the test. Equal to the
 The path in the repository under which all the blobs were written during the
 test.
 
+`bugs_detected`::
+(list)
+A list of correctness issues detected, which will be empty if the API
+succeeded. Included to emphasize that a successful response does not guarantee
+correct behaviour in future.
+
 `summary`::
 (object)
 A collection of statistics that summarise the results of the test.

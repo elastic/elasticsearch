@@ -10,7 +10,6 @@ package org.elasticsearch.search;
 
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.CoreMatchers.is;

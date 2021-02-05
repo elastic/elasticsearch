@@ -69,7 +69,7 @@ public class JavadocExtractor {
         }
 
         public void validateLicense(Optional<Comment> license) {
-            if (validated == true) {
+            if (validated) {
                 throw new IllegalStateException("Cannot double validate the license");
             }
             this.valid = license.map(Comment::getContent).orElse("").contains(this.license);

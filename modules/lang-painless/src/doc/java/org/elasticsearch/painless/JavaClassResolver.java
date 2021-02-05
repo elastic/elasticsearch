@@ -12,5 +12,5 @@ import java.io.IOException;
 import java.io.InputStream;
 
 public interface JavaClassResolver {
-    public InputStream openClassFile(String className) throws IOException;
+    InputStream openClassFile(String className) throws IOException;
 }

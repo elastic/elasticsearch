@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -102,12 +101,16 @@ public class TransformConfig implements ToXContentObject {
             FREQUENCY,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), SYNC);
+        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), SYNC);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p), LATEST_TRANSFORM);
         PARSER.declareString(optionalConstructorArg(), DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p), SETTINGS);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseRentionPolicyConfig(p), RETENTION_POLICY);
+        PARSER.declareNamedObject(
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
+            RETENTION_POLICY
+        );
         PARSER.declareField(
             optionalConstructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
@@ -115,23 +118,6 @@ public class TransformConfig implements ToXContentObject {
             ObjectParser.ValueType.VALUE
         );
         PARSER.declareString(optionalConstructorArg(), VERSION);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseRentionPolicyConfig(p), RETENTION_POLICY);
-    }
-
-    private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-        SyncConfig syncConfig = parser.namedObject(SyncConfig.class, parser.currentName(), true);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return syncConfig;
-    }
-
-    private static RetentionPolicyConfig parseRentionPolicyConfig(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-        RetentionPolicyConfig retentionPolicyConfig = parser.namedObject(RetentionPolicyConfig.class, parser.currentName(), true);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return retentionPolicyConfig;
     }
 
     public static TransformConfig fromXContent(final XContentParser parser) {

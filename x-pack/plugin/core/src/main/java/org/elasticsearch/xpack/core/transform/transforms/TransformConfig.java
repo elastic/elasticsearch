@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -142,14 +141,18 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         parser.declareObject(constructorArg(), (p, c) -> SourceConfig.fromXContent(p, lenient), TransformField.SOURCE);
         parser.declareObject(constructorArg(), (p, c) -> DestConfig.fromXContent(p, lenient), TransformField.DESTINATION);
         parser.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p, lenient), TransformField.SYNC);
+        parser.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
         parser.declareString(optionalConstructorArg(), TransformField.INDEX_DOC_TYPE);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
         parser.declareObject(optionalConstructorArg(), (p, c) -> LatestConfig.fromXContent(p, lenient), LATEST_TRANSFORM);
         parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, lenient), TransformField.SETTINGS);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> parseRetentionPolicyConfig(p), TransformField.RETENTION_POLICY);
+        parser.declareNamedObject(
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
+            TransformField.RETENTION_POLICY
+        );
         parser.declareField(
             optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, TransformField.CREATE_TIME.getPreferredName()),
@@ -158,22 +161,6 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         );
         parser.declareString(optionalConstructorArg(), TransformField.VERSION);
         return parser;
-    }
-
-    private static SyncConfig parseSyncConfig(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-        SyncConfig syncConfig = parser.namedObject(SyncConfig.class, parser.currentName(), ignoreUnknownFields);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return syncConfig;
-    }
-
-    private static RetentionPolicyConfig parseRetentionPolicyConfig(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-        RetentionPolicyConfig retentionPolicyConfig = parser.namedObject(RetentionPolicyConfig.class, parser.currentName(), true);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return retentionPolicyConfig;
     }
 
     public static String documentId(String transformId) {

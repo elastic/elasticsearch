@@ -174,7 +174,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoMultiSmall(Blackhole bh) {
-        try (LongKeyedBucketOrds ords = new LongKeyedBucketOrds.FromManySmall(bigArrays, 3)) {
+        try (LongKeyedBucketOrds ords = new LongKeyedBucketOrds.FromManySmall(bigArrays, 60)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }

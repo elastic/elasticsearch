@@ -14,6 +14,8 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
+import java.util.Locale;
+
 /**
  * Maps long bucket keys to bucket ordinals.
  */
@@ -332,11 +334,17 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         public long add(long owningBucketOrd, long value) {
             // This is in the critical path for collecting lots of aggs. Be careful of performance.
             long enc = encode(owningBucketOrd, value);
-            if (owningBucketOrd != (enc >>> owningBucketOrdShift)) {
-                throw new IllegalArgumentException("[" + owningBucketOrd + "] must fit in [" + owningBucketOrdShift + "] bits");
-            }
-            if ((enc & ~owningBucketOrdMask) != value) {
-                throw new IllegalArgumentException("[" + value + "] must fit in [" + (64 - owningBucketOrdShift) + "] bits");
+            if (owningBucketOrd != (enc >>> owningBucketOrdShift) && (enc & ~owningBucketOrdMask) != value) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] and [%s] must fit in [%s..%s] bits",
+                        owningBucketOrd,
+                        value,
+                        64 - owningBucketOrdShift,
+                        owningBucketOrdShift
+                    )
+                );
             }
             return ords.add(enc);
         }

@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.junit.Before;
 
 import java.io.IOException;

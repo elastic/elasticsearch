@@ -71,14 +71,21 @@ final class SearchResponseMerger {
     private final SearchTimeProvider searchTimeProvider;
     private final InternalAggregation.ReduceContextBuilder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
+    private final boolean executeFinalReduce;
 
     SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
                          InternalAggregation.ReduceContextBuilder aggReduceContextBuilder) {
+        this(from, size, trackTotalHitsUpTo, searchTimeProvider, aggReduceContextBuilder, false);
+    }
+
+    SearchResponseMerger(int from, int size, int trackTotalHitsUpTo, SearchTimeProvider searchTimeProvider,
+                         InternalAggregation.ReduceContextBuilder aggReduceContextBuilder, boolean executeFinalReduce) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.aggReduceContextBuilder = Objects.requireNonNull(aggReduceContextBuilder);
+        this.executeFinalReduce = executeFinalReduce;
     }
 
     /**
@@ -184,7 +191,8 @@ final class SearchResponseMerger {
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
         setSuggestShardIndex(shards, groupedSuggestions);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs,
+            executeFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
         SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         //make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
@@ -373,8 +381,9 @@ final class SearchResponseMerger {
         private final String clusterAlias;
 
         ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) {
+            // TODO: SearchResponseMerger is designed to merge responses from multiple clusters
             this.shardId = shardId;
-            assert clusterAlias != null : "clusterAlias is null";
+//            assert clusterAlias != null : "clusterAlias is null";
             this.clusterAlias = clusterAlias;
         }
 
@@ -398,11 +407,14 @@ final class SearchResponseMerger {
 
         @Override
         public int compareTo(ShardIdAndClusterAlias o) {
-            int shardIdCompareTo = shardId.compareTo(o.shardId);
-            if (shardIdCompareTo != 0) {
-                return shardIdCompareTo;
-            }
-            return clusterAlias.compareTo(o.clusterAlias);
+            // TODO: SearchResponseMerger is designed to merge responses from multiple clusters, we're using it temporarily to merge
+            //       partial results
+            return shardId.compareTo(o.shardId);
+//            int shardIdCompareTo = shardId.compareTo(o.shardId);
+//            if (shardIdCompareTo != 0) {
+//                return shardIdCompareTo;
+//            }
+//            return clusterAlias.compareTo(o.clusterAlias);
         }
     }
 }

@@ -19,9 +19,11 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.PersistentSearchService;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.persistent.SearchShardTargetResolver;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -145,6 +147,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.persistent.PersistentSearchStorageService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
@@ -500,10 +503,13 @@ public class Node implements Closeable {
             final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
-                .collect(Collectors.toUnmodifiableMap(
+                .collect(Collectors.toMap(
                     plugin -> plugin.getClass().getSimpleName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings)));
-            final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
+
+            // TODO: Ugly hack to create the persistent search index that for now it isn't a plugin
+            systemIndexDescriptorMap.put("persistent_search", PersistentSearchStorageService.getSystemIndexDescriptors());
+            final SystemIndices systemIndices = new SystemIndices(Collections.unmodifiableMap(systemIndexDescriptorMap));
 
             final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
             clusterService.addListener(systemIndexManager);
@@ -629,6 +635,15 @@ public class Node implements Closeable {
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
+            final SearchPhaseController searchPhaseController = new SearchPhaseController(
+                namedWriteableRegistry, searchService::aggReduceContextBuilder);
+
+            final PersistentSearchStorageService persistentSearchStorageService =
+                new PersistentSearchStorageService(client, threadPool, namedWriteableRegistry, settings);
+
+            final PersistentSearchService persistentSearchService = new PersistentSearchService(searchService, searchPhaseController,
+                persistentSearchStorageService, threadPool.executor(ThreadPool.Names.SEARCH), System::nanoTime);
+
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
@@ -659,8 +674,7 @@ public class Node implements Closeable {
                     b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                     b.bind(SearchService.class).toInstance(searchService);
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                    b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(
-                        namedWriteableRegistry, searchService::aggReduceContextBuilder));
+                    b.bind(SearchPhaseController.class).toInstance(searchPhaseController);
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
@@ -690,6 +704,9 @@ public class Node implements Closeable {
                     b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                     b.bind(FsHealthService.class).toInstance(fsHealthService);
                     b.bind(SystemIndices.class).toInstance(systemIndices);
+                    b.bind(PersistentSearchService.class).toInstance(persistentSearchService);
+                    b.bind(SearchShardTargetResolver.class)
+                        .toInstance(new SearchShardTargetResolver.DefaultSearchShardTargetResolver(clusterService));
                 }
             );
             injector = modules.createInjector();

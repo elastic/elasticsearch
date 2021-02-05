@@ -394,7 +394,7 @@ public final class SearchPhaseController {
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
-    ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
+    static ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults,
                                         List<InternalAggregations> bufferedAggs,
                                         List<TopDocs> bufferedTopDocs,
                                         TopDocsStats topDocsStats, int numReducePhases, boolean isScrollRequest,

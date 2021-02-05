@@ -128,7 +128,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // Add an estimate of the final reduce size
             breakerSize = pendingMerges.addEstimateAndMaybeBreak(pendingMerges.estimateRamBytesUsedForReduce(breakerSize));
         }
-        SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), aggsList,
+        SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(results.asList(), aggsList,
             topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
         if (hasAggs
                 // reduced aggregations can be null if all shards failed

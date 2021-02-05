@@ -54,8 +54,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -1300,27 +1300,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * builder retains a reference to the provided {@link SearchRequest}.
      */
     public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchRequest request) {
+        return aggReduceContextBuilder(request.source());
+    }
+
+    /**
+     * Returns a builder for {@link InternalAggregation.ReduceContext}. This
+     * builder retains a reference to the provided {@link SearchRequest}.
+     */
+    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchSourceBuilder searchSource) {
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
                 return InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
-                        () -> requestToPipelineTree(request));
+                    () -> requestToPipelineTree(searchSource));
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                PipelineTree pipelineTree = requestToPipelineTree(request);
+                PipelineTree pipelineTree = requestToPipelineTree(searchSource);
                 return InternalAggregation.ReduceContext.forFinalReduction(
-                        bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
+                    bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
             }
         };
     }
 
-    private static PipelineTree requestToPipelineTree(SearchRequest request) {
-        if (request.source() == null || request.source().aggregations() == null) {
+    private static PipelineTree requestToPipelineTree(SearchSourceBuilder searchSource) {
+        if (searchSource == null || searchSource.aggregations() == null) {
             return PipelineTree.EMPTY;
         }
-        return request.source().aggregations().buildPipelineTree();
+        return searchSource.aggregations().buildPipelineTree();
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {

@@ -9,8 +9,12 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
 
@@ -18,7 +22,7 @@ import java.util.Objects;
  * A class that encapsulates the {@link ShardId} and the cluster alias
  * of a shard used during the search action.
  */
-public final class SearchShard implements Comparable<SearchShard> {
+public final class SearchShard implements Comparable<SearchShard>, Writeable {
     @Nullable
     private final String clusterAlias;
     private final ShardId shardId;
@@ -26,6 +30,11 @@ public final class SearchShard implements Comparable<SearchShard> {
     public SearchShard(@Nullable String clusterAlias, ShardId shardId) {
         this.clusterAlias = clusterAlias;
         this.shardId = shardId;
+    }
+
+    public SearchShard(StreamInput in) throws IOException {
+        this.clusterAlias = in.readOptionalString();
+        this.shardId = new ShardId(in);
     }
 
     /**
@@ -69,5 +78,11 @@ public final class SearchShard implements Comparable<SearchShard> {
             "clusterAlias='" + clusterAlias + '\'' +
             ", shardId=" + shardId +
             '}';
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(clusterAlias);
+        shardId.writeTo(out);
     }
 }

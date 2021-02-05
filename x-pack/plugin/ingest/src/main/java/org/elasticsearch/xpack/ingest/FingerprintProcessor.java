@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ingest;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -26,11 +27,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 
+/**
+ * Computes hash based on the content of selected fields in a document.
+ */
 public final class FingerprintProcessor extends AbstractProcessor {
 
     public static final String TYPE = "fingerprint";
@@ -64,6 +67,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         Hasher hasher = threadLocalHasher.get();
         hasher.reset();
@@ -93,18 +97,19 @@ public final class FingerprintProcessor extends AbstractProcessor {
                         values.push(list.get(k));
                     }
                 } else if (value instanceof Set) {
-                    var set = (Set<?>) value;
+                    @SuppressWarnings("rawtypes")
+                    var set = (Set<Comparable>) value;
                     // process set entries in consistent order
-                    var setList = set.stream().sorted().collect(Collectors.toList());
+                    var setList = new ArrayList<>(set);
+                    setList.sort(Comparator.naturalOrder());
                     for (int k = setList.size() - 1; k >= 0; k--) {
                         values.push(setList.get(k));
                     }
                 } else if (value instanceof Map) {
-                    @SuppressWarnings("unchecked")
                     var map = (Map<String, Object>) value;
                     // process map entries in consistent order
-                    final Comparator<Map.Entry<String, Object>> keyComparator = Map.Entry.comparingByKey(Comparator.naturalOrder());
-                    var entryList = map.entrySet().stream().sorted(keyComparator).collect(Collectors.toList());
+                    var entryList = new ArrayList<>(map.entrySet());
+                    entryList.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
                     for (int k = entryList.size() - 1; k >= 0; k--) {
                         values.push(entryList.get(k));
                     }
@@ -229,10 +234,19 @@ public final class FingerprintProcessor extends AbstractProcessor {
 
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET);
             String salt = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt", DEFAULT_SALT);
-            byte[] saltBytes = salt.length() > 0 ? toBytes(salt) : new byte[0];
+            byte[] saltBytes = Strings.hasText(salt) ? toBytes(salt) : new byte[0];
             String method = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "method", DEFAULT_METHOD);
             if (Arrays.asList(SUPPORTED_DIGESTS).contains(method) == false) {
-                throw newConfigurationException(TYPE, processorTag, "method", "[" + method + "] is not a supported hash method");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "method",
+                    String.format(
+                        "[%s] must be one of the supported hash methods [%s]",
+                        method,
+                        Strings.arrayToCommaDelimitedString(SUPPORTED_DIGESTS)
+                    )
+                );
             }
             ThreadLocal<Hasher> threadLocalHasher = ThreadLocal.withInitial(() -> {
                 try {

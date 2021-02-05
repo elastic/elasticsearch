@@ -80,7 +80,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         config.put("fields", fieldList);
         config.put("method", invalidMethod);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
-        assertThat(e.getMessage(), containsString("[" + invalidMethod + "] is not a supported hash method"));
+        assertThat(e.getMessage(), containsString("[" + invalidMethod + "] must be one of the supported hash methods ["));
     }
 
     public void testFields() throws Exception {

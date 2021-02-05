@@ -243,8 +243,8 @@ public class SystemIndexDescriptor {
     }
 
     /**
-     * Checks that this descriptor can be used within this cluster, by comparing the supplied minimum
-     * node version to this descriptor's minimum version.
+     * Checks that this descriptor can be used within this cluster e.g. the cluster supports all required
+     * features, by comparing the supplied minimum node version to this descriptor's minimum version.
      *
      * @param cause the action being attempted that triggered the check. Used in the error message.
      * @param actualMinimumNodeVersion the lower node version in the cluster

@@ -20,7 +20,9 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -126,6 +128,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.indexState.indexAvailable;
     }
 
+    public boolean isMappingUpToDate() {
+        return this.indexState.mappingUpToDate;
+    }
+
     public boolean isStateRecovered() {
         return this.indexState != State.UNRECOVERED_STATE;
     }
@@ -169,6 +175,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         final boolean isIndexUpToDate = indexMetadata == null ||
             INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
         final boolean indexAvailable = checkIndexAvailable(event.state());
+        final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final Version mappingVersion = oldestIndexMappingVersion(event.state());
         final String concreteIndexName = indexMetadata == null
             ? systemIndexDescriptor.getPrimaryIndex()
@@ -188,8 +195,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             final IndexRoutingTable routingTable = event.state().getRoutingTable().index(indexMetadata.getIndex());
             indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
         }
-        final State newState = new State(creationTime, isIndexUpToDate, indexAvailable, mappingVersion,
-                concreteIndexName, indexHealth, indexState);
+        final State newState = new State(creationTime, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion,
+                concreteIndexName, indexHealth, indexState, event.state().nodes().getMinNodeVersion());
         this.indexState = newState;
 
         if (newState.equals(previousState) == false) {
@@ -217,6 +224,19 @@ public class SecurityIndexManager implements ClusterStateListener {
         } else {
             return true;
         }
+    }
+
+    private boolean checkIndexMappingUpToDate(ClusterState clusterState) {
+        return checkIndexMappingVersionMatches(clusterState, Version.CURRENT::equals);
+    }
+
+    private boolean checkIndexMappingVersionMatches(ClusterState clusterState, Predicate<Version> predicate) {
+        return checkIndexMappingVersionMatches(this.systemIndexDescriptor.getAliasName(), clusterState, logger, predicate);
+    }
+
+    public static boolean checkIndexMappingVersionMatches(String indexName, ClusterState clusterState, Logger logger,
+                                                          Predicate<Version> predicate) {
+        return loadIndexMappingVersions(indexName, clusterState, logger).stream().allMatch(predicate);
     }
 
     private Version oldestIndexMappingVersion(ClusterState clusterState) {
@@ -346,6 +366,31 @@ public class SecurityIndexManager implements ClusterStateListener {
                             }
                         }
                     }, client.admin().indices()::create);
+            } else if (indexState.mappingUpToDate == false) {
+                final String error = systemIndexDescriptor.checkMinimumNodeVersion("create index", indexState.minimumNodeVersion);
+                if (error != null) {
+                    consumer.accept(new IllegalStateException(error));
+                } else {
+                    logger.info(
+                        "Index [{}] (alias [{}]) is not up to date. Updating mapping",
+                        indexState.concreteIndexName,
+                        systemIndexDescriptor.getAliasName()
+                    );
+                    PutMappingRequest request = new PutMappingRequest(indexState.concreteIndexName).source(
+                        systemIndexDescriptor.getMappings(),
+                        XContentType.JSON
+                    ).type(MapperService.SINGLE_MAPPING_NAME);
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), systemIndexDescriptor.getOrigin(), request,
+                        ActionListener.<AcknowledgedResponse>wrap(putMappingResponse -> {
+                            if (putMappingResponse.isAcknowledged()) {
+                                andThen.run();
+                            } else {
+                                consumer.accept(new IllegalStateException("put mapping request was not acknowledged"));
+                            }
+                        }, consumer),
+                        client.admin().indices()::putMapping
+                    );
+                }
             } else {
                 andThen.run();
             }
@@ -373,24 +418,29 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
-        public static final State UNRECOVERED_STATE = new State(null, false, false, null, null, null, null);
+        public static final State UNRECOVERED_STATE = new State(null, false, false, false, null, null, null, null, null);
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailable;
+        public final boolean mappingUpToDate;
         public final Version mappingVersion;
         public final String concreteIndexName;
         public final ClusterHealthStatus indexHealth;
         public final IndexMetadata.State indexState;
+        public final Version minimumNodeVersion;
 
         public State(Instant creationTime, boolean isIndexUpToDate, boolean indexAvailable,
-                     Version mappingVersion, String concreteIndexName, ClusterHealthStatus indexHealth, IndexMetadata.State indexState) {
+                     boolean mappingUpToDate, Version mappingVersion, String concreteIndexName, ClusterHealthStatus indexHealth,
+                     IndexMetadata.State indexState, Version minimumNodeVersion) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
             this.indexAvailable = indexAvailable;
+            this.mappingUpToDate = mappingUpToDate;
             this.mappingVersion = mappingVersion;
             this.concreteIndexName = concreteIndexName;
             this.indexHealth = indexHealth;
             this.indexState = indexState;
+            this.minimumNodeVersion = minimumNodeVersion;
         }
 
         @Override
@@ -401,10 +451,12 @@ public class SecurityIndexManager implements ClusterStateListener {
             return Objects.equals(creationTime, state.creationTime) &&
                 isIndexUpToDate == state.isIndexUpToDate &&
                 indexAvailable == state.indexAvailable &&
+                mappingUpToDate == state.mappingUpToDate &&
                 Objects.equals(mappingVersion, state.mappingVersion) &&
                 Objects.equals(concreteIndexName, state.concreteIndexName) &&
                 indexHealth == state.indexHealth &&
-                indexState == state.indexState;
+                indexState == state.indexState &&
+                Objects.equals(minimumNodeVersion, state.minimumNodeVersion);
         }
 
         public boolean indexExists() {
@@ -413,8 +465,8 @@ public class SecurityIndexManager implements ClusterStateListener {
 
         @Override
         public int hashCode() {
-            return Objects.hash(creationTime, isIndexUpToDate, indexAvailable, mappingVersion, concreteIndexName,
-                indexHealth);
+            return Objects.hash(creationTime, isIndexUpToDate, indexAvailable, mappingUpToDate, mappingVersion, concreteIndexName,
+                indexHealth, minimumNodeVersion);
         }
     }
 }

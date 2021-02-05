@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots;
@@ -132,7 +133,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
@@ -266,7 +268,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
         final int searchableSnapshotShardCount = indexOutsideSearchRangeShardCount;
@@ -374,7 +377,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexWithinSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 

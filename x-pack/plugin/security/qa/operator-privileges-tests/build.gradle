@@ -16,6 +16,13 @@ dependencies {
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 
+File repoDir = file("$buildDir/testclusters/repo")
+
+javaRestTest {
+  /* To support taking snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir
+}
+
 testClusters.all {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
@@ -27,6 +34,7 @@ testClusters.all {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.operator_privileges.enabled', "true"
+  setting 'path.repo', repoDir.absolutePath
 
   user username: "test_admin", password: 'x-pack-test-password', role: "superuser"
   user username: "test_operator", password: 'x-pack-test-password', role: "limited_operator"

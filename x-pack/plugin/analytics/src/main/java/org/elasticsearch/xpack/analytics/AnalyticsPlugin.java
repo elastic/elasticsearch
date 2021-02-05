@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics;
 
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
+import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
+import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.rate.InternalRate;
 import org.elasticsearch.xpack.analytics.rate.RateAggregationBuilder;
@@ -120,7 +123,13 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 RateAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER))
                 .addResultReader(InternalRate::new)
-                .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators)
+                .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
+            new AggregationSpec(
+                MultiTermsAggregationBuilder.NAME,
+                MultiTermsAggregationBuilder::new,
+                usage.track(AnalyticsStatsAction.Item.MULTI_TERMS, MultiTermsAggregationBuilder.PARSER))
+                .addResultReader(InternalMultiTerms::new)
+                .setAggregatorRegistrar(MultiTermsAggregationBuilder::registerAggregators)
         );
     }
 

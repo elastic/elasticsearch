@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
@@ -23,7 +24,7 @@ public abstract class TextStructureTestCase extends ESTestCase {
         Charset.availableCharsets()
             .keySet()
             .stream()
-            .filter(name -> FileStructureFinderManager.FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT)))
+            .filter(name -> TextStructureFinderManager.FILEBEAT_SUPPORTED_ENCODINGS.contains(name.toLowerCase(Locale.ROOT)))
             .collect(Collectors.toList())
     );
 

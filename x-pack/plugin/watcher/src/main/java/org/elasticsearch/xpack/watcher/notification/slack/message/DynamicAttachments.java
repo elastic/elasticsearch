@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
@@ -29,13 +30,13 @@ public class DynamicAttachments implements MessageElement {
 
     public List<Attachment> render(TextTemplateEngine engine, Map<String, Object> model, SlackMessageDefaults.AttachmentDefaults defaults) {
         Object value = ObjectPath.eval(listPath, model);
-        if (!(value instanceof Iterable)) {
+        if ((value instanceof Iterable) == false) {
             throw new IllegalArgumentException("dynamic attachment could not be resolved. expected context [" + listPath + "] to be a " +
                     "list, but found [" + value + "] instead");
         }
         List<Attachment> attachments = new ArrayList<>();
         for (Object obj : (Iterable) value) {
-            if (!(obj instanceof Map)) {
+            if ((obj instanceof Map) == false) {
                 throw new IllegalArgumentException("dynamic attachment could not be resolved. expected [" + listPath + "] list to contain" +
                         " key/value pairs, but found [" + obj + "] instead");
             }

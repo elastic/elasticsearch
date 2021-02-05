@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.saml.idp;
 
@@ -196,7 +197,7 @@ public class SamlIdPMetadataBuilder {
     }
 
     private List<NameIDFormat> buildNameIDFormats() {
-        List<NameIDFormat> formats = new ArrayList();
+        List<NameIDFormat> formats = new ArrayList<>();
         if (nameIdFormats.isEmpty()) {
             throw new IllegalStateException("NameID format has not been specified");
         }

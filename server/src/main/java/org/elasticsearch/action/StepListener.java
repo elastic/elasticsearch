@@ -1,30 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
+import java.util.Optional;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 
 /**
@@ -76,6 +69,33 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
         delegate.addListener(ActionListener.wrap(onResponse, onFailure), EsExecutors.newDirectExecutorService(), null);
+    }
+
+    /**
+     * Combines this listener with another one, waiting for both to successfully complete and combining their results.
+     *
+     * @param other the other step listener to combine with
+     * @param fn    the function that combines the results
+     * @return the combined listener
+     */
+    public StepListener<Response> thenCombine(StepListener<Response> other, BinaryOperator<Response> fn) {
+        final StepListener<Response> combined = new StepListener<>();
+        final GroupedActionListener<Response> groupedActionListener =
+            new GroupedActionListener<>(combined.map(results -> {
+                final Optional<Response> response = results.stream().reduce(fn);
+                assert response.isPresent();
+                return response.get();
+            }), 2);
+        delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
+        other.delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
+        return combined;
+    }
+
+    /**
+     * Returns the future associated with the given step listener
+     */
+    public Future<Response> asFuture() {
+        return delegate;
     }
 
     /**

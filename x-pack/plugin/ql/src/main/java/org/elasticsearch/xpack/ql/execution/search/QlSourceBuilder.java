@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.execution.search;
 
@@ -65,7 +66,7 @@ public class QlSourceBuilder {
      */
     public void build(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores(this.trackScores);
-        if (!sourceFields.isEmpty()) {
+        if (sourceFields.isEmpty() == false) {
             sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
         }
         docFields.forEach(field -> sourceBuilder.docValueField(field.field, field.format));

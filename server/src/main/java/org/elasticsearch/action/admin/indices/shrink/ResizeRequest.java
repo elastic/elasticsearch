@@ -1,23 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -29,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,17 +36,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
+    private static final ParseField MAX_SINGLE_PRIMARY_SIZE = new ParseField("max_single_primary_size");
     static {
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.getTargetIndexRequest().aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(ResizeRequest::setMaxSinglePrimarySize,
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_PRIMARY_SIZE.getPreferredName()),
+            MAX_SINGLE_PRIMARY_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
+    private ByteSizeValue maxSinglePrimarySize;
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
@@ -63,6 +59,11 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         sourceIndex = in.readString();
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            if (in.readBoolean()) {
+                maxSinglePrimarySize = new ByteSizeValue(in);
+            }
+        }
     }
 
     ResizeRequest() {}
@@ -87,6 +88,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
+        if (maxSinglePrimarySize != null && maxSinglePrimarySize.getBytes() <= 0) {
+            validationException = addValidationError("max_single_primary_size must be greater than 0", validationException);
+        }
         assert copySettings == null || copySettings;
         return validationException;
     }
@@ -102,6 +106,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeOptionalWriteable(maxSinglePrimarySize);
+        }
     }
 
     @Override
@@ -182,6 +189,25 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public Boolean getCopySettings() {
         return copySettings;
+    }
+
+    /**
+     * Sets the max single primary shard size of the target index.
+     * It's used to calculate an optimum shards number of the target index according to storage of
+     * the source index, each shard's storage of the target index will not be greater than this parameter,
+     * while the shards number of the target index still be a factor of the source index's shards number.
+     *
+     * @param maxSinglePrimarySize the max single primary shard size of the target index
+     */
+    public void setMaxSinglePrimarySize(ByteSizeValue maxSinglePrimarySize) {
+        this.maxSinglePrimarySize = maxSinglePrimarySize;
+    }
+
+    /**
+     * Returns the max single primary shard size of the target index
+     */
+    public ByteSizeValue getMaxSinglePrimarySize() {
+        return maxSinglePrimarySize;
     }
 
     @Override

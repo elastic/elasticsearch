@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -23,9 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,9 +38,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -99,6 +92,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         // synchronization (in this case, the submitStateUpdateTask which is serialized on the master node), where we then regenerate the
         // names and re-check conditions. More explanation follows inline below.
         client.execute(IndicesStatsAction.INSTANCE, statsRequest,
+
             ActionListener.wrap(statsResponse -> {
                 // Now that we have the stats for the cluster, we need to know the
                 // names of the index for which we should evaluate
@@ -113,7 +107,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
-                    metadata.index(trialSourceIndexName), statsResponse);
+                    buildStats(metadata.index(trialSourceIndexName), statsResponse));
 
                 // If this is a dry run, return with the results without invoking a cluster state update
                 if (rolloverRequest.isDryRun()) {
@@ -150,7 +144,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                             // Re-evaluate the conditions, now with our final source index name
                             final Map<String, Boolean> postConditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
-                                metadata.index(sourceIndexName), statsResponse);
+                                buildStats(metadata.index(sourceIndexName), statsResponse));
                             final List<Condition<?>> metConditions = rolloverRequest.getConditions().values().stream()
                                 .filter(condition -> postConditionResults.get(condition.toString())).collect(Collectors.toList());
                             // Update the final condition results so they can be used when returning the response
@@ -219,30 +213,47 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   @Nullable final DocsStats docsStats,
-                                                   @Nullable final IndexMetadata metadata) {
-        if (metadata == null) {
-            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+                                                   @Nullable final Condition.Stats stats) {
+        Objects.requireNonNull(conditions, "conditions must not be null");
+
+        if (stats != null) {
+            return conditions.stream()
+                .map(condition -> condition.evaluate(stats))
+                .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
+        } else {
+            // no conditions matched
+            return conditions.stream()
+                .collect(Collectors.toMap(Condition::toString, cond -> false));
         }
-        final long numDocs = docsStats == null ? 0 : docsStats.getCount();
-        final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
-        final Condition.Stats stats = new Condition.Stats(numDocs, metadata.getCreationDate(), new ByteSizeValue(indexSize));
-        return conditions.stream()
-            .map(condition -> condition.evaluate(stats))
-            .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   @Nullable final IndexMetadata metadata,
-                                                   @Nullable final IndicesStatsResponse statsResponse) {
+    static Condition.Stats buildStats(@Nullable final IndexMetadata metadata,
+                                      @Nullable final IndicesStatsResponse statsResponse) {
         if (metadata == null) {
-            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+            return null;
         } else {
-            final DocsStats docsStats = Optional.ofNullable(statsResponse)
-                .map(stats -> stats.getIndex(metadata.getIndex().getName()))
-                .map(indexStats -> indexStats.getPrimaries().getDocs())
+            final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
+                .map(stats -> stats.getIndex(metadata.getIndex().getName()));
+
+            final DocsStats docsStats = indexStats
+                .map(stats -> stats.getPrimaries().getDocs())
                 .orElse(null);
-            return evaluateConditions(conditions, docsStats, metadata);
+
+            final long maxSinglePrimarySize = indexStats.stream()
+                .map(IndexStats::getShards)
+                .filter(Objects::nonNull)
+                .flatMap(Arrays::stream)
+                .filter(shard -> shard.getShardRouting().primary())
+                .map(ShardStats::getStats)
+                .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
+                .max().orElse(0);
+
+            return new Condition.Stats(
+                docsStats == null ? 0 : docsStats.getCount(),
+                metadata.getCreationDate(),
+                new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
+                new ByteSizeValue(maxSinglePrimarySize)
+            );
         }
     }
 }

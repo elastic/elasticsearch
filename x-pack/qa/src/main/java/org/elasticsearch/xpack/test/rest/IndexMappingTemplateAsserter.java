@@ -55,25 +55,6 @@ public class IndexMappingTemplateAsserter {
      * @throws IOException On error
      */
     public static void assertMlMappingsMatchTemplates(RestClient client) throws IOException {
-        // Keys that have been dynamically mapped in the .ml-config index
-        // but are not in the template. These can only be fixed with
-        // re-index and should be addressed at the next major upgrade.
-        // For now this serves as documentation of the missing fields
-        Set<String> configIndexExceptions = new HashSet<>();
-        configIndexExceptions.add("properties.allow_lazy_start.type");
-        configIndexExceptions.add("properties.analysis.properties.classification.properties.randomize_seed.type");
-        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.compute_feature_influence.type");
-        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.outlier_fraction.type");
-        configIndexExceptions.add("properties.analysis.properties.outlier_detection.properties.standardization_enabled.type");
-        configIndexExceptions.add("properties.analysis.properties.regression.properties.randomize_seed.type");
-        configIndexExceptions.add("properties.deleting.type");
-        configIndexExceptions.add("properties.model_memory_limit.type");
-
-        // renamed to max_trees in 7.7.
-        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
-        configIndexExceptions.add("properties.analysis.properties.classification.properties.maximum_number_trees.type");
-        configIndexExceptions.add("properties.analysis.properties.regression.properties.maximum_number_trees.type");
-
         // Excluding those from stats index as some have been renamed and other removed.
         // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
         Set<String> statsIndexException = new HashSet<>();
@@ -88,18 +69,21 @@ public class IndexMappingTemplateAsserter {
         Set<String> notificationsIndexExceptions = new HashSet<>();
         notificationsIndexExceptions.add("properties.message.fields.raw.ignore_above");
 
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions, true);
-        // the true parameter means the index may not have been created
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(), true);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
         // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
         assertLegacyTemplateMatchesIndexMappings(client,
             ".ml-notifications-000001", ".ml-notifications-000001", true, notificationsIndexExceptions, false);
-        assertLegacyTemplateMatchesIndexMappings(client,
-            ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet(), true);
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
+
+        // Dynamic mappings updates are banned for system indices.
+        // The .ml-config and .ml-meta indices have mappings that allow dynamic updates.
+        // The effect is instant error if a document containing an unknown field is added
+        // to one of these indices.  Assuming we have some sort of test coverage somewhere
+        // for new fields, we will very quickly catch any failures to add new fields to
+        // the mappings for the .ml-config and .ml-meta indices.  So there is no need to
+        // test again here.
     }
 
     /**

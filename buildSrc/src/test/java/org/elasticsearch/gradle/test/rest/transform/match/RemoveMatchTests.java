@@ -47,7 +47,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
 
     private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
-
     @Test
     public void testRemoveAll() throws Exception {
         String testName = "/rest/transform/match/match.yml";
@@ -81,7 +80,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
 
     }
 
-
     private void validateTest(List<ObjectNode> tests, boolean beforeTransformation, boolean allTests) {
         ObjectNode setUp = tests.get(0);
         assertThat(setUp.get("setup"), CoreMatchers.notNullValue());
@@ -108,7 +106,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
         });
         assertFalse(setUpHasMatchObject.get());
 
-
         // teardown
         JsonNode teardown = tearDown.get("teardown");
         assertThat(teardown, CoreMatchers.instanceOf(ArrayNode.class));
@@ -124,7 +121,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
             }
         });
         assertFalse(teardownHasMatchObject.get());
-
 
         // first test
         JsonNode firstTestChild = firstTest.get("Test that queries on _index match against the correct indices.");
@@ -181,7 +177,7 @@ public class RemoveMatchTests extends GradleUnitTestCase {
             assertFalse(lastTestHasTypeMatch.get());
         }
 
-        //exclude setup, teardown, first test, and last test
+        // exclude setup, teardown, first test, and last test
         for (int i = 3; i <= tests.size() - 2; i++) {
             ObjectNode otherTest = tests.get(i);
 
@@ -207,7 +203,6 @@ public class RemoveMatchTests extends GradleUnitTestCase {
             });
         }
     }
-
 
     // only to help manually debug
     private void printTest(String testName, List<ObjectNode> tests) {

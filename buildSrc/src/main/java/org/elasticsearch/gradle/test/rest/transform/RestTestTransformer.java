@@ -45,13 +45,11 @@ public class RestTestTransformer {
             .map(transform -> (RestTestTransformGlobalTeardown) transform)
             .collect(Collectors.toList());
 
-
         // Collect any transformations that are identified by an object key.
         Map<String, List<RestTestTransformByParentObject>> objectKeyFinders = transformations.stream()
             .filter(transform -> transform instanceof RestTestTransformByParentObject)
             .map(transform -> (RestTestTransformByParentObject) transform)
             .collect(Collectors.groupingBy(RestTestTransformByParentObject::getKeyToFind));
-
 
         // Collect any transformations that are identified by an object key where the value is an array
         Map<String, List<RestTestTransformByParentArray>> arrayByObjectKeyFinders = transformations.stream()
@@ -113,11 +111,13 @@ public class RestTestTransformer {
      * @param objectKeyFinders A Map of object keys to find and their associated transformation by parent Object
      * @param arrayByObjectKeyFinders A Map of object keys to find and their associated transformation by parent Array
      */
-    private void traverseTest(String testName,
-                              JsonNode currentNode,
-                              String parentKeyName,
-                              Map<String, List<RestTestTransformByParentObject>> objectKeyFinders,
-                              Map<String, List<RestTestTransformByParentArray>> arrayByObjectKeyFinders) {
+    private void traverseTest(
+        String testName,
+        JsonNode currentNode,
+        String parentKeyName,
+        Map<String, List<RestTestTransformByParentObject>> objectKeyFinders,
+        Map<String, List<RestTestTransformByParentArray>> arrayByObjectKeyFinders
+    ) {
         if (currentNode.isArray()) {
             if (parentKeyName != null) {
                 List<RestTestTransformByParentArray> transforms = arrayByObjectKeyFinders.get(parentKeyName);
@@ -129,9 +129,8 @@ public class RestTestTransformer {
                     }
                 }
             }
-            currentNode.elements().forEachRemaining(node -> {
-                traverseTest(testName, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders);
-            });
+            currentNode.elements()
+                .forEachRemaining(node -> { traverseTest(testName, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders); });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 List<RestTestTransformByParentObject> transforms = objectKeyFinders.get(entry.getKey());

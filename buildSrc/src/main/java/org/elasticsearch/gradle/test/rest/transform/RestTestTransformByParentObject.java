@@ -24,7 +24,7 @@ public interface RestTestTransformByParentObject extends RestTestTransform<Objec
      * @return If the value of the ObjectNode is also an ObjectNode, ensure that child key name is also satisfied.
      * {@code null} to indicate no required children.
      */
-    default String requiredChildKey(){
+    default String requiredChildKey() {
         return null;
     }
 }

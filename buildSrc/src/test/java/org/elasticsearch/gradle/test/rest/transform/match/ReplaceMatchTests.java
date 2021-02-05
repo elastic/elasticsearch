@@ -49,7 +49,6 @@ public class ReplaceMatchTests extends GradleUnitTestCase {
 
     private static final boolean humanDebug = true; // useful for humans trying to debug these tests
 
-
     @Test
     public void testReplaceAll() throws Exception {
         String testName = "/rest/transform/match/match.yml";
@@ -85,7 +84,6 @@ public class ReplaceMatchTests extends GradleUnitTestCase {
         validateTest(tests, false, false);
     }
 
-
     private void validateTest(List<ObjectNode> tests, boolean beforeTransformation, boolean allTests) {
         ObjectNode setUp = tests.get(0);
         assertThat(setUp.get("setup"), CoreMatchers.notNullValue());
@@ -112,7 +110,6 @@ public class ReplaceMatchTests extends GradleUnitTestCase {
         });
         assertFalse(setUpHasMatchObject.get());
 
-
         // teardown
         JsonNode teardown = tearDown.get("teardown");
         assertThat(teardown, CoreMatchers.instanceOf(ArrayNode.class));
@@ -128,7 +125,6 @@ public class ReplaceMatchTests extends GradleUnitTestCase {
             }
         });
         assertFalse(teardownHasMatchObject.get());
-
 
         // first test
         JsonNode firstTestChild = firstTest.get("Test that queries on _index match against the correct indices.");
@@ -179,7 +175,7 @@ public class ReplaceMatchTests extends GradleUnitTestCase {
         assertTrue(lastTestHasMatchObject.get());
         assertTrue(lastTestHasTypeMatch.get());
 
-        //exclude setup, teardown, first test, and last test
+        // exclude setup, teardown, first test, and last test
         for (int i = 3; i <= tests.size() - 2; i++) {
             ObjectNode otherTest = tests.get(i);
 
@@ -202,7 +198,6 @@ public class ReplaceMatchTests extends GradleUnitTestCase {
             });
         }
     }
-
 
     // only to help manually debug
     private void printTest(String testName, List<ObjectNode> tests) {

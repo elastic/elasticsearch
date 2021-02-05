@@ -35,7 +35,6 @@ public class ReplaceMatch implements RestTestTransformByParentObject {
         this.testName = null;
     }
 
-
     public ReplaceMatch(String replaceKey, JsonNode replacementNode, String testName) {
         this.replaceKey = replaceKey;
         this.replacementNode = replacementNode;

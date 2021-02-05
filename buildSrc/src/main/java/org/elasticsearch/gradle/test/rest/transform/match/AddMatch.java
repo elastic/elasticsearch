@@ -32,6 +32,7 @@ public class AddMatch implements RestTestTransformByParentArray {
     private final String matchKey;
     private final String testName;
     private final JsonNode matchValue;
+
     public AddMatch(String matchKey, JsonNode matchValue, String testName) {
         this.matchKey = matchKey;
         this.matchValue = matchValue;
@@ -54,8 +55,8 @@ public class AddMatch implements RestTestTransformByParentArray {
 
     @Override
     public String getKeyOfArrayToFind() {
-        //match objects are always in the array that is the direct child of the test name, i.e.
-        //"my test name" : [ {"do" : ... }, { "match" : .... }, {..}, {..}, ... ]
+        // match objects are always in the array that is the direct child of the test name, i.e.
+        // "my test name" : [ {"do" : ... }, { "match" : .... }, {..}, {..}, ... ]
         return testName;
     }
 }

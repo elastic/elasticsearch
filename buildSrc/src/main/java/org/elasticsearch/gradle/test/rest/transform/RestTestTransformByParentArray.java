@@ -20,8 +20,6 @@
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
 
 public interface RestTestTransformByParentArray extends RestTestTransform<ArrayNode> {
 

@@ -47,7 +47,6 @@ public class AddMatchTests extends GradleUnitTestCase {
 
     private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
-
     @Test
     public void testAddAllNotSupported() throws Exception {
         String testName = "/rest/transform/match/match.yml";
@@ -56,11 +55,16 @@ public class AddMatchTests extends GradleUnitTestCase {
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
         JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
-        assertEquals("adding matches is only supported for named tests",
-            expectThrows(NullPointerException.class, () -> transformer.transformRestTests(
-                new LinkedList<>(tests),
-                Collections.singletonList(new AddMatch("_type", addNode, null))
-            )).getMessage());
+        assertEquals(
+            "adding matches is only supported for named tests",
+            expectThrows(
+                NullPointerException.class,
+                () -> transformer.transformRestTests(
+                    new LinkedList<>(tests),
+                    Collections.singletonList(new AddMatch("_type", addNode, null))
+                )
+            ).getMessage()
+        );
 
     }
 
@@ -80,7 +84,6 @@ public class AddMatchTests extends GradleUnitTestCase {
         printTest(testName, transformedTests);
         validateTest(tests, false);
     }
-
 
     private void validateTest(List<ObjectNode> tests, boolean beforeTransformation) {
         ObjectNode setUp = tests.get(0);
@@ -108,7 +111,6 @@ public class AddMatchTests extends GradleUnitTestCase {
         });
         assertFalse(setUpHasMatchObject.get());
 
-
         // teardown
         JsonNode teardown = tearDown.get("teardown");
         assertThat(teardown, CoreMatchers.instanceOf(ArrayNode.class));
@@ -124,7 +126,6 @@ public class AddMatchTests extends GradleUnitTestCase {
             }
         });
         assertFalse(teardownHasMatchObject.get());
-
 
         // first test
         JsonNode firstTestChild = firstTest.get("Test that queries on _index match against the correct indices.");
@@ -168,7 +169,6 @@ public class AddMatchTests extends GradleUnitTestCase {
             assertTrue(lastTestHasAddedObject.get());
         }
     }
-
 
     // only to help manually debug
     private void printTest(String testName, List<ObjectNode> tests) {

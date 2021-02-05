@@ -409,12 +409,11 @@ final class SearchResponseMerger {
         public int compareTo(ShardIdAndClusterAlias o) {
             // TODO: SearchResponseMerger is designed to merge responses from multiple clusters, we're using it temporarily to merge
             //       partial results
-            return shardId.compareTo(o.shardId);
-//            int shardIdCompareTo = shardId.compareTo(o.shardId);
-//            if (shardIdCompareTo != 0) {
-//                return shardIdCompareTo;
-//            }
-//            return clusterAlias.compareTo(o.clusterAlias);
+            int shardIdCompareTo = shardId.compareTo(o.shardId);
+            if (shardIdCompareTo != 0) {
+                return shardIdCompareTo;
+            }
+            return clusterAlias == null ? shardIdCompareTo : clusterAlias.compareTo(o.clusterAlias);
         }
     }
 }

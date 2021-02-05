@@ -54,14 +54,6 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 }
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE-2.0.txt"
 
-configure(allprojects - project(':distribution:archives:integ-test-zip')) {
-  project.pluginManager.withPlugin('nebula.maven-base-publish') {
-    if (project.pluginManager.hasPlugin('elasticsearch.build') == false) {
-      throw new GradleException("Project ${path} publishes a pom but doesn't apply the build plugin.")
-    }
-  }
-}
-
 subprojects {
   // Default to the SSPL+Elastic dual license
   project.ext.projectLicenses = [

@@ -149,7 +149,7 @@ public class JdbcAssert {
             String expectedName = expectedMeta.getColumnName(column);
             String actualName = actualMeta.getColumnName(column);
 
-            if (!expectedName.equals(actualName)) {
+            if (expectedName.equals(actualName) == false) {
                 // to help debugging, indicate the previous column (which also happened to match and thus was correct)
                 String expectedSet = expectedName;
                 String actualSet = actualName;

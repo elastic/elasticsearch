@@ -851,7 +851,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY),
                                             currentState.metadata(), currentState.routingTable(), indexIds,
                                             useShardGenerations(version), repositoryData, entry.repository());
-                                    if (!partial) {
+                                    if (partial == false) {
                                         Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
                                             currentState.metadata());
                                         Set<String> missing = indicesWithMissingShards.v1();

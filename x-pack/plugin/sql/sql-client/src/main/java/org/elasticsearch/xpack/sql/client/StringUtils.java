@@ -27,12 +27,12 @@ public abstract class StringUtils {
     }
 
     public static boolean hasText(CharSequence sequence) {
-        if (!hasLength(sequence)) {
+        if (hasLength(sequence) == false) {
             return false;
         }
         int length = sequence.length();
         for (int i = 0; i < length; i++) {
-            if (!Character.isWhitespace(sequence.charAt(i))) {
+            if (Character.isWhitespace(sequence.charAt(i)) == false) {
                 return true;
             }
         }
@@ -77,7 +77,7 @@ public abstract class StringUtils {
     }
 
     public static List<String> tokenize(String string, String delimiters, boolean trimTokens, boolean ignoreEmptyTokens) {
-        if (!hasText(string)) {
+        if (hasText(string) == false) {
             return Collections.emptyList();
         }
         StringTokenizer st = new StringTokenizer(string, delimiters);
@@ -87,7 +87,7 @@ public abstract class StringUtils {
             if (trimTokens) {
                 token = token.trim();
             }
-            if (!ignoreEmptyTokens || token.length() > 0) {
+            if (ignoreEmptyTokens == false || token.length() > 0) {
                 tokens.add(token);
             }
         }

@@ -69,7 +69,7 @@ public class EsDriver implements Driver {
         if (url == null) {
             throw new JdbcSQLException("Non-null url required");
         }
-        if (!acceptsURL(url)) {
+        if (acceptsURL(url) == false) {
             return null;
         }
 
@@ -89,7 +89,7 @@ public class EsDriver implements Driver {
 
     @Override
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
-        if (!acceptsURL(url)) {
+        if (acceptsURL(url) == false) {
             return new DriverPropertyInfo[0];
         }
         return JdbcConfiguration.create(url, info, DriverManager.getLoginTimeout()).driverPropertyInfo();

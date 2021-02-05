@@ -48,14 +48,14 @@ public class LocateFunctionProcessor implements Processor {
         if (input == null) {
             return null;
         }
-        if (!(input instanceof String || input instanceof Character)) {
+        if ((input instanceof String || input instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (pattern == null) {
             return 0;
         }
 
-        if (!(pattern instanceof String || pattern instanceof Character)) {
+        if ((pattern instanceof String || pattern instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
 

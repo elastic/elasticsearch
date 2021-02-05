@@ -28,10 +28,8 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
@@ -797,10 +795,6 @@ public class HttpCertificateCommandTests extends ESTestCase {
         try (OutputStream out = Files.newOutputStream(path)) {
             ks.store(out, randomAlphaOfLength(8).toCharArray());
         }
-    }
-
-    private Environment newEnvironment() {
-        return TestEnvironment.newEnvironment(super.buildEnvSettings(Settings.EMPTY));
     }
 
     /**

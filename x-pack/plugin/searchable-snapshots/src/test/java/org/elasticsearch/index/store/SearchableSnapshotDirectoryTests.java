@@ -87,6 +87,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.hamcrest.Matcher;
 
 import java.io.Closeable;
@@ -583,6 +584,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final CacheService cacheService = defaultCacheService();
                 releasables.add(cacheService);
                 cacheService.start();
+                final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
+                releasables.add(frozenCacheService);
 
                 try (
                     SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
@@ -602,7 +605,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         cacheService,
                         cacheDir,
                         shardPath,
-                        threadPool
+                        threadPool,
+                        frozenCacheService
                     )
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
@@ -683,6 +687,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
+            final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
@@ -702,7 +707,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     cacheService,
                     cacheDir,
                     shardPath,
-                    threadPool
+                    threadPool,
+                    frozenCacheService
                 )
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
@@ -735,6 +741,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
                 }
             } finally {
+                frozenCacheService.close();
                 assertThreadPoolNotBusy(threadPool);
             }
         }
@@ -762,7 +769,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null)
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null, null)
             );
         }
     }

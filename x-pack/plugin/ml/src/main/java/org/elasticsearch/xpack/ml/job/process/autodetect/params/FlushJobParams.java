@@ -74,14 +74,14 @@ public class FlushJobParams {
     }
 
     public long getAdvanceTime() {
-        if (!shouldAdvanceTime()) {
+        if (shouldAdvanceTime() == false) {
             throw new IllegalStateException();
         }
         return advanceTimeSeconds;
     }
 
     public long getSkipTime() {
-        if (!shouldSkipTime()) {
+        if (shouldSkipTime() == false) {
             throw new IllegalStateException();
         }
         return skipTimeSeconds;
@@ -155,10 +155,10 @@ public class FlushJobParams {
         }
 
         private void checkValidFlushArgumentsCombination() {
-            if (!calcInterim) {
+            if (calcInterim == false) {
                 checkFlushParamIsEmpty(TimeRange.START_PARAM, timeRange.getStart());
                 checkFlushParamIsEmpty(TimeRange.END_PARAM, timeRange.getEnd());
-            } else if (!isValidTimeRange(timeRange)) {
+            } else if (isValidTimeRange(timeRange) == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_MISSING, "start");
                 throw new IllegalArgumentException(msg);
             }
@@ -187,7 +187,7 @@ public class FlushJobParams {
         }
 
         private void checkFlushParamIsEmpty(String paramName, String paramValue) {
-            if (!paramValue.isEmpty()) {
+            if (paramValue.isEmpty() == false) {
                 String msg = Messages.getMessage(Messages.REST_INVALID_FLUSH_PARAMS_UNEXPECTED, paramName);
                 throw new IllegalArgumentException(msg);
             }

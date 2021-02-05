@@ -25,14 +25,16 @@ import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
@@ -43,6 +45,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
     private final SecurityContext securityContext;
@@ -114,7 +117,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<List<Object>> rows = new ArrayList<>();
         page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
-            rowView.forEachColumn(row::add);
+            rowView.forEachColumn(r -> row.add(value(r, request.mode())));
             rows.add(unmodifiableList(row));
         });
 
@@ -125,5 +128,26 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 request.columnar(),
                 header,
                 rows);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static Object value(Object r, Mode mode) {
+        /*
+         * Intervals and GeoShape instances need to be serialized (as in StreamInput/Ouput serialization) as Strings
+         * since SqlQueryResponse creation doesn't have access to GeoShape nor Interval classes to make the decision
+         * so, we flatten them as Strings before being serialized.
+         * CLI gets a special treatment see {@link org.elasticsearch.xpack.sql.action.SqlQueryResponse#value()}
+         */ 
+        if (r instanceof GeoShape) {
+            r = r.toString();
+        } else if (r instanceof Interval) {
+            if (mode == CLI) {
+                r = r.toString();
+            } else {
+                r = ((Interval) r).value();
+            }
+        }
+
+        return r;
     }
 }

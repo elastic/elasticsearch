@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheFile;
@@ -39,6 +40,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.junit.After;
 import org.junit.Before;
@@ -76,6 +78,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected ThreadPool threadPool;
     protected ClusterService clusterService;
     protected NodeEnvironment nodeEnvironment;
+    protected Environment environment;
 
     @Before
     public void setUpTest() throws Exception {
@@ -89,6 +92,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
+        environment = newEnvironment();
     }
 
     @After
@@ -128,6 +132,30 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     /**
+     * @return a new {@link FrozenCacheService} instance configured with default settings
+     */
+    protected FrozenCacheService defaultFrozenCacheService() {
+        return new FrozenCacheService(environment, threadPool);
+    }
+
+    protected FrozenCacheService randomFrozenCacheService() {
+        final Settings.Builder cacheSettings = Settings.builder();
+        if (randomBoolean()) {
+            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+        }
+        if (randomBoolean()) {
+            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+        }
+        if (randomBoolean()) {
+            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+        }
+        if (randomBoolean()) {
+            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+        }
+        return new FrozenCacheService(newEnvironment(cacheSettings.build()), threadPool);
+    }
+
+    /**
      * @return a new {@link CacheService} instance configured with the given cache size and cache range size settings
      */
     protected CacheService createCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
@@ -139,6 +167,18 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             clusterService,
             threadPool,
             new PersistentCache(nodeEnvironment)
+        );
+    }
+
+    protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
+        return new FrozenCacheService(
+            newEnvironment(
+                Settings.builder()
+                    .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                    .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                    .build()
+            ),
+            threadPool
         );
     }
 
@@ -157,12 +197,25 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new ByteSizeValue(randomNonNegativeLong());
     }
 
+    protected static ByteSizeValue randomFrozenCacheSize() {
+        return new ByteSizeValue(randomLongBetween(0, 10_000_000));
+    }
+
     /**
      * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING}
      */
     protected static ByteSizeValue randomCacheRangeSize() {
         return new ByteSizeValue(
             randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes())
+        );
+    }
+
+    protected static ByteSizeValue randomFrozenCacheRangeSize() {
+        return new ByteSizeValue(
+            randomLongBetween(
+                FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
+                FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
+            )
         );
     }
 

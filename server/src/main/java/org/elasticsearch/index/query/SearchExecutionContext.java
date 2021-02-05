@@ -285,6 +285,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
+    public List<ObjectMapper> nestedMappings() {
+        return mappingLookup.getNestedMappers();
+    }
+
     /**
      * Returns all the fields that match a given pattern. If prefixed with a
      * type then the fields will be returned with a type prefix.
@@ -607,6 +611,17 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
+    }
+
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String nestedPath) {
+        return mappingLookup.getNestedParent(nestedPath);
     }
 
     public NestedDocuments getNestedDocuments() {

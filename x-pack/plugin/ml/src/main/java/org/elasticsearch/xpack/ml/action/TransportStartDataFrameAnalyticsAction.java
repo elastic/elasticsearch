@@ -61,12 +61,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -585,13 +585,11 @@ public class TransportStartDataFrameAnalyticsAction
         private final Client client;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
-        private final IndexTemplateConfig inferenceIndexTemplate;
 
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
-                            IndexTemplateConfig inferenceIndexTemplate) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 MachineLearning.UTILITY_THREAD_POOL_NAME,
                 settings,
@@ -601,7 +599,6 @@ public class TransportStartDataFrameAnalyticsAction
             this.client = Objects.requireNonNull(client);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
-            this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -674,22 +671,26 @@ public class TransportStartDataFrameAnalyticsAction
             );
 
             // Get stats to initialize in memory stats tracking
-            ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
+            ActionListener<Boolean> indexCheckListener = ActionListener.wrap(
                 ok -> executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
                     new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener),
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(
                         new ParameterizedMessage(
-                            "[{}] failed to create internal index template [{}]",
+                            "[{}] failed to create internal index [{}]",
                             params.getId(),
-                            inferenceIndexTemplate.getTemplateName()),
+                            InferenceIndexConstants.LATEST_INDEX_NAME),
                         cause);
                     dfaTask.setFailed(error);
                 }
             );
 
-            MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
+            // Create the system index explicitly.  Although the master node would create it automatically on first use,
+            // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
+            // might use outdated mappings.
+            MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
+                indexCheckListener);
         }
 
         private void executeTask(DataFrameAnalyticsTask task) {

@@ -210,7 +210,7 @@ Searching a frozen index is lower overhead than re-opening a closed index to ena
 [[glossary-frozen-phase]] frozen phase ::
 // tag::frozen-phase-def[]
 The fourth possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
-In the frozen phase, an index is no longer updated and very queried rarely.
+In the frozen phase, an index is no longer updated and queried rarely.
 The information still needs to be searchable, but it’s okay if those queries are extremely slow.
 // end::frozen-phase-def[]
 

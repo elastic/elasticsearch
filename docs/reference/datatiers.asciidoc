@@ -10,8 +10,8 @@ typically share the same hardware profile:
 and hold your most recent, most-frequently-accessed data.
 * <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
-* <<cold-tier, Cold tier>> nodes hold time series data that is accessed rarely and not normally updated.
-* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed very seldom and never updated.
+* <<cold-tier, Cold tier>> nodes hold time series data that is accessed infrequently and not normally updated.
+* <<frozen-tier, Frozen tier>> nodes hold time series data that is accessed rarely and never updated.
 
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 

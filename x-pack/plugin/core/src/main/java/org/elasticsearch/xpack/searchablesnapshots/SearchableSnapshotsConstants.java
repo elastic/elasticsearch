@@ -28,6 +28,6 @@ public class SearchableSnapshotsConstants {
 
     public static final String SNAPSHOT_BLOB_CACHE_INDEX = ".snapshot-blob-cache";
 
-    public static final Version SHARED_CACHE_VERSION = Version.V_8_0_0;
+    public static final Version SHARED_CACHE_VERSION = Version.V_7_12_0;
 
 }

@@ -1,16 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
@@ -26,10 +31,10 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
-import org.elasticsearch.xpack.spatial.index.query.VectorGeoShapeWithDocValuesQueryProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.Arrays;
@@ -128,8 +133,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
 
-        private final VectorGeoShapeWithDocValuesQueryProcessor queryProcessor = new VectorGeoShapeWithDocValuesQueryProcessor();
-
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser, Map<String, String> meta) {
             super(name, indexed, false, hasDocValues, false, parser, orientation, meta);
@@ -147,7 +150,21 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context, hasDocValues());
+            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
+            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
+                throw new QueryShardException(context,
+                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
+            }
+            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+            if (luceneGeometries.length == 0) {
+                return new MatchNoDocsQuery();
+            }
+            Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            if (hasDocValues()) {
+                final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                query =  new IndexOrDocValuesQuery(query, queryDocValues);
+            }
+            return query;
         }
     }
 

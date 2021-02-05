@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
@@ -81,10 +82,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
             });
         }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
-        assert success
-            || indexShard.routingEntry()
-                .recoverySource()
-                .getType() == RecoverySource.Type.PEER : "loading snapshot must not be called twice unless we are retrying a peer recovery";
+        assert success || indexShard.routingEntry().recoverySource().getType() == RecoverySource.Type.PEER
+            : "loading snapshot must not be called twice unless we are retrying a peer recovery";
     }
 
     private static void associateNewEmptyTranslogWithIndex(IndexShard indexShard) {

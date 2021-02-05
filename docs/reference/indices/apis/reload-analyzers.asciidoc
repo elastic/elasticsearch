@@ -29,6 +29,13 @@ IMPORTANT: After reloading the search analyzers you should clear the request
 
 `GET /<target>/_reload_search_analyzers`
 
+[discrete]
+[[indices-reload-analyzers-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
 
 [discrete]
 [[indices-reload-analyzers-api-desc]]

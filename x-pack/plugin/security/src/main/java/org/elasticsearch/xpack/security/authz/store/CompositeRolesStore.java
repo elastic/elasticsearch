@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.store;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -196,7 +198,7 @@ public class CompositeRolesStore {
             .forEach(rd -> {
                 String reason = Objects.toString(
                     rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY), "Please check the documentation");
-                deprecationLogger.deprecate("deprecated_role-" + rd.getName(), "The role [" + rd.getName() +
+                deprecationLogger.deprecate(DeprecationCategory.SECURITY, "deprecated_role-" + rd.getName(), "The role [" + rd.getName() +
                             "] is deprecated and will be removed in a future version of Elasticsearch. " + reason);
             });
     }

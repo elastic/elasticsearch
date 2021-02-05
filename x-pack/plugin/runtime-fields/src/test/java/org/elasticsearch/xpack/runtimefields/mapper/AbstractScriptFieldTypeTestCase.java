@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -313,7 +314,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new RuntimeFields(), new TestScriptPlugin());
+        return List.of(new RuntimeFields(Settings.EMPTY), new TestScriptPlugin());
     }
 
     private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -347,7 +348,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 }
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.copyOf(new RuntimeFields().getContexts());
+                    return Set.copyOf(new RuntimeFields(Settings.EMPTY).getContexts());
                 }
             };
         }

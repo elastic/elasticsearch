@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.async;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -23,6 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncSearchIndexServiceTests.TestAsyncResponse;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -68,8 +71,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void setExpirationTime(long expirationTimeMillis) {
-            this.expirationTimeMillis = expirationTimeMillis;
+        public void extendExpirationTime(long newExpirationTimeMillis) {
+            this.expirationTimeMillis = newExpirationTimeMillis;
         }
 
         @Override
@@ -155,7 +158,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         try {
             boolean shouldExpire = randomBoolean();
             long expirationTime = System.currentTimeMillis() + randomLongBetween(100000, 1000000) * (shouldExpire ? -1 : 1);
-            task.setExpirationTime(expirationTime);
+            task.extendExpirationTime(expirationTime);
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
@@ -197,7 +200,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            task.extendExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
@@ -235,7 +238,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            task.extendExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
@@ -272,5 +275,10 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         deleteListener = new PlainActionFuture<>();
         deleteService.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
         assertFutureThrows(deleteListener, ResourceNotFoundException.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(ExpirationTimeScriptPlugin.class);
     }
 }

@@ -173,18 +173,25 @@ file is generated automatically after IntelliJ finishes syncing. You can
 manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
-   1. Open **Preferences > Tools > Checkstyle**
-   2. Change the "Scan Scope" to "Only Java sources (including tests)"
-   3. Check the "+" under "Configuration file"
-   4. Set "Description" to "Elasticsearch" (or whatever you want)
-   5. Select "Use a local Checkstyle file"
-   6. For the "File", enter `checkstyle_ide.xml`
-   7. Tick "Store relative to project location"
-   8. Click "Next", then "Finish".
-   9. Click the box next to the new configuration to make it "Active". Without doing this,
-      you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
-      tool window and run the check manually. You can still do this with an active config.
-   10. Click "OK" to apply the new preferences
+   1. We have some custom Checkstyle rules. In order to use them, you need
+      to make sure the rules are built, by running: `./gradlew build-tools:assemble`
+   2. Open **Preferences > Tools > Checkstyle**
+   3. Tell Checkstyle where to find the custom rules. Under the
+      "Third-Party Checks" section, click the "+" button.
+   4. Select `buildSrc/build/distributions/build-tools-$VERSION.jar`
+   5. Make sure that "Checkstyle version" is set to the highest version
+   6. Change the "Scan Scope" to "Only Java sources (including tests)"
+   7. Click the "+" under "Configuration file"
+   8. Set "Description" to "Elasticsearch"
+   9. Select "Use a local Checkstyle file"
+   10. For the "File", enter `checkstyle_ide.xml`
+   11. Tick "Store relative to project location"
+   12. Click "Next", then "Finish".
+   13. Click the box next to the new configuration to make it "Active".
+       Without doing this, you'll have to explicitly choose the
+       "Elasticsearch" configuration in the Checkstyle tool window and run
+       the check manually.
+   14. Click "OK" to apply the new preferences
 
 #### Formatting
 
@@ -197,7 +204,8 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
    4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
-   5. Click "OK"
+   5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
+   6. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
@@ -442,35 +450,26 @@ We require license headers on all Java files. With the exception of the
 top-level `x-pack` directory, all contributed code should have the following
 license header unless instructed otherwise:
 
-    /*
-     * Licensed to Elasticsearch under one or more contributor
-     * license agreements. See the NOTICE file distributed with
-     * this work for additional information regarding copyright
-     * ownership. Elasticsearch licenses this file to you under
-     * the Apache License, Version 2.0 (the "License"); you may
-     * not use this file except in compliance with the License.
-     * You may obtain a copy of the License at
-     *
-     *    http://www.apache.org/licenses/LICENSE-2.0
-     *
-     * Unless required by applicable law or agreed to in writing,
-     * software distributed under the License is distributed on an
-     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-     * KIND, either express or implied.  See the License for the
-     * specific language governing permissions and limitations
-     * under the License.
-     */
+        /*
+         * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+         * or more contributor license agreements. Licensed under the Elastic License
+         * 2.0 and the Server Side Public License, v 1; you may not use this file except
+         * in compliance with, at your election, the Elastic License 2.0 or the Server
+         * Side Public License, v 1.
+         */
 
 The top-level `x-pack` directory contains code covered by the [Elastic
-license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+license](licenses/ELASTIC-LICENSE-2.0.txt). Community contributions to this code are
 welcome, and should have the following license header unless instructed
 otherwise:
 
-    /*
-     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-     * or more contributor license agreements. Licensed under the Elastic License;
-     * you may not use this file except in compliance with the Elastic License.
-     */
+        /*
+         * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+         * or more contributor license agreements. Licensed under the Elastic License
+         * 2.0; you may not use this file except in compliance with the Elastic License
+         * 2.0.
+         */
+
 
 It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.monitoring.action;
@@ -107,6 +108,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         ));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     public void testLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -141,6 +143,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     public void testRepeatedLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service

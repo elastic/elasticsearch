@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -28,11 +29,14 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.OffsetTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -282,7 +286,9 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             return;
         }
         // converting to UTC since this is what ES is storing internally
-        setObject(parameterIndex, new Timestamp(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal)), Types.TIMESTAMP);
+        Timestamp converted = new Timestamp(TypeConverter.convertFromCalendarToUTC(x.getTime(), cal));
+        converted.setNanos(x.getNanos());
+        setObject(parameterIndex, converted, Types.TIMESTAMP);
     }
 
     @Override
@@ -377,23 +383,27 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         {
             if (dataType == EsType.DATETIME || dataType == EsType.TIME) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
-                java.util.Date dateToSet;
-                if (x instanceof Timestamp) {
-                    dateToSet = new java.util.Date(((Timestamp) x).getTime());
-                } else if (x instanceof Calendar) {
-                    dateToSet = ((Calendar) x).getTime();
-                } else if (x instanceof Date) {
-                    dateToSet = new java.util.Date(((Date) x).getTime());
-                } else if (x instanceof LocalDateTime) {
-                    LocalDateTime ldt = (LocalDateTime) x;
-                    dateToSet = new java.util.Date(ldt.toInstant(UTC).toEpochMilli());
-                } else if (x instanceof Time) {
-                    dateToSet = new java.util.Date(((Time) x).getTime());
-                } else {
-                    dateToSet = (java.util.Date) x;
-                }
 
-                setParam(parameterIndex, dateToSet, dataType);
+                if (x instanceof Timestamp) {
+                    Timestamp ts = (Timestamp) x;
+                    ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(ts.getTime()), ZoneId.systemDefault());
+                    setParam(parameterIndex, zdt.withNano(ts.getNanos()), dataType);
+                } else {
+                    java.util.Date dateToSet;
+                    if (x instanceof Calendar) {
+                        dateToSet = ((Calendar) x).getTime();
+                    } else if (x instanceof Date) {
+                        dateToSet = new java.util.Date(((Date) x).getTime());
+                    } else if (x instanceof LocalDateTime) {
+                        LocalDateTime ldt = (LocalDateTime) x;
+                        dateToSet = new java.util.Date(ldt.toInstant(UTC).toEpochMilli());
+                    } else if (x instanceof Time) {
+                        dateToSet = new java.util.Date(((Time) x).getTime());
+                    } else {
+                        dateToSet = (java.util.Date) x;
+                    }
+                    setParam(parameterIndex, dateToSet, dataType);
+                }
                 return;
             } else if (TypeUtils.isString(dataType)) {
                 setParam(parameterIndex, String.valueOf(x), dataType);

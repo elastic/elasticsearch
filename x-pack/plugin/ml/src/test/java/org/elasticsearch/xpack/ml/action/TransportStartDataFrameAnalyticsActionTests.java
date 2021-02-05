@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -50,7 +51,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because upgrade mode is enabled
     public void testGetAssignment_UpgradeModeIsEnabled() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
@@ -64,7 +65,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because there are no existing nodes in the cluster state
     public void testGetAssignment_NoNodes() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -78,7 +79,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // Cannot assign the node because none of the existing nodes is an ML node
     public void testGetAssignment_NoMlNodes() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -104,7 +105,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     //  - _node_name2 is too old (version 7.9.2)
     public void testGetAssignment_MlNodesAreTooOld() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.CURRENT, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
@@ -131,7 +132,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     // In such a case destination index will be created from scratch so that its mappings are up-to-date.
     public void testGetAssignment_MlNodeIsNewerThanTheMlJobButTheAssignmentSuceeds() {
         TaskExecutor executor = createTaskExecutor();
-        TaskParams params = new TaskParams(JOB_ID, Version.V_7_9_0, Collections.emptyList(), false);
+        TaskParams params = new TaskParams(JOB_ID, Version.V_7_9_0, false);
         ClusterState clusterState =
             ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))

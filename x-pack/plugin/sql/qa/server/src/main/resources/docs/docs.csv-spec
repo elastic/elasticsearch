@@ -291,6 +291,7 @@ TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
 TIME_PARSE       |SCALAR
 TODAY            |SCALAR
+TO_CHAR          |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
@@ -2874,6 +2875,36 @@ SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
 ------------------
 11 22 33.9
 // end::dateTimeFormatTime
+;
+
+toCharDate
+// tag::toCharDate
+SELECT TO_CHAR(CAST('2020-04-05' AS DATE), 'DD/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::toCharDate
+;
+
+toCharDateTime
+// tag::toCharDateTime
+SELECT TO_CHAR(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'DD/MM/YYYY HH24:MI:SS.FF2') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::toCharDateTime
+;
+
+toCharTime
+// tag::toCharTime
+SELECT TO_CHAR(CAST('23:22:33.987' AS TIME), 'HH12 MI SS.FF1') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::toCharTime
 ;
 
 // Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947

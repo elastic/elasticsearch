@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
@@ -42,6 +43,7 @@ import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -170,12 +172,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
-            for (int i = 0; i < values.size(); i++) {
-                Object value = values.get(i);
+            for (Object value : values) {
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
                     lvalues[upTo++] = unsignedToSortableSignedLong(longValue);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -105,12 +106,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         public Request(MultiSearchRequest multiSearchRequest) {
             super(multiSearchRequest.requests().get(0).indices()[0]);
             this.multiSearchRequest = multiSearchRequest;
-            assert multiSearchRequest.requests()
-                .stream()
-                .map(SearchRequest::indices)
-                .flatMap(Arrays::stream)
-                .distinct()
-                .count() == 1 : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
+            assert multiSearchRequest.requests().stream().map(SearchRequest::indices).flatMap(Arrays::stream).distinct().count() == 1
+                : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
             assert assertSearchSource();
         }
 

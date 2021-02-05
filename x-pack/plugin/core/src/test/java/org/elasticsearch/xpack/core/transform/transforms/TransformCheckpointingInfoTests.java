@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -22,6 +23,7 @@ public class TransformCheckpointingInfoTests extends AbstractSerializingTransfor
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomNonNegativeLong(),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomLongBetween(1, 100000)),
             randomBoolean() ? null : Instant.ofEpochMilli(randomLongBetween(1, 100000))
         );
     }
@@ -46,7 +48,8 @@ public class TransformCheckpointingInfoTests extends AbstractSerializingTransfor
             TransformCheckpointStats.EMPTY,
             TransformCheckpointStats.EMPTY,
             randomNonNegativeLong(),
-            // changesLastDetectedAt is not serialized to past values, so when it is pulled back in, it will be null
+            // changesLastDetectedAt, lastSearchTime is not serialized to past values, so when it is pulled back in, it will be null
+            null,
             null
         );
         try (BytesStreamOutput output = new BytesStreamOutput()) {

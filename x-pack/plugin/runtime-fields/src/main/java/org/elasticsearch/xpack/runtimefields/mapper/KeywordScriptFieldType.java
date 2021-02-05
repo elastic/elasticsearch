@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -31,8 +32,8 @@ import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldWildcardQuer
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -139,8 +140,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             script,
             leafFactory(context),
             name(),
-            BytesRefs.toString(Objects.requireNonNull(lowerTerm)),
-            BytesRefs.toString(Objects.requireNonNull(upperTerm)),
+            lowerTerm == null ? null : BytesRefs.toString(lowerTerm),
+            upperTerm == null ? null : BytesRefs.toString(upperTerm),
             includeLower,
             includeUpper
         );
@@ -195,7 +196,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query termsQuery(List<?> values, SearchExecutionContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
         return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);

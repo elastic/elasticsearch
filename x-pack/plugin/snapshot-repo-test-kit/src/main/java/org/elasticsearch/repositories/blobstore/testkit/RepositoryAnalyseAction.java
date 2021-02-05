@@ -479,6 +479,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
                 assert deleteStartTimeNanos.isEmpty() : deleteStartTimeNanos;
                 deleteStartTimeNanos = OptionalLong.of(System.nanoTime());
                 getBlobContainer().delete();
+                // TODO can we check that the delete actually succeeded here?
             } catch (Exception e) {
                 fail(e);
             } finally {

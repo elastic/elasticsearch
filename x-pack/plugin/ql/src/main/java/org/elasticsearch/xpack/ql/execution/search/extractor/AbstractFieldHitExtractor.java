@@ -292,7 +292,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         queue.add(new Tuple<>(-1, map));
 
         while (queue.isEmpty() == false) {
-            Tuple<Integer, Map<String, Object>> tuple = queue.removeLast();
+            Tuple<Integer, Map<String, Object>> tuple = queue.removeFirst();
             int idx = tuple.v1();
             Map<String, Object> subMap = tuple.v2();
 

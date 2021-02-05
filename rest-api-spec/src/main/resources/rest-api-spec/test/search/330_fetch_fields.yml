@@ -405,8 +405,8 @@ Test unmapped fields inside disabled objects:
 ---
 Test nested fields:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support was introduced in 8.0.0 and not backported yet
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
   -  do:
         indices.create:
            index: test
@@ -479,8 +479,8 @@ Test nested fields:
 ---
 Test nested field inside object structure:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support was introduced in 8.0.0 and not backported yet
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
   -  do:
         indices.create:
            index: test
@@ -579,8 +579,8 @@ Test nested field inside object structure:
 ---
 Test doubly nested fields:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support was introduced in 8.0.0 and not backported yet
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
   -  do:
         indices.create:
            index: test
@@ -648,8 +648,8 @@ Test doubly nested fields:
 ---
 Test nested fields with unmapped subfields:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support was introduced in 8.0.0 and not backported yet
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
   -  do:
         indices.create:
            index: test
@@ -715,8 +715,8 @@ Test nested fields with unmapped subfields:
 ---
 Test nested fields with ignored subfields:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support was introduced in 8.0.0 and not backported yet
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
   -  do:
         indices.create:
            index: test
@@ -758,8 +758,8 @@ Test nested fields with ignored subfields:
 ---
 Test nested field with sibling field resolving to DocValueFetcher:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support was introduced in 8.0.0 and not backported yet
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
   -  do:
         indices.create:
            index: test

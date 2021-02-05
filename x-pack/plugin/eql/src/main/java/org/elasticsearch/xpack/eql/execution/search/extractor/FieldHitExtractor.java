@@ -30,8 +30,8 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     }
 
     public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
-                             boolean arrayLeniency) {
-        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, arrayLeniency);
+                             MultiValueHandling multiValueHandling) {
+        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, multiValueHandling);
     }
 
     @Override

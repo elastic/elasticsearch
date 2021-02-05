@@ -56,6 +56,8 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
             line = readLine();
         }
 
+        assertThat(line, RegexMatcher.matches("\\s*ARRAY\\s*\\|\\s*ARRAY\\s*"));
+        line = readLine();
         assertThat(line, RegexMatcher.matches("\\s*SCORE\\s*\\|\\s*SCORE\\s*"));
         assertEquals("", readLine());
     }

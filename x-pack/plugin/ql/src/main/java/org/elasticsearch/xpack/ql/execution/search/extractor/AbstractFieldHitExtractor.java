@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.execution.search.extractor;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -41,6 +43,42 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     private static final Version SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION = Version.V_7_4_0;
+    private static final Version INTRODUCED_MULTI_VALUE_EXTRACTION = Version.V_7_12_0; // TODO: update if merging in 7.13.0
+
+    public enum MultiValueHandling {
+        FAIL_IF_MULTIVALUE {
+            @Override
+            public Object handle(Object object, String fieldName) {
+                return extractOneValue(object, fieldName, true);
+            }
+        },
+        EXTRACT_ONE {
+            @Override
+            public Object handle(Object object, String fieldName) {
+                return extractOneValue(object, fieldName, false);
+            }
+        },
+        EXTRACT_ARRAY {
+            @Override
+            public Object handle(Object object, String _ignored) {
+                return object instanceof List ? object : singletonList(object);
+            }
+        };
+
+        public abstract Object handle(Object unwrapped, String fieldName);
+
+        private static Object extractOneValue(Object object, String fieldName, boolean failIfMultiValue) {
+            if (object instanceof List) { // is this a multi-value?
+                List<?> list = (List<?>) object;
+                if (list.size() > 1 && failIfMultiValue) {
+                    throw new QlIllegalArgumentException("Cannot return multiple values for field [{}]; use ARRAY({}) instead",
+                        fieldName, fieldName);
+                }
+                return list.isEmpty() ? null : list.get(0);
+            }
+            return object;
+        }
+    }
 
     /**
      * Source extraction requires only the (relative) field name, without its parent path.
@@ -55,25 +93,26 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     private final DataType dataType;
     private final ZoneId zoneId;
     private final boolean useDocValue;
-    private final boolean arrayLeniency;
+    private final MultiValueHandling multiValueHandling;
     private final String[] path;
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
-        this(name, null, dataType, zoneId, useDocValue, null, false);
+        this(name, null, dataType, zoneId, useDocValue, null, MultiValueHandling.FAIL_IF_MULTIVALUE);
     }
 
-    protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
-        this(name, null, dataType, zoneId, useDocValue, null, arrayLeniency);
+    protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue,
+                                        MultiValueHandling multiValueHandling) {
+        this(name, null, dataType, zoneId, useDocValue, null, multiValueHandling);
     }
 
     protected AbstractFieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue,
-            String hitName, boolean arrayLeniency) {
+            String hitName, MultiValueHandling multiValueHandling) {
         this.fieldName = name;
         this.fullFieldName = fullFieldName;
         this.dataType = dataType;
         this.zoneId = zoneId;
         this.useDocValue = useDocValue;
-        this.arrayLeniency = arrayLeniency;
+        this.multiValueHandling = multiValueHandling;
         this.hitName = hitName;
 
         if (hitName != null) {
@@ -96,7 +135,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
-        arrayLeniency = in.readBoolean();
+        if (in.getVersion().onOrAfter(INTRODUCED_MULTI_VALUE_EXTRACTION)) {
+            multiValueHandling = in.readEnum(MultiValueHandling.class);
+        } else {
+            multiValueHandling = in.readBoolean() ? MultiValueHandling.EXTRACT_ONE : MultiValueHandling.FAIL_IF_MULTIVALUE;
+        }
         path = sourcePath(fieldName, useDocValue, hitName);
         zoneId = readZoneId(in);
     }
@@ -116,7 +159,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
-        out.writeBoolean(arrayLeniency);
+        if (out.getVersion().onOrAfter(INTRODUCED_MULTI_VALUE_EXTRACTION)) {
+            out.writeEnum(multiValueHandling);
+        } else {
+            out.writeBoolean(multiValueHandling != MultiValueHandling.FAIL_IF_MULTIVALUE);
+        }
     }
 
     @Override
@@ -125,7 +172,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         if (useDocValue) {
             DocumentField field = hit.field(fieldName);
             if (field != null) {
-                value = unwrapMultiValue(field.getValues());
+                value = extractMultiValue(field.getValues());
             }
         } else {
             // if the field was ignored because it was malformed and ignore_malformed was turned on
@@ -151,22 +198,27 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return value;
     }
 
+    protected Object extractMultiValue(Object values) {
+        return multiValueHandling.handle(unwrapMultiValue(values), fieldName);
+    }
+
     protected Object unwrapMultiValue(Object values) {
         if (values == null) {
             return null;
         }
         if (values instanceof List) {
             List<?> list = (List<?>) values;
-            if (list.isEmpty()) {
-                return null;
-            } else {
-                if (isPrimitive(list) == false) {
-                    if (list.size() == 1 || arrayLeniency) {
-                        return unwrapMultiValue(list.get(0));
+            if (isPrimitive(list) == false) {
+                List<Object> unwrappedList = new ArrayList<>();
+                for (Object o : list) {
+                    Object unwrapped = unwrapMultiValue(o);
+                    if (unwrapped instanceof List) {
+                        unwrappedList.addAll((List<?>) unwrapped);
                     } else {
-                        throw new QlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                        unwrappedList.add(unwrapped);
                     }
                 }
+                return unwrappedList;
             }
         }
 
@@ -178,36 +230,41 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
         // and BigDecimal (if Double is not enough)
         if (values instanceof Number || values instanceof String || values instanceof Boolean) {
-            if (dataType == null) {
-                return values;
-            }
-            if (dataType.isNumeric() && isFromDocValuesOnly(dataType) == false) {
-                if (dataType == DataTypes.DOUBLE || dataType == DataTypes.FLOAT || dataType == DataTypes.HALF_FLOAT) {
-                    Number result = null;
-                    try {
-                        result = numberType(dataType).parse(values, true);
-                    } catch(IllegalArgumentException iae) {
-                        return null;
-                    }
-                    // docvalue_fields is always returning a Double value even if the underlying floating point data type is not Double
-                    // even if we don't extract from docvalue_fields anymore, the behavior should be consistent
-                    return result.doubleValue();
-                } else {
-                    Number result = null;
-                    try {
-                        result = numberType(dataType).parse(values, true);
-                    } catch(IllegalArgumentException iae) {
-                        return null;
-                    }
-                    return result;
-                }
-            } else if (DataTypes.isString(dataType) || dataType == DataTypes.IP) {
-                return values.toString();
-            } else {
-                return values;
-            }
+            return unwrapNumberOrStringOrBoolean(values);
         }
+
         throw new QlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
+    }
+
+    private Object unwrapNumberOrStringOrBoolean(Object value) {
+        if (dataType == null) {
+            return value;
+        }
+        if (dataType.isNumeric() && isFromDocValuesOnly(dataType) == false) {
+            if (dataType == DataTypes.DOUBLE || dataType == DataTypes.FLOAT || dataType == DataTypes.HALF_FLOAT) {
+                Number result = null;
+                try {
+                    result = numberType(dataType).parse(value, true);
+                } catch(IllegalArgumentException iae) {
+                    return null;
+                }
+                // docvalue_fields is always returning a Double value even if the underlying floating point data type is not Double
+                // even if we don't extract from docvalue_fields anymore, the behavior should be consistent
+                return result.doubleValue();
+            } else {
+                Number result = null;
+                try {
+                    result = numberType(dataType).parse(value, true);
+                } catch(IllegalArgumentException iae) {
+                    return null;
+                }
+                return result;
+            }
+        } else if (DataTypes.isString(dataType) || dataType == DataTypes.IP) {
+            return value.toString();
+        } else {
+            return value;
+        }
     }
 
     protected boolean isFromDocValuesOnly(DataType dataType) {
@@ -227,7 +284,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public Object extractFromSource(Map<String, Object> map) {
-        Object value = null;
+        List<Object> values = new ArrayList<>();
 
         // Used to avoid recursive method calls
         // Holds the sub-maps in the document hierarchy that are pending to be inspected along with the current index of the `path`.
@@ -235,7 +292,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         queue.add(new Tuple<>(-1, map));
 
         while (queue.isEmpty() == false) {
-            Tuple<Integer, Map<String, Object>> tuple = queue.removeLast();
+            Tuple<Integer, Map<String, Object>> tuple = queue.removeFirst();
             int idx = tuple.v1();
             Map<String, Object> subMap = tuple.v2();
 
@@ -245,49 +302,55 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             StringJoiner sj = new StringJoiner(".");
             for (int i = idx + 1; i < path.length; i++) {
                 sj.add(path[i]);
-                Object node = subMap.get(sj.toString());
+                String currentPath = sj.toString();
+                // need to differentiate between Map#get() returning null b/c there's no mapping VS the mapping's actual value
+                if (subMap.containsKey(currentPath)) {
+                    Object node = subMap.get(currentPath);
 
-                if (node instanceof List) {
-                    List listOfValues = (List) node;
-                    // we can only do this optimization until the last element of our pass since geo points are using arrays
-                    // and we don't want to blindly ignore the second element of array if arrayLeniency is enabled
-                    if ((i < path.length - 1) && (listOfValues.size() == 1 || arrayLeniency)) {
-                        // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
-                        // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
-                        // in case of being lenient about arrays, just extract the first value in the array
-                        node = listOfValues.get(0);
+                    if (node instanceof List) { // {"a": {"b": [...]}}
+                        List listOfValues = (List) node;
+                        // if the path is not yet exhausted (ex. at "a.b.c" level for a "a.b.c.d" path), queue whatever's in the list and
+                        // inspect it with next outer loop iteration.
+                        if (i < path.length - 1) {
+                            final int level = i;
+                            listOfValues.forEach(o -> {
+                                if (o instanceof Map) {
+                                    queue.add(new Tuple<>(level, (Map<String, Object>) o));
+                                } else {
+                                    // another list or an "end"/concrete value: smth is wrong, either with the mapping or with the map/doc
+                                    throw new QlIllegalArgumentException("Cannot extract field [{}] value [{}] from source", fieldName,
+                                        node);
+                                }
+                            });
+                        }
+                        // if the path is exhausted, just add the list to the output list and let extractMultiValue & co deal with it
+                        else {
+                            values.add(node);
+                        }
+                    } else if (node instanceof Map) {
+                        if (i < path.length - 1) {
+                            // Add the sub-map to the queue along with the current path index
+                            queue.add(new Tuple<>(i, (Map<String, Object>) node));
+                        } else {
+                            // We exhausted the path and got a map
+                            // If it is an object - it will be handled in the value extractor
+                            values.add(node);
+                        }
                     } else {
-                        // a List of elements with more than one value. Break early and let unwrapMultiValue deal with the list
-                        return unwrapMultiValue(node);
+                        if (i < path.length - 1) {
+                            if (node != null) {
+                                // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
+                                // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
+                                throw new QlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
+                            }
+                        } else {
+                            values.add(node);
+                        }
                     }
-                }
-
-                if (node instanceof Map) {
-                    if (i < path.length - 1) {
-                        // Add the sub-map to the queue along with the current path index
-                        queue.add(new Tuple<>(i, (Map<String, Object>) node));
-                    } else {
-                        // We exhausted the path and got a map
-                        // If it is an object - it will be handled in the value extractor
-                        value = node;
-                    }
-                } else if (node != null) {
-                    if (i < path.length - 1) {
-                        // If we reach a concrete value without exhausting the full path, something is wrong with the mapping
-                        // e.g.: map is {"a" : { "b" : "value }} and we are looking for a path: "a.b.c.d"
-                        throw new QlIllegalArgumentException("Cannot extract value [{}] from source", fieldName);
-                    }
-                    if (value != null) {
-                        // A value has already been found so this means that there are more than one
-                        // values in the document for the same path but different hierarchy.
-                        // e.g.: {"a" : {"b" : {"c" : "value"}}}, {"a.b" : {"c" : "value"}}, ...
-                        throw new QlIllegalArgumentException("Multiple values (returned by [{}]) are not supported", fieldName);
-                    }
-                    value = node;
                 }
             }
         }
-        return unwrapMultiValue(value);
+        return extractMultiValue(values);
     }
 
     @Override
@@ -315,8 +378,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return useDocValue;
     }
 
-    public boolean arrayLeniency() {
-        return arrayLeniency;
+    public MultiValueHandling multiValueExtraction() {
+        return multiValueHandling;
     }
 
     @Override
@@ -333,11 +396,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return fieldName.equals(other.fieldName)
                 && hitName.equals(other.hitName)
                 && useDocValue == other.useDocValue
-                && arrayLeniency == other.arrayLeniency;
+                && multiValueHandling == other.multiValueHandling;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, useDocValue, hitName, arrayLeniency);
+        return Objects.hash(fieldName, useDocValue, hitName, multiValueHandling);
     }
 }

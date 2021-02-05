@@ -140,7 +140,8 @@ public final class DataTypes {
     }
 
     public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT;
+        DataType dt = baseType(t);
+        return dt == KEYWORD || dt == TEXT;
     }
 
     public static boolean isPrimitive(DataType t) {
@@ -159,8 +160,13 @@ public final class DataTypes {
         return t.isNumeric();
     }
 
+
+    public static boolean isArray(DataType t) {
+        return t instanceof ArrayDataType;
+    }
+
     public static boolean isDateTime(DataType type) {
-        return type == DATETIME || type == DATETIME_NANOS;
+        return baseType(type) == DATETIME || type == DATETIME_NANOS;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -173,5 +179,9 @@ public final class DataTypes {
                     || (left.isNumeric() && right.isNumeric())
                     || (isDateTime(left) && isDateTime(right));
         }
+    }
+
+    public static DataType baseType(DataType dt) {
+        return dt instanceof ArrayDataType ? ((ArrayDataType) dt).baseType() : dt;
     }
 }

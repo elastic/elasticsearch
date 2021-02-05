@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
+import org.elasticsearch.xpack.sql.expression.function.Array;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.ScorePipe;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
@@ -328,7 +329,7 @@ public class QueryContainer {
     //
     // reference methods
     //
-    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
+    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr, boolean asMultiValue) {
         FieldAttribute actualField = fieldAttr;
         FieldAttribute rootField = fieldAttr;
         StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
@@ -361,10 +362,10 @@ public class QueryContainer {
             rootField = rootField.parent();
         }
         return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
+                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias(), asMultiValue);
     }
 
-    private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
+    private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr, boolean asMultiValue) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name,
@@ -372,7 +373,7 @@ public class QueryContainer {
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
-                false, attr.parent().name());
+                false, attr.parent().name(), asMultiValue);
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
@@ -440,6 +441,10 @@ public class QueryContainer {
         return new Tuple<>(qContainer, new ComputedRef(proc));
     }
 
+    private Tuple<QueryContainer, FieldExtraction> asFieldAttributeExtraction(FieldAttribute fa, boolean asMultiValue) {
+        return fa.isNested() ? nestedHitFieldRef(fa, asMultiValue) : new Tuple<>(this, topHitFieldRef(fa, asMultiValue));
+    }
+
     public QueryContainer addColumn(Attribute attr) {
         Expression expression = aliases.getOrDefault(attr, attr);
         Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
@@ -451,12 +456,7 @@ public class QueryContainer {
         Expression expression = aliases.getOrDefault(attr, attr);
 
         if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
-            if (fa.isNested()) {
-                return nestedHitFieldRef(fa);
-            } else {
-                return new Tuple<>(this, topHitFieldRef(fa));
-            }
+            return asFieldAttributeExtraction((FieldAttribute) expression, false);
         }
 
         if (expression == null) {
@@ -469,6 +469,10 @@ public class QueryContainer {
 
         if (expression instanceof Score) {
             return new Tuple<>(this, new ComputedRef(new ScorePipe(expression.source(), expression)));
+        }
+
+        if (expression instanceof Array) {
+            return asFieldAttributeExtraction((FieldAttribute) ((Array) expression).field(), true);
         }
 
         if (expression instanceof ScalarFunction) {

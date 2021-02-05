@@ -19,7 +19,7 @@ dependencies {
   testImplementation project(':modules:reindex')
 }
 
-testClusters {
+testClusters.configureEach {
   setting 'geoip.downloader.enabled', 'fasle'
 }
 

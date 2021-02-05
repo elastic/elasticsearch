@@ -191,7 +191,7 @@ public class DockerTests extends PackagingTestCase {
 
         waitForElasticsearch(installation);
 
-        final JsonNode nodes = getJson("_nodes").get("nodes");
+        final JsonNode nodes = getJson("/_nodes").get("nodes");
         final String nodeId = nodes.fieldNames().next();
 
         final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
@@ -219,7 +219,7 @@ public class DockerTests extends PackagingTestCase {
 
             waitForElasticsearch(installation);
 
-            final JsonNode nodes = getJson("_nodes");
+            final JsonNode nodes = getJson("/_nodes");
 
             assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
@@ -726,7 +726,7 @@ public class DockerTests extends PackagingTestCase {
     public void test140CgroupOsStatsAreAvailable() throws Exception {
         waitForElasticsearch(installation);
 
-        final JsonNode nodes = getJson("_nodes/stats/os").get("nodes");
+        final JsonNode nodes = getJson("/_nodes/stats/os").get("nodes");
 
         final String nodeId = nodes.fieldNames().next();
 

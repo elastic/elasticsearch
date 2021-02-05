@@ -33,7 +33,6 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
-        req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
 
         return restChannel -> {
             client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel));

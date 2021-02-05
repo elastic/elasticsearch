@@ -13,13 +13,13 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Collection;
@@ -207,13 +207,13 @@ public class SystemIndices {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<String> associatedIndexPatterns;
-        private final TriFunction<Set<Index>, MetadataDeleteIndexService, ClusterState, ClusterState> cleanUpFunction;
+        private final TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction;
 
         public Feature(
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<String> associatedIndexPatterns,
-            TriFunction<Set<Index>, MetadataDeleteIndexService, ClusterState, ClusterState> cleanUpFunction) {
+            TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.associatedIndexPatterns = associatedIndexPatterns;
@@ -221,7 +221,7 @@ public class SystemIndices {
         }
 
         public Feature(String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(description, indexDescriptors, Collections.emptyList(), (a, b, c) -> c);
+            this(description, indexDescriptors, Collections.emptyList(), (a, b, c) -> {});
         }
 
         public String getDescription() {
@@ -236,7 +236,7 @@ public class SystemIndices {
             return associatedIndexPatterns;
         }
 
-        public TriFunction<Set<Index>, MetadataDeleteIndexService, ClusterState, ClusterState> getCleanUpFunction() {
+        public TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
             return cleanUpFunction;
         }
     }

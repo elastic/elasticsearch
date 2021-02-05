@@ -11,10 +11,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -25,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -100,13 +96,6 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
             return "A simple test plugin";
         }
 
-        @Override
-        public ClusterState cleanUpFeature(
-            Set<Index> indices,
-            MetadataDeleteIndexService deleteIndexService,
-            ClusterState state) {
-            return deleteIndexService.deleteIndices(state, indices);
-        }
     }
 
 }

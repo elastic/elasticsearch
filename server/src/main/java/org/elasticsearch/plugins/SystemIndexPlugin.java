@@ -8,11 +8,14 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
 import java.util.Collection;
@@ -55,15 +58,27 @@ public interface SystemIndexPlugin extends ActionPlugin {
         return Collections.emptyList();
     }
 
-    default ClusterState cleanUpFeature(
-        Set<Index> indices,
-        MetadataDeleteIndexService deleteIndexService,
-        ClusterState state) {
-        // do nothing
-        return state;
+    default void cleanUpFeature(
+        Set<String> indices,
+        Client client,
+        ActionListener<ResetFeatureStateResponse> listener) {
+
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
+        deleteIndexRequest.indices(indices.toArray(String[]::new));
+        client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                listener.onResponse(new ResetFeatureStateResponse());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
-    default TriFunction<Set<Index>,  MetadataDeleteIndexService, ClusterState, ClusterState> getCleanUpFunction() {
+    default TriConsumer<Set<String>, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
         // return (indices, deleteIndexService, state) -> state;
         return this::cleanUpFeature;
     }

@@ -8,14 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.features;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class ResetFeatureStateRequest extends MasterNodeRequest<ResetFeatureStateRequest> {
+public class ResetFeatureStateRequest extends ActionRequest {
 
     public ResetFeatureStateRequest() {
         // TODO[wrb]

@@ -19,14 +19,14 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
  */
 public abstract class LongKeyedBucketOrds implements Releasable {
     /**
-     * Build a {@link LongKeyedBucketOrds} who's values can have unknown bounds.
+     * Build a {@link LongKeyedBucketOrds} who's values have unknown bounds.
      */
     public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
         return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
     }
 
     /**
-     * Build a {@link LongKeyedBucketOrds} who's values can have known bounds.
+     * Build a {@link LongKeyedBucketOrds} who's values have known bounds.
      */
     public static LongKeyedBucketOrds buildForValueRange(BigArrays bigArrays, CardinalityUpperBound cardinality, long min, long max) {
         return cardinality.map(cardinalityUpperBound -> {

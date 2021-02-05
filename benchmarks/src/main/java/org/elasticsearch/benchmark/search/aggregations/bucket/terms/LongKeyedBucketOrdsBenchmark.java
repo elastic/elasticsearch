@@ -187,7 +187,8 @@ public class LongKeyedBucketOrdsBenchmark {
 
 
     /**
-     * Emulates an aggregation that collects from many buckets. NOCOMMIT
+     * Emulates an aggregation that collects from many buckets with a known
+     * bounds on the values.
      */
     @Benchmark
     public void multiBucketManySmall(Blackhole bh) {

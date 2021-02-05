@@ -190,6 +190,14 @@ Machine Learning::
 * Adding `result_type` and `mlcategory` fields to category definitions {es-pull}63326[#63326] (issue: {es-issue}60108[#60108])
 * Increase log level for forecast disk storage problems {es-pull}64766[#64766] (issue: {es-issue}58806[#58806])
 * Provide a way to revert an {anomaly-job} to an empty snapshot {es-pull}65431[#65431]
+* During regression and classification training prefer smaller models if performance is similar {ml-pull}1516[#1516]
+* Add a response mechanism for commands sent to the native controller {ml-pull}1520[#1520], {es-pull}63542[#63542] (issue: {es-issue}62823[#62823])
+* Speed up anomaly detection for seasonal data. This is particularly effective for jobs using longer bucket lengths {ml-pull}1549[#1549]
+* Fix an edge case which could cause typical and model plot bounds to blow up to around max double {ml-pull}1551[#1551]
+* Estimate upper bound of potential gains before splitting a decision tree node to avoid  unnecessary computation {ml-pull}1537[#1537]
+* Improvements to time series modeling particularly in relation to adaption to change {ml-pull})1614[#1614]
+* Warn and error log throttling {ml-pull}1615[#1615]
+* Soften the effect of fluctuations in anomaly detection job memory usage on node assignment and add `assignment_memory_basis` to `model_size_stats` {ml-pull}1623[#1623], {es-pull}65561[#65561] (issue: {es-issue}63163[#63163])
 
 Mapping::
 * Add xpack info and usage endpoints for runtime fields {es-pull}65600[#65600] (issue: {es-issue}59332[#59332])
@@ -288,6 +296,9 @@ Machine Learning::
 * Fix edge case for data frame analytics where a field mapped as a keyword actually has boolean and string values in the `_source` {es-pull}64826[#64826]
 * Fix job ID in C++ logs for normalize and memory estimation {es-pull}63874[#63874] (issues: {es-issue}54636[#54636], {es-issue}60395[#60395])
 * Truncate long audit messages {es-pull}64849[#64849] (issue: {es-issue}64570[#64570])
+* Fix potential cause for log errors from CXMeansOnline1d {ml-pull}1586[#1586]
+* Fix scaling of some hyperparameters for Bayesian optimization {ml-pull}1612[#1612]
+* Fix missing state in persist and restore for anomaly detection. This caused suboptimal modelling after a job was closed and reopened or failed over to a different node {ml-pull}1668[#1668]
 
 Mapping::
 * Count only mapped fields towards `docvalue_fields` limit {es-pull}63806[#63806] (issue: {es-issue}63730[#63730])

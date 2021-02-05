@@ -23,7 +23,7 @@ import java.time.Instant;
 /**
  * Implementation of `retention_policy` configuration parameter.
  *
- * All implementations of `rentention_policy` are converted to a {@link DeleteByQueryRequest}, which is than executed by the indexer.
+ * All implementations of `retention_policy` are converted to a {@link DeleteByQueryRequest}, which is then executed by the indexer.
  */
 public final class RetentionPolicyToDeleteByQueryRequestConverter {
 
@@ -36,14 +36,14 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
     private RetentionPolicyToDeleteByQueryRequestConverter() {}
 
     /**
-     * Build a {@link DeleteByQueryRequest} from a retention policy. The DBQ should run _after_ a new checkpoint has finished.
-     * The given checkpoint should be the one that just finished indexing, however the DBQ executes before this checkpoint
-     * gets exposed.
+     * Build a {@link DeleteByQueryRequest} from a `retention policy`. The DBQ runs _after_ all data for a new checkpoint
+     * has been processed (composite agg + bulk indexing) and the index got refreshed. After the DBQ - with a final index refresh -
+     * the checkpoint is complete.
      *
      * @param retentionPolicyConfig The retention policy configuration
      * @param settingsConfig settings to set certain parameters
      * @param destConfig the destination config
-     * @param checkpoint The checkpoint that just finished
+     * @param nextCheckpoint The checkpoint that just finished
      *
      * @return a delete by query request according to the given configurations or null if no delete by query should be executed
      */
@@ -51,16 +51,16 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
         RetentionPolicyConfig retentionPolicyConfig,
         SettingsConfig settingsConfig,
         DestConfig destConfig,
-        TransformCheckpoint checkpoint
+        TransformCheckpoint nextCheckpoint
     ) {
-        if (checkpoint == null || checkpoint.isEmpty()) {
+        if (nextCheckpoint == null || nextCheckpoint.isEmpty()) {
             return null;
         }
 
         DeleteByQueryRequest request = new DeleteByQueryRequest();
 
         if (retentionPolicyConfig instanceof TimeRetentionPolicyConfig) {
-            request.setQuery(getDeleteQueryFromTimeBasedRetentionPolicy((TimeRetentionPolicyConfig) retentionPolicyConfig, checkpoint));
+            request.setQuery(getDeleteQueryFromTimeBasedRetentionPolicy((TimeRetentionPolicyConfig) retentionPolicyConfig, nextCheckpoint));
         } else {
             throw new RetentionPolicyException("unsupported retention policy of type [{}]", retentionPolicyConfig.getWriteableName());
         }

@@ -231,8 +231,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testConstructor_NoFunctionProvided() throws IOException {
-        String json = "{" + " \"source\": {\"index\": \"src\"}," + " \"dest\": {\"index\": \"dest\"}" + "}";
-
+        // tag::NO_CODE_FORMAT
+        String json = "{"
+                + " \"source\": {"
+                + "   \"index\": \"src\""
+                + " },"
+                + " \"dest\": {"
+                + "   \"index\": \"dest\""
+                + "} }";
+        // end::NO_CODE_FORMAT
         // Should parse with lenient parser
         createTransformConfigFromString(json, "dummy", true);
         // Should throw with strict parser

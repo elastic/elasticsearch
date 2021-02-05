@@ -474,9 +474,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // this should not happen as part of checkpointing
             if (bulkByScrollResponse.getVersionConflicts() > 0) {
                 logger.warn(
-                    "[{}] found [{}] version conflicts when deleting documents as part of the retention policy. Retry at the next checkpoint.",
-                    getJobId(),
-                    bulkByScrollResponse.getDeleted()
+                    new ParameterizedMessage(
+                        "[{}] found [{}] version conflicts when deleting documents as part of the retention policy. "
+                            + "Retry at the next checkpoint.",
+                        getJobId(),
+                        bulkByScrollResponse.getDeleted()
+                    )
                 );
             }
             // paranoia: we are not expecting dbq to fail for other reasons
@@ -484,7 +487,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 assert false : "delete by query failed unexpectedly" + bulkByScrollResponse;
                 logger.warn(
                     new ParameterizedMessage(
-                        "[{}] found failures when deleting documents as part of the retention policy. Retry at the next checkpoint.",
+                        "[{}] found failures when deleting documents as part of the retention policy. "
+                            + "Retry at the next checkpoint. Response: [{}]",
                         getJobId(),
                         bulkByScrollResponse
                     )

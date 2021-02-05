@@ -49,7 +49,12 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_ValidConfig() throws IOException {
-        String json = "{" + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ]," + " \"sort\": \"timestamp\"" + "}";
+        // tag::NO_CODE_FORMAT
+        String json = "{"
+            + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
+            + " \"sort\": \"timestamp\""
+            + "}";
+        // end::NO_CODE_FORMAT
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null), is(nullValue()));

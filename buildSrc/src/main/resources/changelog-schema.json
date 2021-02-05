@@ -120,7 +120,11 @@
           "type": "string",
           "minLength": 1
         },
-        "body": {
+        "details": {
+          "type": "string",
+          "minLength": 1
+        },
+        "impact": {
           "type": "string",
           "minLength": 1
         },
@@ -135,7 +139,8 @@
       "required": [
         "area",
         "title",
-        "body"
+        "details",
+        "impact"
       ]
     },
     "Deprecation": {

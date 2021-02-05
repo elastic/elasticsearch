@@ -200,7 +200,8 @@ public class ChangelogEntry {
     public static class Breaking {
         private String area;
         private String title;
-        private String body;
+        private String details;
+        private String impact;
         private boolean isNotable;
         private String anchor;
 
@@ -220,12 +221,20 @@ public class ChangelogEntry {
             this.title = title;
         }
 
-        public String getBody() {
-            return body;
+        public String getDetails() {
+            return details;
         }
 
-        public void setBody(String body) {
-            this.body = body;
+        public void setDetails(String details) {
+            this.details = details;
+        }
+
+        public String getImpact() {
+            return impact;
+        }
+
+        public void setImpact(String impact) {
+            this.impact = impact;
         }
 
         public boolean isNotable() {
@@ -253,26 +262,27 @@ public class ChangelogEntry {
                 return false;
             }
             Breaking breaking = (Breaking) o;
-            return Objects.equals(area, breaking.area)
+            return isNotable == breaking.isNotable
+                && Objects.equals(area, breaking.area)
                 && Objects.equals(title, breaking.title)
-                && Objects.equals(body, breaking.body)
-                && Objects.equals(isNotable, breaking.isNotable)
+                && Objects.equals(details, breaking.details)
+                && Objects.equals(impact, breaking.impact)
                 && Objects.equals(anchor, breaking.anchor);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(area, title, body, isNotable, anchor);
+            return Objects.hash(area, title, details, impact, isNotable, anchor);
         }
 
         @Override
         public String toString() {
             return String.format(
-                Locale.ROOT,
-                "Breaking{area='%s', title='%s', body='%s', isNotable=%s, anchor='%s'}",
+                "Breaking{area='%s', title='%s', details='%s', impact='%s', isNotable=%s, anchor='%s'}",
                 area,
                 title,
-                body,
+                details,
+                impact,
                 isNotable,
                 anchor
             );

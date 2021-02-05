@@ -133,7 +133,10 @@ public class BreakingChangesGenerator implements Closeable {
                 out.println("[%collapsible]");
                 out.println("====");
                 out.println("*Details* +");
-                out.println(breaking.getBody().trim());
+                out.println(breaking.getDetails().trim());
+                out.println();
+                out.println("*Impact* +");
+                out.println(breaking.getImpact().trim());
                 out.println("====");
             });
 

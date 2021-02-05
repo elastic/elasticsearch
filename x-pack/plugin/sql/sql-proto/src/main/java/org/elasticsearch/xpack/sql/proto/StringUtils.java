@@ -14,6 +14,7 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -163,6 +164,31 @@ public final class StringUtils {
                 }
                 sb.append(millis);
             }
+            return sb.toString();
+        }
+
+        // multivalue
+        if (value instanceof Collection) {
+            final StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            Collection<?> values = (Collection<?>) value;
+            values.forEach(x -> {
+                // quote strings and `\`-escape the `"` character inside them
+                if (x instanceof String) { // TODO: IPs should ideally not be quoted.
+                    sb.append('"');
+                    sb.append(((String) x).replace("\"", "\\\""));
+                    sb.append('"');
+                } else if (x == null) {
+                    sb.append("NULL");
+                } else {
+                    sb.append(toString(x, sqlVersion));
+                }
+                sb.append(',');
+            });
+            if (sb.length() > 1) { // strip trailing comma
+                sb.deleteCharAt(sb.length() - 1);
+            }
+            sb.append(']');
             return sb.toString();
         }
 

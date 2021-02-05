@@ -12,13 +12,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+/**
+ * Transport action for cleaning up feature index state.
+ */
 public class TransportResetFeatureStateAction extends HandledTransportAction<ResetFeatureStateRequest, ResetFeatureStateResponse> {
 
     private final SystemIndices systemIndices;

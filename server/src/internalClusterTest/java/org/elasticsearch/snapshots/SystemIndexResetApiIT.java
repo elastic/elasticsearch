@@ -35,14 +35,18 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
         return plugins;
     }
 
+    /** Check that the reset method cleans up a feature */
     public void testResetSystemIndices() throws Exception {
+        String sysindex = ".test-system-idx-1";
+        String associndex = ".associated-idx-1";
+
         // put a document in a system index
-        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_PATTERN, "1", "purpose", "system index doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_PATTERN);
+        indexDoc(sysindex, "1", "purpose", "system index doc");
+        refresh(sysindex);
 
         // put a document in associated index
-        indexDoc(SystemIndexTestPlugin.ASSOCIATED_INDEX_NAME, "1", "purpose", "associated index doc");
-        refresh(SystemIndexTestPlugin.ASSOCIATED_INDEX_NAME);
+        indexDoc(associndex, "1", "purpose", "associated index doc");
+        refresh(associndex);
 
         // put a document in a normal index
         indexDoc("my_index", "1", "purpose", "normal index doc");
@@ -53,13 +57,13 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
 
         // verify that both indices are gone
         Exception e1 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(SystemIndexTestPlugin.SYSTEM_INDEX_PATTERN)
+            .addIndices(sysindex)
             .get());
 
         assertThat(e1.getMessage(), containsString("no such index"));
 
         Exception e2 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(SystemIndexTestPlugin.ASSOCIATED_INDEX_NAME)
+            .addIndices(associndex)
             .get());
 
         assertThat(e2.getMessage(), containsString("no such index"));
@@ -71,19 +75,22 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
         assertThat(response.getIndices(), arrayContaining("my_index"));
     }
 
+    /**
+     * A test plugin with patterns for system indices and associated indices.
+     */
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
 
-        public static final String SYSTEM_INDEX_PATTERN = ".test-system-idx";
-        public static final String ASSOCIATED_INDEX_NAME = ".associated-idx";
+        public static final String SYSTEM_INDEX_PATTERN = ".test-system-idx*";
+        public static final String ASSOCIATED_INDEX_PATTERN = ".associated-idx*";
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN + "*", "System indices for tests"));
+            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_PATTERN, "System indices for tests"));
         }
 
         @Override
         public Collection<String> getAssociatedIndexPatterns() {
-            return Collections.singletonList(ASSOCIATED_INDEX_NAME);
+            return Collections.singletonList(ASSOCIATED_INDEX_PATTERN);
         }
 
         @Override
@@ -95,7 +102,5 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
         public String getFeatureDescription() {
             return "A simple test plugin";
         }
-
     }
-
 }

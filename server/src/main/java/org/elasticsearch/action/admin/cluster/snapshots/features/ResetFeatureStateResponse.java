@@ -16,10 +16,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/** Response to a feature state reset request. */
 public class ResetFeatureStateResponse extends ActionResponse implements ToXContentObject {
 
     public ResetFeatureStateResponse() {
-        // TODO[wrb]
+        // TODO[wrb] - we should return a list or map of feature states and their responses
     }
 
     public ResetFeatureStateResponse(StreamInput in) throws IOException {
@@ -30,7 +31,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // TODO[wrb]
-        return null;
+        return builder;
     }
 
     @Override

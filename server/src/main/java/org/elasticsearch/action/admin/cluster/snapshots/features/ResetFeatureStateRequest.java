@@ -15,10 +15,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/** Request for resetting feature state */
 public class ResetFeatureStateRequest extends ActionRequest {
 
     public ResetFeatureStateRequest() {
-        // TODO[wrb]
+        // TODO[wrb] - We might need to let this request take a list of
+        //  feature state names, but not for the initial implementation
     }
 
     public ResetFeatureStateRequest(StreamInput in) throws IOException {

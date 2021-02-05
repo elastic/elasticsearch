@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 
@@ -62,6 +61,13 @@ public interface SystemIndexPlugin extends ActionPlugin {
         return Collections.emptyList();
     }
 
+    /**
+     * Cleans up the state of the feature by deleting system indices and associated indices.
+     * Override to do more for cleanup (e.g. cancelling tasks).
+     * @param clusterService Cluster service to provide cluster state
+     * @param client A client, for executing actions
+     * @param listener Listener for post-cleanup result TODO[wrb]: need to gather results over features
+     */
     default void cleanUpFeature(
         ClusterService clusterService, Client client,
         ActionListener<ResetFeatureStateResponse> listener) {
@@ -89,10 +95,5 @@ public interface SystemIndexPlugin extends ActionPlugin {
                 listener.onFailure(e);
             }
         });
-    }
-
-    default TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
-        // return (indices, deleteIndexService, state) -> state;
-        return this::cleanUpFeature;
     }
 }

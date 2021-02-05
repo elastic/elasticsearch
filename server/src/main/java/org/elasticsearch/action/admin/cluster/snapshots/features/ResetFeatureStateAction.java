@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.action.ActionType;
 
+/** Action for resetting feature states, mostly meaning system indices */
 public class ResetFeatureStateAction extends ActionType<ResetFeatureStateResponse> {
 
     public static final ResetFeatureStateAction INSTANCE = new ResetFeatureStateAction();

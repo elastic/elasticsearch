@@ -58,10 +58,10 @@ Note that this value is relative to the rollover time, not the index creation ti
 You can create the policy through {kib} or with the
 <<ilm-put-lifecycle, put policy>> API.
 To create the policy from {kib}, open the menu and go to *Stack Management >
-Index Lifecycle Policies*. Click *Index Lifecycle Policies*.
+Index Lifecycle Policies*. Click *Create policy*.
 
 [role="screenshot"]
-image:images/ilm/create-policy.png[]
+image::images/ilm/create-policy.png[Create policy page]
 
 .API example
 [%collapsible]

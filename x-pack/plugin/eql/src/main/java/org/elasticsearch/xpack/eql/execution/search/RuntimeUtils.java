@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_INTRODUCTION_VERSION;
 
 public final class RuntimeUtils {
 
@@ -149,12 +150,13 @@ public final class RuntimeUtils {
                                                SearchSourceBuilder source,
                                                boolean includeFrozen,
                                                String... indices) {
-        return client.prepareSearch(indices)
-            .setSource(source)
-            .setAllowPartialSearchResults(false)
-            .setIndicesOptions(
-                    includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-            .request();
+        SearchRequest searchRequest = new SearchRequest(FIELDS_API_INTRODUCTION_VERSION);
+        searchRequest.indices(indices);
+        searchRequest.source(source);
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.indicesOptions(
+            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
+        return searchRequest;
     }
 
     public static List<SearchHit> searchHits(SearchResponse response) {

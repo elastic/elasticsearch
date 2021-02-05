@@ -6,9 +6,15 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -20,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
@@ -48,10 +55,12 @@ import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
+    private static final Logger log = LogManager.getLogger(TransportSqlQueryAction.class);
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
     private final SqlLicenseChecker sqlLicenseChecker;
+    private final TransportService transportService;
 
     @Inject
     public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -64,19 +73,21 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
+        this.transportService = transportService;
     }
 
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        operation(planExecutor, request, listener, username(securityContext), clusterName(clusterService));
+        operation(planExecutor, request, listener, username(securityContext), clusterName(clusterService), transportService,
+            clusterService);
     }
 
     /**
      * Actual implementation of the action. Statically available to support embedded mode.
      */
     static void operation(PlanExecutor planExecutor, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener,
-                                 String username, String clusterName) {
+                                 String username, String clusterName, TransportService transportService, ClusterService clusterService) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
@@ -84,8 +95,52 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 request.fieldMultiValueLeniency(), request.indexIncludeFrozen());
 
         if (Strings.hasText(request.cursor()) == false) {
+            Holder<Boolean> retrySecondTime = new Holder<Boolean>(false);
             planExecutor.sql(cfg, request.query(), request.params(),
+                wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), e -> {
+                    // the search request will likely run on nodes with different versions of ES
+                    // we will retry on a node with an older version that should generate a backwards compatible _search request
+                    if (e instanceof SearchPhaseExecutionException
+                        && ((SearchPhaseExecutionException) e).getCause() instanceof VersionMismatchException) {
+
+                        SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
+                        if (log.isTraceEnabled()) {
+                            log.trace("Caught exception type [{}] with cause [{}].", e.getClass().getName(), e.getCause());
+                        }
+                        DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
+                        DiscoveryNode candidateNode = null;
+                        for (DiscoveryNode node : clusterService.state().nodes()) {
+                            // find the first node that's older than the current node
+                            if (node != localNode && node.getVersion().before(localNode.getVersion())) {
+                                candidateNode = node;
+                                break;
+                            }
+                        }
+                        if (candidateNode != null) {
+                            if (log.isTraceEnabled()) {
+                                log.trace("Candidate node to resend the request to: address [{}], id [{}], name [{}], version [{}]",
+                                    candidateNode.getAddress(), candidateNode.getId(), candidateNode.getName(), candidateNode.getVersion());
+                            }
+                            // re-send the request to the older node
+                            transportService.sendRequest(candidateNode, SqlQueryAction.NAME, request,
+                                new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME));
+                        } else {
+                            if (log.isTraceEnabled()) {
+                                log.trace("No candidate node found, likely all were upgraded in the meantime");
+                            }
+                            retrySecondTime.set(true);
+                        }
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }));
+            if (retrySecondTime.get()) {
+                if (log.isTraceEnabled()) {
+                    log.trace("No candidate node found, likely all were upgraded in the meantime. Re-trying the original request.");
+                }
+                planExecutor.sql(cfg, request.query(), request.params(),
                     wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), listener::onFailure));
+            }
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
             planExecutor.nextPage(cfg, decoded.v1(),

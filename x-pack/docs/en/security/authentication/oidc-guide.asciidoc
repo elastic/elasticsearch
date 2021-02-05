@@ -518,7 +518,7 @@ interface, you must configure {kib} to use a `https` URL to connect to {es}, and
 you may need to configure `elasticsearch.ssl.certificateAuthorities` to trust
 the certificates that {es} has been configured to use.
 
-SAML authentication in {kib} is subject to the following timeout settings in
+OpenID Connect authentication in {kib} is subject to the following timeout settings in
 `kibana.yml`:
 
 - {kibana-ref}/xpack-security-session-management.html#session-idle-timeout[`xpack.security.session.idleTimeout`]

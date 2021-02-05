@@ -454,7 +454,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         logger.debug(
-            new ParameterizedMessage(
+            () -> new ParameterizedMessage(
                 "[{}] Run delete based on retention policy using dbq [{}] with query: [{}]",
                 getJobId(),
                 deleteByQuery,
@@ -464,17 +464,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         getStats().markStartDelete();
 
         doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
-            logger.trace(new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
+            logger.trace(() -> new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
+
             getStats().markEndDelete();
-            if (bulkByScrollResponse.getDeleted() > 0) {
-                getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());
-                logger.debug("[{}] deleted [{}] documents as part of the retention policy.", getJobId(), bulkByScrollResponse.getDeleted());
-            }
+            getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());
+            logger.debug("[{}] deleted [{}] documents as part of the retention policy.", getJobId(), bulkByScrollResponse.getDeleted());
 
             // this should not happen as part of checkpointing
             if (bulkByScrollResponse.getVersionConflicts() > 0) {
                 logger.warn(
-                    new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "[{}] found [{}] version conflicts when deleting documents as part of the retention policy. "
                             + "Retry at the next checkpoint.",
                         getJobId(),
@@ -486,7 +485,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             if (bulkByScrollResponse.getBulkFailures().size() > 0 || bulkByScrollResponse.getSearchFailures().size() > 0) {
                 assert false : "delete by query failed unexpectedly" + bulkByScrollResponse;
                 logger.warn(
-                    new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "[{}] found failures when deleting documents as part of the retention policy. "
                             + "Retry at the next checkpoint. Response: [{}]",
                         getJobId(),

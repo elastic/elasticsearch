@@ -558,6 +558,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
     }
 
+    /**
+     * Test using Nested aggregation as a parent of composite
+     */
     public void testSubAggregationOfNested() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
@@ -611,6 +614,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
     }
 
+    /**
+     * Test aggregate after with top level nested aggregation
+     */
     public void testSubAggregationOfNestedAggregateAfter() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));

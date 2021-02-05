@@ -653,7 +653,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         PercolatorFieldMapper.verifyQuery(rangeQuery1);
         PercolatorFieldMapper.verifyQuery(rangeQuery2);
 
-        HasChildQueryBuilder hasChildQuery = new HasChildQueryBuilder("_type", new MatchAllQueryBuilder(), ScoreMode.None);
+        HasChildQueryBuilder hasChildQuery = new HasChildQueryBuilder("parent", new MatchAllQueryBuilder(), ScoreMode.None);
         expectThrows(IllegalArgumentException.class, () ->
                 PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
         expectThrows(IllegalArgumentException.class, () ->
@@ -671,7 +671,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasChildQuery));
         expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
 
-        HasParentQueryBuilder hasParentQuery = new HasParentQueryBuilder("_type", new MatchAllQueryBuilder(), false);
+        HasParentQueryBuilder hasParentQuery = new HasParentQueryBuilder("parent", new MatchAllQueryBuilder(), false);
         expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasParentQuery));
         expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasParentQuery)));
     }

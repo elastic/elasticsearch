@@ -2,6 +2,11 @@
 [[fips-140-compliance]]
 === FIPS 140-2
 
+NOTE: If you consider configuring {es} for FIPS 140-2 compliance, we strongly
+suggest that you first upgrade your installation to 7.11 or later.
+See https://www.elastic.co/guide/en/elasticsearch/reference/7.11/release-notes-7.11.0.html[7.11 release notes]
+for more details.
+
 The Federal Information Processing Standard (FIPS) Publication 140-2, (FIPS PUB
 140-2), titled "Security Requirements for Cryptographic Modules" is a U.S.
 government computer security standard used to approve cryptographic modules.

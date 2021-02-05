@@ -52,7 +52,7 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
 
     public static final GetBlobChecksumAction INSTANCE = new GetBlobChecksumAction();
 
-    public static final String NAME = "cluster:admin/repository/analyze/read";
+    public static final String NAME = "cluster:admin/repository/analyze/blob/read";
 
     private GetBlobChecksumAction() {
         super(NAME, Response::new);

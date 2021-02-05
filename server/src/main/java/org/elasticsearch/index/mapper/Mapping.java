@@ -159,5 +159,4 @@ public final class Mapping implements ToXContentFragment {
             throw new UncheckedIOException(bogus);
         }
     }
-
 }

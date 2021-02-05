@@ -335,12 +335,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        Mapping mapping = parseMapping(mappingType, mappingSource);
+        Mapping mapping = mappingParser.parse(mappingType, mappingSource);
         return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
-    }
-
-    Mapping parseMapping(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        return mappingParser.parse(mappingType, mappingSource);
     }
 
     /**

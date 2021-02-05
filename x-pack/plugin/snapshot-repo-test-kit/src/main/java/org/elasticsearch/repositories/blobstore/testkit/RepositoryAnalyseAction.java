@@ -395,6 +395,7 @@ public class RepositoryAnalyseAction extends ActionType<RepositoryAnalyseAction.
         }
 
         private void tryListAndCleanup(final int retryCount) {
+            // TODO no need for retries any more now that S3 has consistent listings
             if (timeoutTimeMillis < currentTimeMillisSupplier.getAsLong() || task.isCancelled()) {
                 logger.warn(
                     "analysis of repository [{}] failed in cleanup phase after [{}] attempts, attempting best-effort cleanup "

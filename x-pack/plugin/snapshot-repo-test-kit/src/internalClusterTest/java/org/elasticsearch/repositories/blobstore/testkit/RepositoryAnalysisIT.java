@@ -67,7 +67,7 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
 
     public void testFoo() {
 
-        createRepository("test-repo", TestPlugin.DISRUPTABLE_REPO_TYPE);
+        createRepositoryNoVerify("test-repo", TestPlugin.DISRUPTABLE_REPO_TYPE);
 
         final DisruptableBlobStore blobStore = new DisruptableBlobStore();
         for (final RepositoriesService repositoriesService : internalCluster().getInstances(RepositoriesService.class)) {

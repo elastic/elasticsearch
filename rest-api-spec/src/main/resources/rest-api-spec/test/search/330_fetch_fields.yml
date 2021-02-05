@@ -402,3 +402,407 @@ Test unmapped fields inside disabled objects:
   -  match:
         hits.hits.0.fields.f1\.a:
         - b
+---
+Test nested fields:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support was introduced in 8.0.0 and not backported yet
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   products:
+                     type: nested
+                     properties:
+                       manufacturer:
+                         type: keyword
+                       base_price:
+                         type: double
+                       product_id:
+                         type: integer
+
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              products:
+                 - { "manufacturer" : "Supersoft", "base_price" : 1.55, "product_id" : 12345}
+                 - { "manufacturer" : "HyperSmart", "base_price" : 20.20, "product_id" : 54321}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]
+  - length: { hits.hits.0.fields : 1 }
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"], "base_price" : [1.55], "product_id" : [12345]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20], "product_id" : [54321]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products.manufacturer", "products.base_price"]
+  - length: { hits.hits.0.fields : 1 }
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"], "base_price" : [1.55]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products.manufacturer"]
+  - length: { hits.hits.0.fields : 1 }
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products"]
+  - is_false: hits.hits.0.fields
+---
+Test nested field inside object structure:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support was introduced in 8.0.0 and not backported yet
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   obj:
+                      type: object
+                      properties:
+                        products:
+                          type: nested
+                          properties:
+                            manufacturer:
+                              type: keyword
+                            base_price:
+                              type: double
+                            product_id:
+                              type: integer
+                        other_obj_field:
+                          type: keyword
+
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              obj:
+                 products:
+                    - { "manufacturer" : "Supersoft", "base_price" : 1.55, "product_id" : 12345}
+                    - { "manufacturer" : "HyperSmart", "base_price" : 20.20, "product_id" : 54321}
+                 other_obj_field: other_value
+  -  do:
+        index:
+           index: test
+           id: 2
+           refresh: true
+           body:
+              obj.products:
+                    - { "manufacturer" : "RealTec", "base_price" : 12.55, "product_id" : 23451}
+              obj.other_obj_field: other_value2
+
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]
+  - length: { hits.hits.0.fields : 2 }
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"], "base_price" : [1.55], "product_id" : [12345]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20], "product_id" : [54321]}
+  - match:
+        hits.hits.0.fields.obj\.other_obj_field.0: other_value
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["RealTec"], "base_price" : [12.55], "product_id" : [23451]}
+  - match:
+        hits.hits.1.fields.obj\.other_obj_field.0: other_value2
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["obj.other_obj_field"]
+  - match:
+        hits.hits.0.fields.obj\.other_obj_field.0: other_value
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["obj.products.manufacturer"]
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"]}
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["RealTec"]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["obj.pro*ts.manufacturer"]
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"]}
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["RealTec"]}
+---
+Test doubly nested fields:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support was introduced in 8.0.0 and not backported yet
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   id:
+                     type: keyword
+                   user:
+                     type: nested
+                     properties:
+                       first:
+                         type: keyword
+                       last:
+                         type: keyword
+                         fields:
+                           keyword:
+                             type : keyword
+                       address:
+                         type: nested
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              id: abcd1234
+              user:
+                 - { "first" : "John", "address" : { "city" : "Berlin" }, "account" : { "size" : 1213 }}
+                 - { "first" : "Alice", "last" : "White", "address" : [{ "city" : "Toronto", "zip" : "1111" },{ "city" : "Ottawa", "zip" : "2222" }]}
+                 - { "first" : "John", "last" : "Snow" }
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ { "field" : "*" } ]
+  -  match:
+        hits.hits.0.fields.id:
+           - abcd1234
+  - is_false: hits.hits.0.fields.user\.first
+  - is_false: hits.hits.0.fields.user\.last
+  - is_false: hits.hits.0.fields.user\.account\.size
+  -  match:
+        hits.hits.0.fields.user.0: { "first" : [ "John" ], "address" : [{ "city" : ["Berlin"], "city.keyword" : ["Berlin"]}],  "account.size" : [1213] }
+  -  match:
+        hits.hits.0.fields.user.1: { "first" : [ "Alice" ], "last" : [ "White" ], "last.keyword" : [ "White" ], "address" : [ { "zip" : [ "1111" ], "zip.keyword" : [ "1111" ], "city" : [ "Toronto" ], "city.keyword" : [ "Toronto" ] }, { "zip" : ["2222"], "zip.keyword" : ["2222"], "city" : ["Ottawa"], "city.keyword" : [ "Ottawa" ]}] }
+  -  match:
+        hits.hits.0.fields.user.2: { "first" : [ "John" ], "last" : [ "Snow" ], "last.keyword" : [ "Snow" ] }
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ { "field" : "user.address*" } ]
+
+  -  match:
+        hits.hits.0.fields.user.0: { "address" : [{ "city" : ["Berlin"], "city.keyword" : ["Berlin"]}] }
+  -  match:
+        hits.hits.0.fields.user.1: { "address" : [ { "zip" : [ "1111" ], "zip.keyword" : [ "1111" ], "city" : [ "Toronto" ], "city.keyword" : [ "Toronto" ] }, { "zip" : ["2222"], "zip.keyword" : ["2222"], "city" : ["Ottawa"], "city.keyword" : [ "Ottawa" ]}] }
+  - length: { hits.hits.0.fields.user : 2 }
+
+---
+Test nested fields with unmapped subfields:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support was introduced in 8.0.0 and not backported yet
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   id:
+                     type: keyword
+                   user:
+                     type: nested
+                     properties:
+                       first:
+                         type: keyword
+                       address:
+                         type: object
+                         enabled: false
+                   user_account:
+                     type: nested
+                     properties:
+                       details:
+                         type: object
+                         enabled: false
+
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              id: abcd1234
+              user_account:
+               - { "details" : { "id" : "xyz1234" }}
+              user:
+                 - { "first" : "John", "address" : { "city" : "Berlin" }}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields:
+              - { "field" : "*", "include_unmapped" : true }
+  -  match:
+        hits.hits.0.fields.id:
+           - abcd1234
+  - is_false: hits.hits.0.fields.user\.first
+  - is_false: hits.hits.0.fields.user\.last
+  - is_false: hits.hits.0.fields.user_account\.details\.id
+  -  match:
+        hits.hits.0.fields.user.0: { "first" : [ "John" ], "address.city" : ["Berlin"]}
+  -  match:
+        hits.hits.0.fields.user_account.0: { "details.id" : ["xyz1234"]}
+
+  -  do:
+       search:
+          index: test
+          body:
+             _source: false
+             fields:
+             - { "field" : "user.address.*", "include_unmapped" : true }
+  -  match:
+       hits.hits.0.fields.user.0: { "address.city" : ["Berlin"]}
+---
+Test nested fields with ignored subfields:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support was introduced in 8.0.0 and not backported yet
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   malformed_outside:
+                     type: integer
+                     ignore_malformed: true
+                   user:
+                     type: nested
+                     properties:
+                       malformed_inside:
+                         type: integer
+                         ignore_malformed: true
+                       first:
+                         type: keyword
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              malformed_outside : "bad_value_1"
+              user:
+                 - { "first" : "John", "malformed_inside" : "bad_value_2"}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields:
+              - { "field" : "*", "include_unmapped" : true }
+  - is_false: hits.hits.0.fields.malformed_outside
+  -  match:
+        hits.hits.0.fields.user:
+           - { "first" : [ "John" ] }
+---
+Test nested field with sibling field resolving to DocValueFetcher:
+  -  skip:
+        version: ' - 7.99.99'
+        reason: support was introduced in 8.0.0 and not backported yet
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   owner:
+                     type: text
+                     fields:
+                       length:
+                         type: token_count
+                         analyzer: standard
+                   products:
+                     type: nested
+                     properties:
+                       manufacturer:
+                         type: keyword
+
+  -  do:
+        index:
+           index: test
+           id: 1
+           refresh: true
+           body:
+              owner: "Anna Ott"
+              products:
+                 - { "manufacturer" : "Supersoft"}
+                 - { "manufacturer" : "HyperSmart"}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]
+  - length: { hits.hits.0.fields : 3 }
+  - match:
+        hits.hits.0.fields.owner:
+          - "Anna Ott"
+  - match:
+        hits.hits.0.fields.owner\.length: 
+        - 2
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}

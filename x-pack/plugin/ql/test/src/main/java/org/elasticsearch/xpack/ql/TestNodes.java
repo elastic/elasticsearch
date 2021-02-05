@@ -38,8 +38,6 @@ public final class TestNodes extends HashMap<String, TestNode> {
 
     @Override
     public String toString() {
-        return "Nodes{"
-            + values().stream().map(TestNode::toString).collect(Collectors.joining("\n"))
-            + '}';
+        return "Nodes{" + values().stream().map(TestNode::toString).collect(Collectors.joining("\n")) + '}';
     }
 }

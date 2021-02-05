@@ -18,7 +18,6 @@ import org.elasticsearch.painless.action.PainlessContextFieldInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 import org.elasticsearch.painless.action.PainlessContextInstanceBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
-import org.elasticsearch.painless.javadoc.JavadocExtractor;
 
 import java.io.IOException;
 import java.util.ArrayList;

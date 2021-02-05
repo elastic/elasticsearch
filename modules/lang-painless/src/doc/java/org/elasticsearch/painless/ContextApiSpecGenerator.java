@@ -14,8 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.action.PainlessContextInfo;
-import org.elasticsearch.painless.javadoc.JavaClassResolver;
-import org.elasticsearch.painless.javadoc.JavadocExtractor;
 
 import java.io.FileInputStream;
 import java.io.IOException;

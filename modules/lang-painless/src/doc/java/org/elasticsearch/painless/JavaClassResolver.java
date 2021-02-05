@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.painless.javadoc;
+package org.elasticsearch.painless;
 
 import java.io.IOException;
 import java.io.InputStream;

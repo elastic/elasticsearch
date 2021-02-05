@@ -57,7 +57,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +70,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
+import java.util.stream.IntStream;
 
 /**
  * Action which distributes a bunch of {@link BlobAnalyzeAction}s over the nodes in the cluster, with limited concurrency, and collects
@@ -183,6 +186,157 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             }
         }
         return nodes;
+    }
+
+    // Exposed for tests
+    static List<Long> getBlobSizes(Request request) {
+
+        int blobCount = request.getBlobCount();
+        long maxTotalBytes = request.getMaxTotalDataSize().getBytes();
+        long maxBlobSize = request.getMaxBlobSize().getBytes();
+
+        if (maxTotalBytes - maxBlobSize < blobCount - 1) {
+            throw new IllegalArgumentException(
+                "cannot satisfy max total bytes ["
+                    + maxTotalBytes
+                    + "B/"
+                    + request.getMaxTotalDataSize()
+                    + "]: must write at least one byte per blob and at least one max-sized blob which is ["
+                    + (blobCount + maxBlobSize - 1)
+                    + "B] in total"
+            );
+        }
+
+        final List<Long> blobSizes = new ArrayList<>();
+        for (long s = 1; 0 < s && s < maxBlobSize; s <<= 1) {
+            blobSizes.add(s);
+        }
+        blobSizes.add(maxBlobSize);
+
+        // Try and form an even spread of blob sizes by accounting for as many evenly spreads repeats as possible up-front.
+        final long evenSpreadSize = blobSizes.stream().mapToLong(l -> l).sum();
+        int evenSpreadCount = 0;
+        while (blobSizes.size() <= blobCount && blobCount - blobSizes.size() <= maxTotalBytes - evenSpreadSize) {
+            evenSpreadCount += 1;
+            maxTotalBytes -= evenSpreadSize;
+            blobCount -= blobSizes.size();
+        }
+
+        if (evenSpreadCount == 0) {
+            // Not enough bytes for even a single even spread, account for the one max-sized blob anyway.
+            blobCount -= 1;
+            maxTotalBytes -= maxBlobSize;
+        }
+
+        final List<Long> perBlobSizes = new BlobCountCalculator(blobCount, maxTotalBytes, blobSizes).calculate();
+
+        if (evenSpreadCount == 0) {
+            perBlobSizes.add(maxBlobSize);
+        } else {
+            for (final long blobSize : blobSizes) {
+                for (int i = 0; i < evenSpreadCount; i++) {
+                    perBlobSizes.add(blobSize);
+                }
+            }
+        }
+
+        assert perBlobSizes.size() == request.getBlobCount();
+        assert perBlobSizes.stream().mapToLong(l -> l).sum() <= request.getMaxTotalDataSize().getBytes();
+        assert perBlobSizes.stream().allMatch(l -> 1 <= l && l <= request.getMaxBlobSize().getBytes());
+        assert perBlobSizes.stream().anyMatch(l -> l == request.getMaxBlobSize().getBytes());
+        return perBlobSizes;
+    }
+
+    /**
+     * Calculates a reasonable set of blob sizes, with the correct number of blobs and a total size that respects the max in the request.
+     */
+    private static class BlobCountCalculator {
+
+        private final int blobCount;
+        private final long maxTotalBytes;
+        private final List<Long> blobSizes;
+        private final int sizeCount;
+
+        private final int[] blobsBySize;
+        private long totalBytes;
+        private int totalBlobs;
+
+        BlobCountCalculator(int blobCount, long maxTotalBytes, List<Long> blobSizes) {
+            this.blobCount = blobCount;
+            this.maxTotalBytes = maxTotalBytes;
+            assert blobCount <= maxTotalBytes;
+
+            this.blobSizes = blobSizes;
+            sizeCount = blobSizes.size();
+            assert sizeCount > 0;
+
+            blobsBySize = new int[sizeCount];
+            assert invariant();
+        }
+
+        List<Long> calculate() {
+            // add blobs roughly evenly while keeping the total size under maxTotalBytes
+            addBlobsRoughlyEvenly(sizeCount - 1);
+
+            // repeatedly remove a blob and replace it with some number of smaller blobs, until there are enough blobs
+            while (totalBlobs < blobCount) {
+                assert totalBytes <= maxTotalBytes;
+
+                final int minSplitCount = Arrays.stream(blobsBySize).skip(1).allMatch(i -> i <= 1) ? 1 : 2;
+                final int splitIndex = IntStream.range(1, sizeCount).filter(i -> blobsBySize[i] >= minSplitCount).reduce(-1, (i, j) -> j);
+                assert splitIndex > 0 : "split at " + splitIndex;
+                assert blobsBySize[splitIndex] >= minSplitCount;
+
+                final long splitSize = blobSizes.get(splitIndex);
+                blobsBySize[splitIndex] -= 1;
+                totalBytes -= splitSize;
+                totalBlobs -= 1;
+
+                addBlobsRoughlyEvenly(splitIndex - 1);
+                assert invariant();
+            }
+
+            return getPerBlobSizes();
+        }
+
+        private List<Long> getPerBlobSizes() {
+            assert invariant();
+
+            final List<Long> perBlobSizes = new ArrayList<>(blobCount);
+            for (int sizeIndex = 0; sizeIndex < sizeCount; sizeIndex++) {
+                final long size = blobSizes.get(sizeIndex);
+                for (int i = 0; i < blobsBySize[sizeIndex]; i++) {
+                    perBlobSizes.add(size);
+                }
+            }
+
+            return perBlobSizes;
+        }
+
+        private void addBlobsRoughlyEvenly(int startingIndex) {
+            while (totalBlobs < blobCount && totalBytes < maxTotalBytes) {
+                boolean progress = false;
+                for (int sizeIndex = startingIndex; 0 <= sizeIndex && totalBlobs < blobCount && totalBytes < maxTotalBytes; sizeIndex--) {
+                    final long size = blobSizes.get(sizeIndex);
+                    if (totalBytes + size <= maxTotalBytes) {
+                        progress = true;
+                        blobsBySize[sizeIndex] += 1;
+                        totalBlobs += 1;
+                        totalBytes += size;
+                    }
+                }
+                assert progress;
+                assert invariant();
+            }
+        }
+
+        private boolean invariant() {
+            assert IntStream.of(blobsBySize).sum() == totalBlobs : this;
+            assert IntStream.range(0, sizeCount).mapToLong(i -> blobSizes.get(i) * blobsBySize[i]).sum() == totalBytes : this;
+            assert totalBlobs <= blobCount : this;
+            assert totalBytes <= maxTotalBytes : this;
+            return true;
+        }
     }
 
     public static class AsyncAction {
@@ -304,17 +458,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             final Random random = new Random(request.getSeed());
 
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
+            final List<Long> blobSizes = getBlobSizes(request);
+            Collections.shuffle(blobSizes, random);
 
-            final long maxBlobSize = request.getMaxBlobSize().getBytes();
-            final List<Long> blobSizes = new ArrayList<>();
-            for (long s = 1; s < maxBlobSize; s <<= 1) {
-                blobSizes.add(s);
-            }
-            blobSizes.add(maxBlobSize);
-
-            // TODO account for max total blob size
             for (int i = 0; i < request.getBlobCount(); i++) {
-                final long targetLength = blobSizes.get(random.nextInt(blobSizes.size()));
+                final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= Integer.MAX_VALUE; // we only use the non-atomic API for larger blobs
                 final VerifyBlobTask verifyBlobTask = new VerifyBlobTask(
                     nodes.get(random.nextInt(nodes.size())),
@@ -325,8 +473,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         targetLength,
                         random.nextLong(),
                         nodes,
-                        request.readNodeCount,
-                        request.earlyReadNodeCount,
+                        request.getReadNodeCount(),
+                        request.getEarlyReadNodeCount(),
                         smallBlob && random.nextDouble() < request.getRareActionProbability(),
                         repository.supportURLRepo() && smallBlob && random.nextDouble() < request.getRareActionProbability()
                     )
@@ -612,6 +760,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         public void blobCount(int blobCount) {
             if (blobCount <= 0) {
                 throw new IllegalArgumentException("blobCount must be >0, but was [" + blobCount + "]");
+            }
+            if (blobCount > 100000) {
+                // Coordination work is O(blobCount) but is supposed to be lightweight, so limit the blob count.
+                throw new IllegalArgumentException("blobCount must be <= 100000, but was [" + blobCount + "]");
             }
             this.blobCount = blobCount;
         }

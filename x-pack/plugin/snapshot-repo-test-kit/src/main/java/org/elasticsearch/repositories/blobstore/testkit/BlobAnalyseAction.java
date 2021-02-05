@@ -287,6 +287,11 @@ public class BlobAnalyseAction extends ActionType<BlobAnalyseAction.Response> {
             }
             final long startNanos = System.nanoTime();
             ActionListener.completeWith(stepListener, () -> {
+
+                // TODO push some of this writing logic down into the blob container implementation.
+                // E.g. for S3 blob containers we would like to choose somewhat more randomly between single-part and multi-part uploads,
+                // rather than relying on the usual distinction based on the size of the blob.
+
                 if (atomic || (request.targetLength <= Integer.MAX_VALUE && random.nextBoolean())) {
                     final RandomBlobContentBytesReference bytesReference = new RandomBlobContentBytesReference(
                         content,

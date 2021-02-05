@@ -36,7 +36,6 @@ import java.util.Set;
 /**
  * Create index action.
  */
-@SuppressWarnings("checkstyle:LineLength")
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
     private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);
 
@@ -68,10 +67,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
 
-        IndexNameExpressionResolver.ResolvedContext resolvedContext = indexNameExpressionResolver
-            .resolveDateMathExpressionAndInstant(request.index());
-        final String indexName = resolvedContext.name();
-        final long resolvedAt = resolvedContext.instant();
+        final long resolvedAt = System.currentTimeMillis();
+        final String indexName  = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
 

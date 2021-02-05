@@ -758,10 +758,15 @@ public class MetadataCreateIndexService {
     public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
                                                                 List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
                                                                 AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                                                                SearchExecutionContext searchExecutionContext) {
+                                                                SearchExecutionContext searchExecutionContext,
+                                                                Function<String, String> indexNameExpressionResolver) {
 
+        // Keep a separate set to facilitate searches when processing aliases from the template
+        Set<Alias> resolvedExpressions = new HashSet<>();
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
+            final String resolvedExpression = indexNameExpressionResolver.apply(alias.name());
+            alias = alias.name(resolvedExpression);
             aliasValidator.validateAlias(alias, index, metadata);
             if (Strings.hasLength(alias.filter())) {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
@@ -770,16 +775,19 @@ public class MetadataCreateIndexService {
                 .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
                 .isHidden(alias.isHidden()).build();
             resolvedAliases.add(aliasMetadata);
+            resolvedExpressions.add(new Alias(resolvedExpression));
         }
 
         Map<String, AliasMetadata> templatesAliases = new HashMap<>();
         for (Map<String, AliasMetadata> templateAliasConfig : templateAliases) {
             // handle aliases
             for (Map.Entry<String, AliasMetadata> entry : templateAliasConfig.entrySet()) {
-                AliasMetadata aliasMetadata = entry.getValue();
+                String resolvedTemplateExpression = indexNameExpressionResolver.apply(entry.getValue().alias());
+                AliasMetadata aliasMetadata = AliasMetadata.newAliasMetadata(entry.getValue(), resolvedTemplateExpression);
+
                 // if an alias with same name came with the create index request itself,
                 // ignore this one taken from the index template
-                if (aliases.contains(new Alias(aliasMetadata.alias()))) {
+                if (resolvedExpressions.contains(new Alias(aliasMetadata.alias()))) {
                     continue;
                 }
                 // if an alias with same name was already processed, ignore this one
@@ -804,46 +812,7 @@ public class MetadataCreateIndexService {
             }
         }
         return resolvedAliases;
-    }
 
-    /**
-     * Validate and resolve the aliases explicitly set for the index, together with the ones inherited from the specified
-     * templates.
-     *
-     * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
-     * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
-     *
-     * @return the list of resolved aliases, with the explicitly provided aliases occurring first (having a higher priority) followed by
-     * the ones inherited from the templates
-     */
-    public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
-                                                                List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
-                                                                AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                                                                SearchExecutionContext searchExecutionContext,
-                                                                Function<String, String> indexNameExpressionResolver) {
-
-        Set<Alias> dateMathExpressionResolvedAliases = new HashSet<>();
-        for (Alias alias : aliases) {
-            String resolvedName = indexNameExpressionResolver.apply(alias.name());
-            dateMathExpressionResolvedAliases.add(alias.name(resolvedName));
-        }
-
-
-        List<Map<String, AliasMetadata>> resolvedTemplateAliases = new ArrayList<>(templateAliases.size());
-
-        for (Map<String, AliasMetadata> templateAlias: templateAliases) {
-            Map<String, AliasMetadata> resolvedAliases = new HashMap<>();
-            for (Map.Entry<String, AliasMetadata> eachAlias : templateAlias.entrySet()) {
-                AliasMetadata fromTemplate = eachAlias.getValue();
-                String resolvedAlias = indexNameExpressionResolver.apply(fromTemplate.alias());
-
-                resolvedAliases.put(eachAlias.getKey(), AliasMetadata.newAliasMetadata(fromTemplate, resolvedAlias));
-            }
-            resolvedTemplateAliases.add(resolvedAliases);
-        }
-        return resolveAndValidateAliases(index, dateMathExpressionResolvedAliases,
-            Collections.unmodifiableList(resolvedTemplateAliases),
-            metadata, aliasValidator, xContentRegistry, searchExecutionContext);
     }
 
     /**

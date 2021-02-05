@@ -1454,7 +1454,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(null, createIndexService,
                 new AliasValidator(), null,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry, indexNameExpressionResolver);
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
@@ -1511,7 +1511,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         return new MetadataIndexTemplateService(
                 clusterService, createIndexService, new AliasValidator(), indicesService,
-                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry(), indexNameExpressionResolver);
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());
     }
 
     @SuppressWarnings("unchecked")

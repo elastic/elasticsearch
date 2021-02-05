@@ -442,18 +442,6 @@ public class IndexNameExpressionResolver {
     }
 
     /**
-     * @return If the specified string is data math expression then this method returns the resolved expression and the instant at which
-     * it was resolved
-     */
-    public ResolvedContext resolveDateMathExpressionAndInstant(String dateExpression) {
-        // The data math expression resolver doesn't rely on cluster state or indices options, because
-        // it just resolves the date math to an actual date.
-        long startTime = System.currentTimeMillis();
-        String resolved = dateMathExpressionResolver.resolveExpression(dateExpression, new Context(null, null, startTime, isSystemIndexAccessAllowed()));
-        return new ResolvedContext(resolved, startTime);
-    }
-
-    /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
@@ -711,23 +699,6 @@ public class IndexNameExpressionResolver {
         return Booleans.parseBoolean(threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY), true);
     }
 
-    public static class ResolvedContext {
-        private final String name;
-        private final long parsedAt;
-
-        public ResolvedContext(String resolved, long parsedAt) {
-            this.name = resolved;
-            this.parsedAt = parsedAt;
-        }
-
-        public String name(){
-            return this.name;
-        }
-
-        public long instant() {
-            return this.parsedAt;
-        }
-    }
     public static class Context {
 
         private final ClusterState state;

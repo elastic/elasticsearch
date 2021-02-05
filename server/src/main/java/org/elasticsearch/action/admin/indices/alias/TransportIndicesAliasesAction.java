@@ -107,11 +107,10 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
             }
 
             Collections.addAll(aliases, action.getOriginalAliases());
+            long now = System.currentTimeMillis();
             for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                 case ADD:
-
-                    long now = System.currentTimeMillis();
                     for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                         String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpression(alias, now);
                         finalActions.add(new AliasAction.Add(index.getName(), resolvedName,

@@ -91,7 +91,7 @@ public class LongKeyedBucketOrdsBenchmark {
      * Emulates the way that most aggregations use {@link LongKeyedBucketOrds}.
      */
     @Benchmark
-    public void singleBucketIntoSingleImmutableBimorphicInvocation(Blackhole bh) {
+    public void singleBucketIntoSingleImmutableMegamorphicInvocation(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
@@ -118,6 +118,7 @@ public class LongKeyedBucketOrdsBenchmark {
             ords.add(0, i % DISTINCT_VALUES);
         }
         if (ords.size() != DISTINCT_VALUES) {
+            ords.close();
             throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
         }
         bh.consume(ords);
@@ -130,7 +131,7 @@ public class LongKeyedBucketOrdsBenchmark {
      * {@link #singleBucketIntoSingleMutableMonmorphicInvocation monomorphic invocation}.
      */
     @Benchmark
-    public void singleBucketIntoSingleMutableBimorphicInvocation(Blackhole bh) {
+    public void singleBucketIntoSingleMutableMegamorphicInvocation(Blackhole bh) {
         LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {

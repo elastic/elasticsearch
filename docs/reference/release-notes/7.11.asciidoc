@@ -298,7 +298,7 @@ Machine Learning::
 * Truncate long audit messages {es-pull}64849[#64849] (issue: {es-issue}64570[#64570])
 * Fix potential cause for log errors from CXMeansOnline1d {ml-pull}1586[#1586]
 * Fix scaling of some hyperparameters for Bayesian optimization {ml-pull}1612[#1612]
-* Fix missing state in persist and restore for anomaly detection. This caused suboptimal modelling after a job was closed and reopened or failed over to a different node {ml-pull}1668[#1668]
+* Fix missing state in persist and restore for anomaly detection. This caused suboptimal modeling after a job was closed and reopened or failed over to a different node {ml-pull}1668[#1668]
 
 Mapping::
 * Count only mapped fields towards `docvalue_fields` limit {es-pull}63806[#63806] (issue: {es-issue}63730[#63730])

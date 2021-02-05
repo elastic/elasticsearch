@@ -387,9 +387,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                             } else {
                                 consumer.accept(new IllegalStateException("put mapping request was not acknowledged"));
                             }
-                        }, consumer),
-                        client.admin().indices()::putMapping
-                    );
+                        }, consumer), client.admin().indices()::putMapping);
                 }
             } else {
                 andThen.run();

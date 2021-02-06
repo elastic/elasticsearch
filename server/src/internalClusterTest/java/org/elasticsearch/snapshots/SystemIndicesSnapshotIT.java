@@ -10,13 +10,17 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.junit.Before;
 
@@ -25,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
@@ -34,12 +39,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public static final String REPO_NAME = "test-repo";
+
+    private List<String> dataNodes = null;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -52,7 +62,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     @Before
     public void setup() {
-        createRepository(REPO_NAME, "fs");
+        internalCluster().startMasterOnlyNodes(2);
+        dataNodes = internalCluster().startDataOnlyNodes(2);
     }
 
     /**
@@ -60,6 +71,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * with no reference to feature state, the system indices are restored too.
      */
     public void testRestoreSystemIndicesAsGlobalState() {
+        createRepository(REPO_NAME, "fs");
         // put a document in a system index
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
@@ -88,6 +100,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * If we take a snapshot with includeGlobalState set to false, are system indices included?
      */
     public void testSnapshotWithoutGlobalState() {
+        createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "system index doc");
         indexDoc("not-a-system-index", "1", "purpose", "non system index doc");
 
@@ -115,6 +128,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Test that we can snapshot feature states by name.
      */
     public void testSnapshotByFeature() {
+        createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
@@ -155,6 +169,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * exception.
      */
     public void testDefaultRestoreOnlyRegularIndices() {
+        createRepository(REPO_NAME, "fs");
         final String regularIndex = "test-idx";
 
         indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
@@ -188,6 +203,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Take a snapshot with global state but restore features by state.
      */
     public void testRestoreByFeature() {
+        createRepository(REPO_NAME, "fs");
         final String regularIndex = "test-idx";
 
         indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
@@ -233,6 +249,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * when that feature state is selected.
      */
     public void testSnapshotAndRestoreAssociatedIndices() {
+        createRepository(REPO_NAME, "fs");
         final String regularIndex = "regular-idx";
 
         // put documents into a regular index as well as the system index and associated index of a feature
@@ -286,6 +303,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Check that if we request a feature not in the snapshot, we get an error.
      */
     public void testRestoreFeatureNotInSnapshot() {
+        createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
@@ -313,6 +331,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * @throws IllegalAccessException if something goes wrong with the mock log appender
      */
     public void testRestoringSystemIndexByNameIsDeprecated() throws IllegalAccessException {
+        createRepository(REPO_NAME, "fs");
         // put a document in system index
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
@@ -357,6 +376,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Check that if a system index matches a rename pattern in a restore request, it's not renamed
      */
     public void testSystemIndicesCannotBeRenamed() {
+        createRepository(REPO_NAME, "fs");
         final String nonSystemIndex = ".test-non-system-index";
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc(nonSystemIndex, "1", "purpose", "pre-snapshot doc");
@@ -393,6 +413,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * all feature states should be restored.
      */
     public void testRestoreSystemIndicesAsGlobalStateWithDefaultFeatureStateList() {
+        createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
@@ -428,6 +449,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * "all indices."
      */
     public void testRestoreSystemIndicesAsGlobalStateWithEmptyListOfFeatureStates() {
+        createRepository(REPO_NAME, "fs");
         String regularIndex = "my-index";
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
@@ -467,6 +489,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * saying that the system index must be closed, because here it is included in "all indices."
      */
     public void testRestoreSystemIndicesAsGlobalStateWithEmptyListOfFeatureStatesNoIndicesSpecified() {
+        createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
@@ -497,6 +520,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * However, other feature states should be unaffected.
      */
     public void testAllSystemIndicesAreRemovedWhenThatFeatureStateIsRestored() {
+        createRepository(REPO_NAME, "fs");
         // Create a system index we'll snapshot and restore
         final String systemIndexInSnapshot = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-1";
         indexDoc(systemIndexInSnapshot, "1", "purpose", "pre-snapshot doc");
@@ -546,6 +570,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSystemIndexAliasesAreAlwaysRestored() {
+        createRepository(REPO_NAME, "fs");
         // Create a system index
         final String systemIndexName = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-1";
         indexDoc(systemIndexName, "1", "purpose", "pre-snapshot doc");
@@ -597,6 +622,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * feature state names, and an error occurs if it's tried.
      */
     public void testNoneFeatureStateMustBeAlone() {
+        createRepository(REPO_NAME, "fs");
         // put a document in a system index
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
@@ -644,6 +670,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Tests that using the special "none" feature state value creates a snapshot with no feature states included
      */
     public void testNoneFeatureStateOnCreation() {
+        createRepository(REPO_NAME, "fs");
         final String regularIndex = "test-idx";
 
         indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
@@ -669,6 +696,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testNoneFeatureStateOnRestore() {
+        createRepository(REPO_NAME, "fs");
         final String regularIndex = "test-idx";
 
         indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
@@ -711,6 +739,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      * This test checks whether it's possible to change the name of a system index when it's restored by name (rather than by feature state)
      */
     public void testCanRenameSystemIndicesIfRestoredByIndexName() {
+        createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
@@ -733,6 +762,57 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertTrue("The renamed system index should be present", indexExists("restored-system-idx"));
         assertTrue("The original index should still be present", indexExists(SystemIndexTestPlugin.SYSTEM_INDEX_NAME));
+    }
+
+    /**
+     * Ensures that if we can only capture a partial snapshot of a system index, then the feature state associated with that index is
+     * not included in the snapshot, because it would not be safe to restore that feature state.
+     */
+    public void testPartialSnapshotsOfSystemIndexRemovesFeatureState() throws Exception {
+        final String partialIndexName = SystemIndexTestPlugin.SYSTEM_INDEX_NAME;
+        final String fullIndexName = AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME;
+
+        createRepositoryNoVerify(REPO_NAME, "mock");
+
+        // Creating the index that we'll get a partial snapshot of with a bunch of shards
+        assertAcked(prepareCreate(partialIndexName, 0, indexSettingsNoReplicas(6)));
+        indexDoc(partialIndexName, "1", "purpose", "pre-snapshot doc");
+        // And another one with the default
+        indexDoc(fullIndexName, "1", "purpose", "pre-snapshot doc");
+        ensureGreen();
+
+        // Stop a random data node so we lose a shard from the partial index
+        internalCluster().stopRandomDataNode();
+        assertBusy(() -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
+            30, TimeUnit.SECONDS);
+
+        // Get ready to block
+        blockMasterFromFinalizingSnapshotOnIndexFile(REPO_NAME);
+
+        // Start a snapshot and wait for it to hit the block, then kill the master to force a failover
+        final String partialSnapName = "test-partial-snap";
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, partialSnapName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(false)
+            .setPartial(true)
+            .get();
+        assertThat(createSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+        waitForBlock(internalCluster().getMasterName(), REPO_NAME);
+        internalCluster().stopCurrentMasterNode();
+
+        // Now get the snapshot and do our checks
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                .prepareGetSnapshots(REPO_NAME).setSnapshots(partialSnapName).get();
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO_NAME).get(0);
+            assertNotNull(snapshotInfo);
+            assertThat(snapshotInfo.failedShards(), lessThan(snapshotInfo.totalShards()));
+            List<String> statesInSnapshot = snapshotInfo.featureStates().stream()
+                .map(SnapshotFeatureInfo::getPluginName)
+                .collect(Collectors.toList());
+            assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
+            assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
+        });
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {

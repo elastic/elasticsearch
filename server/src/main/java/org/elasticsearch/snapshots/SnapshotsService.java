@@ -1281,9 +1281,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 entry.partial() ? entry.dataStreams().stream()
                                         .filter(metaForSnapshot.dataStreams()::containsKey)
                                         .collect(Collectors.toList()) : entry.dataStreams(),
-                                entry.partial() ? entry.featureStates().stream()
-                                    .filter(state -> state.getIndices().stream().allMatch(metaForSnapshot::hasIndex))
-                                    .collect(Collectors.toList()) : entry.featureStates(),
+                                entry.partial() ? onlySuccessfulFeatureStates(entry) : entry.featureStates(),
                                 failure, threadPool.absoluteTimeInMillis(),
                                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
                                 entry.includeGlobalState(), entry.userMetadata(), entry.startTime());
@@ -1306,6 +1304,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert false : new AssertionError(e);
             handleFinalizationFailure(e, entry, repositoryData);
         }
+    }
+
+    /**
+     * Removes all feature states which have missing or failed shards, as they are no longer safely restorable.
+     * @param entry The "in progress" entry with a list of feature states and one or more failed shards.
+     * @return The list of feature states which were completed successfully in the given entry.
+     */
+    private List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry) {
+        assert entry.partial() : "should not try to filter feature states from a non-partial entry";
+
+        // Figure out which indices have unsuccessful shards
+        Set<String> indicesWithUnsuccessfulShards = new HashSet<>();
+        entry.shards().keysIt().forEachRemaining(shardId -> {
+            final ShardState shardState = entry.shards().get(shardId).state();
+            if (shardState.failed() || shardState.completed() == false) {
+                indicesWithUnsuccessfulShards.add(shardId.getIndexName());
+            }
+        });
+
+        // Now remove any feature states which contain any of those indices, as the feature state is not intact and not safely restorable
+        return entry.featureStates().stream()
+            .filter(stateInfo -> stateInfo.getIndices().stream().anyMatch(indicesWithUnsuccessfulShards::contains) == false)
+            .collect(Collectors.toList());
     }
 
     /**

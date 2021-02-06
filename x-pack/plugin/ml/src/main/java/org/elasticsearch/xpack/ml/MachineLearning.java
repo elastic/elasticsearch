@@ -70,7 +70,6 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -359,6 +358,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        AnalysisPlugin,
@@ -416,7 +416,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final String MAX_JVM_SIZE_NODE_ATTR = "ml.max_jvm_size";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
-            Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.OperatorDynamic, Property.NodeScope);
     /**
      * The amount of memory needed to load the ML native code shared libraries. The assumption is that the first
      * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
@@ -430,7 +430,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
+           Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.OperatorDynamic, Property.NodeScope);
     /**
      * This boolean value indicates if `max_machine_memory_percent` should be ignored and a automatic calculation is used instead.
      *
@@ -446,10 +446,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",
         false,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
-            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.OperatorDynamic, Property.NodeScope);
 
     // Before 8.0.0 this needs to match the max allowed value for xpack.ml.max_open_jobs,
     // as the current node could be running in a cluster where some nodes are still using
@@ -464,7 +464,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
         Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
-            TimeValue.timeValueSeconds(5), Setting.Property.Dynamic, Setting.Property.NodeScope);
+            TimeValue.timeValueSeconds(5), Property.OperatorDynamic, Setting.Property.NodeScope);
 
     // Undocumented setting for integration test purposes
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
@@ -483,7 +483,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 }
                 return value;
             },
-            Property.Dynamic,
+            Property.OperatorDynamic,
             Property.NodeScope
         );
 
@@ -496,7 +496,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
         "xpack.ml.max_ml_node_size",
         ByteSizeValue.ZERO,
-        Property.Dynamic,
+        Property.OperatorDynamic,
         Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
@@ -637,7 +637,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService);
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService);
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
-        OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
             threadPool,
             originSettingClient,
@@ -854,8 +854,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     dataFrameAnalyticsManager.get(),
                     dataFrameAnalyticsAuditor.get(),
                     memoryTracker.get(),
-                    expressionResolver,
-                    MlIndexTemplateRegistry.INFERENCE_TEMPLATE),
+                    expressionResolver),
                 new SnapshotUpgradeTaskExecutor(settings,
                     clusterService,
                     autodetectProcessManager.get(),
@@ -1085,10 +1084,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         List<String> templateNames =
             Arrays.asList(
                 NotificationsIndex.NOTIFICATIONS_INDEX,
-                MlMetaIndex.indexName(),
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                InferenceIndexConstants.LATEST_INDEX_NAME);
+                AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }
@@ -1165,10 +1162,38 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
-            new SystemIndexDescriptor(MlMetaIndex.indexName(), "Contains scheduling and anomaly tracking metadata"),
-            new SystemIndexDescriptor(MlConfigIndex.indexName(), "Contains ML configuration data"),
-            new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlMetaIndex.indexName() + "*")
+                .setPrimaryIndex(MlMetaIndex.indexName())
+                .setDescription("Contains scheduling and anomaly tracking metadata")
+                .setMappings(MlMetaIndex.mapping())
+                .setSettings(MlMetaIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ML_ORIGIN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setIndexPattern(MlConfigIndex.indexName() + "*")
+                .setPrimaryIndex(MlConfigIndex.indexName())
+                .setDescription("Contains ML configuration data")
+                .setMappings(MlConfigIndex.mapping())
+                .setSettings(MlConfigIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ML_ORIGIN)
+                .build(),
+            getInferenceIndexSecurityDescriptor()
         );
+    }
+
+    public static SystemIndexDescriptor getInferenceIndexSecurityDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(InferenceIndexConstants.INDEX_PATTERN)
+            .setPrimaryIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+            .setDescription("Contains ML model configuration and statistics")
+            .setMappings(InferenceIndexConstants.mapping())
+            .setSettings(InferenceIndexConstants.settings())
+            .setVersionMetaKey("version")
+            .setOrigin(ML_ORIGIN)
+            .build();
     }
 
     @Override

@@ -90,7 +90,9 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             new String[]{LifecycleSettings.LIFECYCLE_NAME},
             // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't
             // perform expensive operations (ie. clusterStateProcessed)
-            false);
+            false,
+            // restoring into the cold tier, so use a full local copy
+            MountSearchableSnapshotRequest.Storage.FULL_COPY);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             ActionListener.wrap(response -> {
                 if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {

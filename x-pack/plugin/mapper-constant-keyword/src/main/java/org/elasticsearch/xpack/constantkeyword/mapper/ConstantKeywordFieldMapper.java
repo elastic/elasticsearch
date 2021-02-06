@@ -137,8 +137,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
 
             return value == null
-                ? lookup -> List.of()
-                : lookup -> List.of(value);
+                ? (lookup, ignoredFields) -> List.of()
+                : (lookup, ignoredFields) -> List.of(value);
         }
 
         @Override

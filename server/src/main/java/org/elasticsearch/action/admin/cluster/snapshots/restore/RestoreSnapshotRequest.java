@@ -53,6 +53,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
+    // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
+    private boolean skipOperatorOnlyState = false;
+
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
@@ -448,6 +451,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         return snapshotUuid;
     }
 
+    public boolean skipOperatorOnlyState() {
+        return skipOperatorOnlyState;
+    }
+
+    public void skipOperatorOnlyState(boolean skipOperatorOnlyState) {
+        this.skipOperatorOnlyState = skipOperatorOnlyState;
+    }
+
     /**
      * @return Which feature states should be included in the snapshot
      */
@@ -539,6 +550,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    private void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("indices");
         for (String index : indices) {
             builder.value(index);
@@ -575,8 +592,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.value(ignoreIndexSetting);
         }
         builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -602,13 +617,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(renameReplacement, that.renameReplacement) &&
             Objects.equals(indexSettings, that.indexSettings) &&
             Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
-            Objects.equals(snapshotUuid, that.snapshotUuid);
+            Objects.equals(snapshotUuid, that.snapshotUuid) &&
+            skipOperatorOnlyState == that.skipOperatorOnlyState;
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid);
+            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid, skipOperatorOnlyState);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         result = 31 * result + Arrays.hashCode(featureStates);
@@ -617,6 +633,12 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString((ToXContentObject) (builder, params) -> {
+            builder.startObject();
+            toXContentFragment(builder, params);
+            builder.field("skipOperatorOnlyState", skipOperatorOnlyState);
+            builder.endObject();
+            return builder;
+        });
     }
 }

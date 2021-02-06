@@ -29,7 +29,6 @@ public final class MappingParser {
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
     private final Function<String, String> documentTypeResolver;
-    private final ContentPath contentPath = new ContentPath(1);
 
     MappingParser(Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
                   Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
@@ -98,6 +97,7 @@ public final class MappingParser {
     }
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+        ContentPath contentPath = new ContentPath(1);
         Mapper.TypeParser.ParserContext parserContext = parserContextSupplier.get();
         RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(contentPath);
 

@@ -19,6 +19,6 @@ dependencies {
 
 addQaCheckDependencies()
 
-test {
+tasks.named("test").configure {
   systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }

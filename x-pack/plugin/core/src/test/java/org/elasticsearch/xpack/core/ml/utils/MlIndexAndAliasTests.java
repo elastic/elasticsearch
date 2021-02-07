@@ -139,11 +139,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
     public void testInstallIndexTemplateIfRequired() {
         ClusterState clusterState = createClusterState(Collections.emptyMap());
 
-        IndexTemplateConfig inferenceTemplate = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
-            "/org/elasticsearch/xpack/core/ml/inference_index_template.json", Version.CURRENT.id, "xpack.ml.version",
+        IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
+            "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
             Collections.singletonMap("xpack.ml.version.id", String.valueOf(Version.CURRENT.id)));
 
-        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceTemplate, listener);
+        MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, notificationsTemplate, listener);
         InOrder inOrder = inOrder(indicesAdminClient, listener);
         inOrder.verify(indicesAdminClient).putTemplate(any(), any());
         inOrder.verify(listener).onResponse(true);

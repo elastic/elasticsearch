@@ -4,7 +4,7 @@
 
 beta::[]
 
-Phases allowed: hot, cold.
+Phases allowed: hot, cold, frozen.
 
 Takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.
@@ -17,7 +17,7 @@ will reject the policy.
 
 IMPORTANT: If the `searchable_snapshot` action is used in the `hot` phase the
 subsequent phases cannot define any of the `shrink`, `forcemerge`, `freeze` or
-`searchable_snapshot` (also available in the cold phase) actions.
+`searchable_snapshot` (also available in the cold and frozen phases) actions.
 
 [NOTE]
 This action cannot be performed on a data stream's write index. Attempts to do

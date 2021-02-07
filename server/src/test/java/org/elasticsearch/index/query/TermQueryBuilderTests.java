@@ -17,7 +17,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TypeFieldType;
 
 import java.io.IOException;
 
@@ -177,12 +176,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "}";
         QueryBuilder parsedQuery = parseQuery(json);
         assertSerialization(parsedQuery);
-    }
-
-    public void testTypeField() throws IOException {
-        TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
-        builder.doToQuery(createSearchExecutionContext());
-        assertWarnings(TypeFieldType.TYPES_V7_DEPRECATION_MESSAGE);
     }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {

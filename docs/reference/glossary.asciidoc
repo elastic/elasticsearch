@@ -207,6 +207,19 @@ Frozen indices use a memory-efficient shard implementation and throttle searches
 Searching a frozen index is lower overhead than re-opening a closed index to enable searching.
 // end::frozen-index-def[]
 
+[[glossary-frozen-phase]] frozen phase ::
+// tag::frozen-phase-def[]
+The fourth possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
+In the frozen phase, an index is no longer updated and queried rarely.
+The information still needs to be searchable, but it’s okay if those queries are extremely slow.
+// end::frozen-phase-def[]
+
+[[glossary-frozen-tier]] frozen tier::
+// tag::frozen-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that hold time series data
+that is accessed rarely and not normally updated.
+// end::frozen-tier-def[]
+
 [[glossary-hidden-index]] hidden index ::
 // tag::hidden-index-def[]
 An index that is excluded by default when you access indices using a wildcard expression. 

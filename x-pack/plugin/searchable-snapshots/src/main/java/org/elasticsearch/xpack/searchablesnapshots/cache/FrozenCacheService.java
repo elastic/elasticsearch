@@ -55,7 +55,7 @@ public class FrozenCacheService implements Releasable {
 
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "size",
-        ByteSizeValue.ZERO,
+        CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
         Setting.Property.NodeScope
     );
 
@@ -131,7 +131,10 @@ public class FrozenCacheService implements Releasable {
     public FrozenCacheService(Environment environment, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         final Settings settings = environment.settings();
-        final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        if (cacheSize == Long.MAX_VALUE) {
+            cacheSize = 0L;
+        }
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         final int numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();

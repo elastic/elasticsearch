@@ -67,7 +67,7 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         List<String> keepPatterns = getParameters().getKeepStructureFor();
 
         String trimmedPrefixPattern = getParameters().getTrimmedPrefixPattern();
-        return trimmedPrefixPattern != null ? (i) -> trimArchiveExtractPath(keepPatterns, trimmedPrefixPattern, i) : (i) -> Path.of(i);
+        return trimmedPrefixPattern != null ? (i) -> trimArchiveExtractPath(keepPatterns, trimmedPrefixPattern, i) : (i) -> Paths.get(i);
     }
 
     /*

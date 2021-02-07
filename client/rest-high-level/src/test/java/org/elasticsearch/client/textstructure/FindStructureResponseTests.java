@@ -33,6 +33,6 @@ public class FindStructureResponseTests extends AbstractXContentTestCase<FindStr
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 }

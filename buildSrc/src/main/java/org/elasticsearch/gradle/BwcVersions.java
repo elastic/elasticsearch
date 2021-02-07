@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.gradle;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -334,6 +332,7 @@ public class BwcVersions {
             groupByMajor.get(currentVersion.getMajor() - 1).stream(),
             groupByMajor.get(currentVersion.getMajor()).stream()
         ).collect(Collectors.toList());
+
         return Architecture.current() == Architecture.AARCH64
             ? unmodifiableList(filterAarch64SupportedVersions(collect))
             : unmodifiableList(collect);
@@ -354,7 +353,6 @@ public class BwcVersions {
             : unmodifiableList(wireCompat);
     }
 
-    @NotNull
     private List<Version> filterAarch64SupportedVersions(List<Version> wireCompat) {
         return wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList());
     }

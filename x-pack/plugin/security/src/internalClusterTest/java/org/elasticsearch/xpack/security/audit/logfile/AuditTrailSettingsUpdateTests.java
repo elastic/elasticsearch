@@ -160,9 +160,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
                 .iterator()
                 .next();
         assertEquals(enableRequestBody, loggingAuditTrail.includeRequestBody);
-        settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), !enableRequestBody);
+        settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody == false);
         updateSettings(settingsBuilder.build(), persistent);
-        assertEquals(!enableRequestBody, loggingAuditTrail.includeRequestBody);
+        assertEquals(enableRequestBody == false, loggingAuditTrail.includeRequestBody);
     }
 
     public void testDynamicEventsSettings() {

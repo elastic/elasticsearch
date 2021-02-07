@@ -840,7 +840,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (aggProvider == null) {
                 return;
             }
-            if (scriptFields != null && !scriptFields.isEmpty()) {
+            if (scriptFields != null && scriptFields.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }

@@ -45,7 +45,7 @@ public class FuzzyIntervalsSourceProviderTests extends AbstractSerializingTestCa
                 prefixLength++;
                 break;
             case 2:
-                isTranspositions = !isTranspositions;
+                isTranspositions = isTranspositions == false;
                 break;
             case 3:
                 if (fuzziness.equals(Fuzziness.ZERO)) {

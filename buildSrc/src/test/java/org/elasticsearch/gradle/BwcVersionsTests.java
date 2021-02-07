@@ -285,6 +285,7 @@ public class BwcVersionsTests extends GradleUnitTestCase {
     public static void setupAll() {
         Assume.assumeFalse(Architecture.current() == Architecture.AARCH64);
     }
+
     @Test(expected = IllegalArgumentException.class)
     public void testExceptionOnEmpty() {
         new BwcVersions(asList("foo", "bar"), Version.fromString("7.0.0"));

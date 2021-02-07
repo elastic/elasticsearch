@@ -44,7 +44,9 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-response]
+ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = getMappingResponse.mappings();
+MappingMetadata indexMapping = allMappings.get("twitter").get("_doc");
+Map<String, Object> mapping = indexMapping.sourceAsMap();
 --------------------------------------------------
 <1> Returning all indices' mappings
 <2> Retrieving the mappings for a particular index

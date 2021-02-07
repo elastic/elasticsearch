@@ -1,6 +1,8 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -279,6 +281,10 @@ public class BwcVersionsTests extends GradleUnitTestCase {
         sampleVersions.put("7.1.0", asList("7_1_0", "7_0_0", "6_7_0", "6_6_1", "6_6_0"));
     }
 
+    @BeforeClass
+    public static void setupAll() {
+        Assume.assumeFalse(Architecture.current() == Architecture.AARCH64);
+    }
     @Test(expected = IllegalArgumentException.class)
     public void testExceptionOnEmpty() {
         new BwcVersions(asList("foo", "bar"), Version.fromString("7.0.0"));

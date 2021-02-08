@@ -117,6 +117,10 @@ different values in this field.
 (Optional, double)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
 
+`early_stopping_enabled`::::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
+
 `eta`::::
 (Optional, double)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
@@ -358,6 +362,10 @@ The data type of the field must be numeric.
 `downsample_factor`::::
 (Optional, double)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-downsample-factor]
+
+`early_stopping_enabled`::::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-early-stopping-enabled]
 
 `eta`::::
 (Optional, double)

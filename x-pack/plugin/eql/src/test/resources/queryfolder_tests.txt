@@ -110,6 +110,29 @@ process where process_path : "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
 {"terms":{"opcode":[0,1,2,3],"boost":1.0}}
 ;
 
+inFilterInsensitive
+process where process_name in~ ("test")
+;
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+;
+
+inFilterInsensitiveList
+process where process_name in~ ("test", "best")
+;
+{"bool":{"should":[{"term"
+"term":{"process_name":{"value":"test","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
+inFilterInsensitiveVerbatimMatch
+process where process_name in~ ("test*", "best")
+;
+{"bool":{"should":[{"term"
+"term":{"process_name":{"value":"test*","case_insensitive":true,"boost":1.0}
+"term":{"process_name":{"value":"best","case_insensitive":true,"boost":1.0}
+;
+
+
 functionEqualsTrue
 process where cidrMatch(source_address, "10.0.0.0/8") == true
 ;
@@ -505,35 +528,35 @@ process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*de
 
 
 addOperator
-process where serial_event_id + 2 == 41
+process where serial_event_id + 2 == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addOperatorReversed
-process where 2 + serial_event_id == 41
+process where 2 + serial_event_id == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addFunction
-process where add(serial_event_id, 2) == 41
+process where add(serial_event_id, 2) == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addFunctionReversed
-process where add(2, serial_event_id) == 41
+process where add(2, serial_event_id) == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 divideOperator
@@ -633,35 +656,35 @@ InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v
 ;
 
 subtractOperator
-process where serial_event_id - 2 == 41
+process where serial_event_id - 2 == 2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":2147483647}
 ;
 
 subtractOperatorReversed
-process where 43 - serial_event_id == 41
+process where 43 - serial_event_id == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":43,"v1":"serial_event_id","v2":41}
+"params":{"v0":43,"v1":"serial_event_id","v2":-2147483647}
 ;
 
 subtractFunction
-process where subtract(serial_event_id, 2) == 41
+process where subtract(serial_event_id, 2) == 2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
-"params":{"v0":"serial_event_id","v1":2,"v2":41}
+"params":{"v0":"serial_event_id","v1":2,"v2":2147483647}
 ;
 
 subtractFunctionReversed
-process where subtract(43, serial_event_id) == 41
+process where subtract(43, serial_event_id) == -2147483647
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
 InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":43,"v1":"serial_event_id","v2":41}
+"params":{"v0":43,"v1":"serial_event_id","v2":-2147483647}
 ;
 
 eventQueryDefaultLimit

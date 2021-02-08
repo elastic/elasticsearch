@@ -53,6 +53,7 @@ faster.
 
 The `sort` field in the metric request functions exactly the same as the `sort` field in the
 <<sort-search-results, search>> request except:
+
 * It can't be used on <<binary,binary>>, <<flattened,flattened>>, <<ip,ip>>,
 <<keyword,keyword>>, or <<text,text>> fields.
 * It only supports a single sort value so which document wins ties is not specified.

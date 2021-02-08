@@ -70,7 +70,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                 STARTED,
                 randomBoolean() ? null : randomAlphaOfLength(100),
                 randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
-                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 0, 8, 9, 0, 11, 12, 0.0, 0.0, 0.0),
+                new TransformIndexerStats(1, 2, 3, 0, 5, 6, 7, 0, 0, 10, 11, 0, 13, 14, 0.0, 0.0, 0.0),
                 new TransformCheckpointingInfo(
                     new TransformCheckpointStats(0, null, null, 10, 100),
                     new TransformCheckpointStats(0, null, null, 100, 1000),
@@ -99,7 +99,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                 STARTED,
                 randomBoolean() ? null : randomAlphaOfLength(100),
                 randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
-                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 0, 8, 9, 0, 11, 12, 13.0, 14.0, 15.0),
+                new TransformIndexerStats(1, 2, 3, 0, 5, 6, 7, 0, 0, 10, 11, 0, 13, 14, 15.0, 16.0, 17.0),
                 new TransformCheckpointingInfo(
                     new TransformCheckpointStats(0, null, null, 10, 100),
                     new TransformCheckpointStats(0, null, null, 100, 1000),

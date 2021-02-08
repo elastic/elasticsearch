@@ -74,11 +74,17 @@ The progress of the next checkpoint that is currently in progress.
 `create_time`, `ct`, `createTime`:::
 The time the {transform} was created.
 
+`delete_time`, `dtime`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=delete-time-ms]
+
 `description`, `d`:::
 The description of the {transform}.
 
 `dest_index`, `di`, `destIndex`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`documents_deleted`, `docd`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted-transform]
 
 `documents_indexed`, `doci`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]

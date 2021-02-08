@@ -52,6 +52,7 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),
             SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -59,6 +60,10 @@ public class TransformConfigTests extends AbstractXContentTestCase<TransformConf
 
     public static SyncConfig randomSyncConfig() {
         return TimeSyncConfigTests.randomTimeSyncConfig();
+    }
+
+    public static RetentionPolicyConfig randomRetentionPolicyConfig() {
+        return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
     }
 
     @Override

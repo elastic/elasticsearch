@@ -145,6 +145,13 @@ final class Natives {
         return JNANatives.LOCAL_SYSTEM_CALL_FILTER;
     }
 
+    /**
+     * On Linux, this method tries to create the searchable snapshot frozen cache file using fallocate if JNA is available. This enables
+     * a much faster creation of the file than the fallback mechanism in the searchable snapshots plugin that will pre-allocate the cache
+     * file by writing zeros to the file.
+     *
+     * @throws IOException on failure to determine free disk space for a data path
+     */
     @SuppressForbidden(reason = "need access fd on FileOutputStream")
     public static void tryCreateCacheFile(Environment environment) throws IOException {
         Settings settings = environment.settings();

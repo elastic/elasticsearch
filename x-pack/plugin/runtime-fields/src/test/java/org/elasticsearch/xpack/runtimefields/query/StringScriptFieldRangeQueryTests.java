@@ -103,13 +103,13 @@ public class StringScriptFieldRangeQueryTests extends AbstractStringScriptFieldQ
                 if (lower == null) {
                     lower = mutate(lower);
                 }
-                includeLower = !includeLower;
+                includeLower = includeLower == false;
                 break;
             case 5:
                 if (upper == null) {
                     upper = mutate(upper);
                 }
-                includeUpper = !includeUpper;
+                includeUpper = includeUpper == false;
                 break;
             default:
                 fail();

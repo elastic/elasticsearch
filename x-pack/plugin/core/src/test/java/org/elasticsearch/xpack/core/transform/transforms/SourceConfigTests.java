@@ -74,7 +74,7 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // allow unknown fields in the root of the object only as QueryConfig stores a Map<String, Object>
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

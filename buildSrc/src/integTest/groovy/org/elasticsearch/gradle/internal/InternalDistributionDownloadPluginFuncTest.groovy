@@ -58,7 +58,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
-        result.task(":distribution:archives:linux-tar:buildExpanded").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:${testArchiveProjectName}:buildExpanded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
     }
@@ -137,11 +137,11 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 compression = Compression.GZIP
             }
             artifacts {
-                it.add("linux-tar", buildBwcTask)
+                it.add("${testArchiveProjectName}", buildBwcTask)
             }
 
             // expanded distro
-            configurations.create("expanded-linux-tar")
+            configurations.create("expanded-${testArchiveProjectName}")
             def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
                 from('bwc-marker.txt')
                 into('build/install/elastic-distro')
@@ -156,12 +156,10 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
     }
 
     private void localDistroSetup() {
-        def archSuffix = Architecture.current() == Architecture.AARCH64 ? '-aarch64' : ''
-        def archiveProjectName = "linux${archSuffix}-tar"
         settingsFile << """
-        include ":distribution:archives:${archiveProjectName}"
+        include ":distribution:archives:${testArchiveProjectName}"
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", archiveProjectName)
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", testArchiveProjectName)
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;
@@ -189,10 +187,12 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 it.add("extracted", buildExpanded)
             }
         """
-        buildFile << """
-        """
     }
 
+    String getTestArchiveProjectName() {
+        def archSuffix = Architecture.current() == Architecture.AARCH64 ? '-aarch64' : ''
+        return "linux${archSuffix}-tar"
+    }
     boolean assertExtractedDistroIsCreated(String relativeDistroPath, String markerFileName) {
         File extractedFolder = new File(testProjectDir.root, relativeDistroPath)
         assert extractedFolder.exists()

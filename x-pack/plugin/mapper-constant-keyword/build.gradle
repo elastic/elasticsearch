@@ -10,7 +10,7 @@ esplugin {
 archivesBaseName = 'x-pack-constant-keyword'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 

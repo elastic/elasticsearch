@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchableSnapshotsCacheAction;
@@ -75,8 +76,8 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchab
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
@@ -182,9 +183,32 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     );
 
     /**
-     * Prefer to allocate to the cold tier, then the warm tier, then the hot tier
+     * Prefer to allocate to the cold tier, then the frozen tier, then the warm tier, then the hot tier
+     * This affects the system searchable snapshot cache index (not the searchable snapshot index itself)
      */
-    public static final String DATA_TIERS_PREFERENCE = String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+    public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(
+        ",",
+        DataTier.DATA_COLD,
+        DataTier.DATA_FROZEN,
+        DataTier.DATA_WARM,
+        DataTier.DATA_HOT
+    );
+
+    /**
+     * Returns the preference for new searchable snapshot indices. When
+     * performing a full mount the preference is cold - warm - hot. When
+     * performing a partial mount the preference is frozen - cold - warm - hot.
+     */
+    public static String getDataTiersPreference(MountSearchableSnapshotRequest.Storage type) {
+        switch (type) {
+            case FULL_COPY:
+                return String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+            case SHARED_CACHE:
+                return String.join(",", DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+            default:
+                throw new IllegalArgumentException("unknown searchable snapshot type [" + type + "]");
+        }
+    }
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
@@ -442,7 +466,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, "900")
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
+            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_CACHE_INDEX_PREFERENCE)
             .build();
     }
 

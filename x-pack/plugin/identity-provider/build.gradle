@@ -12,7 +12,7 @@ esplugin {
 archivesBaseName = 'x-pack-identity-provider'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   // So that we can extend LocalStateCompositeXPackPlugin
   testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')

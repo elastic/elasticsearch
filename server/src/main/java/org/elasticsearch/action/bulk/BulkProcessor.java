@@ -396,13 +396,18 @@ public class BulkProcessor implements Closeable {
     }
 
     // needs to be executed under a lock
+    private Tuple<BulkRequest, Long> newBulkRequest() {
+        final BulkRequest bulkRequest = this.bulkRequest;
+        this.bulkRequest = bulkRequestSupplier.get();
+        return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
+    }
+
+    // needs to be executed under a lock
     private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {
         if (isOverTheLimit() == false) {
             return null;
         }
-        final BulkRequest bulkRequest = this.bulkRequest;
-        this.bulkRequest = bulkRequestSupplier.get();
-        return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
+        return newBulkRequest();
     }
 
     // may be executed without a lock

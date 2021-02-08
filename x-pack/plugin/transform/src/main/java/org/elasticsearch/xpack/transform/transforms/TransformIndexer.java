@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
+import org.elasticsearch.xpack.transform.transforms.RetentionPolicyToDeleteByQueryRequestConverter.RetentionPolicyException;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
@@ -471,26 +472,25 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
             // this should not happen as part of checkpointing
             if (bulkByScrollResponse.getVersionConflicts() > 0) {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] found [{}] version conflicts when deleting documents as part of the retention policy. "
-                            + "Retry at the next checkpoint.",
-                        getJobId(),
+                // note: the failure gets logged by the failure handler
+                listener.onFailure(
+                    new RetentionPolicyException(
+                        "found [{}] version conflicts when deleting documents as part of the retention policy.",
                         bulkByScrollResponse.getDeleted()
                     )
                 );
+                return;
             }
             // paranoia: we are not expecting dbq to fail for other reasons
             if (bulkByScrollResponse.getBulkFailures().size() > 0 || bulkByScrollResponse.getSearchFailures().size() > 0) {
                 assert false : "delete by query failed unexpectedly" + bulkByScrollResponse;
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] found failures when deleting documents as part of the retention policy. "
-                            + "Retry at the next checkpoint. Response: [{}]",
-                        getJobId(),
+                listener.onFailure(
+                    new RetentionPolicyException(
+                        "found failures when deleting documents as part of the retention policy. Response: [{}]",
                         bulkByScrollResponse
                     )
                 );
+                return;
             }
 
             finalizeCheckpoint(listener);

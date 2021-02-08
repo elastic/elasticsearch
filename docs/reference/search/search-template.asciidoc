@@ -1,5 +1,8 @@
 [[search-template]]
-=== Search Template
+=== Search template API
+++++
+<titleabbrev>Search template</titleabbrev>
+++++
 
 Allows you to use the mustache language to pre render search requests.
 
@@ -650,7 +653,10 @@ The previous query will be rendered as:
 
 
 [[multi-search-template]]
-=== Multi Search Template
+=== Multi search template API
+++++
+<titleabbrev>Multi search template</titleabbrev>
+++++
 
 Allows to execute several search template requests.
 

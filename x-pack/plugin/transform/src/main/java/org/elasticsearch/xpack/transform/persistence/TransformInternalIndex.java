@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -24,7 +27,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -79,19 +84,16 @@ public final class TransformInternalIndex {
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
 
-    public static IndexTemplateMetadata getIndexTemplateMetadata() throws IOException {
-        IndexTemplateMetadata transformTemplate = IndexTemplateMetadata.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-            .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
-            .version(Version.CURRENT.id)
-            .settings(
-                Settings.builder()
-                    // the configurations are expected to be small
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            )
-            .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
+    public static SystemIndexDescriptor getSystemIndexDescriptor() throws IOException {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+            .setPrimaryIndex(TransformInternalIndexConstants.LATEST_INDEX_NAME)
+            .setDescription("Contains Transform configuration data")
+            .setMappings(mappings())
+            .setSettings(settings())
+            .setVersionMetaKey("version")
+            .setOrigin(TRANSFORM_ORIGIN)
             .build();
-        return transformTemplate;
     }
 
     public static IndexTemplateMetadata getAuditIndexTemplateMetadata() throws IOException {
@@ -144,6 +146,14 @@ public final class TransformInternalIndex {
             .endObject();
 
         return builder;
+    }
+
+    public static Settings settings() {
+        return Settings.builder()
+            // the configurations are expected to be small
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .build();
     }
 
     public static XContentBuilder mappings() throws IOException {
@@ -331,60 +341,75 @@ public final class TransformInternalIndex {
 
     /**
      * This method should be called before any document is indexed that relies on the
-     * existence of the latest index templates to create the internal and audit index.
-     * The reason is that the standard template upgrader only runs when the master node
-     * is upgraded to the newer version.  If data nodes are upgraded before master
+     * existence of the latest internal index or audit index template.
+     *
+     * For audit messages the problem is that the standard template upgrader only runs
+     * when the master node is upgraded to the newer version.  So for the audit index,
+     * and also the internal index in the case where the old version doesn't know about
+     * system indices, if data nodes are upgraded before master nodes and transforms
+     * get assigned to those data nodes then without this check the data nodes will
+     * index documents into the internal index before the necessary index template is
+     * present and this will result in an index with completely dynamic mappings being
+     * created (which is very bad).  For the internal index in the case where the old
+     * version knows about system indices, if data nodes are upgraded before master
      * nodes and transforms get assigned to those data nodes then without this check
-     * the data nodes will index documents into the internal index before the necessary
-     * index template is present and this will result in an index with completely
-     * dynamic mappings being created (which is very bad).
+     * the data nodes will index documents into the internal index before the latest
+     * system descriptor is present on the master and this will result in an index with
+     * the new name but the old mappings.
      */
-    public static void installLatestIndexTemplatesIfRequired(ClusterService clusterService, Client client, ActionListener<Void> listener) {
+    public static void ensureLatestIndexAndTemplateInstalled(ClusterService clusterService, Client client, ActionListener<Void> listener) {
 
-        installLatestVersionedIndexTemplateIfRequired(
+        createLatestVersionedIndexIfRequired(
             clusterService,
             client,
-            ActionListener.wrap(r -> { installLatestAuditIndexTemplateIfRequired(clusterService, client, listener); }, listener::onFailure)
+            ActionListener.wrap(r -> installLatestAuditIndexTemplateIfRequired(clusterService, client, listener), listener::onFailure)
         );
-
     }
 
-    protected static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
-        return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+    protected static boolean haveLatestVersionedIndex(ClusterState state) {
+        return state.getMetadata().getIndicesLookup().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
     protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
         return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
     }
 
-    protected static void installLatestVersionedIndexTemplateIfRequired(
+    protected static void createLatestVersionedIndexIfRequired(
         ClusterService clusterService,
         Client client,
         ActionListener<Void> listener
     ) {
 
         // The check for existence of the template is against local cluster state, so very cheap
-        if (haveLatestVersionedIndexTemplate(clusterService.state())) {
+        if (haveLatestVersionedIndex(clusterService.state())) {
             listener.onResponse(null);
             return;
         }
 
-        // Installing the template involves communication with the master node, so it's more expensive but much rarer
+        // Creating the index involves communication with the master node, so it's more expensive but much rarer
         try {
-            IndexTemplateMetadata indexTemplateMetadata = getIndexTemplateMetadata();
-            BytesReference jsonMappings = indexTemplateMetadata.mappings().uncompressed();
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-                .patterns(indexTemplateMetadata.patterns())
-                .version(indexTemplateMetadata.version())
-                .settings(indexTemplateMetadata.settings())
-                .mapping(XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
-            ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+            CreateIndexRequest request = new CreateIndexRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+                .settings(settings())
+                .mapping(mappings())
+                .origin(TRANSFORM_ORIGIN);
+            ActionListener<CreateIndexResponse> innerListener = ActionListener.wrap(
+                r -> listener.onResponse(null),
+                e -> {
+                    // It's not a problem if the index already exists - another node could be running
+                    // this method at the same time as this one, and also have created the index
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            );
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 TRANSFORM_ORIGIN,
                 request,
                 innerListener,
-                client.admin().indices()::putTemplate
+                client.admin().indices()::create
             );
         } catch (IOException e) {
             listener.onFailure(e);

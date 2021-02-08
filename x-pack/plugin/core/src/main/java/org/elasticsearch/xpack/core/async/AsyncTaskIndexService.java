@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -138,6 +139,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     private final String index;
     private final Client client;
+    private final Client clientWithOrigin;
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
@@ -151,16 +153,31 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  NamedWriteableRegistry registry) {
         this.index = index;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
-        this.client = new OriginSettingClient(client, origin);
+        this.client = client;
+        this.clientWithOrigin = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
     }
 
     /**
-     * Returns the internal client with origin.
+     * Returns the internal client wrapped with the async user origin.
+     */
+    public Client getClientWithOrigin() {
+        return clientWithOrigin;
+    }
+
+    /**
+     * Returns the internal client.
      */
     public Client getClient() {
         return client;
+    }
+
+    /**
+     * Returns the authentication information, or null if the current context has no authentication info.
+     **/
+    public Authentication getAuthentication() {
+        return securityContext.getAuthentication();
     }
 
     /**
@@ -179,7 +196,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .create(true)
             .id(docId)
             .source(source, XContentType.JSON);
-        client.index(indexRequest, listener);
+        clientWithOrigin.index(indexRequest, listener);
     }
 
     /**
@@ -198,7 +215,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .id(docId)
                 .doc(source, XContentType.JSON)
                 .retryOnConflict(5);
-            client.update(request, listener);
+            clientWithOrigin.update(request, listener);
         } catch(Exception e) {
             listener.onFailure(e);
         }
@@ -215,7 +232,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .id(docId)
             .script(script)
             .retryOnConflict(5);
-        client.update(request, listener);
+        clientWithOrigin.update(request, listener);
     }
 
     /**
@@ -225,7 +242,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<DeleteResponse> listener) {
         try {
             DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-            client.delete(request, listener);
+            clientWithOrigin.delete(request, listener);
         } catch(Exception e) {
             listener.onFailure(e);
         }
@@ -234,11 +251,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
      * is registered in the task manager, <code>null</code> otherwise.
-     *
-     * This method throws a {@link ResourceNotFoundException} if the authenticated user
-     * is not the creator of the original task.
      */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+    public <T extends AsyncTask> T getTask(TaskManager taskManager,
+                                           AsyncExecutionId asyncExecutionId,
+                                           Class<T> tClass) throws IOException {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;
@@ -247,7 +263,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         if (asyncTask.getExecutionId().equals(asyncExecutionId) == false) {
             return null;
         }
+        return asyncTask;
+    }
 
+
+    /**
+     * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
+     * is registered in the task manager, <code>null</code> otherwise.
+     *
+     * This method throws a {@link ResourceNotFoundException} if the authenticated user
+     * is not the creator of the original task.
+     */
+    public <T extends AsyncTask> T getTaskAndCheckAuthentication(TaskManager taskManager,
+                                                                 AsyncExecutionId asyncExecutionId,
+                                                                 Class<T> tClass) throws IOException {
+        T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
+        if (asyncTask == null) {
+            return null;
+        }
         // Check authentication for the user
         final Authentication auth = securityContext.getAuthentication();
         if (ensureAuthenticatedUserIsSame(asyncTask.getOriginHeaders(), auth) == false) {
@@ -257,13 +290,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private void getEncodedResponse(AsyncExecutionId asyncExecutionId,
-                                      boolean restoreResponseHeaders,
-                                      ActionListener<Tuple<String, Long>> listener) {
-        final Authentication current = securityContext.getAuthentication();
+                                    boolean restoreResponseHeaders,
+                                    ActionListener<Tuple<String, Long>> listener) {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncExecutionId.getEncoded())
             .id(asyncExecutionId.getDocId());
-        client.get(internalGet, ActionListener.wrap(
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {
                     listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
@@ -273,7 +305,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 // check the authentication of the current user against the user that initiated the async task
                 @SuppressWarnings("unchecked")
                 Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
-                if (ensureAuthenticatedUserIsSame(headers, current) == false) {
+                if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
                     listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                     return;
                 }
@@ -318,13 +350,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * @param statusProducer – a producer of the status from the stored async search response and expirationTime
      * @param listener – listener to report result to
      */
-    public void getStatusResponse(
-        AsyncExecutionId asyncExecutionId,
-            BiFunction<R, Long, AsyncStatusResponse> statusProducer, ActionListener<AsyncStatusResponse> listener) {
+    public void getStatusResponse(AsyncExecutionId asyncExecutionId,
+                                  BiFunction<R, Long, AsyncStatusResponse> statusProducer,
+                                  ActionListener<AsyncStatusResponse> listener) {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncExecutionId.getEncoded())
             .id(asyncExecutionId.getDocId());
-        client.get(internalGet, ActionListener.wrap(
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {
                     listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
@@ -343,17 +375,32 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
-     * Ensures that the current user can read the specified response without actually reading it
-     */
-    public void authorizeResponse(AsyncExecutionId asyncExecutionId,
-                                  boolean restoreResponseHeaders,
-                                  ActionListener<R> listener) {
-        getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
-            (t) -> listener.onResponse(null),
-            listener::onFailure
-        ));
-    }
+     * Checks if the current user's authentication matches the original authentication stored
+     * in the async search index.
+     **/
+    void ensureAuthenticatedUserCanDeleteFromIndex(AsyncExecutionId executionId, ActionListener<Void> listener) {
+        GetRequest internalGet = new GetRequest(index)
+            .preference(executionId.getEncoded())
+            .id(executionId.getDocId())
+            .fetchSourceContext(new FetchSourceContext(true, new String[] { HEADERS_FIELD }, new String[] {}));
 
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
+            get -> {
+                if (get.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
+                    return;
+                }
+                // Check authentication for the user
+                @SuppressWarnings("unchecked")
+                Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
+                if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication())) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
+                }
+            },
+            exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
+    }
 
     /**
      * Extracts the authentication from the original headers and checks that it matches

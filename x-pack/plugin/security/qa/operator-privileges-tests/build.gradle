@@ -18,7 +18,7 @@ dependencies {
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-javaRestTest {
+tasks.named("javaRestTest").configure {
   /* To support taking snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
 }

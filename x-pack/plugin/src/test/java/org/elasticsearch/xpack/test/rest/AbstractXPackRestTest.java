@@ -94,8 +94,7 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
                     NotificationsIndex.NOTIFICATIONS_INDEX,
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-                    TransformInternalIndexConstants.AUDIT_INDEX,
-                    TransformInternalIndexConstants.LATEST_INDEX_NAME
+                    TransformInternalIndexConstants.AUDIT_INDEX
                 ));
 
             for (String template : templates) {
@@ -105,8 +104,6 @@ public class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             }
         }
     }
-
-
 
     /**
      * Enable monitoring and waits for monitoring documents to be collected and indexed in

@@ -104,7 +104,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                     final CacheFile.EvictionListener listener = evictedCacheFile -> {};
                     cacheFile.acquire(listener);
 
-                    final SortedSet<Tuple<Long, Long>> newCacheRanges = randomPopulateAndReads(cacheFile);
+                    final SortedSet<ByteRange> newCacheRanges = randomPopulateAndReads(cacheFile);
                     assertThat(cacheService.isCacheFileToSync(cacheFile), is(newCacheRanges.isEmpty() == false));
                     if (newCacheRanges.isEmpty() == false) {
                         final int numberOfWrites = cacheEntry.getValue().v2() + 1;
@@ -123,7 +123,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                     final CacheFile.EvictionListener listener = evictedCacheFile -> {};
                     cacheFile.acquire(listener);
 
-                    final SortedSet<Tuple<Long, Long>> newRanges = randomPopulateAndReads(cacheFile);
+                    final SortedSet<ByteRange> newRanges = randomPopulateAndReads(cacheFile);
                     assertThat(cacheService.isCacheFileToSync(cacheFile), is(newRanges.isEmpty() == false));
                     updates.put(cacheKey, Tuple.tuple(cacheFile, newRanges.isEmpty() ? 0 : 1));
                     cacheFile.release(listener);
@@ -198,7 +198,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 resolveSnapshotCache(randomShardPath(cacheKey.getShardId())).resolve(cacheKey.getSnapshotUUID())
             );
             final String cacheFileUuid = UUIDs.randomBase64UUID(random());
-            final SortedSet<Tuple<Long, Long>> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();
+            final SortedSet<ByteRange> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();
 
             if (randomBoolean()) {
                 final Path cacheFilePath = cacheDir.resolve(cacheFileUuid);
@@ -213,8 +213,8 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
                 assertThat(cacheFile.getCacheKey(), equalTo(cacheKey));
                 assertThat(cacheFile.getLength(), equalTo(fileLength));
 
-                for (Tuple<Long, Long> cacheFileRange : cacheFileRanges) {
-                    assertThat(cacheFile.getAbsentRangeWithin(cacheFileRange.v1(), cacheFileRange.v2()), nullValue());
+                for (ByteRange cacheFileRange : cacheFileRanges) {
+                    assertThat(cacheFile.getAbsentRangeWithin(cacheFileRange), nullValue());
                 }
             } else {
                 final FileNotFoundException exception = expectThrows(

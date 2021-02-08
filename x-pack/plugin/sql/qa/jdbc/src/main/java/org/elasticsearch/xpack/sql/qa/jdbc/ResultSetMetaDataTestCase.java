@@ -19,6 +19,9 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsArrayTypes;
+
 public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase {
 
     private final String[] fieldsNames = new String[] {
@@ -45,6 +48,8 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testValidArrayTypes() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support array types", versionSupportsArrayTypes());
+
         setupTest();
 
         String q = "SELECT "

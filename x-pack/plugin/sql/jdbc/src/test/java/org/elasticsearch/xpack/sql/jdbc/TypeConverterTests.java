@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -85,7 +86,7 @@ public class TypeConverterTests extends ESTestCase {
             if (x instanceof Timestamp) {
                 String str = x.toString().replace(' ', 'T');
                 int offset = TimeZone.getDefault().getRawOffset() / 1000;
-                str += String.format("+%02d:%02d", offset / 3600, (offset % 3600) / 60);
+                str += String.format(Locale.ROOT, "+%02d:%02d", offset / 3600, (offset % 3600) / 60);
                 return str;
             } else if (x instanceof Boolean || x instanceof Long || x == null) {
                 return x;

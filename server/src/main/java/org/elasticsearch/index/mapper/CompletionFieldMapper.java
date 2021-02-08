@@ -281,7 +281,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new ArraySourceValueFetcher(sourcePaths.apply(name()), null) {
+            return new ArraySourceValueFetcher(name(), sourcePaths.apply(name()), null) {
                 @Override
                 protected List<?> parseSourceValue(Object value) {
                     if (value instanceof List) {
@@ -474,7 +474,7 @@ public class CompletionFieldMapper extends FieldMapper {
                                     contextMapping = contextMappings.get(fieldName);
                                 } else {
                                     assert fieldName != null;
-                                    assert !contextsMap.containsKey(fieldName);
+                                    assert contextsMap.containsKey(fieldName) == false;
                                     contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
                                 }
                             }

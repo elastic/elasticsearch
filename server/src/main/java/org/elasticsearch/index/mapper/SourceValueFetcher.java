@@ -28,19 +28,24 @@ import java.util.function.Function;
 public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final String fieldName;
 
     /**
      * @param sourcePaths   The locations in _source to retrieve values from
      * @param nullValue     A optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+    public SourceValueFetcher(String fieldName, Set<String> sourcePaths, Object nullValue) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
+        this.fieldName = fieldName;
     }
 
     @Override
-    public List<Object> fetchValues(ValuesLookup lookup) {
+    public List<Object> fetchValues(ValuesLookup lookup, Set<String> ignoredFields) {
         List<Object> values = new ArrayList<>();
+        if (ignoredFields.contains(fieldName)) {
+            return values;
+        }
         for (String path : sourcePaths) {
             Object sourceValue = lookup.source().extractValue(path, nullValue);
             if (sourceValue == null) {
@@ -80,7 +85,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(sourcePaths.apply(fieldName), null) {
+        return new SourceValueFetcher(fieldName, sourcePaths.apply(fieldName), null) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value;
@@ -95,7 +100,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(sourcePaths.apply(fieldName), null) {
+        return new SourceValueFetcher(fieldName, sourcePaths.apply(fieldName), null) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

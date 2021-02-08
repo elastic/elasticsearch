@@ -26,15 +26,20 @@ import java.util.Set;
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final String fieldName;
 
-    public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+    public ArraySourceValueFetcher(String fieldName, Set<String> sourcePaths, Object nullValue) {
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
+        this.fieldName = fieldName;
     }
 
     @Override
-    public List<Object> fetchValues(ValuesLookup lookup) {
+    public List<Object> fetchValues(ValuesLookup lookup, Set<String> ignoredFields) {
         List<Object> values = new ArrayList<>();
+        if (ignoredFields.contains(fieldName)) {
+            return values;
+        }
         for (String path : sourcePaths) {
             Object sourceValue = lookup.source().extractValue(path, nullValue);
             if (sourceValue == null) {

@@ -15,6 +15,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,7 +79,7 @@ public class IndexTimeScriptParams implements ValuesLookup {
 
         @Override
         public void setNextDocId(int docId) throws IOException {
-            values = fetcher.fetchValues(IndexTimeScriptParams.this);
+            values = fetcher.fetchValues(IndexTimeScriptParams.this, Collections.emptySet());
         }
 
         @Override

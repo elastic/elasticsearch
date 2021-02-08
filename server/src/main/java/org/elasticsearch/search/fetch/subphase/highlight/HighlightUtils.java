@@ -47,7 +47,7 @@ public final class HighlightUtils {
             return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
         }
         ValueFetcher fetcher = fieldType.valueFetcher(searchContext::sourcePath, null);
-        return fetcher.fetchValues(hitContext.valuesLookup());
+        return fetcher.fetchValues(hitContext.valuesLookup(), Collections.emptySet());
     }
 
     public static class Encoders {

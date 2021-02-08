@@ -310,7 +310,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             LeafSearchLookup leaf = lookup.getLeafSearchLookup(context);
             leaf.setDocument(0);
-            result.set(valueFetcher.fetchValues(leaf));
+            result.set(valueFetcher.fetchValues(leaf, Collections.emptySet()));
         });
         return result.get();
     }

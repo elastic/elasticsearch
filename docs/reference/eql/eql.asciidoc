@@ -136,6 +136,49 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
+Use the <<common-options-response-filtering,`filter_path`>> query parameter to
+filter the API response. For example, the following search returns only the
+timestamp and PID for each matching event.
+
+[source,console]
+----
+GET /my-index-000001/_eql/search?filter_path=hits.events._source.@timestamp,hits.events._source.process.pid
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns the following response.
+
+[source,console-result]
+----
+{
+  "hits" : {
+    "events" : [
+      {
+        "_source" : {
+          "@timestamp" : "2099-12-07T11:07:09.000Z",
+          "process" : {
+            "pid" : 2012
+          }
+        }
+      },
+      {
+        "_source" : {
+          "@timestamp" : "2099-12-07T11:07:10.000Z",
+          "process" : {
+            "pid" : 2012
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
 [discrete]
 [[eql-search-sequence]]
 === Search for a sequence of events

@@ -182,7 +182,7 @@ public class RangeFieldMapper extends FieldMapper {
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(sourcePaths.apply(name()), null) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), null) {
 
                 @Override
                 @SuppressWarnings("unchecked")

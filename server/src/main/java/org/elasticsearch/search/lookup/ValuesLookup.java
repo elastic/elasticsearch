@@ -34,4 +34,20 @@ public interface ValuesLookup {
             }
         };
     }
+
+    static ValuesLookup sourceOnly(Map<String, Object> source) {
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(source);
+        return new ValuesLookup() {
+            @Override
+            public SourceLookup source() {
+                return sourceLookup;
+            }
+
+            @Override
+            public Map<String, ScriptDocValues<?>> doc() {
+                throw new UnsupportedOperationException("FieldData is not available from a source-only lookup");
+            }
+        };
+    }
 }

@@ -19,6 +19,6 @@ archivesBaseName = 'x-pack-unsigned-long'
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }

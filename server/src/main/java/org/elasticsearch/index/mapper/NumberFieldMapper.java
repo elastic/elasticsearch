@@ -1010,7 +1010,7 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(sourcePaths.apply(name()), nullValue) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

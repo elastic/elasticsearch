@@ -289,9 +289,9 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(meta.hashCode(),
             new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId).hashCode());
 
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID, meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(!meta.primary, meta.indexUUID + "foo", randomAllocationId())));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID, meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", meta.allocationId)));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", randomAllocationId())));
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
             allocationId = randomBoolean() ? null : randomAllocationId();
@@ -3279,7 +3279,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexShard.sync(); // advance local checkpoint
         assert localCheckpoint == indexShard.getLocalCheckpoint();
-        assert !gap || (localCheckpoint != max);
+        assert gap == false || (localCheckpoint != max);
         return new Result(localCheckpoint, max);
     }
 

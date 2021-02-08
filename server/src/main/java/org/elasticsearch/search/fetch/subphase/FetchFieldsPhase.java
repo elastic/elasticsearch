@@ -15,7 +15,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -35,7 +34,6 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             return null;
         }
 
-        SearchLookup searchLookup = fetchContext.searchLookup();
         if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
             throw new IllegalArgumentException("Unable to retrieve the requested [fields] since _source is disabled " +
                 "in the mappings for index [" + fetchContext.getIndexName() + "]");

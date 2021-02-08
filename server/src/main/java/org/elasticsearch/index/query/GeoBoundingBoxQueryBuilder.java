@@ -319,8 +319,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             double left = luceneTopLeft.getLon();
 
             boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
-            GeoUtils.normalizePoint(luceneTopLeft, true, !completeLonRange);
-            GeoUtils.normalizePoint(luceneBottomRight, true, !completeLonRange);
+            GeoUtils.normalizePoint(luceneTopLeft, true, completeLonRange == false);
+            GeoUtils.normalizePoint(luceneBottomRight, true, completeLonRange == false);
             if (completeLonRange) {
                 luceneTopLeft.resetLon(-180);
                 luceneBottomRight.resetLon(180);

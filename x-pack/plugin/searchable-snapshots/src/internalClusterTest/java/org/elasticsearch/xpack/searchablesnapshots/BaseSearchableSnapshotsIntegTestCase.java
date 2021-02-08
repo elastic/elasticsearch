@@ -26,6 +26,7 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -70,6 +71,34 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
             );
         }
+        builder.put(
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+            rarely()
+                ? randomBoolean()
+                    ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
+                    : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
+                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+        );
+        builder.put(
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            rarely()
+                ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+        );
+        if (randomBoolean()) {
+            builder.put(
+                FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(),
+                rarely()
+                    ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+            );
+        }
+        if (randomBoolean()) {
+            builder.put(
+                FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
+            );
+        }
         return builder.build();
     }
 
@@ -97,7 +126,8 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 .put(restoredIndexSettings)
                 .build(),
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            MountSearchableSnapshotRequest.Storage.FULL_COPY
         );
 
         final RestoreSnapshotResponse restoreResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).get();

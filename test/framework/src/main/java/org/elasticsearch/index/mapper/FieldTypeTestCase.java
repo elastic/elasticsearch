@@ -46,18 +46,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         String field = fieldType.name();
 
         ValueFetcher fetcher = fieldType.valueFetcher(Set::of, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(new ValuesLookup() {
-            @Override
-            public SourceLookup source() {
-                return lookup;
-            }
-
-            @Override
-            public Map<String, ScriptDocValues<?>> doc() {
-                throw new UnsupportedOperationException();
-            }
-        });
+        return fetcher.fetchValues(ValuesLookup.sourceOnly(Collections.singletonMap(field, sourceValue)), Collections.emptySet());
     }
 }

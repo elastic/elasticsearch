@@ -353,7 +353,7 @@ public final class DateFieldMapper extends FieldMapper {
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
 
-            return new SourceValueFetcher(sourcePaths.apply(name()), nullValue) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), nullValue) {
                 @Override
                 public String parseSourceValue(Object value) {
                     String date = value.toString();
@@ -418,7 +418,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (lowerTerm == null) {
                     l = Long.MIN_VALUE;
                 } else {
-                    l = parseToLong(lowerTerm, !includeLower, timeZone, parser, nowSupplier, resolution);
+                    l = parseToLong(lowerTerm, includeLower == false, timeZone, parser, nowSupplier, resolution);
                     if (includeLower == false) {
                         ++l;
                     }
@@ -504,7 +504,7 @@ public final class DateFieldMapper extends FieldMapper {
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
-                fromInclusive = parseToLong(from, !includeLower, timeZone, dateParser, context::nowInMillis, resolution);
+                fromInclusive = parseToLong(from, includeLower == false, timeZone, dateParser, context::nowInMillis, resolution);
                 if (includeLower == false) {
                     if (fromInclusive == Long.MAX_VALUE) {
                         return Relation.DISJOINT;

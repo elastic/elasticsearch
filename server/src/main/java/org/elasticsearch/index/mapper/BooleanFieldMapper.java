@@ -124,7 +124,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(sourcePaths.apply(name()), nullValue) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
                     if (value instanceof Boolean) {

@@ -192,6 +192,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
 [%collapsible%open]
 ====
 
+`delete_time_in_ms`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=delete-time-ms]
+
+`documents_deleted`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted-transform]
+
 `documents_indexed`:::
 (long)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]

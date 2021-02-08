@@ -170,7 +170,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(obj instanceof ScheduledEvent)) {
+        if ((obj instanceof ScheduledEvent) == false) {
             return false;
         }
 

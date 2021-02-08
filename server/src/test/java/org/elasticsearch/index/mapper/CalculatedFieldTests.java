@@ -69,7 +69,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals(
             "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"text\"}," +
                 "\"message_length\":{\"type\":\"long\",\"script\":{\"source\":\"length\",\"lang\":\"painless\"}}}}}",
-            Strings.toString(mapper));
+            Strings.toString(mapper.mapping()));
     }
 
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {

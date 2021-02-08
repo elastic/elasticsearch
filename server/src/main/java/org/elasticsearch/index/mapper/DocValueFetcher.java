@@ -14,6 +14,7 @@ import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -29,7 +30,7 @@ public final class DocValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(ValuesLookup lookup) throws IOException {
+    public List<Object> fetchValues(ValuesLookup lookup, Set<String> ignoreFields) throws IOException {
         ScriptDocValues<?> values = lookup.doc().get(field);
         return values.stream().map(format::formatObject).collect(Collectors.toList());
     }

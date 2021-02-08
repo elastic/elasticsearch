@@ -234,7 +234,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(sourcePaths.apply(name()), nullValue) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();

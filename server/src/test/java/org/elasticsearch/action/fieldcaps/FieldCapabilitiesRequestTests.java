@@ -10,12 +10,17 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -41,7 +46,22 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             request.indicesOptions(randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen());
         }
         request.includeUnmapped(randomBoolean());
+        if (randomBoolean()) {
+            request.nowInMillis(randomLong());
+        }
+        if (randomBoolean()) {
+            request.indexFilter(QueryBuilders.termQuery("field", randomAlphaOfLength(5)));
+        }
+        if (randomBoolean()) {
+            request.runtimeFields(Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        }
         return request;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
@@ -67,6 +87,11 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         });
         mutators.add(request -> request.setMergeResults(request.isMergeResults() == false));
         mutators.add(request -> request.includeUnmapped(request.includeUnmapped() == false));
+        mutators.add(request -> request.nowInMillis(request.nowInMillis() != null ? request.nowInMillis() + 1 : 1L));
+        mutators.add(
+            request -> request.indexFilter(request.indexFilter() != null ? request.indexFilter().boost(2) : QueryBuilders.matchAllQuery())
+        );
+        mutators.add(request -> request.runtimeFields(Collections.singletonMap("other_key", "other_value")));
 
         FieldCapabilitiesRequest mutatedInstance = copyInstance(instance);
         Consumer<FieldCapabilitiesRequest> mutator = randomFrom(mutators);

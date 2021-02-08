@@ -1,3 +1,19 @@
+[[release-notes-6.8.14]]
+== {es} version 6.8.14
+
+coming::[6.8.14]
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[[bug-6.8.14]]
+[float]
+=== Bug fixes
+
+Machine learning::
+* Fixes missing state in persist and restore for anomaly detection. This caused
+suboptimal modeling after a job was closed and reopened or failed over to a
+different node {ml-pull}1668[#1668]
+
 
 [[release-notes-6.8.13]]
 == {es} version 6.8.13

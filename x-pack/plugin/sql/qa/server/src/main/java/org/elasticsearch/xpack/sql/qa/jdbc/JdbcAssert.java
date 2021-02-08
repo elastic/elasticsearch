@@ -50,6 +50,7 @@ import static java.sql.Types.OTHER;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TIMESTAMP;
+import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
 import static java.sql.Types.TINYINT;
 import static java.sql.Types.VARCHAR;
 import static java.time.ZoneOffset.UTC;
@@ -320,8 +321,8 @@ public class JdbcAssert {
                         count + 1
                     );
 
-                    Object expectedObject = extractObject(expected, column, true, null);
-                    Object actualObject = extractObject(actual, column, false, lenientDataType ? expectedColumnClass : null);
+                    Object expectedObject = extractObject(expected, column, false, null);
+                    Object actualObject = extractObject(actual, column, true, lenientDataType ? expectedColumnClass : null);
                     if (actualType == ARRAY) {
                         int baseType = baseTypeOf(actualTypeName).getVendorTypeNumber();
                         assertTrue(expectedObject instanceof String);
@@ -351,14 +352,15 @@ public class JdbcAssert {
         }
     }
 
-    private static Object extractObject(ResultSet resultSet, int column, boolean fromCsv, Class<?> expectedColumnClass)
+    private static Object extractObject(ResultSet resultSet, int column, boolean fromEs, Class<?> expectedColumnClass)
         throws SQLException {
         switch (resultSet.getMetaData().getColumnType(column)) {
             case TIMESTAMP:
+            case TIMESTAMP_WITH_TIMEZONE:
                 return resultSet.getTimestamp(column);
             case DATE:
                 Date date = resultSet.getDate(column);
-                return fromCsv && date != null ? convertDateToSystemTimezone(date) : date;
+                return fromEs == false && date != null ? convertDateToSystemTimezone(date) : date;
         }
         return expectedColumnClass == null ? resultSet.getObject(column) : resultSet.getObject(column, expectedColumnClass);
     }

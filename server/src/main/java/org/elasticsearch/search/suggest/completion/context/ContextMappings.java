@@ -17,7 +17,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
 
@@ -245,7 +245,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
             default:
                 throw new ElasticsearchParseException("unknown context type[" + type + "]");
         }
-        DocumentMapperParser.checkNoRemainingFields(name, contextConfig);
+        MappingParser.checkNoRemainingFields(name, contextConfig);
         return contextMapping;
     }
 

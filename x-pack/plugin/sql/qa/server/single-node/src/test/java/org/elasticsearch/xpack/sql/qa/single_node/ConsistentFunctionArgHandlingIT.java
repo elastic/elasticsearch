@@ -78,8 +78,9 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
     static {
         try {
             Class<?> c = ConsistentFunctionArgHandlingIT.class;
-            NON_TESTED_FUNCTIONS = Files.readAllLines(PathUtils.get(
-                c.getResource(c.getSimpleName() + "-non-tested-functions.txt").toURI()));
+            NON_TESTED_FUNCTIONS = Files.readAllLines(
+                PathUtils.get(c.getResource(c.getSimpleName() + "-non-tested-functions.txt").toURI())
+            );
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }

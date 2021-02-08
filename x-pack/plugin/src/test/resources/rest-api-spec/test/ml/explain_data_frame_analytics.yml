@@ -179,9 +179,6 @@
 
 ---
 "Test field_selection given body":
-  - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/68337"
 
   - do:
       indices.create:

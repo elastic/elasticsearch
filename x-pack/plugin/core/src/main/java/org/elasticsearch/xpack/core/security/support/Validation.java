@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
@@ -41,7 +42,7 @@ public final class Validation {
         }
 
         for (char character : name.toCharArray()) {
-            if (!VALID_NAME_CHARS.contains(character)) {
+            if (VALID_NAME_CHARS.contains(character) == false) {
                 return false;
             }
         }
@@ -73,7 +74,7 @@ public final class Validation {
          * @return {@code null} if valid
          */
         public static Error validateUsername(String username, boolean allowReserved, Settings settings) {
-            if (!isValidUserOrRoleName(username)) {
+            if (isValidUserOrRoleName(username) == false) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User"));
             }
             if (allowReserved == false && ClientReservedRealm.isReserved(username, settings)) {
@@ -97,7 +98,7 @@ public final class Validation {
         }
 
         public static Error validateRoleName(String roleName, boolean allowReserved) {
-            if (!isValidUserOrRoleName(roleName)) {
+            if (isValidUserOrRoleName(roleName) == false) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role"));
             }
             if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {

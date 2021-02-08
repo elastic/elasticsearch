@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -146,7 +147,7 @@ public class DatafeedNodeSelector {
 
         for (String concreteIndex : concreteIndices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
-            if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
                 return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
                     + concreteIndex + "] does not have all primary shards active yet.", false);
             }

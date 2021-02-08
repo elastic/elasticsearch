@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.filter;
 
@@ -39,7 +40,7 @@ public class RestGetFiltersAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetFiltersAction.Request request = new GetFiltersAction.Request();
         String filterId = restRequest.param(MlFilter.ID.getPreferredName());
-        if (!Strings.isNullOrEmpty(filterId)) {
+        if (Strings.isNullOrEmpty(filterId) == false) {
             request.setResourceId(filterId);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

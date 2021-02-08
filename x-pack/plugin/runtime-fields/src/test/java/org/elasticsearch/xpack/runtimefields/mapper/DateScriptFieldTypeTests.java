@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -93,7 +94,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(mapping.get());
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
-        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     public void testDateWithLocale() throws IOException {
@@ -104,7 +105,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(mapping.get());
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
-        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     public void testDateWithLocaleAndFormat() throws IOException {
@@ -115,7 +116,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         MapperService mapperService = createMapperService(mapping.get());
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(DateScriptFieldType.class));
-        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper()));
+        assertEquals(Strings.toString(mapping.get()), Strings.toString(mapperService.documentMapper().mapping()));
     }
 
     public void testFormat() throws IOException {

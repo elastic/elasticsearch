@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
@@ -816,7 +817,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-            if (!MlStrings.isValidId(id)) {
+            if (MlStrings.isValidId(id) == false) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
             if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
@@ -839,7 +840,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (aggProvider == null) {
                 return;
             }
-            if (scriptFields != null && !scriptFields.isEmpty()) {
+            if (scriptFields != null && scriptFields.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }

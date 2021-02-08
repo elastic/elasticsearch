@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch;
@@ -366,7 +355,7 @@ public class FetchPhase {
 
         Map<String, DocumentField> docFields = emptyMap();
         Map<String, DocumentField> metaFields = emptyMap();
-        if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
+        if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
             loadStoredFields(searchExecutionContext::getFieldType, storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
@@ -391,18 +380,7 @@ public class FetchPhase {
             for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
-                Object extractedValue = XContentMapValues.extractValue(nestedPath, rootSourceAsMap);
-                List<?> nestedParsedSource;
-                if (extractedValue instanceof List) {
-                    // nested field has an array value in the _source
-                    nestedParsedSource = (List<?>) extractedValue;
-                } else if (extractedValue instanceof Map) {
-                    // nested field has an object value in the _source. This just means the nested field has just one inner object,
-                    // which is valid, but uncommon.
-                    nestedParsedSource = Collections.singletonList(extractedValue);
-                } else {
-                    throw new IllegalStateException("extracted source isn't an object or an array");
-                }
+                List<?> nestedParsedSource = XContentMapValues.extractNestedValue(nestedPath, rootSourceAsMap);
                 if ((nestedParsedSource.get(0) instanceof Map) == false && hasNonNestedParent.test(nestedPath)) {
                     // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
                     // from two or more layers resulting in a list of list being returned. This is because nestedPath

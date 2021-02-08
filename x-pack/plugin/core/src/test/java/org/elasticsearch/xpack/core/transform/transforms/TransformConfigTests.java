@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -16,7 +17,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
@@ -42,6 +45,20 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
+
+        return randomTransformConfigWithoutHeaders(id, pivotConfig, latestConfig);
+    }
+
+    public static TransformConfig randomTransformConfigWithoutHeaders(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -49,10 +66,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
-            PivotConfigTests.randomPivotConfig(Version.CURRENT),
-            null,
+            pivotConfig,
+            latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
         );
@@ -63,7 +81,17 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfig(String id) {
-        return randomTransformConfig(id, PivotConfigTests.randomPivotConfig(Version.CURRENT), null);
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
+
+        return randomTransformConfig(id, pivotConfig, latestConfig);
     }
 
     public static TransformConfig randomTransformConfig(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
@@ -78,6 +106,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -85,6 +114,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static TransformConfig randomInvalidTransformConfig() {
         if (randomBoolean()) {
+            PivotConfig pivotConfig;
+            LatestConfig latestConfig;
+            if (randomBoolean()) {
+                pivotConfig = PivotConfigTests.randomPivotConfig();
+                latestConfig = null;
+            } else {
+                pivotConfig = null;
+                latestConfig = LatestConfigTests.randomLatestConfig();
+            }
+
             return new TransformConfig(
                 randomAlphaOfLengthBetween(1, 10),
                 randomInvalidSourceConfig(),
@@ -92,10 +131,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 randomBoolean() ? randomSyncConfig() : null,
                 randomHeaders(),
-                PivotConfigTests.randomPivotConfig(),
-                null,
+                pivotConfig,
+                latestConfig,
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
                 null,
+                randomBoolean() ? null : randomRetentionPolicyConfig(),
                 null,
                 null
             );
@@ -111,6 +151,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
         );
@@ -118,6 +159,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static SyncConfig randomSyncConfig() {
         return TimeSyncConfigTests.randomTimeSyncConfig();
+    }
+
+    public static RetentionPolicyConfig randomRetentionPolicyConfig() {
+        return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
     }
 
     @Before
@@ -186,11 +231,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testConstructor_NoFunctionProvided() throws IOException {
+        // tag::NO_CODE_FORMAT
         String json = "{"
-            + " \"source\": {\"index\": \"src\"},"
-            + " \"dest\": {\"index\": \"dest\"}"
-            + "}";
-
+                + " \"source\": {"
+                + "   \"index\": \"src\""
+                + " },"
+                + " \"dest\": {"
+                + "   \"index\": \"dest\""
+                + "} }";
+        // end::NO_CODE_FORMAT
         // Should parse with lenient parser
         createTransformConfigFromString(json, "dummy", true);
         // Should throw with strict parser
@@ -318,6 +367,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 randomAlphaOfLength(1001),
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -333,6 +383,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             PivotConfigTests.randomPivotConfig(),
             null,
             description,
+            null,
             null,
             null,
             null

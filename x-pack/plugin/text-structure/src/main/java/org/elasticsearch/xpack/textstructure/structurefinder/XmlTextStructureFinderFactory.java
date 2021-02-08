@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
@@ -48,7 +49,7 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
         int completeDocCount = 0;
         String commonRootElementName = null;
         String remainder = sample.trim();
-        boolean mightBeAnotherDocument = !remainder.isEmpty();
+        boolean mightBeAnotherDocument = remainder.isEmpty() == false;
 
         // This processing is extremely complicated because it's necessary
         // to create a new XML stream reader per document, but each one
@@ -114,7 +115,7 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
                             }
                             endPos += location.getColumnNumber() - 1;
                             remainder = remainder.substring(endPos).trim();
-                            mightBeAnotherDocument = !remainder.isEmpty();
+                            mightBeAnotherDocument = remainder.isEmpty() == false;
                             break;
                         }
                     }

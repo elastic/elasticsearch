@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
@@ -12,7 +13,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
@@ -224,7 +224,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
                 final SnapshotId snapshotId = new SnapshotId("_ignored_", cacheKey.getSnapshotUUID());
                 if (randomBoolean()) {
-                    final Tuple<Long, Long> absent = randomCacheFile.getAbsentRangeWithin(0L, randomCacheFile.getLength());
+                    final ByteRange absent = randomCacheFile.getAbsentRangeWithin(ByteRange.of(0L, randomCacheFile.getLength()));
                     if (absent != null) {
                         assertThat(
                             "Persistent cache should not contain any cached data",
@@ -248,7 +248,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                         final CacheFile.EvictionListener listener = evictedCacheFile -> {};
                         randomCacheFile.acquire(listener);
                         try {
-                            SortedSet<Tuple<Long, Long>> ranges = null;
+                            SortedSet<ByteRange> ranges = null;
                             while (ranges == null || ranges.isEmpty()) {
                                 ranges = randomPopulateAndReads(randomCacheFile);
                             }

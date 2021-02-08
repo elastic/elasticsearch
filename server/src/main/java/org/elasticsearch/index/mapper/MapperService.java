@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -102,7 +91,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
 
     private final IndexAnalyzers indexAnalyzers;
-    private final DocumentMapperParser documentMapperParser;
+    private final MappingParser mappingParser;
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
@@ -126,8 +115,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
-        this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
-            this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
+        this.mappingParser = new MappingParser(parserContextSupplier, metadataMapperParsers,
+            this::getMetadataMappers, this::resolveDocumentType);
     }
 
     public boolean hasNested() {
@@ -246,10 +235,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     assert currentSource.equals(newSource) :
                         "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
                             + "to be the same as new mapping [" + newSource + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
-                    assert currentSource.equals(mapperSource) :
+                    assert currentSource.equals(mapper.mappingSource()) :
                         "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
-                            + "to be the same as new mapping [" + mapperSource + "]";
+                            + "to be the same as new mapping [" + mapper.mappingSource() + "]";
                 }
 
             } else {
@@ -298,7 +286,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper documentMapper;
 
         try {
-            documentMapper = documentMapperParser.parse(type, mappings);
+            documentMapper = parse(type, mappings);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
@@ -346,7 +334,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        return documentMapperParser.parse(mappingType, mappingSource);
+        Mapping mapping = mappingParser.parse(mappingType, mappingSource);
+        return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
     }
 
     /**
@@ -423,10 +412,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         return this.mapper == null ? Collections.emptySet() :
             this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
-    }
-
-    public ObjectMapper getObjectMapper(String name) {
-        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
     }
 
     /**

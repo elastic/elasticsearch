@@ -45,8 +45,8 @@ or the {ilm-init} APIs.
 === Create a lifecycle policy
 
 A lifecycle policy specifies the phases in the index lifecycle
-and the actions to perform in each phase. A lifecycle can have up to four phases:
-`hot`, `warm`, `cold`, and `delete`.
+and the actions to perform in each phase. A lifecycle can have up to five phases:
+`hot`, `warm`, `cold`, `frozen`, and `delete`.
 
 For example, you might define a `timeseries_policy` that has two phases:
 
@@ -58,10 +58,10 @@ Note that this value is relative to the rollover time, not the index creation ti
 You can create the policy through {kib} or with the
 <<ilm-put-lifecycle, put policy>> API.
 To create the policy from {kib}, open the menu and go to *Stack Management >
-Index Lifecycle Policies*. Click *Index Lifecycle Policies*.
+Index Lifecycle Policies*. Click *Create policy*.
 
 [role="screenshot"]
-image:images/ilm/create-policy.png[]
+image::images/ilm/create-policy.png[Create policy page]
 
 .API example
 [%collapsible]

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.compatibility.CompatibleVersion;
+
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.Flushable;
@@ -155,7 +157,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private boolean humanReadable = false;
 
-    private byte compatibleMajorVersion;
+    private CompatibleVersion compatibleVersion;
 
     private ParsedMediaType responseContentType;
 
@@ -1006,21 +1008,23 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Sets a version used for serialising a response compatible with a previous version.
+     * @param compatibleVersion - indicates requested a version of API that the builder will be creating
      */
-    public XContentBuilder withCompatibleMajorVersion(byte compatibleMajorVersion) {
-        assert this.compatibleMajorVersion == 0 : "Compatible version has already been set";
-        if (compatibleMajorVersion == 0) {
-            throw new IllegalArgumentException("Compatible major version must not be equal to 0");
+    public XContentBuilder withCompatibleVersion(CompatibleVersion compatibleVersion) {
+        assert this.compatibleVersion == null : "Compatible version has already been set";
+        if (compatibleVersion == null) {
+            throw new IllegalArgumentException("Compatible major version must not be null");
         }
-        this.compatibleMajorVersion = compatibleMajorVersion;
+        this.compatibleVersion = compatibleVersion;
         return this;
     }
 
     /**
-     * Returns a version used for serialising a response compatible with a previous version.
+     * Returns a version used for serialising a response.
+     * @return a compatible version
      */
-    public byte getCompatibleMajorVersion() {
-        return compatibleMajorVersion;
+    public CompatibleVersion getCompatibleVersion() {
+        return compatibleVersion;
     }
 
     @Override

@@ -12,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.CompatibleVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -158,9 +158,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
-        final Version version = maybeWrappedHandler.compatibleWithVersion();
-        assert Version.CURRENT.minimumRestCompatibilityVersion() == version || Version.CURRENT == version
-            : "REST API compatibility is only supported for version " + Version.CURRENT.minimumRestCompatibilityVersion().major;
+        final CompatibleVersion version = maybeWrappedHandler.compatibleWithVersion();
+        assert CompatibleVersion.minimumRestCompatibilityVersion() == version || CompatibleVersion.CURRENT == version
+            : "REST API compatibility is only supported for version " + CompatibleVersion.minimumRestCompatibilityVersion().major;
 
         handlers.insertOrUpdate(path, new MethodHandlers(path, maybeWrappedHandler, method),
             (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method));
@@ -214,7 +214,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, Version compatibleVersion)
+    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, CompatibleVersion compatibleVersion)
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
@@ -316,7 +316,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 
-        Version compatibleVersion = request.getCompatibleVersion();
+        CompatibleVersion compatibleVersion = request.getCompatibleVersion();
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
@@ -453,11 +453,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final Version compatibleVersion;
+        private final CompatibleVersion compatibleVersion;
         private final AtomicBoolean closed = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength,
-                                    Version compatibleVersion) {
+                                    CompatibleVersion compatibleVersion) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
@@ -467,26 +467,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder()
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(compatibleVersion);
         }
 
         @Override
         public XContentBuilder newErrorBuilder() throws IOException {
             return delegate.newErrorBuilder()
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(compatibleVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
             return delegate.newBuilder(xContentType, useFiltering)
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(compatibleVersion);
         }
 
         @Override
         public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
                 throws IOException {
             return delegate.newBuilder(xContentType, responseContentType, useFiltering)
-                .withCompatibleMajorVersion(compatibleVersion.major);
+                .withCompatibleVersion(compatibleVersion);
         }
 
         @Override

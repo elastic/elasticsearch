@@ -9,6 +9,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.compatibility.CompatibleVersion;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
@@ -322,11 +323,11 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
     }
 
-    private Matcher<Version> isCompatible() {
+    private Matcher<CompatibleVersion> isCompatible() {
         return requestHasVersion(PREVIOUS_VERSION);
     }
 
-    private Matcher<Version> requestHasVersion(int version) {
+    private Matcher<CompatibleVersion> requestHasVersion(int version) {
         return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(v -> (int) v.major, equalTo(version));
     }
 
@@ -361,7 +362,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         return null;
     }
 
-    private Version requestWith(String accept, String contentType, String body) {
+    private CompatibleVersion requestWith(String accept, String contentType, String body) {
         ParsedMediaType parsedAccept = ParsedMediaType.parseMediaType(accept);
         ParsedMediaType parsedContentType = ParsedMediaType.parseMediaType(contentType);
         return RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, body.isEmpty() == false);

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.compatibility.CompatibleVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -22,7 +22,7 @@ public class MethodHandlersTests extends ESTestCase {
         MethodHandlers methodHandlers = new MethodHandlers("path", putHandler, RestRequest.Method.PUT);
         methodHandlers.addMethods(postHandler, RestRequest.Method.POST);
 
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, CompatibleVersion.CURRENT);
         assertThat(handler, sameInstance(putHandler));
     }
 
@@ -30,10 +30,10 @@ public class MethodHandlersTests extends ESTestCase {
         RestHandler handler = new CurrentVersionHandler();
         MethodHandlers methodHandlers = new MethodHandlers("path", handler, RestRequest.Method.PUT, RestRequest.Method.POST);
 
-        RestHandler handlerFound = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handlerFound = methodHandlers.getHandler(RestRequest.Method.PUT, CompatibleVersion.CURRENT);
         assertThat(handlerFound, sameInstance(handler));
 
-        handlerFound = methodHandlers.getHandler(RestRequest.Method.POST, Version.CURRENT);
+        handlerFound = methodHandlers.getHandler(RestRequest.Method.POST, CompatibleVersion.CURRENT);
         assertThat(handlerFound, sameInstance(handler));
     }
 
@@ -43,10 +43,10 @@ public class MethodHandlersTests extends ESTestCase {
         MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, RestRequest.Method.PUT);
         methodHandlers.addMethods(previousVersionHandler, RestRequest.Method.PUT);
 
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, CompatibleVersion.CURRENT);
         assertThat(handler, sameInstance(currentVersionHandler));
 
-        handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT.previousMajor());
+        handler = methodHandlers.getHandler(RestRequest.Method.PUT, CompatibleVersion.CURRENT.previousMajor());
         assertThat(handler, sameInstance(previousVersionHandler));
     }
 
@@ -60,14 +60,14 @@ public class MethodHandlersTests extends ESTestCase {
     public void testMissingCurrentHandler(){
         RestHandler previousVersionHandler = new PreviousVersionHandler();
         MethodHandlers methodHandlers = new MethodHandlers("path", previousVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT);
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, CompatibleVersion.CURRENT);
         assertNull(handler);
     }
 
     public void testMissingPriorHandlerReturnsCurrentHandler(){
         RestHandler currentVersionHandler = new CurrentVersionHandler();
         MethodHandlers methodHandlers = new MethodHandlers("path", currentVersionHandler, RestRequest.Method.PUT, RestRequest.Method.POST);
-        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, Version.CURRENT.previousMajor());
+        RestHandler handler = methodHandlers.getHandler(RestRequest.Method.PUT, CompatibleVersion.CURRENT.previousMajor());
         assertThat(handler, sameInstance(currentVersionHandler));
     }
 
@@ -85,8 +85,8 @@ public class MethodHandlersTests extends ESTestCase {
         }
 
         @Override
-        public Version compatibleWithVersion() {
-            return Version.CURRENT.previousMajor();
+        public CompatibleVersion compatibleWithVersion() {
+            return CompatibleVersion.CURRENT.previousMajor();
         }
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compatibility.CompatibleVersion;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -233,7 +234,7 @@ public class RestControllerTests extends ESTestCase {
 
     private RestHandler v8mockHandler() {
         RestHandler mock = mock(RestHandler.class);
-        Mockito.when(mock.compatibleWithVersion()).thenReturn(Version.CURRENT);
+        Mockito.when(mock.compatibleWithVersion()).thenReturn(CompatibleVersion.CURRENT);
         return mock;
     }
 
@@ -627,7 +628,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
+        final byte version = CompatibleVersion.minimumRestCompatibilityVersion().major;
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -638,13 +639,13 @@ public class RestControllerTests extends ESTestCase {
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 assertThat(request.contentParser().useCompatibility(), is(true));
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(xContentBuilder.getCompatibleVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
-            public Version compatibleWithVersion() {
-                return Version.CURRENT.minimumRestCompatibilityVersion();
+            public CompatibleVersion compatibleWithVersion() {
+                return CompatibleVersion.minimumRestCompatibilityVersion();
             }
         });
 
@@ -657,7 +658,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
+        final byte version = CompatibleVersion.minimumRestCompatibilityVersion().major;
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -673,13 +674,13 @@ public class RestControllerTests extends ESTestCase {
                 // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
                 // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
                 // when only response shape has changed
-                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(xContentBuilder.getCompatibleVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
-            public Version compatibleWithVersion() {
-                return Version.CURRENT;
+            public CompatibleVersion compatibleWithVersion() {
+                return CompatibleVersion.CURRENT;
             }
         });
 
@@ -716,13 +717,13 @@ public class RestControllerTests extends ESTestCase {
                 assertThat(request.contentParser().useCompatibility(), is(false));
 
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getCompatibleMajorVersion(), equalTo(version));
+                assertThat(xContentBuilder.getCompatibleVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
             @Override
-            public Version compatibleWithVersion() {
-                return Version.CURRENT;
+            public CompatibleVersion compatibleWithVersion() {
+                return CompatibleVersion.CURRENT;
             }
         });
 
@@ -742,8 +743,8 @@ public class RestControllerTests extends ESTestCase {
                 }
 
                 @Override
-                public Version compatibleWithVersion() {
-                    return Version.fromString(version + ".0.0");
+                public CompatibleVersion compatibleWithVersion() {
+                    return CompatibleVersion.fromMajorVersion(version);
                 }
             }));
     }

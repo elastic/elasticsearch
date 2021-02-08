@@ -364,12 +364,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return compatible;
     }
 
-    /**
-     * Returns the minimum version that can be used for compatible REST API
-     */
-    public Version minimumRestCompatibilityVersion() {
-        return this.previousMajor();
-    }
 
     /**
      * Returns a first major version previous to the version stored in this object.

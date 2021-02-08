@@ -10,7 +10,6 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.compatibility.CompatibleVersion;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -62,7 +62,7 @@ public class RestRequest implements ToXContent.Params {
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
-    private final Version compatibleVersion;
+    private final CompatibleVersion compatibleVersion;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -439,7 +439,7 @@ public class RestRequest implements ToXContent.Params {
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
         XContent xContent = xContentType.get().xContent();
-        if (compatibleVersion == Version.CURRENT.minimumRestCompatibilityVersion()) {
+        if (compatibleVersion == CompatibleVersion.minimumRestCompatibilityVersion()) {
             return xContent.createParserForCompatibility(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
         } else {
             return xContent.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
@@ -551,7 +551,7 @@ public class RestRequest implements ToXContent.Params {
         throw new IllegalArgumentException("empty Content-Type header");
     }
 
-    public Version getCompatibleVersion() {
+    public CompatibleVersion getCompatibleVersion() {
         return compatibleVersion;
     }
 

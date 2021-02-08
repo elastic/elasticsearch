@@ -8,6 +8,12 @@
 
 package org.elasticsearch.common.compatibility;
 
+/**
+ * A enum representing versions which are used by a REST Compatible API.
+ * A CURRENT instance, represents a major Version.CURRENT from server module.
+ *
+ * Only major versions are supported.
+ */
 public enum CompatibleVersion {
 
     V_8(8),

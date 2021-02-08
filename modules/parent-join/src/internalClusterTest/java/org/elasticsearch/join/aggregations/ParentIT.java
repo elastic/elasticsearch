@@ -44,7 +44,7 @@ public class ParentIT extends AbstractParentChildTestCase {
         assertSearchResponse(searchResponse);
 
         long articlesWithComment = articleToControl.values().stream().filter(
-            parentControl -> !parentControl.commentIds.isEmpty()
+            parentControl -> parentControl.commentIds.isEmpty() == false
         ).count();
 
         Parent parentAgg = searchResponse.getAggregations().get("to_article");
@@ -52,7 +52,7 @@ public class ParentIT extends AbstractParentChildTestCase {
             parentAgg.getDocCount(), equalTo(articlesWithComment));
         Terms categoryTerms = parentAgg.getAggregations().get("category");
         long categoriesWithComments = categoryToControl.values().stream().filter(
-            control -> !control.commentIds.isEmpty()).count();
+            control -> control.commentIds.isEmpty() == false).count();
         assertThat("Buckets: " + categoryTerms.getBuckets().stream().map(
             (Function<Terms.Bucket, String>) MultiBucketsAggregation.Bucket::getKeyAsString).collect(Collectors.toList()) +
                 "\nCategories: " + categoryToControl.keySet(),
@@ -71,12 +71,12 @@ public class ParentIT extends AbstractParentChildTestCase {
                 categoryBucket.getKeyAsString(), equalTo(entry.getKey()));
 
             // count all articles in this category which have at least one comment
-            long articlesForCategory = articleToControl.values().stream().
+            long articlesForCategory = articleToControl.values().stream()
                 // only articles with this category
-                filter(parentControl -> parentControl.category.equals(entry.getKey())).
+                .filter(parentControl -> parentControl.category.equals(entry.getKey()))
                 // only articles which have comments
-                filter(parentControl -> !parentControl.commentIds.isEmpty()).
-                count();
+                .filter(parentControl -> parentControl.commentIds.isEmpty() == false)
+                .count();
             assertThat("Failed for category " + entry.getKey(),
                 categoryBucket.getDocCount(), equalTo(articlesForCategory));
         }

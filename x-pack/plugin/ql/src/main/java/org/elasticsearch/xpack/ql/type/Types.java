@@ -28,7 +28,7 @@ public abstract class Types {
     @SuppressWarnings("unchecked")
     public static Map<String, EsField> fromEs(DataTypeRegistry typeRegistry, Map<String, Object> asMap) {
         Map<String, Object> props = null;
-        if (asMap != null && !asMap.isEmpty()) {
+        if (asMap != null && asMap.isEmpty() == false) {
             props = (Map<String, Object>) asMap.get("properties");
         }
         return props == null || props.isEmpty() ? emptyMap() : startWalking(typeRegistry, props);

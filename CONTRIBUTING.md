@@ -173,25 +173,27 @@ file is generated automatically after IntelliJ finishes syncing. You can
 manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
-   1. We have some custom Checkstyle rules. In order to use them, you need
-      to make sure the rules are built, by running: `./gradlew build-tools:assemble`
-   2. Open **Preferences > Tools > Checkstyle**
-   3. Tell Checkstyle where to find the custom rules. Under the
-      "Third-Party Checks" section, click the "+" button.
-   4. Select `buildSrc/build/distributions/build-tools-$VERSION.jar`
-   5. Make sure that "Checkstyle version" is set to the highest version
-   6. Change the "Scan Scope" to "Only Java sources (including tests)"
-   7. Click the "+" under "Configuration file"
-   8. Set "Description" to "Elasticsearch"
-   9. Select "Use a local Checkstyle file"
-   10. For the "File", enter `checkstyle_ide.xml`
-   11. Tick "Store relative to project location"
-   12. Click "Next", then "Finish".
-   13. Click the box next to the new configuration to make it "Active".
+   1. Open **Preferences > Tools > Checkstyle**
+   2. We have some custom Checkstyle rules, and the Checkstyle plugin needs
+      to know where to find them. Under the "Third-Party Checks" section,
+      click the "+" button.
+   3. Select `buildSrc/build-bootstrap/libs/buildSrc-$VERSION.jar` where
+      `$VERSION` is something like `7.0.0-SNAPSHOT`. This jar file will
+      always exist if you imported the project into IntelliJ before
+      configuring Checkstyle.
+   4. Make sure that "Checkstyle version" is set to the highest available version
+   5. Change the "Scan Scope" to "Only Java sources (including tests)"
+   6. Click the "+" under "Configuration file"
+   7. Set "Description" to "Elasticsearch"
+   8. Select "Use a local Checkstyle file"
+   9. For the "File", enter `checkstyle_ide.xml`
+   10. Tick "Store relative to project location"
+   11. Click "Next", then "Finish".
+   12. Click the box next to the new configuration to make it "Active".
        Without doing this, you'll have to explicitly choose the
        "Elasticsearch" configuration in the Checkstyle tool window and run
        the check manually.
-   14. Click "OK" to apply the new preferences
+   13. Click "OK" to apply the new preferences
 
 #### Formatting
 

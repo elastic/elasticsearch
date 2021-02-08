@@ -295,7 +295,7 @@ public class VersionUtilsTests extends ESTestCase {
                 .collect(toList());
 
         List<String> releasedIndexCompatible = released.stream()
-                .filter(v -> !Version.CURRENT.equals(v))
+                .filter(v -> Version.CURRENT.equals(v) == false)
                 .map(Object::toString)
                 .collect(toList());
         assertEquals(releasedIndexCompatible, indexCompatible.released);
@@ -313,7 +313,7 @@ public class VersionUtilsTests extends ESTestCase {
 
         Version minimumCompatibleVersion = Version.CURRENT.minimumCompatibilityVersion();
         List<String> releasedWireCompatible = released.stream()
-                .filter(v -> !Version.CURRENT.equals(v))
+                .filter(v -> Version.CURRENT.equals(v) == false)
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
                 .collect(toList());

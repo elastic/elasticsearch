@@ -66,7 +66,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         StepKey nextKey = instance.getNextStepKey();
         String restoredIndexPrefix = instance.getRestoredIndexPrefix();
         MountSearchableSnapshotRequest.Storage storage = instance.getStorage();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;

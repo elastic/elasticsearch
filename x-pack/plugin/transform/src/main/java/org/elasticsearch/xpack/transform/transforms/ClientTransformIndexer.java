@@ -215,7 +215,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void refreshDestinationIndex(RefreshRequest refreshRequest, ActionListener<RefreshResponse> responseListener) {
+    protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
         // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
         // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
         // called for the transform destination index
@@ -223,7 +223,7 @@ class ClientTransformIndexer extends TransformIndexer {
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             RefreshAction.INSTANCE,
-            refreshRequest,
+            new RefreshRequest(transformConfig.getDestination().getIndex()),
             responseListener
         );
     }

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -165,7 +164,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
-    abstract void refreshDestinationIndex(RefreshRequest refreshRequest, ActionListener<RefreshResponse> responseListener);
+    abstract void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener);
 
     public int getPageSize() {
         return pageSize;
@@ -424,7 +423,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             return;
         }
 
-        refreshDestinationIndex(new RefreshRequest(transformConfig.getDestination().getIndex()), ActionListener.wrap(response -> {
+        refreshDestinationIndex(ActionListener.wrap(response -> {
             if (response.getFailedShards() > 0) {
                 logger.warn(
                     "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",

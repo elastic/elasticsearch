@@ -130,9 +130,12 @@ Groups and stores <<number,numeric>> field values based on a provided interval.
 [%collapsible%open]
 ======
 `fields`::
-(Required*, array of strings)
-Array of <<number,numeric>> fields to group. If you specify a `histogram`
-object, this property is required.
+(Required*, string or array of strings)
+<<number,Numeric>> fields to group. If you specify a `histogram` object, this
+property is required.
++
+WARNING: Do not use the same fields in `histogram` and `metrics`. If you specify
+the same field in both `histogram` and `metrics`, the rollup attempt will fail.
 
 `interval`::
 (Required*, integer)
@@ -149,9 +152,9 @@ Stores values for <<keyword,keyword family>> and <<number,numeric>> fields.
 [%collapsible%open]
 ======
 `fields`::
-(Required*, array of strings)
-Array of <<keyword,keyword family>> and <<number,numeric>> fields to store. If
-you specify a `terms` object, this property is required.
+(Required*, string or array of strings)
+<<keyword,Keyword family>> and <<number,numeric>> fields to store. If you
+specify a `terms` object, this property is required.
 +
 TIP: Avoid storing high-cardinality fields. High-cardinality fields can greatly
 increase the size of the resulting rollup index.
@@ -159,7 +162,7 @@ increase the size of the resulting rollup index.
 =====
 
 `metrics`::
-(Required, array of objects)
+(Required, object or array of objects)
 Collects and stores metrics for <<number,numeric>> fields. You must specify at
 least one `metrics` object.
 +
@@ -169,10 +172,13 @@ least one `metrics` object.
 `field`::
 (Required, string)
 <<number,Numeric>> field to collect metrics for.
++
+WARNING: Do not use the same fields in `histogram` and `metrics`. If you specify
+the same field in both `histogram` and `metrics`, the rollup attempt will fail.
 
 `metrics`::
-(Required, array of strings)
-Array of metrics to collect. Each value corresponds to a
+(Required, string or array of strings)
+Metrics to collect. Each value corresponds to a
 <<search-aggregations-metrics,metric aggregation>>. Valid values are
 <<search-aggregations-metrics-min-aggregation,`min`>>,
 <<search-aggregations-metrics-max-aggregation,`max`>>,

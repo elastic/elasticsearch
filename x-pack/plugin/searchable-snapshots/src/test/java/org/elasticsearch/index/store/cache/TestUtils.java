@@ -23,10 +23,10 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
@@ -40,7 +40,6 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,12 +65,12 @@ import static org.mockito.Mockito.mock;
 public final class TestUtils {
     private TestUtils() {}
 
-    public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(final CacheFile cacheFile) {
+    public static SortedSet<ByteRange> randomPopulateAndReads(final CacheFile cacheFile) {
         return randomPopulateAndReads(cacheFile, (fileChannel, aLong, aLong2) -> {});
     }
 
-    public static SortedSet<Tuple<Long, Long>> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
-        final SortedSet<Tuple<Long, Long>> ranges = synchronizedNavigableSet(new TreeSet<>(Comparator.comparingLong(Tuple::v1)));
+    public static SortedSet<ByteRange> randomPopulateAndReads(CacheFile cacheFile, TriConsumer<FileChannel, Long, Long> consumer) {
+        final SortedSet<ByteRange> ranges = synchronizedNavigableSet(new TreeSet<>());
         final List<Future<Integer>> futures = new ArrayList<>();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             builder().put(NODE_NAME_SETTING.getKey(), "_node").build(),
@@ -80,11 +79,11 @@ public final class TestUtils {
         for (int i = 0; i < between(0, 10); i++) {
             final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
             final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
-            final Tuple<Long, Long> range = Tuple.tuple(start, end);
+            final ByteRange range = ByteRange.of(start, end);
             futures.add(
                 cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
                     consumer.apply(channel, from, to);
-                    ranges.add(Tuple.tuple(from, to));
+                    ranges.add(ByteRange.of(from, to));
                     progressUpdater.accept(to);
                 }, deterministicTaskQueue.getThreadPool().generic())
             );
@@ -112,26 +111,25 @@ public final class TestUtils {
     /**
      * Generates a sorted set of non-empty and non-contiguous random ranges that could fit into a file of a given maximum length.
      */
-    public static SortedSet<Tuple<Long, Long>> randomRanges(long length) {
-        final SortedSet<Tuple<Long, Long>> randomRanges = new TreeSet<>(Comparator.comparingLong(Tuple::v1));
+    public static SortedSet<ByteRange> randomRanges(long length) {
+        final SortedSet<ByteRange> randomRanges = new TreeSet<>();
         for (long i = 0L; i < length;) {
             long start = randomLongBetween(i, Math.max(0L, length - 1L));
             long end = randomLongBetween(start + 1L, length); // +1 for non empty ranges
-            randomRanges.add(Tuple.tuple(start, end));
+            randomRanges.add(ByteRange.of(start, end));
             i = end + 1L + randomLongBetween(0L, Math.max(0L, length - end)); // +1 for non contiguous ranges
         }
         return randomRanges;
     }
 
-    public static SortedSet<Tuple<Long, Long>> mergeContiguousRanges(final SortedSet<Tuple<Long, Long>> ranges) {
-        // Eclipse needs the TreeSet type to be explicit (see https://bugs.eclipse.org/bugs/show_bug.cgi?id=568600)
-        return ranges.stream().collect(() -> new TreeSet<Tuple<Long, Long>>(Comparator.comparingLong(Tuple::v1)), (gaps, gap) -> {
+    public static SortedSet<ByteRange> mergeContiguousRanges(final SortedSet<ByteRange> ranges) {
+        return ranges.stream().collect(TreeSet::new, (gaps, gap) -> {
             if (gaps.isEmpty()) {
                 gaps.add(gap);
             } else {
-                final Tuple<Long, Long> previous = gaps.pollLast();
-                if (previous.v2().equals(gap.v1())) {
-                    gaps.add(Tuple.tuple(previous.v1(), gap.v2()));
+                final ByteRange previous = gaps.pollLast();
+                if (previous.end() == gap.start()) {
+                    gaps.add(ByteRange.of(previous.start(), gap.end()));
                 } else {
                     gaps.add(previous);
                     gaps.add(gap);
@@ -139,10 +137,10 @@ public final class TestUtils {
             }
         }, (gaps1, gaps2) -> {
             if (gaps1.isEmpty() == false && gaps2.isEmpty() == false) {
-                final Tuple<Long, Long> last = gaps1.pollLast();
-                final Tuple<Long, Long> first = gaps2.pollFirst();
-                if (last.v2().equals(first.v1())) {
-                    gaps1.add(Tuple.tuple(last.v1(), first.v2()));
+                final ByteRange last = gaps1.pollLast();
+                final ByteRange first = gaps2.pollFirst();
+                if (last.end() == first.start()) {
+                    gaps1.add(ByteRange.of(last.start(), first.end()));
                 } else {
                     gaps1.add(last);
                     gaps2.add(first);
@@ -179,7 +177,7 @@ public final class TestUtils {
     }
 
     public static long sumOfCompletedRangesLengths(CacheFile cacheFile) {
-        return cacheFile.getCompletedRanges().stream().mapToLong(range -> range.v2() - range.v1()).sum();
+        return cacheFile.getCompletedRanges().stream().mapToLong(ByteRange::length).sum();
     }
 
     /**

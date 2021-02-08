@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.transform.transforms;
+package org.elasticsearch.xpack.core.transform;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
@@ -38,8 +38,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
         declareStandardFields(PARSER);
     }
 
-    public MockDeprecatedQueryBuilder() {
-    }
+    public MockDeprecatedQueryBuilder() {}
 
     public MockDeprecatedQueryBuilder(StreamInput in) throws IOException {
         super(in);
@@ -61,8 +60,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void doWriteTo(StreamOutput out) throws IOException {}
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {

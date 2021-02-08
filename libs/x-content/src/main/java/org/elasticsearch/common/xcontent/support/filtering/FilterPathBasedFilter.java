@@ -92,6 +92,6 @@ public class FilterPathBasedFilter extends TokenFilter {
 
     @Override
     protected boolean _includeScalar() {
-        return !inclusive;
+        return inclusive == false;
     }
 }

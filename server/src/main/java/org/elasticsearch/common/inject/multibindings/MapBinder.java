@@ -258,7 +258,7 @@ public abstract class MapBinder<K, V> {
         @Override
         public LinkedBindingBuilder<V> addBinding(K key) {
             Multibinder.checkNotNull(key, "key");
-            Multibinder.checkConfiguration(!isInitialized(), "MapBinder was already initialized");
+            Multibinder.checkConfiguration(isInitialized() == false, "MapBinder was already initialized");
 
             Key<V> valueKey = Key.get(valueType, new RealElement(entrySetBinder.getSetName()));
             entrySetBinder.addBinding().toInstance(new MapEntry<>(key,
@@ -309,7 +309,7 @@ public abstract class MapBinder<K, V> {
 
         @Override @SuppressWarnings({"rawtypes", "unchecked"}) // code is silly stupid with generics
         public void configure(Binder binder) {
-            Multibinder.checkConfiguration(!isInitialized(), "MapBinder was already initialized");
+            Multibinder.checkConfiguration(isInitialized() == false, "MapBinder was already initialized");
 
             final Set<Dependency<?>> dependencies = singleton(Dependency.get(entrySetBinder.getSetKey()));
 

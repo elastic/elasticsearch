@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -56,8 +55,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertFalse(region1.tryEvict());
             assertEquals(3, cacheService.freeRegionCount());
             region0.populateAndRead(
-                Tuple.tuple(0L, 1L),
-                Tuple.tuple(0L, 1L),
+                ByteRange.of(0L, 1L),
+                ByteRange.of(0L, 1L),
                 (channel, channelPos, relativePos, length) -> 1,
                 (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC)

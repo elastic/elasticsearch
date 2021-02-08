@@ -172,7 +172,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-ti
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
 
 `max_age`:::
-(Requided, <<time-units, time units>>)
+(Required, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
 =====
 ====

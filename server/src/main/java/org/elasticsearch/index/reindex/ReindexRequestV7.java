@@ -34,13 +34,9 @@ import java.io.InputStream;
 import java.util.Map;
 
 /**
- * Request to reindex some documents from one index to another. This implements CompositeIndicesRequest but in a misleading way. Rather than
- * returning all the subrequests that it will make it tries to return a representative set of subrequests. This is best-effort for a bunch
- * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
- * to which documents are written.
- */
+ * A V7 version of ReindexRequest parser
+*/
 public class ReindexRequestV7  {
-
 
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex_v7");
 

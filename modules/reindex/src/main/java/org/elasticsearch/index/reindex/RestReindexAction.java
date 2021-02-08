@@ -66,7 +66,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
         ReindexRequest internal;
         try (XContentParser parser = request.contentParser()) {
-            internal = ReindexRequest.fromXContent(parser);
+            if (parser.useCompatibility()) {
+                internal = ReindexRequestV7.fromXContentV7(parser);
+            } else {
+                internal = ReindexRequest.fromXContent(parser);
+            }
         }
 
         if (request.hasParam("scroll")) {

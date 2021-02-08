@@ -377,6 +377,7 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getLicenseLevel(),
             modelStatsService,
             trainedModelCircuitBreaker);
+        boolean modelAcquired = false;
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // if there are no listeners, simply release and leave
@@ -394,6 +395,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 loadedModel.acquire();
                 localModelCache.put(modelId, new ModelAndConsumer(loadedModel, consumer));
                 shouldNotAudit.remove(modelId);
+                modelAcquired = true;
             }
         } // synchronized (loadingListeners)
         for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
@@ -401,7 +403,10 @@ public class ModelLoadingService implements ClusterStateListener {
             listener.onResponse(loadedModel);
         }
         // account for the acquire in the synchronized block above
-        loadedModel.release();
+        // We cannot simply utilize the same conditionals as `referencedModels` could have changed once we exited the synchronized block
+        if (modelAcquired) {
+            loadedModel.release();
+        }
     }
 
     private void handleLoadFailure(String modelId, Exception failure) {

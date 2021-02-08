@@ -213,7 +213,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         setupRestResources([], [])
 
-        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
+        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml") << """
 "one":
   - do:
       get:
@@ -243,7 +243,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(transformTask).outcome == TaskOutcome.SUCCESS
 
 
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml" ).exists()
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml").exists()
         List<ObjectNode> actual = READER.readValues(file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml")).readAll()
         //uncomment to see the actual test
 //        SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
@@ -253,7 +253,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 //        sequenceWriter.close();
 
         List<ObjectNode> expectedAll = READER.readValues(
-"""
+            """
 ---
 setup:
 - skip:
@@ -299,8 +299,8 @@ two:
 - match: {}
 """).readAll()
 
-        expectedAll.eachWithIndex{ ObjectNode expected, int i ->
-           assert expected == actual.get(i)
+        expectedAll.eachWithIndex { ObjectNode expected, int i ->
+            assert expected == actual.get(i)
         }
 
         when:
@@ -308,6 +308,17 @@ two:
 
         then:
         result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
+
+        when:
+        buildFile << """
+            tasks.named("transformV7RestTests").configure({ task ->
+              task.replaceMatch("change", "something")
+            })
+         """
+        result = gradleRunner(transformTask).build()
+
+        then:
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
     }
 
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.client.indices.rollover;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -94,6 +95,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
         this.conditions.put(maxDocsCondition.name(), maxDocsCondition);
         return this;
     }
+
     /**
      * Adds a size-based condition to check if the index size is at least <code>size</code>.
      */
@@ -105,6 +107,19 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
         this.conditions.put(maxSizeCondition.name(), maxSizeCondition);
         return this;
     }
+
+    /**
+     * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
+     */
+    public RolloverRequest addMaxSinglePrimarySizeCondition(ByteSizeValue size) {
+        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(size);
+        if (this.conditions.containsKey(maxSinglePrimarySizeCondition.name())) {
+            throw new IllegalArgumentException(maxSinglePrimarySizeCondition + " condition is already set");
+        }
+        this.conditions.put(maxSinglePrimarySizeCondition.name(), maxSinglePrimarySizeCondition);
+        return this;
+    }
+
     /**
      * Returns all set conditions
      */

@@ -37,8 +37,9 @@ public class MockTimebasedCheckpointProvider implements CheckpointProvider {
         final long timestamp = System.currentTimeMillis();
         long timeUpperBound = timestamp - timeSyncConfig.getDelay().millis();
 
-        if (lastCheckpoint == null) {
-            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, 0, Collections.emptyMap(), timeUpperBound));
+        if (TransformCheckpoint.isNullOrEmpty(lastCheckpoint)) {
+            listener.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, 1, Collections.emptyMap(), timeUpperBound));
+            return;
         }
 
         listener.onResponse(

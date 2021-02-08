@@ -668,7 +668,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         private void verifyCategorizationFiltersAreValidRegex() {
             for (String filter : categorizationFilters) {
-                if (!isValidRegex(filter)) {
+                if (isValidRegex(filter) == false) {
                     throw ExceptionsHelper.badRequestException(
                             Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_INVALID_REGEX, filter));
                 }

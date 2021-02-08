@@ -62,7 +62,7 @@ public class SnapshotUtils {
                     indexOrPattern = indexOrPattern.substring(1);
                 }
             }
-            if (indexOrPattern.isEmpty() || !Regex.isSimpleMatchPattern(indexOrPattern)) {
+            if (indexOrPattern.isEmpty() || Regex.isSimpleMatchPattern(indexOrPattern) == false) {
                 if (availableIndices.contains(indexOrPattern) == false) {
                     if (indicesOptions.ignoreUnavailable() == false) {
                         throw new IndexNotFoundException(indexOrPattern);

@@ -25,7 +25,7 @@ public class Mul extends ArithmeticOperation implements BinaryComparisonInversib
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 

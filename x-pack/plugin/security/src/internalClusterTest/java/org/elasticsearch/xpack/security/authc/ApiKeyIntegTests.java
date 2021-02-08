@@ -555,7 +555,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 listener);
             InvalidateApiKeyResponse invalidateResponse = listener.get();
             invalidatedApiKeyIds = invalidateResponse.getInvalidatedApiKeys();
-            expectedValidKeyIds = responses.stream().filter(o -> !o.getId().equals(responses.get(0).getId())).map(o -> o.getId())
+            expectedValidKeyIds = responses.stream().filter(o -> o.getId().equals(responses.get(0).getId()) == false).map(o -> o.getId())
                 .collect(Collectors.toSet());
         } else {
             invalidatedApiKeyIds = Collections.emptyList();
@@ -1218,14 +1218,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {
         assertThat(ese, throwableWithMessage(
             containsString("action [" + action + "] is unauthorized for API key id [" + apiKeyId + "] of user [" + userName + "]")));
-        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the privileges [")));
+        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName) {
         assertThat(ese, throwableWithMessage(
             containsString("action [" + action + "] is unauthorized for user [" + userName + "]")));
-        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the privileges [")));
+        assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
     }
 }

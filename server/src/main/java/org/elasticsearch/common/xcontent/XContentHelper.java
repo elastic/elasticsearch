@@ -198,7 +198,7 @@ public class XContentHelper {
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        if (xContentType.canonical() == XContentType.JSON && !reformatJson) {
+        if (xContentType.canonical() == XContentType.JSON && reformatJson == false) {
             return bytes.utf8ToString();
         }
 
@@ -251,7 +251,7 @@ public class XContentHelper {
             if (old instanceof Map && changesEntry.getValue() instanceof Map) {
                 // recursive merge maps
                 modified |= update((Map<String, Object>) source.get(changesEntry.getKey()),
-                        (Map<String, Object>) changesEntry.getValue(), checkUpdatesAreUnequal && !modified);
+                        (Map<String, Object>) changesEntry.getValue(), checkUpdatesAreUnequal && modified == false);
                 continue;
             }
             // update the field
@@ -263,7 +263,7 @@ public class XContentHelper {
                 modified = true;
                 continue;
             }
-            modified = !Objects.equals(old, changesEntry.getValue());
+            modified = Objects.equals(old, changesEntry.getValue()) == false;
         }
         return modified;
     }

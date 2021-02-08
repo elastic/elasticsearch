@@ -110,7 +110,7 @@ public class NestedQuery extends Query {
         // disable score
         NestedQueryBuilder query = nestedQuery(path, child.asBuilder(), ScoreMode.None);
 
-        if (!fields.isEmpty()) {
+        if (fields.isEmpty() == false) {
             InnerHitBuilder ihb = new InnerHitBuilder();
             ihb.setSize(0);
             ihb.setSize(MAX_INNER_HITS);

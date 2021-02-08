@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   javaRestTestImplementation project(path: xpackModule('ml'))
   javaRestTestImplementation project(path: xpackModule('ml'), configuration: 'testArtifacts')

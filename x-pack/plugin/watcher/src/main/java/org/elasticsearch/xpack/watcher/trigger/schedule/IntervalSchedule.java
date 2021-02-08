@@ -66,7 +66,7 @@ public class IntervalSchedule implements Schedule {
 
         IntervalSchedule schedule = (IntervalSchedule) o;
 
-        if (!interval.equals(schedule.interval)) return false;
+        if (interval.equals(schedule.interval) == false) return false;
 
         return true;
     }

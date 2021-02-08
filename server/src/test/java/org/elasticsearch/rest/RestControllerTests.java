@@ -640,7 +640,7 @@ public class RestControllerTests extends ESTestCase {
                 // in real use case we will use exact version CompatibleVersion.V_7
                 assertThat(request.contentParser().useCompatibility(), is(true));
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertFalse(xContentBuilder.useCompatibility(CompatibleVersion.minimumRestCompatibilityVersion()));
+                assertTrue(xContentBuilder.useCompatibility(CompatibleVersion.minimumRestCompatibilityVersion()));
                 assertThat(xContentBuilder.getRestCompatibilityVersion(), equalTo(CompatibleVersion.minimumRestCompatibilityVersion()));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }

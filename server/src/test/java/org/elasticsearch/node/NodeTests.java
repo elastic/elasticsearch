@@ -12,11 +12,13 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compatibility.CompatibleVersion;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
@@ -146,10 +148,10 @@ public class NodeTests extends ESTestCase {
     private static Settings.Builder baseSettings() {
         final Path tempDir = createTempDir();
         return Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                .put(dataNode());
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            .put(dataNode());
     }
 
     public void testCloseOnOutstandingTask() throws Exception {
@@ -160,7 +162,7 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get());
+            while (shouldRun.get()) ;
         });
         threadRunning.await();
         node.close();
@@ -183,7 +185,7 @@ public class NodeTests extends ESTestCase {
             }
             try {
                 threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                    while (shouldRun.get());
+                    while (shouldRun.get()) ;
                 });
             } catch (RejectedExecutionException e) {
                 assertThat(e.getMessage(), containsString("[Terminated,"));
@@ -222,7 +224,7 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get());
+            while (shouldRun.get()) ;
         });
         threadRunning.await();
         node.close();
@@ -265,7 +267,7 @@ public class NodeTests extends ESTestCase {
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertAcked(node.client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         Searcher searcher = shard.acquireSearcher("test");
@@ -281,7 +283,7 @@ public class NodeTests extends ESTestCase {
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertAcked(node.client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
@@ -304,7 +306,7 @@ public class NodeTests extends ESTestCase {
             CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).get(0);
             assertTrue(breakerPlugin instanceof MockCircuitBreakerPlugin);
             assertSame("plugin circuit breaker instance is not the same as breaker service's instance",
-                ((MockCircuitBreakerPlugin)breakerPlugin).myCircuitBreaker.get(),
+                ((MockCircuitBreakerPlugin) breakerPlugin).myCircuitBreaker.get(),
                 service.getBreaker("test_breaker"));
         }
     }
@@ -334,39 +336,42 @@ public class NodeTests extends ESTestCase {
     }
 
 
-
-
     interface MockCompatibleVersion {
-        CompatibleVersion minimumRestCompatibilityVersion() ;
+        CompatibleVersion minimumRestCompatibilityVersion();
     }
+
+    static MockCompatibleVersion MockCompatibleVersion = Mockito.mock(MockCompatibleVersion.class);
+
+    static NamedXContentRegistry.Entry v7CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
+        new ParseField("name"), Mockito.mock(ContextParser.class));
+    static NamedXContentRegistry.Entry v8CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
+        new ParseField("name2"), Mockito.mock(ContextParser.class));
+
+    public static class TestRestCompatibility1 extends Plugin {
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
+            // real plugin will use CompatibleVersion.minimumRestCompatibilityVersion()
+            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
+                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(CompatibleVersion.V_7)) {
+                //return set of N-1 entries
+                return List.of(v7CompatibleEntries);
+            }
+            // after major release, new compatible apis can be added before the old ones are removed.
+            if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
+                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(CompatibleVersion.V_8)) {
+                return List.of(v8CompatibleEntries);
+
+            }
+            return super.getNamedXContentForCompatibility();
+        }
+    }
+
     // This test shows an example on how multiple compatible namedxcontent can be present at the same time.
     public void testLoadingMultipleRestCompatibilityPlugins() throws IOException {
 
-        MockCompatibleVersion MockCompatibleVersion = Mockito.mock(MockCompatibleVersion.class);
         Mockito.when(MockCompatibleVersion.minimumRestCompatibilityVersion())
             .thenReturn(CompatibleVersion.V_7);
-
-        NamedXContentRegistry.Entry v7CompatibleEntries = Mockito.mock(NamedXContentRegistry.Entry.class);
-        NamedXContentRegistry.Entry v8CompatibleEntries = Mockito.mock(NamedXContentRegistry.Entry.class);
-
-        class TestRestCompatibility1 extends Plugin  {
-            @Override
-            public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
-                // real plugin will use CompatibleVersion.minimumRestCompatibilityVersion()
-                if(/*CompatibleVersion.minimumRestCompatibilityVersion()*/
-                    MockCompatibleVersion.minimumRestCompatibilityVersion().equals(CompatibleVersion.V_7)){
-                    //return set of N-1 entries
-                    return List.of(v7CompatibleEntries);
-                }
-                // after major release, new compatible apis can be added before the old ones are removed.
-                if(/*CompatibleVersion.minimumRestCompatibilityVersion()*/
-                    MockCompatibleVersion.minimumRestCompatibilityVersion().equals(CompatibleVersion.V_8)){
-                    return List.of(v8CompatibleEntries);
-
-                }
-                return super.getNamedXContentForCompatibility();
-            }
-        }
 
         {
             Settings.Builder settings = baseSettings();

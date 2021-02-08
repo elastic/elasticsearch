@@ -11,7 +11,8 @@ package org.elasticsearch.common.compatibility;
 public enum CompatibleVersion {
 
     V_8(8),
-    V_7(7);
+    V_7(7),
+    V_6(6);//used in testing, to prove validation
 
     // This needs to be aligned with Version.CURRENT
     public static final CompatibleVersion CURRENT = V_8;

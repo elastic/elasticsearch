@@ -45,16 +45,13 @@ public class ReplaceFunctionProcessor implements Processor {
     }
 
     public static Object doProcess(Object input, Object pattern, Object replacement) {
-        if (input == null) {
+        if (input == null || pattern == null || replacement == null) {
             return null;
         }
         if ((input instanceof String || input instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
-        if (pattern == null || replacement == null) {
-            return input;
-        }
-        if ((pattern instanceof String || pattern instanceof Character) == false) {
+        if (!(pattern instanceof String || pattern instanceof Character)) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
         if ((replacement instanceof String || replacement instanceof Character) == false) {

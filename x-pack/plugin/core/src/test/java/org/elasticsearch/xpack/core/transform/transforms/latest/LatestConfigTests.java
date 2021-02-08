@@ -64,14 +64,24 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_EmptyUniqueKey() throws IOException {
-        String json = "{" + " \"unique_key\": []," + " \"sort\": \"timestamp\"" + "}";
+        // tag::NO_CODE_FORMAT
+        String json = "{"
+            + " \"unique_key\": [],"
+            + " \"sort\": \"timestamp\""
+            + "}";
+        // end::NO_CODE_FORMAT
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.unique_key must be non-empty"));
     }
 
     public void testValidate_EmptyUniqueKeyElement() throws IOException {
-        String json = "{" + " \"unique_key\": [ \"event1\", \"\", \"event2\", \"\", \"event3\" ]," + " \"sort\": \"timestamp\"" + "}";
+        // tag::NO_CODE_FORMAT
+        String json = "{"
+            + " \"unique_key\": [ \"event1\", \"\", \"event2\", \"\", \"event3\" ],"
+            + " \"sort\": \"timestamp\""
+            + "}";
+        // end::NO_CODE_FORMAT
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
@@ -81,7 +91,12 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_DuplicateUniqueKeyElement() throws IOException {
-        String json = "{" + " \"unique_key\": [ \"event1\", \"event2\", \"event1\" ]," + " \"sort\": \"timestamp\"" + "}";
+        // tag::NO_CODE_FORMAT
+        String json = "{"
+            + " \"unique_key\": [ \"event1\", \"event2\", \"event1\" ],"
+            + " \"sort\": \"timestamp\""
+            + "}";
+        // end::NO_CODE_FORMAT
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
@@ -91,14 +106,24 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_EmptySort() throws IOException {
-        String json = "{" + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ]," + " \"sort\": \"\"" + "}";
+        // tag::NO_CODE_FORMAT
+        String json = "{"
+            + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
+            + " \"sort\": \"\""
+            + "}";
+        // end::NO_CODE_FORMAT
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.sort must be non-empty"));
     }
 
     public void testValidate_EmptyUniqueKeyAndSort() throws IOException {
-        String json = "{" + " \"unique_key\": []," + " \"sort\": \"\"" + "}";
+        // tag::NO_CODE_FORMAT
+        String json = "{"
+            + " \"unique_key\": [],"
+            + " \"sort\": \"\""
+            + "}";
+        // end::NO_CODE_FORMAT
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(

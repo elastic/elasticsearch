@@ -82,18 +82,18 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject()
-                .startObject("properties")
-                .startObject("timestamp")
-                .field("type", "date")
-                .endObject()
-                .startObject("user_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("stars")
-                .field("type", "integer")
-                .endObject()
-                .endObject()
-                .endObject();
+            .startObject("properties")
+            .startObject("timestamp")
+            .field("type", "date")
+            .endObject()
+            .startObject("user_id")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("stars")
+            .field("type", "integer")
+            .endObject()
+            .endObject()
+            .endObject();
 
         CreateIndexRequest request = new CreateIndexRequest(indexName);
         request.mapping(builder);
@@ -180,18 +180,17 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
         TransformClient client = highLevelClient().transform();
-        AcknowledgedResponse ack = execute(new PutTransformRequest(transform), client::putTransform,
-                client::putTransformAsync);
+        AcknowledgedResponse ack = execute(new PutTransformRequest(transform), client::putTransform, client::putTransformAsync);
         assertTrue(ack.isAcknowledged());
 
-        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform,
-                client::deleteTransformAsync);
+        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform, client::deleteTransformAsync);
         assertTrue(ack.isAcknowledged());
 
         // The second delete should fail
-        ElasticsearchStatusException deleteError = expectThrows(ElasticsearchStatusException.class,
-                () -> execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform,
-                        client::deleteTransformAsync));
+        ElasticsearchStatusException deleteError = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform, client::deleteTransformAsync)
+        );
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
     }
 
@@ -200,25 +199,27 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
 
         String id = "test-update";
-        TransformConfig transform = validDataFrameTransformConfigBuilder(id, sourceIndex, "pivot-dest")
-            .setSyncConfig(new TimeSyncConfig("timefield", TimeValue.timeValueSeconds(60)))
-            .build();
+        TransformConfig transform = validDataFrameTransformConfigBuilder(id, sourceIndex, "pivot-dest").setSyncConfig(
+            new TimeSyncConfig("timefield", TimeValue.timeValueSeconds(60))
+        ).build();
 
         TransformClient client = highLevelClient().transform();
-        AcknowledgedResponse ack = execute(new PutTransformRequest(transform), client::putTransform,
-            client::putTransformAsync);
+        AcknowledgedResponse ack = execute(new PutTransformRequest(transform), client::putTransform, client::putTransformAsync);
         assertTrue(ack.isAcknowledged());
 
         String updatedDescription = "my new description";
         TransformConfigUpdate update = TransformConfigUpdate.builder().setDescription(updatedDescription).build();
         UpdateTransformResponse response = execute(
-            new UpdateTransformRequest(update, id), client::updateTransform,
-            client::updateTransformAsync);
+            new UpdateTransformRequest(update, id),
+            client::updateTransform,
+            client::updateTransformAsync
+        );
         assertThat(response.getTransformConfiguration().getDescription(), equalTo(updatedDescription));
 
-        ElasticsearchStatusException updateError = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(new UpdateTransformRequest(update, "missing-transform"), client::updateTransform,
-                client::updateTransformAsync));
+        ElasticsearchStatusException updateError = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> execute(new UpdateTransformRequest(update, "missing-transform"), client::updateTransform, client::updateTransformAsync)
+        );
         assertThat(updateError.getMessage(), containsString("Transform with id [missing-transform] could not be found"));
     }
 
@@ -233,8 +234,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse ack = execute(request, client::putTransform, client::putTransformAsync);
         assertTrue(ack.isAcknowledged());
 
-        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform,
-            client::deleteTransformAsync);
+        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform, client::deleteTransformAsync);
         assertTrue(ack.isAcknowledged());
     }
 
@@ -249,8 +249,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         putTransform(transform);
 
         GetTransformRequest getRequest = new GetTransformRequest(id);
-        GetTransformResponse getResponse = execute(getRequest, client::getTransform,
-                client::getTransformAsync);
+        GetTransformResponse getResponse = execute(getRequest, client::getTransform, client::getTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(1));
         assertEquals(transform.getId(), getResponse.getTransformConfigurations().get(0).getId());
@@ -269,21 +268,18 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         putTransform(transform);
 
         GetTransformRequest getRequest = new GetTransformRequest("_all");
-        GetTransformResponse getResponse = execute(getRequest, client::getTransform,
-                client::getTransformAsync);
+        GetTransformResponse getResponse = execute(getRequest, client::getTransform, client::getTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(2));
         assertEquals(transform.getId(), getResponse.getTransformConfigurations().get(1).getId());
 
-        getRequest.setPageParams(new PageParams(0,1));
-        getResponse = execute(getRequest, client::getTransform,
-                client::getTransformAsync);
+        getRequest.setPageParams(new PageParams(0, 1));
+        getResponse = execute(getRequest, client::getTransform, client::getTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(1));
 
         GetTransformRequest getMulitple = new GetTransformRequest("test-get-all-1", "test-get-all-2");
-        getResponse = execute(getMulitple, client::getTransform,
-                client::getTransformAsync);
+        getResponse = execute(getMulitple, client::getTransform, client::getTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(2));
     }
@@ -291,9 +287,10 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
     public void testGetMissingTransform() {
         TransformClient client = highLevelClient().transform();
 
-        ElasticsearchStatusException missingError = expectThrows(ElasticsearchStatusException.class,
-                () -> execute(new GetTransformRequest("unknown"), client::getTransform,
-                        client::getTransformAsync));
+        ElasticsearchStatusException missingError = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> execute(new GetTransformRequest("unknown"), client::getTransform, client::getTransformAsync)
+        );
         assertThat(missingError.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
@@ -308,31 +305,33 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         putTransform(transform);
 
         StartTransformRequest startRequest = new StartTransformRequest(id);
-        StartTransformResponse startResponse =
-                execute(startRequest, client::startTransform, client::startTransformAsync);
+        StartTransformResponse startResponse = execute(startRequest, client::startTransform, client::startTransformAsync);
         assertTrue(startResponse.isAcknowledged());
         assertThat(startResponse.getNodeFailures(), empty());
         assertThat(startResponse.getTaskFailures(), empty());
 
-        GetTransformStatsResponse statsResponse = execute(new GetTransformStatsRequest(id),
-                client::getTransformStats, client::getTransformStatsAsync);
+        GetTransformStatsResponse statsResponse = execute(
+            new GetTransformStatsRequest(id),
+            client::getTransformStats,
+            client::getTransformStatsAsync
+        );
         assertThat(statsResponse.getTransformsStats(), hasSize(1));
         TransformStats.State taskState = statsResponse.getTransformsStats().get(0).getState();
 
         // Since we are non-continuous, the transform could auto-stop between being started earlier and us gathering the statistics
-        assertThat(taskState, oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING,
-            TransformStats.State.STOPPING, TransformStats.State.STOPPED));
+        assertThat(
+            taskState,
+            oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING, TransformStats.State.STOPPING, TransformStats.State.STOPPED)
+        );
 
         StopTransformRequest stopRequest = new StopTransformRequest(id, Boolean.TRUE, null, false);
-        StopTransformResponse stopResponse =
-                execute(stopRequest, client::stopTransform, client::stopTransformAsync);
+        StopTransformResponse stopResponse = execute(stopRequest, client::stopTransform, client::stopTransformAsync);
         assertTrue(stopResponse.isAcknowledged());
         assertThat(stopResponse.getNodeFailures(), empty());
         assertThat(stopResponse.getTaskFailures(), empty());
 
         // Calling stop with wait_for_completion assures that we will be in the `STOPPED` state for the transform task
-        statsResponse = execute(new GetTransformStatsRequest(id),
-            client::getTransformStats, client::getTransformStatsAsync);
+        statsResponse = execute(new GetTransformStatsRequest(id), client::getTransformStats, client::getTransformStatsAsync);
         taskState = statsResponse.getTransformsStats().get(0).getState();
         assertThat(taskState, is(TransformStats.State.STOPPED));
     }
@@ -346,9 +345,11 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         TransformConfig transform = validDataFrameTransformConfig("test-preview", sourceIndex, null);
 
         TransformClient client = highLevelClient().transform();
-        PreviewTransformResponse preview = execute(new PreviewTransformRequest(transform),
-                client::previewTransform,
-                client::previewTransformAsync);
+        PreviewTransformResponse preview = execute(
+            new PreviewTransformRequest(transform),
+            client::previewTransform,
+            client::previewTransformAsync
+        );
 
         List<Map<String, Object>> docs = preview.getDocs();
         assertThat(docs, hasSize(2));
@@ -362,7 +363,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
 
         Map<String, Object> mappings = preview.getMappings();
         assertThat(mappings, hasKey("properties"));
-        Map<String, Object> fields = (Map<String, Object>)mappings.get("properties");
+        Map<String, Object> fields = (Map<String, Object>) mappings.get("properties");
         assertThat(fields.get("reviewer"), equalTo(Map.of("type", "keyword")));
         assertThat(fields.get("avg_rating"), equalTo(Map.of("type", "double")));
     }
@@ -372,8 +373,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
     }
 
     private TransformConfig.Builder validDataFrameTransformConfigBuilder(String id, String source, String destination) {
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
@@ -394,8 +394,7 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
         indexData(sourceIndex);
 
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
-            TermsGroupSource.builder().setField("user_id").build()).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
@@ -412,8 +411,11 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         TransformClient client = highLevelClient().transform();
         putTransform(transform);
 
-        GetTransformStatsResponse statsResponse = execute(new GetTransformStatsRequest(id),
-                client::getTransformStats, client::getTransformStatsAsync);
+        GetTransformStatsResponse statsResponse = execute(
+            new GetTransformStatsRequest(id),
+            client::getTransformStats,
+            client::getTransformStatsAsync
+        );
 
         assertEquals(1, statsResponse.getTransformsStats().size());
         TransformStats stats = statsResponse.getTransformsStats().get(0);
@@ -432,33 +434,46 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
             0L,
             0L,
             0L,
+            0L,
+            0L,
             0.0,
             0.0,
-            0.0);
+            0.0
+        );
         assertEquals(zeroIndexerStats, stats.getIndexerStats());
 
         // start the transform
-        StartTransformResponse startTransformResponse = execute(new StartTransformRequest(id),
+        StartTransformResponse startTransformResponse = execute(
+            new StartTransformRequest(id),
             client::startTransform,
-            client::startTransformAsync);
+            client::startTransformAsync
+        );
         assertThat(startTransformResponse.isAcknowledged(), is(true));
         assertBusy(() -> {
-            GetTransformStatsResponse response = execute(new GetTransformStatsRequest(id),
-                    client::getTransformStats, client::getTransformStatsAsync);
+            GetTransformStatsResponse response = execute(
+                new GetTransformStatsRequest(id),
+                client::getTransformStats,
+                client::getTransformStatsAsync
+            );
             TransformStats stateAndStats = response.getTransformsStats().get(0);
             assertNotEquals(zeroIndexerStats, stateAndStats.getIndexerStats());
-            assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING,
-                TransformStats.State.STOPPING, TransformStats.State.STOPPED));
+            assertThat(
+                stateAndStats.getState(),
+                oneOf(
+                    TransformStats.State.STARTED,
+                    TransformStats.State.INDEXING,
+                    TransformStats.State.STOPPING,
+                    TransformStats.State.STOPPED
+                )
+            );
             assertThat(stateAndStats.getReason(), is(nullValue()));
         });
     }
 
     void putTransform(TransformConfig config) throws IOException {
         TransformClient client = highLevelClient().transform();
-        AcknowledgedResponse ack = execute(new PutTransformRequest(config), client::putTransform,
-            client::putTransformAsync);
+        AcknowledgedResponse ack = execute(new PutTransformRequest(config), client::putTransform, client::putTransformAsync);
         assertTrue(ack.isAcknowledged());
         transformsToClean.add(config.getId());
     }
 }
-

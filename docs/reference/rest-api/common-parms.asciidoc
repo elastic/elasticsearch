@@ -142,6 +142,10 @@ Comma-separated list or wildcard expressions of fields
 to include in `fielddata` and `suggest` statistics.
 end::completion-fields[]
 
+tag::delete-time-ms[]
+The amount of time spent deleting, in milliseconds.
+end::delete-time-ms[]
+
 tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR.
@@ -194,6 +198,11 @@ segment. Deleted documents are cleaned up by the
 Also, {es} creates extra deleted documents to internally track the recent
 history of operations on a shard.
 end::docs-deleted[]
+
+tag::docs-deleted-transform[]
+The number of documents that have been deleted from the destination index
+for the {transform}.
+end::docs-deleted-transform[]
 
 tag::docs-indexed[]
 The number of documents that have been indexed into the destination index

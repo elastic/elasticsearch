@@ -100,11 +100,16 @@ public class OsProbe {
             return 0;
         }
         try {
-            final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
+            long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
             if (totalMem < 0) {
                 logger.debug("OS reported a negative total memory value [{}]", totalMem);
                 return 0;
             }
+            if (totalMem == 0 && isDebian8()) {
+                // workaround for JDK bug on debian8: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
+                totalMem = getTotalMemFromProcMeminfo();
+            }
+
             return totalMem;
         } catch (Exception e) {
             logger.warn("exception retrieving total physical memory", e);
@@ -639,6 +644,55 @@ public class OsProbe {
         } else {
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Returns the lines from /proc/meminfo as a workaround for JDK bugs that prevent retrieval of total system memory
+     * on some Linux variants such as Debian8.
+     */
+    @SuppressForbidden(reason = "access /proc/meminfo")
+    List<String> readProcMeminfo() throws IOException {
+        final List<String> lines;
+        if (Files.exists(PathUtils.get("/proc/meminfo"))) {
+            lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
+            assert lines != null && lines.isEmpty() == false;
+            return lines;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Retrieves system total memory in bytes from /proc/meminfo
+     */
+    long getTotalMemFromProcMeminfo() throws IOException {
+        List<String> meminfoLines = readProcMeminfo();
+        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
+        assert memTotalLines.size() <= 1 : memTotalLines;
+        if (memTotalLines.size() == 1) {
+            final String memTotalLine = memTotalLines.get(0);
+            int beginIdx = memTotalLine.indexOf("MemTotal:");
+            int endIdx = memTotalLine.lastIndexOf(" kB");
+            if (beginIdx + 9 < endIdx) {
+                final String memTotalString = memTotalLine.substring(beginIdx + 9, endIdx).trim();
+                try {
+                    long memTotalInKb = Long.parseLong(memTotalString);
+                    return memTotalInKb * 1024;
+                } catch (NumberFormatException e) {
+                    logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
+                    return 0;
+                }
+            } else {
+                logger.warn("Unable to retrieve total memory from meminfo line [" + memTotalLine + "]");
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+
+    boolean isDebian8() throws IOException {
+        return Constants.LINUX && getPrettyName().equals("Debian GNU/Linux 8 (jessie)");
     }
 
     public OsStats osStats() {

@@ -131,7 +131,8 @@ public class RootObjectMapper extends ObjectMapper {
     static final class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public RootObjectMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+            throws MapperParsingException {
             RootObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {

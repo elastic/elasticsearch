@@ -223,6 +223,15 @@ public class Alias implements Writeable, ToXContentFragment {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                // check if there are any unknown fields
+                if (currentFieldName.equals(FILTER.getPreferredName()) == false &&
+                    currentFieldName.equals(ROUTING.getPreferredName()) == false &&
+                    currentFieldName.equals(INDEX_ROUTING.getPreferredName()) == false &&
+                    currentFieldName.equals(SEARCH_ROUTING.getPreferredName()) == false &&
+                    currentFieldName.equals(IS_WRITE_INDEX.getPreferredName()) == false &&
+                    currentFieldName.equals(IS_HIDDEN.getPreferredName()) == false) {
+                    throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
+                }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     Map<String, Object> filter = parser.mapOrdered();
@@ -242,6 +251,8 @@ public class Alias implements Writeable, ToXContentFragment {
                 } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.isHidden(parser.booleanValue());
                 }
+            } else {
+                throw new IllegalArgumentException("Unknown token [" + token + "] in alias [" + alias.name + "]");
             }
         }
         return alias;

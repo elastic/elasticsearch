@@ -357,9 +357,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
+
+        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical,
+            ParseField.withCompatibleFieldNames("max_docs", "size"));
         // avoid silently accepting an ignored size.
-        PARSER.declareInt((r,s) -> failOnSizeSpecified(), new ParseField("size"));
+        PARSER.declareInt((r,s) -> failOnSizeSpecified(), ParseField.newVersionOnly("size"));
+
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
             ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));

@@ -34,21 +34,15 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
+    private final boolean isCompatible;
+    private final boolean newVersionOnly;
     private String allReplacedWith = null;
     private final String[] allNames;
     private boolean fullyDeprecated = false;
 
     private static final String[] EMPTY = new String[0];
 
-    /**
-     * @param name
-     *            the primary name for this field. This will be returned by
-     *            {@link #getPreferredName()}
-     * @param deprecatedNames
-     *            names for this field which are deprecated and will not be
-     *            accepted when strict matching is used.
-     */
-    public ParseField(String name, String... deprecatedNames) {
+    public ParseField(String name, String[] deprecatedNames, boolean isCompatible, boolean newVersionOnly) {
         this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = EMPTY;
@@ -57,10 +51,30 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
+        this.isCompatible = isCompatible;
+        this.newVersionOnly = newVersionOnly;
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
         Collections.addAll(allNames, this.deprecatedNames);
         this.allNames = allNames.toArray(new String[allNames.size()]);
+    }
+
+    /**
+     * @param name            the primary name for this field. This will be returned by
+     *                        {@link #getPreferredName()}
+     * @param deprecatedNames names for this field which are deprecated and will not be
+     *                        accepted when strict matching is used.
+     */
+    public ParseField(String name, String... deprecatedNames) {
+        this(name, deprecatedNames, false, false);
+    }
+
+    public static ParseField withCompatibleFieldNames(String name, String... compatibleNames) {
+        return new ParseField(name, compatibleNames, true, false);
+    }
+
+    public static ParseField newVersionOnly(String name) {
+        return new ParseField(name, null, false, true);
     }
 
     /**
@@ -178,6 +192,15 @@ public class ParseField {
      */
     public String[] getDeprecatedNames() {
         return deprecatedNames;
+    }
+
+
+    public boolean isCompatible() {
+        return isCompatible;
+    }
+
+    public boolean isNewVersionOnly() {
+        return newVersionOnly;
     }
 
     public static class CommonFields {

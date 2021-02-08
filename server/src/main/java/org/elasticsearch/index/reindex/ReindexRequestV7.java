@@ -68,8 +68,9 @@ public class ReindexRequestV7  {
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
 
-        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs", "size"));
-
+        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, ParseField.withCompatibleFieldNames("max_docs", "size"));
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
+            ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
             ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));

@@ -158,6 +158,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
+    private final Map<String, FieldParser> compatibleFieldParserMap = new HashMap<>();
     private final String name;
     private final Function<Context, Value> valueBuilder;
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
@@ -288,7 +289,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 currentPosition = parser.getTokenLocation();
-                fieldParser = fieldParserMap.get(currentFieldName);
+                if(parser.useCompatibility()){
+                    fieldParser = compatibleFieldParserMap.get(currentFieldName);
+                }else{
+                    fieldParser = fieldParserMap.get(currentFieldName);
+                }
             } else {
                 if (currentFieldName == null) {
                     throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
@@ -369,9 +374,22 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             throw new IllegalArgumentException("[type] is required");
         }
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
-        for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
-            fieldParserMap.putIfAbsent(fieldValue, fieldParser);
+        if (parseField.isCompatible()) {
+            fieldParserMap.putIfAbsent(parseField.getPreferredName(), fieldParser);
+            for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
+                compatibleFieldParserMap.putIfAbsent(fieldValue, fieldParser);
+            }
+        } else if (parseField.isNewVersionOnly()) {
+            for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
+                fieldParserMap.putIfAbsent(fieldValue, fieldParser);
+            }
+        } else {
+            for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
+                fieldParserMap.putIfAbsent(fieldValue, fieldParser);
+                compatibleFieldParserMap.putIfAbsent(fieldValue, fieldParser);
+            }
         }
+
     }
 
     @Override

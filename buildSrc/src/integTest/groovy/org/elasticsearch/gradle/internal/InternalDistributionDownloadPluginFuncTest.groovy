@@ -130,7 +130,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
             apply plugin:'base'
 
             // packed distro
-            configurations.create("linux-tar")
+            configurations.create("${testArchiveProjectName}")
             tasks.register("buildBwcTask", Tar) {
                 from('bwc-marker.txt')
                 archiveExtension = "tar.gz"
@@ -147,7 +147,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 into('build/install/elastic-distro')
             }
             artifacts {
-                it.add("expanded-linux-tar", file('build/install')) {
+                it.add("expanded-${testArchiveProjectName}", file('build/install')) {
                     builtBy expandedTask
                     type = 'directory'
                 }

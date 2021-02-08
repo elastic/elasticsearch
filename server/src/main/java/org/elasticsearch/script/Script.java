@@ -637,7 +637,7 @@ public final class Script implements ToXContentObject, Writeable {
             builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
         }
 
-        if (options != null && !options.isEmpty()) {
+        if (options != null && options.isEmpty() == false) {
             builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         }
 
@@ -691,17 +691,18 @@ public final class Script implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Script script = (Script)o;
-
-        if (type != script.type) return false;
-        if (lang != null ? !lang.equals(script.lang) : script.lang != null) return false;
-        if (idOrCode.equals(script.idOrCode) == false) return false;
-        if (options != null ? !options.equals(script.options) : script.options != null) return false;
-        return params.equals(script.params);
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Script script = (Script) o;
+        return type == script.type
+            && Objects.equals(lang, script.lang)
+            && Objects.equals(idOrCode, script.idOrCode)
+            && Objects.equals(options, script.options)
+            && Objects.equals(params, script.params);
     }
 
     @Override

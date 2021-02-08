@@ -49,11 +49,11 @@ public class SubstringFunctionProcessor implements Processor {
         if (input == null) {
             return null;
         }
-        if (!(input instanceof String || input instanceof Character)) {
+        if ((input instanceof String || input instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (start == null || length == null) {
-            return input;
+            return null;
         }
 
         Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);

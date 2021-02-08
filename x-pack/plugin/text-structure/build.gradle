@@ -8,7 +8,7 @@ esplugin {
 archivesBaseName = 'x-pack-text-structure'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   api project(':libs:elasticsearch-grok')
   api "com.ibm.icu:icu4j:${versions.icu4j}"

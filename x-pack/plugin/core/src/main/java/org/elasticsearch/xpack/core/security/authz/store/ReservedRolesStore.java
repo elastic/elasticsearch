@@ -156,30 +156,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".logs-endpoint.diagnostic.collection-*")
                                     .privileges("read").build(),
-                                // Fleet Server indices. Kibana read and write from these indices to manage Elastic Agents.
-                                // Kibana write to this indice to reassign agent policy or perform force unenroll
+                                // Fleet Server indices. Kibana create this indice before Fleet Server use them.
+                                // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-agents")
-                                    .privileges("read", "write").build(),
-                                // Kibana write to this indice to add action to an agent, upgrade, unenroll, ...
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-actions")
-                                    .privileges("read", "write").build(),
-                                // Kibana write to this indice new enrollment api key
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-enrollment-api-keys")
-                                    .privileges("read", "write").build(),
-                                // Kibana write to this indice every policy change
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-policies")
-                                    .privileges("read", "write").build(),
-                                // Fleet Server indices. Kibana read from these indices to manage Elastic Agents
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-servers")
-                                    .privileges("read").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-actions-results")
-                                    .privileges("read").build(),
+                                    .indices(".fleet*")
+                                    .privileges("all").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

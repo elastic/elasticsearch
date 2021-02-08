@@ -53,7 +53,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
         boolean hasScope = randomBoolean();
         boolean hasConditions = randomBoolean();
 
-        if (!hasScope && !hasConditions) {
+        if (hasScope == false && hasConditions == false) {
             // at least one of the two should be present
             if (randomBoolean()) {
                 hasScope = true;

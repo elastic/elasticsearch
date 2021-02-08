@@ -257,7 +257,7 @@ public class OsProbeTests extends ESTestCase {
 
     public void testGetTotalMemFromProcMeminfo() throws Exception {
         // missing MemTotal line
-        var meminfoLines = Arrays.asList(
+        List<String> meminfoLines = Arrays.asList(
             "MemFree:         8467692 kB",
             "MemAvailable:   39646240 kB",
             "Buffers:         4699504 kB",
@@ -266,7 +266,7 @@ public class OsProbeTests extends ESTestCase {
             "Active:         43637908 kB",
             "Inactive:        8130280 kB"
         );
-        OsProbe probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        OsProbe probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
 
         // MemTotal line with invalid value
@@ -280,7 +280,7 @@ public class OsProbeTests extends ESTestCase {
             "Active:         43637908 kB",
             "Inactive:        8130280 kB"
         );
-        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
 
         // MemTotal line with invalid unit
@@ -294,7 +294,7 @@ public class OsProbeTests extends ESTestCase {
             "Active:         43637908 kB",
             "Inactive:        8130280 kB"
         );
-        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
 
         // MemTotal line with random valid value
@@ -309,7 +309,7 @@ public class OsProbeTests extends ESTestCase {
             "Active:         43637908 kB",
             "Inactive:        8130280 kB"
         );
-        probe = buildStubOsProbe(true, "", List.of(), meminfoLines);
+        probe = buildStubOsProbe(true, "", org.elasticsearch.common.collect.List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
     }
 
@@ -419,7 +419,7 @@ public class OsProbeTests extends ESTestCase {
         final String hierarchy,
         List<String> procSelfCgroupLines
     ) {
-        return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines, List.of());
+        return buildStubOsProbe(areCgroupStatsAvailable, hierarchy, procSelfCgroupLines, org.elasticsearch.common.collect.List.of());
     }
 
 }

@@ -112,7 +112,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                                            long expirationTimeMillis,
                                            ActionListener<Response> listener) {
         try {
-            final Task task = store.getTask(taskManager, searchId, asyncTaskClass);
+            final Task task = store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass);
             if (task == null) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
                 return;

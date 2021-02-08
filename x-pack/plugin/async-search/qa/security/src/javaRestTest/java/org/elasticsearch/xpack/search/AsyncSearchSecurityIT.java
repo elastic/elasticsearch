@@ -76,9 +76,9 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     }
 
     public void testWithDlsAndFls() throws Exception {
-        Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user_dls");
+        Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user-dls");
         assertOK(submitResp);
-        SearchHit[] hits = getSearchHits(extractResponseId(submitResp), "user_dls");
+        SearchHit[] hits = getSearchHits(extractResponseId(submitResp), "user-dls");
         assertThat(hits, arrayContainingInAnyOrder(
                 new CustomMatcher<SearchHit>("\"index\" doc 1 matcher") {
                     @Override
@@ -115,7 +115,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     }
 
     private void testCase(String user, String other) throws Exception {
-       for (String indexName : new String[] {"index", "index-" + user}) {
+        for (String indexName : new String[] {"index", "index-" + user}) {
             Response submitResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
             assertOK(submitResp);
             String id = extractResponseId(submitResp);
@@ -126,19 +126,31 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, other));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
+            // user-manage cannot access the result
+            exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-manage"));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
             // other cannot delete the result
             exc = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, other));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other and user cannot access the result from direct get calls
-           AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-           for (String runAs : new String[] {user, other}) {
-               exc = expectThrows(ResponseException.class, () -> get(ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
-               assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-               assertThat(exc.getMessage(), containsString("unauthorized"));
-           }
+            AsyncExecutionId searchId = AsyncExecutionId.decode(id);
+            for (String runAs : new String[] {user, other}) {
+                exc = expectThrows(ResponseException.class, () -> get(ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
+                assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+                assertThat(exc.getMessage(), containsString("unauthorized"));
+            }
 
             Response delResp = deleteAsyncSearch(id, user);
+            assertOK(delResp);
+
+            // check that user with 'manage' privileges can delete an async
+            // search submitted by a different user
+            Response newResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
+            assertOK(newResp);
+            String newId = extractResponseId(newResp);
+            delResp = deleteAsyncSearch(newId, "user-manage");
             assertOK(delResp);
         }
         ResponseException exc = expectThrows(ResponseException.class,
@@ -254,9 +266,9 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             assertOK(userResp);
             assertThat(getSearchHits(extractResponseId(userResp), "user1"), arrayWithSize(3));
 
-            Response dlsResp = submitAsyncSearchWithPIT(pitId, "*", TimeValue.timeValueSeconds(10), "user_dls");
+            Response dlsResp = submitAsyncSearchWithPIT(pitId, "*", TimeValue.timeValueSeconds(10), "user-dls");
             assertOK(dlsResp);
-            assertThat(getSearchHits(extractResponseId(dlsResp), "user_dls"), arrayContainingInAnyOrder(
+            assertThat(getSearchHits(extractResponseId(dlsResp), "user-dls"), arrayContainingInAnyOrder(
                 new CustomMatcher<SearchHit>("\"index\" doc 1 matcher") {
                     @Override
                     public boolean matches(Object actual) {

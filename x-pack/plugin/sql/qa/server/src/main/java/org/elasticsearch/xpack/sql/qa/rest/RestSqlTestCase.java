@@ -1056,8 +1056,19 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testMultiValueQueryText() throws IOException {
-        index("{" + toJson("text") + ":[" + toJson("one") + "," + toJson("two, three") + "," + toJson("\"four\"") + "], "
-            + toJson("number") + " : [1, [2, 3], 4] }");
+        index(
+            "{"
+                + toJson("text")
+                + ":["
+                + toJson("one")
+                + ","
+                + toJson("two, three")
+                + ","
+                + toJson("\"four\"")
+                + "], "
+                + toJson("number")
+                + " : [1, [2, 3], 4] }"
+        );
 
         String expected = "               t               |       n       \n"
             + "-------------------------------+---------------\n"

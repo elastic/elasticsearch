@@ -167,20 +167,22 @@ class StoreKeyConfig extends KeyConfig {
             "the configured PKCS#11 token does not contain a private key entry";
         throw new IllegalArgumentException(message);
     }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         StoreKeyConfig that = (StoreKeyConfig) o;
-
-        if (keyStorePath != null ? !keyStorePath.equals(that.keyStorePath) : that.keyStorePath != null) return false;
-        if (keyStorePassword != null ? !keyStorePassword.equals(that.keyStorePassword) : that.keyStorePassword != null)
-            return false;
-        if (keyStoreAlgorithm != null ? !keyStoreAlgorithm.equals(that.keyStoreAlgorithm) : that.keyStoreAlgorithm != null)
-            return false;
-        if (keyPassword != null ? !keyPassword.equals(that.keyPassword) : that.keyPassword != null) return false;
-        return trustStoreAlgorithm != null ? trustStoreAlgorithm.equals(that.trustStoreAlgorithm) : that.trustStoreAlgorithm == null;
+        return Objects.equals(keyStorePath, that.keyStorePath)
+            && Objects.equals(keyStorePassword, that.keyStorePassword)
+            && Objects.equals(keyStoreAlgorithm, that.keyStoreAlgorithm)
+            && Objects.equals(keyPassword, that.keyPassword)
+            && Objects.equals(keyStoreType, that.keyStoreType)
+            && Objects.equals(trustStoreAlgorithm, that.trustStoreAlgorithm);
     }
 
     @Override

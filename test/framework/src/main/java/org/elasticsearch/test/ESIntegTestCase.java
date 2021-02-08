@@ -2243,22 +2243,4 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         });
     }
-
-    /**
-     * On Debian 8 the "memory" subsystem is not mounted by default
-     * when cgroups are enabled, and this confuses many versions of
-     * Java prior to Java 15.  Tests that rely on machine memory
-     * being accurately determined will not work on such setups,
-     * and can use this method for selective muting.
-     * See https://github.com/elastic/elasticsearch/issues/67089
-     * and https://github.com/elastic/elasticsearch/issues/66885
-     */
-    protected boolean willSufferDebian8MemoryProblem() {
-        final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        final boolean anyDebian8Nodes = response.getNodes()
-            .stream()
-            .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
-        boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
-        return anyDebian8Nodes && java15Plus == false;
-    }
 }

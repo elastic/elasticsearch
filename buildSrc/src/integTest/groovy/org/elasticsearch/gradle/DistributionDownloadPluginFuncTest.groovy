@@ -54,7 +54,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         def result = withMockedDistributionDownload(version, platform, runner) {
             // initial run
             def firstRun = build()
-            assertOutputContains(firstRun.output, "Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
+            assertOutputContains(firstRun.output, "Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
                     "using SymbolicLinkPreservingUntarTransform")
             // 2nd invocation
             build()
@@ -62,7 +62,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertOutputMissing(result.output, "Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
+        assertOutputMissing(result.output, "Unpacking elasticsearch-${version}-linux-${expectedArch}.tar.gz " +
                 "using SymbolicLinkPreservingUntarTransform")
     }
 

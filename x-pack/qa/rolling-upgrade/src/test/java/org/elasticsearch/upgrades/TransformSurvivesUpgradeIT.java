@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -88,22 +87,17 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
             final SortedSet<String> templates = new TreeSet<>(Streams.readAllLines(catResponse.getEntity().getContent()));
 
-            // match templates, independent of the version, at least 2 should exist
-            SortedSet<String> internalDeprecated = templates.tailSet(TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED);
-            SortedSet<String> internal = templates.tailSet(TRANSFORM_INTERNAL_INDEX_PREFIX);
+            // match notifications index templates, independent of the version, at least 1 should exist
             SortedSet<String> notificationsDeprecated = templates
                     .tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED);
             SortedSet<String> notifications = templates.tailSet(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX);
 
             int foundTemplates = 0;
-            foundTemplates += internalDeprecated.isEmpty() ? 0
-                    : internalDeprecated.first().startsWith(TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED) ? 1 : 0;
-            foundTemplates += internal.isEmpty() ? 0 : internal.first().startsWith(TRANSFORM_INTERNAL_INDEX_PREFIX) ? 1 : 0;
             foundTemplates += notificationsDeprecated.isEmpty() ? 0
                     : notificationsDeprecated.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED) ? 1 : 0;
             foundTemplates += notifications.isEmpty() ? 0 : notifications.first().startsWith(TRANSFORM_NOTIFICATIONS_INDEX_PREFIX) ? 1 : 0;
 
-            if (foundTemplates < 2) {
+            if (foundTemplates < 1) {
                 fail("Transform index templates not found. The templates that exist are: " + templates);
             }
         });
@@ -154,8 +148,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case UPGRADED:
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
-                IndexMappingTemplateAsserter.assertLegacyTemplateMatchesIndexMappings(client(),
-                    ".transform-internal-005", ".transform-internal-005");
                 cleanUpTransforms();
                 break;
             default:

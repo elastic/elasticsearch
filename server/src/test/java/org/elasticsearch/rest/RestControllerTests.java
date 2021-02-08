@@ -637,9 +637,11 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                // in real use case we will use exact version CompatibleVersion.V_7
                 assertThat(request.contentParser().useCompatibility(), is(true));
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getCompatibleVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
+                assertFalse(xContentBuilder.useCompatibility(CompatibleVersion.minimumRestCompatibilityVersion()));
+                assertThat(xContentBuilder.getRestCompatibilityVersion(), equalTo(CompatibleVersion.minimumRestCompatibilityVersion()));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
@@ -668,13 +670,17 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                assertThat(request.contentParser().useCompatibility(), is(true));
 
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 // even though the handler is CURRENT, the xContentBuilder has the version requested by a client.
                 // This allows to implement the compatible logic within the serialisation without introducing V7 (compatible) handler
                 // when only response shape has changed
-                assertThat(xContentBuilder.getCompatibleVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
+                assertThat(xContentBuilder.getRestCompatibilityVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
+
+                // we don't expect compatible api code to be implemented for newly added APIs,
+                // yet the request is compatible so the compatible flags are set on builder/parser
+                assertTrue(xContentBuilder.useCompatibility(CompatibleVersion.minimumRestCompatibilityVersion()));
+                assertThat(request.contentParser().useCompatibility(), is(true));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 
@@ -717,7 +723,8 @@ public class RestControllerTests extends ESTestCase {
                 assertThat(request.contentParser().useCompatibility(), is(false));
 
                 XContentBuilder xContentBuilder = channel.newBuilder();
-                assertThat(xContentBuilder.getCompatibleVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
+                assertFalse(xContentBuilder.useCompatibility(CompatibleVersion.minimumRestCompatibilityVersion()));
+                assertThat(xContentBuilder.getRestCompatibilityVersion(), equalTo(CompatibleVersion.fromMajorVersion(version)));
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
 

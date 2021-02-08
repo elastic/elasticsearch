@@ -13,6 +13,7 @@ public enum CompatibleVersion {
     V_8(8),
     V_7(7);
 
+    // This needs to be aligned with Version.CURRENT
     public static final CompatibleVersion CURRENT = V_8;
     public byte major;
 

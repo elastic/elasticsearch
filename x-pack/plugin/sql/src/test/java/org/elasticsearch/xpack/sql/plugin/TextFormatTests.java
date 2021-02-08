@@ -324,7 +324,7 @@ public class TextFormatTests extends ESTestCase {
                 }
 
                 String typeName = fromJava(o).typeName();
-                headers.add(new ColumnInfo("index", typeName + "_column", typeName));
+                headers.add(new ColumnInfo("index", typeName + "_column", typeName + "_array"));
             }
         }
 

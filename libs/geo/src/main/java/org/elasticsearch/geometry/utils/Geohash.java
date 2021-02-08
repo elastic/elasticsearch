@@ -53,7 +53,7 @@ public class Geohash {
         for(int i = 1; i <= PRECISION; i++) {
             precisionToLatHeight[i] = precisionToLatHeight[i-1] / (even ? 8 : 4);
             precisionToLonWidth[i] = precisionToLonWidth[i-1] / (even ? 4 : 8);
-            even = ! even;
+            even = even == false;
         }
     }
 

@@ -10,7 +10,7 @@ archivesBaseName = 'x-pack-analytics'
 dependencies {
   compileOnly project(":server")
 
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 
   api 'org.apache.commons:commons-math3:3.2'

@@ -313,6 +313,18 @@ GET /_xpack/usage
       "primary_shard_size_median_bytes" : 0,
       "primary_shard_size_mad_bytes" : 0
     },
+    "data_frozen" : {
+      "node_count" : 1,
+      "index_count" : 0,
+      "total_shard_count" : 0,
+      "primary_shard_count" : 0,
+      "doc_count" : 0,
+      "total_size_bytes" : 0,
+      "primary_size_bytes" : 0,
+      "primary_shard_size_avg_bytes" : 0,
+      "primary_shard_size_median_bytes" : 0,
+      "primary_shard_size_mad_bytes" : 0
+    },
     "data_cold" : {
       "node_count" : 0,
       "index_count" : 0,

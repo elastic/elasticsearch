@@ -274,12 +274,12 @@ public class CppLogMessageHandler implements Closeable {
             }
 
             // get out of here quickly if level isn't of interest
-            if (!LOGGER.isEnabled(level)) {
+            if (LOGGER.isEnabled(level) == false) {
                 return;
             }
 
             // log message summarization is disabled for debug
-            if (!LOGGER.isDebugEnabled()) {
+            if (LOGGER.isDebugEnabled() == false) {
                 // log summarization: log 1st message, count all consecutive messages arriving
                 // in a certain time window and summarize them as 1 message
                 if (msg.isSimilarTo(lastMessageSummary.message)

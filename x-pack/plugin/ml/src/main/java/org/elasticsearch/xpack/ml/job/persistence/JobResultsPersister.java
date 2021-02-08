@@ -124,7 +124,7 @@ public class JobResultsPersister {
             // If the supplied bucket has records then create a copy with records
             // removed, because we never persist nested records in buckets
             Bucket bucketWithoutRecords = bucket;
-            if (!bucketWithoutRecords.getRecords().isEmpty()) {
+            if (bucketWithoutRecords.getRecords().isEmpty() == false) {
                 bucketWithoutRecords = new Bucket(bucket);
                 bucketWithoutRecords.setRecords(Collections.emptyList());
             }

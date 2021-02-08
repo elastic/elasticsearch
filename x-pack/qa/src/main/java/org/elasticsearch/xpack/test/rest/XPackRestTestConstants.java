@@ -34,6 +34,11 @@ public final class XPackRestTestConstants {
             RESULTS_INDEX_PREFIX,
             CONFIG_INDEX);
 
+    public static final List<String> ML_POST_V7120_TEMPLATES =
+        List.of(
+            STATE_INDEX_PREFIX,
+            RESULTS_INDEX_PREFIX);
+
     // Transform constants:
     public static final String TRANSFORM_TASK_NAME = "data_frame/transforms";
     public static final String TRANSFORM_INTERNAL_INDEX_PREFIX = ".transform-internal-";

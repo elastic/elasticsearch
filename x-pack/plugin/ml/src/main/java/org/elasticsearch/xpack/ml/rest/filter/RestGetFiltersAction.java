@@ -40,7 +40,7 @@ public class RestGetFiltersAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetFiltersAction.Request request = new GetFiltersAction.Request();
         String filterId = restRequest.param(MlFilter.ID.getPreferredName());
-        if (!Strings.isNullOrEmpty(filterId)) {
+        if (Strings.isNullOrEmpty(filterId) == false) {
             request.setResourceId(filterId);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

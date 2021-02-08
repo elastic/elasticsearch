@@ -174,6 +174,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
                 case "cold":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
+                case "frozen":
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_FROZEN_ACTIONS);
                 case "delete":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_DELETE_ACTIONS);
                 default:

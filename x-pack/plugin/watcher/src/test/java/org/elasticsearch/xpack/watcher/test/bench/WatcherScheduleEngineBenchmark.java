@@ -155,8 +155,8 @@ public class WatcherScheduleEngineBenchmark {
                     client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();
 
                     Clock clock = node.injector().getInstance(Clock.class);
-                    while (!new WatcherStatsRequestBuilder(client).get().getNodes().stream()
-                            .allMatch(r -> r.getWatcherState() == WatcherState.STARTED)) {
+                    while (new WatcherStatsRequestBuilder(client).get().getNodes().stream()
+                            .allMatch(r -> r.getWatcherState() == WatcherState.STARTED) == false) {
                         Thread.sleep(100);
                     }
                     long actualLoadedWatches = new WatcherStatsRequestBuilder(client).get().getWatchesCount();

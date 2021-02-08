@@ -57,7 +57,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             Request request = PARSER.apply(parser, null);
             if (request.getId() == null) {
                 request.setId(id);
-            } else if (!Strings.isNullOrEmpty(id) && !id.equals(request.getId())) {
+            } else if (Strings.isNullOrEmpty(id) == false && id.equals(request.getId()) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
                     request.getId(), id));
             }

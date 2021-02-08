@@ -232,7 +232,7 @@ public class CppLogMessage implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(other instanceof CppLogMessage)) {
+        if ((other instanceof CppLogMessage) == false) {
             return false;
         }
 

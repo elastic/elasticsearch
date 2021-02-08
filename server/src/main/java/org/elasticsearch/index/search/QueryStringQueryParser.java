@@ -270,7 +270,14 @@ public class QueryStringQueryParser extends XQueryParser {
             boolean multiFields = Regex.isSimpleMatchPattern(field);
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
-            extractedFields = resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
+            extractedFields = resolveMappingField(
+                context,
+                field,
+                1.0f,
+                allFields == false,
+                multiFields == false,
+                quoted ? quoteFieldSuffix : null
+            );
         } else if (quoted && quoteFieldSuffix != null) {
             extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {

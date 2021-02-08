@@ -23,13 +23,14 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.randomNumericDocValueFormat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCase<MultiValuesSourceFieldConfig> {
 
     @Override
     protected MultiValuesSourceFieldConfig doParseInstance(XContentParser parser) throws IOException {
-        return MultiValuesSourceFieldConfig.parserBuilder(true, true, true).apply(parser, null).build();
+        return MultiValuesSourceFieldConfig.parserBuilder(true, true, true, true).apply(parser, null).build();
     }
 
     @Override
@@ -38,8 +39,18 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
         Object missing = randomBoolean() ? randomAlphaOfLength(10) : null;
         ZoneId timeZone = randomBoolean() ? randomZone() : null;
         QueryBuilder filter = randomBoolean() ? QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
-        return new MultiValuesSourceFieldConfig.Builder()
-            .setFieldName(field).setMissing(missing).setScript(null).setTimeZone(timeZone).setFilter(filter).build();
+        String format = randomBoolean() ? randomNumericDocValueFormat().toString() : null;
+        ValueType userValueTypeHint = randomBoolean()
+            ? randomFrom(ValueType.STRING, ValueType.DOUBLE, ValueType.LONG, ValueType.DATE, ValueType.IP, ValueType.BOOLEAN)
+            : null;
+        return new MultiValuesSourceFieldConfig.Builder().setFieldName(field)
+            .setMissing(missing)
+            .setScript(null)
+            .setTimeZone(timeZone)
+            .setFilter(filter)
+            .setFormat(format)
+            .setUserValueTypeHint(userValueTypeHint)
+            .build();
     }
 
     @Override

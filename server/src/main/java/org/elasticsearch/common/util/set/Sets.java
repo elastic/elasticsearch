@@ -74,7 +74,7 @@ public final class Sets {
     public static <T> Set<T> difference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> !right.contains(k)).collect(Collectors.toSet());
+        return left.stream().filter(k -> right.contains(k) == false).collect(Collectors.toSet());
     }
 
     /**

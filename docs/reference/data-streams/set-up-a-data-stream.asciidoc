@@ -21,10 +21,10 @@ While optional, we recommend you configure an <<set-up-lifecycle-policy,{ilm}
 indices.
 
 In {kib}, open the menu and go to *Stack Management > Index Lifecycle Policies*.
-Click *Index Lifecycle Policies*.
+Click *Create policy*.
 
 [role="screenshot"]
-image::images/ilm/create-policy.png[Index Lifecycle Policies page]
+image::images/ilm/create-policy.png[Create Policy page]
 
 [%collapsible]
 .API example

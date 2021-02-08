@@ -51,9 +51,6 @@ tasks.register('configureIdeCheckstyle') {
 
     // Edit the copy so that IntelliJ can copy with it
     modifyXml(checkstyleIdeConfig, { xml ->
-      // Remove this module since it is implemented with custom code
-      xml.module.findAll { it.'@name' == 'org.elasticsearch.gradle.checkstyle.SnippetLengthCheck' }.each { it.parent().remove(it) }
-
       // Add all the nodes from the fragment file
       Node treeWalker = xml.module.find { it.'@name' == 'TreeWalker' }
       xmlFragment.module.each { treeWalker.append(it) }

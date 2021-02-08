@@ -79,7 +79,9 @@ import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -745,6 +747,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(ClassificationStats.NAME.getPreferredName()));
         assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
         assertTrue(names.contains(TimeSyncConfig.NAME));
+        assertEquals(Integer.valueOf(1), categories.get(RetentionPolicyConfig.class));
+        assertTrue(names.contains(TimeRetentionPolicyConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(OutlierDetection.NAME, Classification.NAME, Regression.NAME));
         assertEquals(Integer.valueOf(13), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));

@@ -624,7 +624,7 @@ public class PersistentCache implements Closeable {
             for (int i = 0; i < length; i++) {
                 final ByteRange range = ByteRange.of(input.readVLong(), input.readVLong());
                 assert range.length() > 0 : range;
-                assert range.start() <= getFileLength(document);
+                assert range.end() <= getFileLength(document);
                 assert previous == null || previous.end() < range.start();
 
                 final boolean added = cacheRanges.add(range);

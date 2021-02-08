@@ -395,23 +395,6 @@ public class BulkProcessor implements Closeable {
         return this;
     }
 
-    private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, Scheduler scheduler) {
-        if (flushInterval == null) {
-            return new Scheduler.Cancellable() {
-                @Override
-                public boolean cancel() {
-                    return false;
-                }
-
-                @Override
-                public boolean isCancelled() {
-                    return true;
-                }
-            };
-        }
-        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.GENERIC);
-    }
-
     // needs to be executed under a lock
     private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {
         ensureOpen();
@@ -448,36 +431,45 @@ public class BulkProcessor implements Closeable {
         return false;
     }
 
-    /**
-     * Flush pending delete or index requests.
-     */
-    public void flush() {
+    private void flush(boolean ensureOpen) {
         lock.lock();
         try {
-            ensureOpen();
-            if (bulkRequest.numberOfActions() > 0) {
-                execute();
+            if (ensureOpen) {
+                ensureOpen();
             }
+            if (closed) {
+                return;
+            }
+            if (bulkRequest.numberOfActions() == 0) {
+                return;
+            }
+            execute();
         } finally {
             lock.unlock();
         }
     }
 
-    class Flush implements Runnable {
-        @Override
-        public void run() {
-            lock.lock();
-            try {
-                if (closed) {
-                    return;
+    /**
+     * Flush pending delete or index requests.
+     */
+    public void flush() {
+        flush(true);
+    }
+
+    private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, Scheduler scheduler) {
+        if (flushInterval == null) {
+            return new Scheduler.Cancellable() {
+                @Override
+                public boolean cancel() {
+                    return false;
                 }
-                if (bulkRequest.numberOfActions() == 0) {
-                    return;
+
+                @Override
+                public boolean isCancelled() {
+                    return true;
                 }
-                execute();
-            } finally {
-                lock.unlock();
-            }
+            };
         }
+        return scheduler.scheduleWithFixedDelay(() -> flush(false), flushInterval, ThreadPool.Names.GENERIC);
     }
 }

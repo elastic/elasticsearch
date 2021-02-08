@@ -244,7 +244,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about memory
         List<String> procSelfCgroupLines = getProcSelfGroupLines(hierarchy)
             .stream()
-            .filter(line -> !line.contains(":memory:"))
+            .filter(line -> line.contains(":memory:") == false)
             .collect(Collectors.toList());
 
         final OsProbe probe = buildStubOsProbe(true, hierarchy, procSelfCgroupLines);

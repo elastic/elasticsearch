@@ -10,21 +10,26 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
-import java.util.Collections;
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class IndexTimeScriptParams {
 
     private final BytesReference source;
-    private final ParseContext.Document document;
+    private final Function<String, MappedFieldType> fieldTypeLookup;
 
+    private LeafDocLookup docLookup;
     private SourceLookup sourceLookup;
 
-    public IndexTimeScriptParams(BytesReference source, ParseContext.Document document) {
+    public IndexTimeScriptParams(BytesReference source, Function<String, MappedFieldType> fieldTypeLookup) {
         this.source = source;
-        this.document = document;
+        this.fieldTypeLookup = fieldTypeLookup;
     }
 
     public SourceLookup source() {
@@ -36,6 +41,44 @@ public class IndexTimeScriptParams {
     }
 
     public Map<String, ScriptDocValues<?>> doc() {
-        return Collections.emptyMap();  // TODO
+        if (docLookup == null) {
+            Predicate<String> fieldExists = f -> fieldTypeLookup.apply(f) != null;
+            Function<String, ScriptDocValues<?>> valueLoader = f -> {
+                MappedFieldType ft = fieldTypeLookup.apply(f);
+                if (ft == null) {
+                    throw new IllegalArgumentException("No field found for [" + f + "] in mapping");
+                }
+                ValueFetcher fetcher = ft.valueFetcher(null, null); // TODO source paths!
+                return new SyntheticScriptDocValues(fetcher);
+            };
+            docLookup = new LeafDocLookup(fieldExists, valueLoader);
+        }
+        return docLookup;
     }
+
+    private class SyntheticScriptDocValues extends ScriptDocValues<Object> {
+
+        final ValueFetcher fetcher;
+        List<Object> values;
+
+        private SyntheticScriptDocValues(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            values = fetcher.fetchValues(source());
+        }
+
+        @Override
+        public Object get(int index) {
+            return values.get(index);
+        }
+
+        @Override
+        public int size() {
+            return values.size();
+        }
+    }
+
 }

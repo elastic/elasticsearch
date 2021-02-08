@@ -21,22 +21,38 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
-    private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
 
-    private final LeafReaderContext reader;
+    private final Predicate<String> fieldExists;
+    private final Function<String, ScriptDocValues<?>> loader;
 
     private int docId = -1;
 
+    public LeafDocLookup(Predicate<String> fieldExists, Function<String, ScriptDocValues<?>> loader) {
+        this.loader = loader;
+        this.fieldExists = fieldExists;
+    }
+
     LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
                   LeafReaderContext reader) {
-        this.fieldTypeLookup = fieldTypeLookup;
-        this.fieldDataLookup = fieldDataLookup;
-        this.reader = reader;
+        this(s -> fieldTypeLookup.apply(s) != null, fieldName -> {
+            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
+            if (fieldType == null) {
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
+            }
+            // load fielddata on behalf of the script: otherwise it would need additional permissions
+            // to deal with pagedbytes/ramusagestimator/etc
+            return AccessController.doPrivileged(new PrivilegedAction<>() {
+                @Override
+                public ScriptDocValues<?> run() {
+                    return fieldDataLookup.apply(fieldType).load(reader).getScriptValues();
+                }
+            });
+        });
     }
 
     public void setDocument(int docId) {
@@ -49,18 +65,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
-            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
-            }
-            // load fielddata on behalf of the script: otherwise it would need additional permissions
-            // to deal with pagedbytes/ramusagestimator/etc
-            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
-                @Override
-                public ScriptDocValues<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptValues();
-                }
-            });
+            scriptValues = loader.apply(fieldName);
             localCacheFieldData.put(fieldName, scriptValues);
         }
         try {
@@ -76,7 +81,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         // assume its a string...
         String fieldName = key.toString();
         ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
-        return scriptValues != null || fieldTypeLookup.apply(fieldName) != null;
+        return scriptValues != null || fieldExists.test(fieldName);
     }
 
     @Override

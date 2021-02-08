@@ -306,7 +306,7 @@ PUT _transform/ecommerce_transform1
       "field": "order_date",
       "delay": "60s"
     }
-  }
+  },
   "retention_policy": {
     "time": {
       "field": "order_date",

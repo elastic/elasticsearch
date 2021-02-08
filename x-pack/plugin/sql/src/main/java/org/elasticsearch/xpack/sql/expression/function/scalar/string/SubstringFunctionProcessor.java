@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -48,11 +49,11 @@ public class SubstringFunctionProcessor implements Processor {
         if (input == null) {
             return null;
         }
-        if (!(input instanceof String || input instanceof Character)) {
+        if ((input instanceof String || input instanceof Character) == false) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (start == null || length == null) {
-            return input;
+            return null;
         }
 
         Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);

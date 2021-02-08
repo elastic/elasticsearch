@@ -1,13 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -47,7 +53,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
-    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
+    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
@@ -56,6 +62,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = new MigrateAction(false);
+    private static final RollupILMAction TEST_ROLLUP_ACTION =new RollupILMAction(new RollupActionConfig(
+        new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
+        Collections.singletonList(new MetricConfig("field", Collections.singletonList("max")))), null);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -194,19 +203,20 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testActionsThatCannotFollowSearchableSnapshot() {
-        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
+        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(5));
         assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME,
-            ForceMergeAction.NAME, SearchableSnapshotAction.NAME));
+            ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME));
     }
 
     public void testValidateActionsFollowingSearchableSnapshot() {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1)));
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
-        assertThat(e.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink] actions" +
+        assertThat(e.getMessage(), is(
+            "phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup] actions" +
             " which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
@@ -215,6 +225,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         for (String phaseName : randomSubsetOf(randomIntBetween(0, VALID_PHASES.size()), VALID_PHASES)) {
             phaseMap.put(phaseName, new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
         }
+
 
         assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, VALID_PHASES));
     }
@@ -261,7 +272,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testGetOrderedActionsInvalidPhase() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE
             .getOrderedActions(new Phase("invalid", TimeValue.ZERO, Collections.emptyMap())));
-        assertThat(exception.getMessage(), equalTo("lifecycle type[timeseries] does not support phase[invalid]"));
+        assertThat(exception.getMessage(), equalTo("lifecycle type [timeseries] does not support phase [invalid]"));
     }
 
     public void testGetOrderedActionsHot() {
@@ -611,7 +622,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case RolloverAction.NAME:
                 return new RolloverAction(ByteSizeValue.parseBytesSizeValue("0b", "test"), TimeValue.ZERO, 1L);
             case ShrinkAction.NAME:
-                return new ShrinkAction(1);
+                return new ShrinkAction(1, null);
             case FreezeAction.NAME:
                 return new FreezeAction();
             case SetPriorityAction.NAME:
@@ -620,6 +631,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return new UnfollowAction();
             case MigrateAction.NAME:
                 return new MigrateAction(true);
+            case RollupILMAction.NAME:
+                return TEST_ROLLUP_ACTION;
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
@@ -693,6 +706,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             case MigrateAction.NAME:
                 return TEST_MIGRATE_ACTION;
+            case RollupILMAction.NAME:
+                return TEST_ROLLUP_ACTION;
             default:
                 throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }

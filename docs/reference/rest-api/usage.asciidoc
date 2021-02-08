@@ -288,7 +288,8 @@ GET /_xpack/usage
       "t_test_usage" : 0,
       "rate_usage" : 0,
       "string_stats_usage" : 0,
-      "moving_percentiles_usage" : 0
+      "moving_percentiles_usage" : 0,
+      "multi_terms_usage" : 0
     }
   },
   "data_streams" : {
@@ -302,6 +303,18 @@ GET /_xpack/usage
     "enabled" : true,
     "data_warm" : {
       "node_count" : 0,
+      "index_count" : 0,
+      "total_shard_count" : 0,
+      "primary_shard_count" : 0,
+      "doc_count" : 0,
+      "total_size_bytes" : 0,
+      "primary_size_bytes" : 0,
+      "primary_shard_size_avg_bytes" : 0,
+      "primary_shard_size_median_bytes" : 0,
+      "primary_shard_size_mad_bytes" : 0
+    },
+    "data_frozen" : {
+      "node_count" : 1,
       "index_count" : 0,
       "total_shard_count" : 0,
       "primary_shard_count" : 0,
@@ -360,6 +373,7 @@ GET /_xpack/usage
   }
 }
 ------------------------------------------------------------
+// TESTRESPONSE[skip:Awaits fix https://github.com/elastic/elasticsearch/issues/68101]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]

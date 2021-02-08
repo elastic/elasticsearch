@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
@@ -301,6 +302,11 @@ public class ExpressionTests extends ESTestCase {
         Mul mul = (Mul) cast.field();
         assertEquals("10* 2", mul.sourceText());
         assertEquals(INTEGER, mul.dataType());
+    }
+
+    public void testCastToDatetimeNanosNotSupported() {
+        ParsingException e = expectThrows(ParsingException.class, () -> parser.createExpression("CAST('foo' AS DATETIME_NANOS)"));
+        assertEquals("line 1:16: Does not recognize type [DATETIME_NANOS]", e.getMessage());
     }
 
     public void testCastWithQuotedDataType() {

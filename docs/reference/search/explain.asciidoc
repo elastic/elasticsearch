@@ -1,5 +1,8 @@
 [[search-explain]]
 === Explain API
+++++
+<titleabbrev>Explain</titleabbrev>
+++++
 
 Returns information about why a specific document matches (or doesn't match) a 
 query.
@@ -22,6 +25,12 @@ GET /my-index-000001/_explain/0
 `GET /<index>/_explain/<id>`
 
 `POST /<index>/_explain/<id>`
+
+[[search-explain-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index.
 
 [[search-explain-api-desc]]
 ==== {api-description-title}

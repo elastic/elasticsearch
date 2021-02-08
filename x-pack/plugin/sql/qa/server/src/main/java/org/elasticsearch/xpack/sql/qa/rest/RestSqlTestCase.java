@@ -438,12 +438,12 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> expected = new HashMap<>();
         boolean columnar = randomBoolean();
         expected.put(
-                "columns",
-                Arrays.asList(
-                        columnInfo(mode, "gender", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
-                        columnInfo(mode, "cnt", "long", JDBCType.BIGINT, 20),
-                        columnInfo(mode, "cnt_dist", "long", JDBCType.BIGINT, 20)
-                )
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "gender", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo(mode, "cnt", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "cnt_dist", "long", JDBCType.BIGINT, 20)
+            )
         );
         if (columnar) {
             expected.put("values", Arrays.asList(Arrays.asList("f", "m"), Arrays.asList(6, 5), Arrays.asList(3, 3)));
@@ -451,10 +451,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             expected.put("rows", Arrays.asList(Arrays.asList("f", 6, 3), Arrays.asList("m", 5, 3)));
         }
 
-        Map<String, Object> response = runSql(mode,
-                "SELECT gender, COUNT(langs) AS cnt, COUNT(DISTINCT langs) AS cnt_dist " +
-                "FROM test GROUP BY gender ORDER BY gender",
-                columnar);
+        Map<String, Object> response = runSql(
+            mode,
+            "SELECT gender, COUNT(langs) AS cnt, COUNT(DISTINCT langs) AS cnt_dist " + "FROM test GROUP BY gender ORDER BY gender",
+            columnar
+        );
 
         String cursor = (String) response.remove("cursor");
         assertNotNull(cursor);

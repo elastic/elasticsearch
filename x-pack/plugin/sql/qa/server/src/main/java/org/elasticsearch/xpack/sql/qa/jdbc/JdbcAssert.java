@@ -352,8 +352,7 @@ public class JdbcAssert {
         }
     }
 
-    private static Object extractObject(ResultSet resultSet, int column, boolean fromEs, Class<?> expectedColumnClass)
-        throws SQLException {
+    private static Object extractObject(ResultSet resultSet, int column, boolean fromEs, Class<?> expectedColumnClass) throws SQLException {
         switch (resultSet.getMetaData().getColumnType(column)) {
             case TIMESTAMP:
             case TIMESTAMP_WITH_TIMEZONE:

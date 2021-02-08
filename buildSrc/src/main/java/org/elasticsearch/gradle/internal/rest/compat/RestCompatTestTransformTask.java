@@ -18,6 +18,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
+import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
+import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
@@ -50,8 +52,6 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
     private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class);
 
-    private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
-
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
         "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION,
@@ -66,8 +66,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
     private final Map<String, List<RestTestTransform<?>>> perTestTransformation = new HashMap<>();
-    // Use a string to represent the transformations...this is simpler then ensuring correct serialization of objects
-    private StringBuilder transformationsKey = new StringBuilder();
+
 
     @Inject
     public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
@@ -77,59 +76,26 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new InjectHeaders(headers));
     }
 
-    // /**
-    // * Replaces all of the REST Test match assertion for the given project. For example:
-    // * <p>
-    // * given: <br/>
-    // * "match":{"_type": "foo"} <br/>
-    // * but want to transform to: <br/>
-    // * "match":{"_type": "_doc"} <br/>
-    // * <br/>
-    // * You can use this method with "_type" as the subKey, and "_doc" as the value.
-    // * All compatible REST tests for this project will be updated.
-    // * </p>
-    // * {@link ObjectMapper#convertValue(java.lang.Object, java.lang.Class)} is used to convert the value into to the appropriate JSON
-    // type.
-    // *
-    // * @param subKey The direct child key of the "match" object to replace
-    // * @param value The value use to replace the existing value
-    // */
-    public void replaceAllMatch(String subKey, Object value) {
-        ObjectNode replacementNode = new ObjectNode(jsonNodeFactory);
-        replacementNode.set(subKey, MAPPER.convertValue(value, JsonNode.class));
-        transformations.add(new ReplaceMatch(subKey, replacementNode, null));
-        transformationsKey.append("replace_match_all").append("subKey").append(replacementNode.toString());
+
+    public void replaceMatch(String subKey, Object value) {
+        transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
     }
 
-    // /**
-    // * Replaces a REST Test match assertion for a specific test in the project. For example:
-    // * <p>
-    // * given: <br/>
-    // * "match":{"items.0.index.status":400} <br/>
-    // * but want to transform to: <br/>
-    // * "match":{"items.0.index.status":200} <br/>
-    // * <br/>
-    // * You can use this method with "items.0.index.status" as the subKey, and 200 as the value.
-    // * This will be applied for the test with the provided named in the project.
-    // * </p>
-    // * {@link ObjectMapper#convertValue(java.lang.Object, java.lang.Class)} is used to convert the value into to the appropriate JSON
-    // type.
-    // *
-    // * @param subKey The direct child key of the "match" object to replace
-    // * @param value The value use to replace the existing value
-    // * @param testName The name of the test for which this replacement should happen
-    // */
     public void replaceMatch(String subKey, Object value, String testName) {
-        ObjectNode replacementNode = new ObjectNode(jsonNodeFactory);
-        replacementNode.set(subKey, MAPPER.convertValue(value, JsonNode.class));
-        transformations.add(new ReplaceMatch(subKey, replacementNode, testName));
-        transformationsKey.append("replace_match").append("subKey").append(testName).append(replacementNode.toString());
+        transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
     }
 
-    // @Input
-    // public StringBuilder getTransformationsKey() {
-    // return transformationsKey;
-    // }
+    public void removeMatch(String subKey) {
+        transformations.add(new RemoveMatch(subKey));
+    }
+
+    public void removeMatch(String subKey, String testName) {
+        transformations.add(new RemoveMatch(subKey, testName));
+    }
+
+    public void addMatch(String subKey, Object value, String testName) {
+        transformations.add(new AddMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+    }
 
     @OutputDirectory
     public File getOutputDir() {

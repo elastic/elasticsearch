@@ -15,57 +15,65 @@ import com.github.javaparser.ast.body.ConstructorDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.github.javaparser.javadoc.Javadoc;
-import org.elasticsearch.common.SuppressForbidden;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class StdlibJavadocExtractor {
-    private final Path root;
+public class JavadocExtractor {
 
-    public StdlibJavadocExtractor(Path root) {
-        this.root = root;
+    private final JavaClassResolver resolver;
+
+    private static final String GPLv2 = "* This code is free software; you can redistribute it and/or modify it"+
+        "\n * under the terms of the GNU General Public License version 2 only, as"+
+        "\n * published by the Free Software Foundation.";
+
+    public JavadocExtractor(JavaClassResolver resolver) {
+        this.resolver = resolver;
     }
 
-    @SuppressForbidden(reason = "resolve class file from java src directory with environment")
-    private File openClassFile(String className) {
-        int dollarPosition = className.indexOf("$");
-        if (dollarPosition >= 0) {
-            className = className.substring(0, dollarPosition);
-        }
-        String[] packages = className.split("\\.");
-        String path = String.join("/", packages);
-        Path classPath = root.resolve(path + ".java");
-        return classPath.toFile();
-    }
 
     public ParsedJavaClass parseClass(String className) throws IOException {
-        ParsedJavaClass pj = new ParsedJavaClass();
-        if (className.contains(".") && className.startsWith("java")) { // TODO(stu): handle primitives & not stdlib
-            ClassFileVisitor visitor = new ClassFileVisitor();
-            CompilationUnit cu = StaticJavaParser.parse(openClassFile(className));
-            visitor.visit(cu, pj);
+        InputStream classStream = resolver.openClassFile(className);
+        ParsedJavaClass parsed = new ParsedJavaClass(GPLv2);
+        if (classStream == null) {
+            return parsed;
         }
-        return pj;
+        ClassFileVisitor visitor = new ClassFileVisitor();
+        CompilationUnit cu = StaticJavaParser.parse(classStream);
+        visitor.visit(cu, parsed);
+        return parsed;
     }
 
     public static class ParsedJavaClass {
         public final Map<MethodSignature, ParsedMethod> methods;
         public final Map<String, String> fields;
         public final Map<List<String>, ParsedMethod> constructors;
+        private final String license;
+        private boolean valid = false;
+        private boolean validated = false;
 
-        public ParsedJavaClass() {
+        public ParsedJavaClass(String license) {
             methods = new HashMap<>();
             fields = new HashMap<>();
             constructors = new HashMap<>();
+            this.license = license;
+        }
+
+        public void validateLicense(Optional<Comment> license) {
+            if (validated) {
+                throw new IllegalStateException("Cannot double validate the license");
+            }
+            this.valid = license.map(Comment::getContent).orElse("").contains(this.license);
+            validated = true;
         }
 
         public ParsedMethod getMethod(String name, List<String> parameterTypes) {
@@ -80,6 +88,9 @@ public class StdlibJavadocExtractor {
         }
 
         public void putMethod(MethodDeclaration declaration) {
+            if (valid == false) {
+                return;
+            }
             methods.put(
                 MethodSignature.fromDeclaration(declaration),
                 new ParsedMethod(
@@ -93,6 +104,9 @@ public class StdlibJavadocExtractor {
         }
 
         public void putConstructor(ConstructorDeclaration declaration) {
+            if (valid == false) {
+                return;
+            }
             constructors.put(
                 declaration.getParameters().stream().map(p -> stripTypeParameters(p.getType().asString())).collect(Collectors.toList()),
                 new ParsedMethod(
@@ -134,6 +148,9 @@ public class StdlibJavadocExtractor {
         }
 
         public void putField(FieldDeclaration declaration) {
+            if (valid == false) {
+                return;
+            }
             for (VariableDeclarator var : declaration.getVariables()) {
                 fields.put(var.getNameAsString(), declaration.getJavadoc().map(Javadoc::toText).orElse(""));
             }
@@ -185,6 +202,12 @@ public class StdlibJavadocExtractor {
     }
 
     private static class ClassFileVisitor extends VoidVisitorAdapter<ParsedJavaClass> {
+        @Override
+        public void visit(CompilationUnit compilationUnit, ParsedJavaClass parsed) {
+            parsed.validateLicense(compilationUnit.getComment());
+            super.visit(compilationUnit, parsed);
+        }
+
         @Override
         public void visit(MethodDeclaration methodDeclaration, ParsedJavaClass parsed) {
             parsed.putMethod(methodDeclaration);

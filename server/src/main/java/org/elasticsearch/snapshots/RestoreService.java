@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -71,6 +72,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -213,11 +215,10 @@ public class RestoreService implements ClusterStateApplier {
             // Read snapshot info and metadata from the repository
             final String repositoryName = request.repository();
             Repository repository = repositoriesService.repository(repositoryName);
-
             final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
             repository.getRepositoryData(repositoryDataListener);
 
-            ActionListener<RepositoryData> repoDataListener = ActionListener.wrap(repositoryData -> {
+            final CheckedConsumer<RepositoryData, IOException> onRepositoryDataReceived = repositoryData -> {
                 final String snapshotName = request.snapshot();
                 final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                     .filter(s -> snapshotName.equals(s.getName())).findFirst();
@@ -634,12 +635,13 @@ public class RestoreService implements ClusterStateApplier {
                         listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
                     }
                 });
-            }, listener::onFailure);
-            // fork handling the above listener to the generic pool since it loads various pieces of metadata from the repository over a
+            };
+
+            // fork handling the above consumer to the generic pool since it loads various pieces of metadata from the repository over a
             // longer period of time
             repositoryDataListener.whenComplete(repositoryData -> repositoryUuidRefreshListener.whenComplete(ignored ->
                     clusterService.getClusterApplierService().threadPool().generic().execute(
-                            ActionRunnable.wrap(listener, l -> repoDataListener.onResponse(repositoryData))
+                            ActionRunnable.wrap(listener, l -> onRepositoryDataReceived.accept(repositoryData))
                     ), listener::onFailure), listener::onFailure);
 
         } catch (Exception e) {

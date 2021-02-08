@@ -38,7 +38,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -149,11 +151,11 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(sourcePaths.apply(name()), nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     InetAddress address;

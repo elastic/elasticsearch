@@ -16,7 +16,6 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -42,23 +41,21 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 "in the mappings for index [" + fetchContext.getIndexName() + "]");
         }
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(),
-            searchLookup,
+        FieldFetcher fieldFetcher = FieldFetcher.create(
+            fetchContext.getSearchExecutionContext(),
             fetchFieldsContext.fields());
 
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-                fieldFetcher.setNextReader(readerContext);
             }
 
             @Override
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
-                SourceLookup sourceLookup = hitContext.sourceLookup();
 
                 Set<String> ignoredFields = getIgnoredFields(hit);
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(sourceLookup, ignoredFields);
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.valuesLookup(), ignoredFields);
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }

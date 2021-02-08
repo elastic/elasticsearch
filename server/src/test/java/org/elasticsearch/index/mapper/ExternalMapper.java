@@ -16,7 +16,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -26,6 +25,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * This mapper add a new sub fields
@@ -102,8 +103,8 @@ public class ExternalMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
+            return SourceValueFetcher.identity(name(), sourcePaths, format);
         }
     }
 

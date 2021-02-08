@@ -12,6 +12,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * This meta field only exists because rank feature fields index everything into a
@@ -40,7 +42,7 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 

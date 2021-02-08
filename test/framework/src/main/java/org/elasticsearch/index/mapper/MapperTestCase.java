@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -304,12 +305,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup);
-            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
+            ValueFetcher valueFetcher = new DocValueFetcher(format, ft.name());
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-            lookup.source().setSegmentAndDocument(context, 0);
-            valueFetcher.setNextReader(context);
-            result.set(valueFetcher.fetchValues(lookup.source()));
+            LeafSearchLookup leaf = lookup.getLeafSearchLookup(context);
+            leaf.setDocument(0);
+            result.set(valueFetcher.fetchValues(leaf));
         });
         return result.get();
     }

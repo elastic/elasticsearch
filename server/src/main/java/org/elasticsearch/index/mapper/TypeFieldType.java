@@ -19,6 +19,8 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -66,7 +68,7 @@ public final class TypeFieldType extends ConstantFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+    public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
 

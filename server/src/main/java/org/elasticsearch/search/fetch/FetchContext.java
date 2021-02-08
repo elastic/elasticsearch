@@ -211,7 +211,7 @@ public class FetchContext {
             InnerHitSubContext innerHitsContext = (InnerHitSubContext) searchContext;
             return innerHitsContext.getRootLookup();
         } else {
-            return hitContext.sourceLookup();
+            return hitContext.valuesLookup().source();
         }
     }
 }

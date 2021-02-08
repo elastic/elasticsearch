@@ -16,6 +16,8 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A field mapper that records fields that have been ignored because they were malformed.
@@ -65,7 +67,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }

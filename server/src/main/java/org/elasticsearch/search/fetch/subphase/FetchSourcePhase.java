@@ -56,7 +56,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
     private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
 
         final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-        SourceLookup source = hitContext.sourceLookup();
+        SourceLookup source = hitContext.valuesLookup().source();
 
         // If this is a parent document and there are no source filters, then add the source as-is.
         if (nestedHit == false && containsFilters(fetchSourceContext) == false) {

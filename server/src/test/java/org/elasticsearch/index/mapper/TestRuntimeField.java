@@ -17,6 +17,8 @@ import org.elasticsearch.plugins.MapperPlugin;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 public class TestRuntimeField extends RuntimeFieldType {
 
@@ -32,7 +34,7 @@ public class TestRuntimeField extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+    public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
         return null;
     }
 

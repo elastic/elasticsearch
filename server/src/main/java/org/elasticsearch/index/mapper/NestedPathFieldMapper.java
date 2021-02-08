@@ -19,6 +19,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
 
 public class NestedPathFieldMapper extends MetadataFieldMapper {
 
@@ -72,7 +74,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
     }

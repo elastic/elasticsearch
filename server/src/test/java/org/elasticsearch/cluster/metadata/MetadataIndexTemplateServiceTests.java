@@ -60,6 +60,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -1599,7 +1600,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
                 @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
                     throw new UnsupportedOperationException();
                 }
 

@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
@@ -196,7 +198,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 }
 
                 @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
                     throw new UnsupportedOperationException();
                 }
 

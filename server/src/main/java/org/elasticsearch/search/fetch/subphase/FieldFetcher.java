@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.document.DocumentField;
@@ -16,8 +15,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +32,6 @@ import java.util.Set;
  */
 public class FieldFetcher {
     public static FieldFetcher create(SearchExecutionContext context,
-                                      SearchLookup searchLookup,
                                       Collection<FieldAndFormat> fieldAndFormats) {
 
         // Using a LinkedHashMap so fields are returned in the order requested.
@@ -57,7 +54,7 @@ public class FieldFetcher {
                 if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
-                ValueFetcher valueFetcher = ft.valueFetcher(context, format);
+                ValueFetcher valueFetcher = ft.valueFetcher(context::sourcePath, format);
                 fieldContexts.put(field, new FieldContext(field, valueFetcher));
             }
         }
@@ -84,7 +81,7 @@ public class FieldFetcher {
         this.includeUnmapped = includeUnmapped;
     }
 
-    public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
+    public Map<String, DocumentField> fetch(ValuesLookup valuesLookup, Set<String> ignoredFields) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
@@ -93,14 +90,14 @@ public class FieldFetcher {
             }
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
+            List<Object> parsedValues = valueFetcher.fetchValues(valuesLookup);
 
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }
         }
         if (this.includeUnmapped) {
-            collectUnmapped(documentFields, sourceLookup.source(), "", 0);
+            collectUnmapped(documentFields, valuesLookup.source().source(), "", 0);
         }
         return documentFields;
     }
@@ -175,12 +172,6 @@ public class FieldFetcher {
             state = automaton.step(state, key.charAt(i));
         }
         return state;
-    }
-
-    public void setNextReader(LeafReaderContext readerContext) {
-        for (FieldContext field : fieldContexts.values()) {
-            field.valueFetcher.setNextReader(readerContext);
-        }
     }
 
     private static class FieldContext {

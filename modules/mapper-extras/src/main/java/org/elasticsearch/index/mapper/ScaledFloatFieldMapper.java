@@ -43,6 +43,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
@@ -199,11 +201,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), context) {
+            return new SourceValueFetcher(sourcePaths.apply(name()), null) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;
@@ -517,9 +519,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+        public Leaf getLeafValueFetcher(DocValueFormat format) {
             SortedNumericDoubleValues values = getDoubleValues();
-            return new DocValueFetcher.Leaf() {
+            return new Leaf() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     return values.advanceExact(docId);

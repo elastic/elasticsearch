@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 /** A parser for documents, given mappings from a DocumentMapper */
@@ -110,7 +111,7 @@ final class DocumentParser {
             parseObjectOrNested(context, root);
         }
 
-        root.postParse(context, new IndexTimeScriptParams(context.sourceToParse().source(), context.mappingLookup()::getFieldType));
+        root.postParse(context, new IndexTimeScriptParams(context.sourceToParse().source(), context.mappingLookup()));
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);
@@ -816,7 +817,7 @@ final class DocumentParser {
         NoOpFieldMapper(String simpleName, RuntimeFieldType runtimeField) {
             super(simpleName, new MappedFieldType(runtimeField.name(), false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
-                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
                     throw new UnsupportedOperationException();
                 }
 

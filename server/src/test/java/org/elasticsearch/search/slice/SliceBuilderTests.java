@@ -46,7 +46,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
@@ -99,7 +101,7 @@ public class SliceBuilderTests extends ESTestCase {
             TextSearchInfo.NONE, Collections.emptyMap()) {
 
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
                 throw new UnsupportedOperationException();
             }
 

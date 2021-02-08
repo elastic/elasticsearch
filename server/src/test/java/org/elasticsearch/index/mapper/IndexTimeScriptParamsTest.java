@@ -15,6 +15,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class IndexTimeScriptParamsTest extends ESTestCase {
 
@@ -24,7 +25,7 @@ public class IndexTimeScriptParamsTest extends ESTestCase {
             .field("foo", "bar")
             .endObject());
 
-        IndexTimeScriptParams params = new IndexTimeScriptParams(source, f -> null);
+        IndexTimeScriptParams params = new IndexTimeScriptParams(source, f -> null, Set::of);
         assertEquals("bar", params.source().get("foo"));
     }
 
@@ -33,10 +34,11 @@ public class IndexTimeScriptParamsTest extends ESTestCase {
 
         IndexTimeScriptParams params = new IndexTimeScriptParams(
             new BytesArray("{\"longfield\":[10, 20]}"),
-            f -> longField);
+            f -> longField,
+            Set::of);
         ScriptDocValues<?> values = params.doc().get("longfield");
-        assertEquals(10, values.get(0));
-        assertEquals(20, values.get(0));
+        assertEquals(10L, values.get(0));
+        assertEquals(20L, values.get(1));
         assertEquals(2, values.size());
     }
 }

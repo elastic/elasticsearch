@@ -7,13 +7,16 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
@@ -41,12 +44,20 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
+        ValueFetcher fetcher = fieldType.valueFetcher(Set::of, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
+        return fetcher.fetchValues(new ValuesLookup() {
+            @Override
+            public SourceLookup source() {
+                return lookup;
+            }
+
+            @Override
+            public Map<String, ScriptDocValues<?>> doc() {
+                throw new UnsupportedOperationException();
+            }
+        });
     }
 }

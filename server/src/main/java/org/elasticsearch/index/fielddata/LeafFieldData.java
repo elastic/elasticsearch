@@ -10,7 +10,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -33,9 +32,9 @@ public interface LeafFieldData extends Accountable, Releasable {
     /**
      * Return a value fetcher for this leaf implementation.
      */
-    default DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+    default Leaf getLeafValueFetcher(DocValueFormat format) {
         SortedBinaryDocValues values = getBytesValues();
-        return new DocValueFetcher.Leaf() {
+        return new Leaf() {
             @Override
             public boolean advanceExact(int docId) throws IOException {
                 return values.advanceExact(docId);
@@ -51,5 +50,23 @@ public interface LeafFieldData extends Accountable, Releasable {
                 return format.format(values.nextValue());
             }
         };
+    }
+
+    interface Leaf {
+        /**
+         * Advance the doc values reader to the provided doc.
+         * @return false if there are no values for this document, true otherwise
+         */
+        boolean advanceExact(int docId) throws IOException;
+
+        /**
+         * A count of the number of values at this document.
+         */
+        int docValueCount() throws IOException;
+
+        /**
+         * Load and format the next value.
+         */
+        Object nextValue() throws IOException;
     }
 }

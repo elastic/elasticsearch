@@ -12,24 +12,35 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-public class IndexTimeScriptParams {
+public class IndexTimeScriptParams implements ValuesLookup {
 
     private final BytesReference source;
     private final Function<String, MappedFieldType> fieldTypeLookup;
+    private final Function<String, Set<String>> sourcePaths;
 
     private LeafDocLookup docLookup;
     private SourceLookup sourceLookup;
 
-    public IndexTimeScriptParams(BytesReference source, Function<String, MappedFieldType> fieldTypeLookup) {
+    public IndexTimeScriptParams(BytesReference source, MappingLookup mappingLookup) {
+        this(source, mappingLookup::getFieldType, mappingLookup::sourcePaths);
+    }
+
+    public IndexTimeScriptParams(
+        BytesReference source,
+        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<String, Set<String>> sourcePaths) {
         this.source = source;
         this.fieldTypeLookup = fieldTypeLookup;
+        this.sourcePaths = sourcePaths;
     }
 
     public SourceLookup source() {
@@ -48,7 +59,7 @@ public class IndexTimeScriptParams {
                 if (ft == null) {
                     throw new IllegalArgumentException("No field found for [" + f + "] in mapping");
                 }
-                ValueFetcher fetcher = ft.valueFetcher(null, null); // TODO source paths!
+                ValueFetcher fetcher = ft.valueFetcher(sourcePaths, null);
                 return new SyntheticScriptDocValues(fetcher);
             };
             docLookup = new LeafDocLookup(fieldExists, valueLoader);
@@ -67,7 +78,7 @@ public class IndexTimeScriptParams {
 
         @Override
         public void setNextDocId(int docId) throws IOException {
-            values = fetcher.fetchValues(source());
+            values = fetcher.fetchValues(IndexTimeScriptParams.this);
         }
 
         @Override

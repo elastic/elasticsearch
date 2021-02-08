@@ -10,11 +10,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
 
 /** Mapper for the doc_count field. */
 public class DocCountFieldMapper extends MetadataFieldMapper {
@@ -55,12 +57,12 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, DEFAULT_VALUE) {
+            return new SourceValueFetcher(sourcePaths.apply(name()), DEFAULT_VALUE) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if ("".equals(value)) {

@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -112,19 +113,19 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
 
         @Override
-        public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public final ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             Function<Object, Object> valueParser = value -> geometryParser.parseAndFormatObject(value, geoFormat);
             if (parsesArrayValue) {
-                return new ArraySourceValueFetcher(name(), context) {
+                return new ArraySourceValueFetcher(sourcePaths.apply(name()), null) {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         return valueParser.apply(value);
                     }
                 };
             } else {
-                return new SourceValueFetcher(name(), context) {
+                return new SourceValueFetcher(sourcePaths.apply(name()), null) {    // TODO null value?
                     @Override
                     protected Object parseSourceValue(Object value) {
                         return valueParser.apply(value);

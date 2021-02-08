@@ -9,14 +9,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * An implementation of {@link ValueFetcher} that knows how to extract values
@@ -29,25 +29,20 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public SourceValueFetcher(String fieldName, SearchExecutionContext context) {
-        this(fieldName, context, null);
-    }
-
     /**
-     * @param fieldName The name of the field.
-     * @param context The query shard context
-     * @param nullValue A optional substitute value if the _source value is 'null'.
+     * @param sourcePaths   The locations in _source to retrieve values from
+     * @param nullValue     A optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this.sourcePaths = context.sourcePath(fieldName);
+    public SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+        this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(ValuesLookup lookup) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = lookup.extractValue(path, nullValue);
+            Object sourceValue = lookup.source().extractValue(path, nullValue);
             if (sourceValue == null) {
                 continue;
             }
@@ -81,11 +76,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that passes through source values unmodified.
      */
-    public static SourceValueFetcher identity(String fieldName, SearchExecutionContext context, String format) {
+    public static SourceValueFetcher identity(String fieldName, Function<String, Set<String>> sourcePaths, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(fieldName, context) {
+        return new SourceValueFetcher(sourcePaths.apply(fieldName), null) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value;
@@ -96,11 +91,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that converts source values to strings.
      */
-    public static SourceValueFetcher toString(String fieldName, SearchExecutionContext context, String format) {
+    public static SourceValueFetcher toString(String fieldName, Function<String, Set<String>> sourcePaths, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
-        return new SourceValueFetcher(fieldName, context) {
+        return new SourceValueFetcher(sourcePaths.apply(fieldName), null) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

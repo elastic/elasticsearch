@@ -9,11 +9,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
@@ -59,7 +60,7 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             throw new UnsupportedOperationException();
         }
     }

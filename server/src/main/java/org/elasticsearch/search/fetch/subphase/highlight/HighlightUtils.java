@@ -46,9 +46,8 @@ public final class HighlightUtils {
             List<Object> textsToHighlight = fieldVisitor.fields().get(fieldType.name());
             return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
         }
-        ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
-        fetcher.setNextReader(hitContext.readerContext());
-        return fetcher.fetchValues(hitContext.sourceLookup());
+        ValueFetcher fetcher = fieldType.valueFetcher(searchContext::sourcePath, null);
+        return fetcher.fetchValues(hitContext.valuesLookup());
     }
 
     public static class Encoders {

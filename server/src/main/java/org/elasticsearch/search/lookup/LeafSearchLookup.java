@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * Per-segment version of {@link SearchLookup}.
  */
-public class LeafSearchLookup {
+public class LeafSearchLookup implements ValuesLookup {
 
     private final LeafReaderContext ctx;
     private final LeafDocLookup docMap;
@@ -39,6 +39,7 @@ public class LeafSearchLookup {
         return this.asMap;
     }
 
+    @Override
     public SourceLookup source() {
         return this.sourceLookup;
     }
@@ -47,6 +48,7 @@ public class LeafSearchLookup {
         return this.fieldsLookup;
     }
 
+    @Override
     public LeafDocLookup doc() {
         return this.docMap;
     }

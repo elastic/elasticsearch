@@ -9,8 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,25 +27,16 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
-        this(fieldName, context, null);
-    }
-
-    /**
-     * @param fieldName The name of the field.
-     * @param context The query shard context
-     * @param nullValue A optional substitute value if the _source value is 'null'.
-     */
-    public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this.sourcePaths = context.sourcePath(fieldName);
+    public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+        this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(ValuesLookup lookup) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = lookup.extractValue(path, nullValue);
+            Object sourceValue = lookup.source().extractValue(path, nullValue);
             if (sourceValue == null) {
                 return List.of();
             }

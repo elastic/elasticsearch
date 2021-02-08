@@ -25,6 +25,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -143,7 +145,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
         MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap()) {
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
                 throw new UnsupportedOperationException();
             }
 

@@ -62,6 +62,9 @@ public interface DocValueFormat extends NamedWriteable {
         throw new UnsupportedOperationException();
     }
 
+    /** Format a general object for returning in responses */
+    Object formatObject(Object in);
+
     /** Parse a value that was formatted with {@link #format(long)} back to the
      *  original long value. */
     default long parseLong(String value, boolean roundUp, LongSupplier now) {
@@ -104,6 +107,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String format(BytesRef value) {
             return value.utf8ToString();
+        }
+
+        @Override
+        public Object formatObject(Object in) {
+            return in;
         }
 
         @Override
@@ -155,6 +163,11 @@ public interface DocValueFormat extends NamedWriteable {
             return Base64.getEncoder()
                     .withoutPadding()
                     .encodeToString(Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
+        }
+
+        @Override
+        public Object formatObject(Object in) {
+            return format((BytesRef)in);
         }
 
         @Override
@@ -242,6 +255,12 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
+        public Object formatObject(Object in) {
+            assert in instanceof Number;
+            return format(((Number) in).longValue());
+        }
+
+        @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
         }
@@ -261,6 +280,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public Object formatObject(Object in) {
+            assert in instanceof Number;
+            return format(((Number) in).longValue());
         }
 
         @Override
@@ -286,6 +311,12 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
+        public Object formatObject(Object in) {
+            assert in instanceof Number;
+            return format(((Number) in).longValue());
+        }
+
+        @Override
         public String format(long value) {
             return GeoTileUtils.stringEncode(value);
         }
@@ -305,6 +336,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public Object formatObject(Object in) {
+            assert in instanceof Number;
+            return format(((Number) in).longValue());
         }
 
         @Override
@@ -343,6 +380,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public Object formatObject(Object in) {
+            assert in instanceof BytesRef;
+            return format((BytesRef)in);
         }
 
         @Override
@@ -417,6 +460,12 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
+        public Object formatObject(Object in) {
+            assert in instanceof Number;
+            return format(((Number) in).longValue());
+        }
+
+        @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
             Number n;
             try {
@@ -464,7 +513,7 @@ public interface DocValueFormat extends NamedWriteable {
         public int hashCode() {
             return Objects.hash(pattern);
         }
-    };
+    }
 
     /**
      * DocValues format for unsigned 64 bit long values,
@@ -495,6 +544,12 @@ public interface DocValueFormat extends NamedWriteable {
             // subtract 2^63 or 10000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
             // equivalent to flipping the first bit
             return parsedValue ^ MASK_2_63;
+        }
+
+        @Override
+        public Object formatObject(Object in) {
+            assert in instanceof Number;
+            return format(((Number) in).longValue());
         }
 
         /**

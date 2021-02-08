@@ -36,8 +36,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -47,6 +47,7 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -93,7 +94,7 @@ public abstract class MappedFieldType {
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
      * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
      */
-    public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
+    public abstract ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, @Nullable String format);
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();

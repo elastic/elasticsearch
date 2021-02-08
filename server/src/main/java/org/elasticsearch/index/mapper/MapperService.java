@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
@@ -115,7 +114,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         "#default-mapping-not-allowed] for more information.";
 
     private final IndexAnalyzers indexAnalyzers;
-    private final DocumentMapperParser documentMapperParser;
+    private final MappingParser mappingParser;
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
@@ -141,8 +140,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
-        this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
-            this::getMetadataMappers, parserContextSupplier, metadataMapperParsers, xContentRegistry);
+        this.mappingParser = new MappingParser(parserContextSupplier, metadataMapperParsers, this::getMetadataMappers,
+            this::resolveDocumentType, xContentRegistry);
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings()) &&
             indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
@@ -374,7 +373,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // verify we can parse it
             // NOTE: never apply the default here
             try {
-                defaultMapper = documentMapperParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING));
+                defaultMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser,
+                    mappingParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING)));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
             }
@@ -406,8 +406,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     && this.mapper == null;
 
             try {
-                documentMapper =
-                    documentMapperParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
+                documentMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser,
+                    mappingParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
@@ -506,7 +506,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        return documentMapperParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+        Mapping mapping = mappingParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
+        return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
     }
 
     /**

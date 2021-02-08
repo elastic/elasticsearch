@@ -330,7 +330,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
                     objBuilder.add(fieldBuilder);
                     propNode.remove("type");
-                    DocumentMapperParser.checkNoRemainingFields(fieldName, propNode);
+                    MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();
                 } else if (isEmptyList) {
                     iterator.remove();
@@ -340,7 +340,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
             }
 
-            DocumentMapperParser.checkNoRemainingFields(propsNode, "DocType mapping definition has unsupported parameters: ");
+            MappingParser.checkNoRemainingFields(propsNode, "DocType mapping definition has unsupported parameters: ");
 
         }
 

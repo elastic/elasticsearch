@@ -182,10 +182,10 @@ public class InnerHitBuilderTests extends ESTestCase {
         List<Runnable> modifiers = new ArrayList<>(12);
         modifiers.add(() -> copy.setFrom(randomValueOtherThan(copy.getFrom(), () -> randomIntBetween(0, 128))));
         modifiers.add(() -> copy.setSize(randomValueOtherThan(copy.getSize(), () -> randomIntBetween(0, 128))));
-        modifiers.add(() -> copy.setExplain(!copy.isExplain()));
-        modifiers.add(() -> copy.setVersion(!copy.isVersion()));
-        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(!copy.isSeqNoAndPrimaryTerm()));
-        modifiers.add(() -> copy.setTrackScores(!copy.isTrackScores()));
+        modifiers.add(() -> copy.setExplain(copy.isExplain() == false));
+        modifiers.add(() -> copy.setVersion(copy.isVersion() == false));
+        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(copy.isSeqNoAndPrimaryTerm() == false));
+        modifiers.add(() -> copy.setTrackScores(copy.isTrackScores() == false));
         modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {
             if (randomBoolean()) {

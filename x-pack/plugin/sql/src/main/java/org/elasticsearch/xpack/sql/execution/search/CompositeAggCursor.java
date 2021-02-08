@@ -207,7 +207,10 @@ public class CompositeAggCursor implements Cursor {
     private static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
         CompositeAggregation composite = getComposite(response);
         // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client
-        return composite != null && composite.getBuckets().isEmpty() && composite.afterKey() != null && !composite.afterKey().isEmpty();
+        return composite != null
+            && composite.getBuckets().isEmpty()
+            && composite.afterKey() != null
+            && composite.afterKey().isEmpty() == false;
     }
 
     static CompositeAggregation getComposite(SearchResponse response) {

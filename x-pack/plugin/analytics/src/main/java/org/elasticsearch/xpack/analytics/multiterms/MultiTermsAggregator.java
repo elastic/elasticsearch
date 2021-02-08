@@ -7,21 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
-import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.aggsUsedForSorting;
-import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.descendsFromNestedAggregator;
-import static org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder.REGISTRY_KEY;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -52,6 +37,21 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.aggsUsedForSorting;
+import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.descendsFromNestedAggregator;
+import static org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder.REGISTRY_KEY;
 
 /**
  * Collects the {@code multi_terms} aggregation, which functions like the
@@ -132,7 +132,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return collectMode == SubAggCollectionMode.BREADTH_FIRST && !aggsUsedForSorting.contains(aggregator);
+        return collectMode == SubAggCollectionMode.BREADTH_FIRST && aggsUsedForSorting.contains(aggregator) == false;
     }
 
     List<TermValues> termValuesList(LeafReaderContext ctx) throws IOException {

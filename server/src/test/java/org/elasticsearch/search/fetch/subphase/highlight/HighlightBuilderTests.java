@@ -673,7 +673,7 @@ public class HighlightBuilderTests extends ESTestCase {
         if (flag == null) {
             return randomBoolean();
         } else {
-            return !flag.booleanValue();
+            return flag.booleanValue() == false;
         }
     }
 
@@ -701,7 +701,7 @@ public class HighlightBuilderTests extends ESTestCase {
             switch (randomIntBetween(0, 2)) {
                 // change settings that only exists on top level
                 case 0:
-                    mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder());
+                    mutation.useExplicitFieldOrder(original.useExplicitFieldOrder() == false);
                     break;
                 case 1:
                     mutation.encoder(original.encoder() + randomAlphaOfLength(2));

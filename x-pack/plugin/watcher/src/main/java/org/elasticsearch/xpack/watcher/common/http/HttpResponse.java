@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -122,7 +123,7 @@ public class HttpResponse implements ToXContentObject {
 
         if (status != that.status) return false;
         if (headers.equals(that.headers) == false) return false;
-        return !(body != null ? !body.equals(that.body) : that.body != null);
+        return Objects.equals(body, that.body);
     }
 
     @Override

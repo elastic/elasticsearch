@@ -8,14 +8,11 @@
 
 package org.elasticsearch.gradle.internal
 
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Rule
-import org.junit.rules.TemporaryFolder
 
-import java.lang.management.ManagementFactory
 
 class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
@@ -159,10 +156,12 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
     }
 
     private void localDistroSetup() {
+        def archSuffix = Architecture.current() == Architecture.AARCH64 ? '-aarch64' : ''
+        def archiveProjectName = "linux${archSuffix}-tar"
         settingsFile << """
-        include ":distribution:archives:linux-tar"
+        include ":distribution:archives:${archiveProjectName}"
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "linux-tar")
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", archiveProjectName)
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;

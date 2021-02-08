@@ -152,7 +152,7 @@ final class Natives {
      *
      * @throws IOException on failure to determine free disk space for a data path
      */
-    @SuppressForbidden(reason = "need access fd on FileOutputStream")
+    @SuppressForbidden(reason = "need access to fd on FileOutputStream")
     public static void tryCreateCacheFile(Environment environment) throws IOException {
         Settings settings = environment.settings();
         final long cacheSize = SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();

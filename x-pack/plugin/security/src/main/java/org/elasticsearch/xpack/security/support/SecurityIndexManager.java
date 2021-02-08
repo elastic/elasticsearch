@@ -227,7 +227,14 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {
-        return checkIndexMappingVersionMatches(clusterState, Version.CURRENT::onOrAfter);
+        /*
+         * The method reference looks wrong here, but it's just counter-intuitive. It expands to:
+         *
+         *     mappingVersion -> Version.CURRENT.onOrBefore(mappingVersion)
+         *
+         * ...which is true if the mappings have been updated.
+         */
+        return checkIndexMappingVersionMatches(clusterState, Version.CURRENT::onOrBefore);
     }
 
     private boolean checkIndexMappingVersionMatches(ClusterState clusterState, Predicate<Version> predicate) {

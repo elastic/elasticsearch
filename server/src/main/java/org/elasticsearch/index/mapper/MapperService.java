@@ -91,7 +91,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
 
     private final IndexAnalyzers indexAnalyzers;
-    private final DocumentMapperParser documentMapperParser;
+    private final MappingParser mappingParser;
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
@@ -115,8 +115,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
-        this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
-            this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
+        this.mappingParser = new MappingParser(parserContextSupplier, metadataMapperParsers,
+            this::getMetadataMappers, this::resolveDocumentType);
     }
 
     public boolean hasNested() {
@@ -287,7 +287,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper documentMapper;
 
         try {
-            documentMapper = documentMapperParser.parse(type, mappings);
+            documentMapper = parse(type, mappings);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
@@ -335,7 +335,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        return documentMapperParser.parse(mappingType, mappingSource);
+        Mapping mapping = mappingParser.parse(mappingType, mappingSource);
+        return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
     }
 
     /**

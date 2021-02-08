@@ -217,6 +217,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                         return leafCollector.apply(deferringCollector, delegate);
                     }
                 });
+                deferringCollector.postCollection();
                 verify.accept(deferringCollector, finalCollector);
             }
         }

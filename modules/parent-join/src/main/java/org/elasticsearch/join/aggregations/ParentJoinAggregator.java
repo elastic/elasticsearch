@@ -107,7 +107,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
+    protected void prepareSubAggs(long[] ordsToCollect) throws IOException {
         IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);

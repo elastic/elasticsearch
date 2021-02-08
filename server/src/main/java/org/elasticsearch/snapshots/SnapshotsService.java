@@ -1313,6 +1313,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry) {
         assert entry.partial() : "should not try to filter feature states from a non-partial entry";
+        final Set<String> indicesInSnapshot = entry.indices().stream()
+            .map(IndexId::getName)
+            .collect(Collectors.toUnmodifiableSet());
 
         // Figure out which indices have unsuccessful shards
         Set<String> indicesWithUnsuccessfulShards = new HashSet<>();
@@ -1325,6 +1328,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         // Now remove any feature states which contain any of those indices, as the feature state is not intact and not safely restorable
         return entry.featureStates().stream()
+            .filter(stateInfo -> indicesInSnapshot.containsAll(stateInfo.getIndices()))
             .filter(stateInfo -> stateInfo.getIndices().stream().anyMatch(indicesWithUnsuccessfulShards::contains) == false)
             .collect(Collectors.toList());
     }

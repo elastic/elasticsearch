@@ -307,6 +307,12 @@ PUT _transform/ecommerce_transform1
       "delay": "60s"
     }
   }
+  "retention_policy": {
+    "time": {
+      "field": "order_date",
+      "max_age": "30d"
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:kibana_sample_data_ecommerce,add_timestamp_pipeline]

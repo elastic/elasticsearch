@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
@@ -113,13 +114,13 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         SourceLookup nullValueLookup = new SourceLookup();
         nullValueLookup.setSource(Collections.singletonMap("field", null));
 
-        assertTrue(fetcher.fetchValues(missingValueLookup).isEmpty());
-        assertTrue(fetcher.fetchValues(nullValueLookup).isEmpty());
+        assertTrue(fetcher.fetchValues(missingValueLookup, Collections.emptySet()).isEmpty());
+        assertTrue(fetcher.fetchValues(nullValueLookup, Collections.emptySet()).isEmpty());
 
         MappedFieldType valued = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "foo");
         fetcher = valued.valueFetcher(null, null);
 
-        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));
+        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, Collections.emptySet()));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, Collections.emptySet()));
     }
 }

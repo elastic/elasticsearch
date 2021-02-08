@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.flattened.mapper;
@@ -258,7 +259,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // This is an internal field but it can match a field pattern so we return an empty list.
-            return lookup -> List.of();
+            return (lookup, ignoredFields) -> List.of();
         }
     }
 

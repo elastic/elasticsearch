@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle
@@ -53,7 +42,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download'
             }
-            
+
             jdks {
               myJdk {
                 vendor = '$jdkVendor'
@@ -94,6 +83,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
         "darwin"  | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION  | "Contents/Home/bin/java" | ""
+        "linux"   | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION  | "bin/java"               | ""
     }
 
     def "transforms are reused across projects"() {
@@ -109,10 +99,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download' apply false
             }
-            
+
             subprojects {
                 apply plugin: 'elasticsearch.jdk-download'
-    
+
                 jdks {
                   myJdk {
                     vendor = '$jdkVendor'
@@ -165,7 +155,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 architecture = "x64"
               }
             }
-            
+
             tasks.register("getJdk") {
                 dependsOn jdks.myJdk
                 doLast {
@@ -215,10 +205,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
             final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + effectivePlatform + "-x64_bin." + extension(platform);
             return "/java/GA/" + versionPath + "/GPL/" + filename;
-        } else if(vendor.equals(VENDOR_AZUL)) {
+        } else if (vendor.equals(VENDOR_AZUL)) {
             final String module = isMac(platform) ? "macosx" : platform;
             // we only test zulu 15 darwin aarch64 for now
-            return "/zulu/bin/zulu15.28.1013-ca-jdk15.0.1-${module}_aarch64.tar.gz";
+            return "/zulu${module.equals('linux') ? '-embedded' : ''}/bin/zulu15.29.15-ca-jdk15.0.2-${module}_aarch64.tar.gz";
         }
     }
 

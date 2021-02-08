@@ -56,7 +56,7 @@ privilege>> to use this API.
 [[get-component-template-api-path-params]]
 ==== {api-path-parms-title}
 
-`<component-template>`
+`<component-template>`::
 (Optional, string)
 Comma-separated list of component template names used to limit the request.
 Wildcard (`*`) expressions are supported.

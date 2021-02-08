@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.phase;
@@ -852,12 +841,17 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         Object[] args = new Object[irInvokeCallMemberNode.getArgumentNodes().size()];
         for (int i = 0; i < irInvokeCallMemberNode.getArgumentNodes().size(); i++) {
             ExpressionNode argNode = irInvokeCallMemberNode.getArgumentNodes().get(i);
-            if (argNode instanceof ConstantNode == false) {
+            IRDConstant constantDecoration = argNode.getDecoration(IRDConstant.class);
+            if (constantDecoration == null) {
                 // TODO find a better string to output
                 throw irInvokeCallMemberNode.getLocation()
-                    .createError(new IllegalArgumentException("all arguments must be constant but the [" + (i + 1) + "] argument isn't"));
+                    .createError(
+                        new IllegalArgumentException(
+                            "all arguments to [" + javaMethod.getName() + "] must be constant but the [" + (i + 1) + "] argument isn't"
+                        )
+                    );
             }
-            args[i] = ((ConstantNode) argNode).getDecorationValue(IRDConstant.class);
+            args[i] = constantDecoration.getValue();
         }
         Object result;
         try {

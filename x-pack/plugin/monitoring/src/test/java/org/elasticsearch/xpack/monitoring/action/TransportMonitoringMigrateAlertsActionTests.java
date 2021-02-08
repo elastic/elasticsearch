@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.monitoring.action;
@@ -32,6 +33,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRequest;
@@ -108,6 +110,9 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
+    @TestLogging(
+        value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
+        reason = "to ensure we log local exporter on trace level")
     public void testLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -143,6 +148,9 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
+    @TestLogging(
+        value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
+        reason = "to ensure we log local exporter on trace level")
     public void testRepeatedLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service

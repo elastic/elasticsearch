@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -62,6 +51,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -350,7 +341,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-        Set<String> osPrettyNames = new HashSet<>();
+        SortedSet<String> osPrettyNames = new TreeSet<>();
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
@@ -362,8 +353,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             osPrettyNames.add((String) XContentMapValues.extractValue("os.pretty_name", nodeInfo));
         }
 
-        assert osPrettyNames.size() == 1 : "mixed os cluster found";
-        return osPrettyNames.iterator().next();
+        assert osPrettyNames.isEmpty() == false : "no os found";
+
+        // Although in theory there should only be one element as all nodes are running on the same machine,
+        // in reality there can be two in mixed version clusters if different Java versions report the OS
+        // name differently. This has been observed to happen on Windows, where Java needs to be updated to
+        // recognize new Windows versions, and until this update has been done the newest version of Windows
+        // is reported as the previous one. In this case taking the last alphabetically is likely to be most
+        // accurate, for example if "Windows Server 2016" and "Windows Server 2019" are reported by different
+        // Java versions then Windows Server 2019 is likely to be correct.
+        return osPrettyNames.last();
     }
 
     protected RequestOptions getCatNodesVersionMasterRequestOptions() {

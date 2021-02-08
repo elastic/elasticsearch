@@ -46,7 +46,7 @@ public class GetSnapshottableFeaturesResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof GetSnapshottableFeaturesResponse)) return false;
+        if ((o instanceof GetSnapshottableFeaturesResponse) == false) return false;
         GetSnapshottableFeaturesResponse that = (GetSnapshottableFeaturesResponse) o;
         return getFeatures().equals(that.getFeatures());
     }
@@ -95,7 +95,7 @@ public class GetSnapshottableFeaturesResponse {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof SnapshottableFeature)) return false;
+            if ((o instanceof SnapshottableFeature) == false) return false;
             SnapshottableFeature feature = (SnapshottableFeature) o;
             return Objects.equals(getFeatureName(), feature.getFeatureName());
         }

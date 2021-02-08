@@ -43,8 +43,9 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
         synchronized (this) {
             executedListeners = true;
         }
-        Object listeners = this.listeners;
+        final Object listeners = this.listeners;
         if (listeners != null) {
+            this.listeners = null;
             if (listeners instanceof List) {
                 List list = (List) listeners;
                 for (Object listener : list) {

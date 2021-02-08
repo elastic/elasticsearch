@@ -175,7 +175,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
         IndexFeatureStats expectedStats = new IndexFeatureStats("german");
         expectedStats.count = 1;
         expectedStats.indexCount = 1;
@@ -198,7 +198,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
         assertEquals(Collections.emptySet(), analysisStats.getUsedBuiltInAnalyzers());
     }
 }

@@ -75,7 +75,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        MappingStats mappingStats = MappingStats.of(metadata);
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         IndexFeatureStats expectedStats = new IndexFeatureStats("long");
         expectedStats.count = 1;
         expectedStats.indexCount = 1;
@@ -98,7 +98,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        MappingStats mappingStats = MappingStats.of(metadata);
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals(Collections.emptySet(), mappingStats.getFieldTypeStats());
     }
 }

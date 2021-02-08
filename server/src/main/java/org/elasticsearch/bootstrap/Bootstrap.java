@@ -167,7 +167,11 @@ final class Bootstrap {
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
-
+        try {
+            Natives.tryCreateCacheFile(environment);
+        } catch (Exception e) {
+            throw new BootstrapException(e);
+        }
         // initialize probes before the security manager is installed
         initializeProbes();
 

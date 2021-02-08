@@ -27,7 +27,7 @@ public final class MappingParser {
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
-    private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
+    private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
     MappingParser(Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier,
@@ -35,7 +35,7 @@ public final class MappingParser {
                   Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
                   Function<String, String> documentTypeResolver) {
         this.parserContextSupplier = parserContextSupplier;
-        this.rootTypeParsers = metadataMapperParsers;
+        this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
     }
@@ -110,7 +110,7 @@ public final class MappingParser {
             String fieldName = entry.getKey();
             Object fieldNode = entry.getValue();
 
-            MetadataFieldMapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
+            MetadataFieldMapper.TypeParser typeParser = metadataMapperParsers.get(fieldName);
             if (typeParser != null) {
                 iterator.remove();
                 if (false == fieldNode instanceof Map) {

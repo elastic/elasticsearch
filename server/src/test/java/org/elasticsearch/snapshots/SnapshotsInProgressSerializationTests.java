@@ -144,12 +144,12 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     private Entry mutateEntry(Entry entry) {
         switch (randomInt(8)) {
             case 0:
-                boolean includeGlobalState = !entry.includeGlobalState();
+                boolean includeGlobalState = entry.includeGlobalState() == false;
                 return new Entry(entry.snapshot(), includeGlobalState, entry.partial(), entry.state(), entry.indices(), entry.dataStreams(),
                     entry.featureStates(), entry.repositoryStateId(), entry.startTime(), entry.shards(), entry.failure(),
                     entry.userMetadata(), entry.version());
             case 1:
-                boolean partial = !entry.partial();
+                boolean partial = entry.partial() == false;
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), partial, entry.state(), entry.indices(), entry.dataStreams(),
                     entry.featureStates(), entry.startTime(), entry.repositoryStateId(), entry.shards(), entry.failure(),
                     entry.userMetadata(), entry.version());

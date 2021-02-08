@@ -34,7 +34,7 @@ abstract class DebuggingInvoker implements InvocationHandler {
 
         if ("equals".equals(name) && params.length == 1 && params[0] == Object.class) {
             Object o = args[0];
-            if (o == null || !(o instanceof DebugProxy)) {
+            if (o == null || (o instanceof DebugProxy) == false) {
                 return Boolean.FALSE;
             }
             InvocationHandler ih = Proxy.getInvocationHandler(o);

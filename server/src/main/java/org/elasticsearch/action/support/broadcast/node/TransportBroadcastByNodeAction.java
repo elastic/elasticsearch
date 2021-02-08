@@ -352,7 +352,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
-            if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
+            if (logger.isDebugEnabled() && (t instanceof NodeShouldNotConnectException) == false) {
                 logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
             }
 

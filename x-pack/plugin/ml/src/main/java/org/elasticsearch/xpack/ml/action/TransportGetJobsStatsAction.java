@@ -213,6 +213,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<JobTask, G
     static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds,
                                                         List<GetJobsStatsAction.Response.JobStats> stats) {
         Set<String> excludeJobIds = stats.stream().map(GetJobsStatsAction.Response.JobStats::getJobId).collect(Collectors.toSet());
-        return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId)).collect(Collectors.toList());
+        return requestedJobIds.stream().filter(jobId -> excludeJobIds.contains(jobId) == false).collect(Collectors.toList());
     }
 }

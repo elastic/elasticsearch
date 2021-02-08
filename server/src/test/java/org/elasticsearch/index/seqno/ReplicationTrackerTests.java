@@ -232,7 +232,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         assigned
                 .entrySet()
                 .stream()
-                .filter(e -> !e.getKey().equals(missingActiveID))
+                .filter(e -> e.getKey().equals(missingActiveID) == false)
                 .forEach(e -> updateLocalCheckpoint(tracker, e.getKey().getId(), e.getValue()));
 
         if (missingActiveID.equals(primaryId) == false) {
@@ -491,10 +491,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final Set<AllocationId> removingActiveAllocationIds = new HashSet<>(randomSubsetOf(activeAllocationIds));
         removingActiveAllocationIds.remove(primaryId);
         final Set<AllocationId> newActiveAllocationIds =
-                activeAllocationIds.stream().filter(a -> !removingActiveAllocationIds.contains(a)).collect(Collectors.toSet());
+                activeAllocationIds.stream().filter(a -> removingActiveAllocationIds.contains(a) == false).collect(Collectors.toSet());
         final List<AllocationId> removingInitializingAllocationIds = randomSubsetOf(initializingIds);
         final Set<AllocationId> newInitializingAllocationIds =
-                initializingIds.stream().filter(a -> !removingInitializingAllocationIds.contains(a)).collect(Collectors.toSet());
+                initializingIds.stream().filter(a -> removingInitializingAllocationIds.contains(a) == false).collect(Collectors.toSet());
         routingTable = routingTable(newInitializingAllocationIds, primaryId);
         tracker.updateFromMaster(initialClusterStateVersion + 1, ids(newActiveAllocationIds), routingTable);
         assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
@@ -922,7 +922,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     }
 
     private static Set<AllocationId> exclude(Collection<AllocationId> allocationIds, Set<String> excludeIds) {
-        return allocationIds.stream().filter(aId -> !excludeIds.contains(aId.getId())).collect(Collectors.toSet());
+        return allocationIds.stream().filter(aId -> excludeIds.contains(aId.getId()) == false).collect(Collectors.toSet());
     }
 
     private static Tuple<Set<AllocationId>, Set<AllocationId>> randomActiveAndInitializingAllocationIds(

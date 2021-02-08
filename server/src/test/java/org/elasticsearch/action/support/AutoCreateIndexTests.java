@@ -190,9 +190,9 @@ public class AutoCreateIndexTests extends ESTestCase {
             new SystemIndices(Map.of()));
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
-        Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), !value).build();
+        Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), value == false).build();
         clusterSettings.applySettings(newSettings);
-        assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(!value));
+        assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value == false));
 
         newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "logs-*").build();
         clusterSettings.applySettings(newSettings);

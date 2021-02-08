@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
+import org.elasticsearch.xpack.transform.transforms.RetentionPolicyToDeleteByQueryRequestConverter.RetentionPolicyException;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
@@ -103,6 +107,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     // collects changes for continuous mode
     private ChangeCollector changeCollector;
+
     // position of the change collector, in flux (not yet persisted as we haven't processed changes yet)
     private Map<String, Object> nextChangeCollectorBucketPosition = null;
 
@@ -157,6 +162,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
+
+    abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
+
+    abstract void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener);
 
     public int getPageSize() {
         return pageSize;
@@ -404,17 +413,92 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected void onFinish(ActionListener<Void> listener) {
         startIndexerThreadShutdown();
-        try {
-            // This indicates an early exit since no changes were found.
-            // So, don't treat this like a checkpoint being completed, as no work was done.
-            if (hasSourceChanged == false) {
-                if (context.shouldStopAtCheckpoint()) {
-                    stop();
-                }
-                listener.onResponse(null);
+
+        // This indicates an early exit since no changes were found.
+        // So, don't treat this like a checkpoint being completed, as no work was done.
+        if (hasSourceChanged == false) {
+            if (context.shouldStopAtCheckpoint()) {
+                stop();
+            }
+            listener.onResponse(null);
+            return;
+        }
+
+        refreshDestinationIndex(ActionListener.wrap(response -> {
+            if (response.getFailedShards() > 0) {
+                logger.warn(
+                    "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                    getJobId()
+                );
+            }
+            // delete data defined by retention policy
+            if (transformConfig.getRetentionPolicyConfig() != null) {
+                executeRetentionPolicy(listener);
+            } else {
+                finalizeCheckpoint(listener);
+            }
+        }, listener::onFailure));
+    }
+
+    private void executeRetentionPolicy(ActionListener<Void> listener) {
+        DeleteByQueryRequest deleteByQuery = RetentionPolicyToDeleteByQueryRequestConverter.buildDeleteByQueryRequest(
+            transformConfig.getRetentionPolicyConfig(),
+            transformConfig.getSettings(),
+            transformConfig.getDestination(),
+            nextCheckpoint
+        );
+
+        if (deleteByQuery == null) {
+            finalizeCheckpoint(listener);
+            return;
+        }
+
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "[{}] Run delete based on retention policy using dbq [{}] with query: [{}]",
+                getJobId(),
+                deleteByQuery,
+                deleteByQuery.getSearchRequest()
+            )
+        );
+        getStats().markStartDelete();
+
+        doDeleteByQuery(deleteByQuery, ActionListener.wrap(bulkByScrollResponse -> {
+            logger.trace(() -> new ParameterizedMessage("[{}] dbq response: [{}]", getJobId(), bulkByScrollResponse));
+
+            getStats().markEndDelete();
+            getStats().incrementNumDeletedDocuments(bulkByScrollResponse.getDeleted());
+            logger.debug("[{}] deleted [{}] documents as part of the retention policy.", getJobId(), bulkByScrollResponse.getDeleted());
+
+            // this should not happen as part of checkpointing
+            if (bulkByScrollResponse.getVersionConflicts() > 0) {
+                // note: the failure gets logged by the failure handler
+                listener.onFailure(
+                    new RetentionPolicyException(
+                        "found [{}] version conflicts when deleting documents as part of the retention policy.",
+                        bulkByScrollResponse.getDeleted()
+                    )
+                );
+                return;
+            }
+            // paranoia: we are not expecting dbq to fail for other reasons
+            if (bulkByScrollResponse.getBulkFailures().size() > 0 || bulkByScrollResponse.getSearchFailures().size() > 0) {
+                assert false : "delete by query failed unexpectedly" + bulkByScrollResponse;
+                listener.onFailure(
+                    new RetentionPolicyException(
+                        "found failures when deleting documents as part of the retention policy. Response: [{}]",
+                        bulkByScrollResponse
+                    )
+                );
                 return;
             }
 
+            finalizeCheckpoint(listener);
+        }, listener::onFailure));
+    }
+
+    private void finalizeCheckpoint(ActionListener<Void> listener) {
+        try {
             // reset the page size, so we do not memorize a low page size forever
             pageSize = function.getInitialPageSize();
             // reset the changed bucket to free memory
@@ -853,8 +937,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 throw new IllegalStateException("Transform indexer job encountered an illegal state [" + runState + "]");
         }
 
-        return new SearchRequest(getConfig().getSource().getIndex())
-            .allowPartialSearchResults(false)
+        return new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .source(sourceBuilder);
     }

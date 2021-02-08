@@ -21,6 +21,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -87,7 +88,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
         client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(new ResetFeatureStateResponse());
+                listener.onResponse(new ResetFeatureStateResponse(new HashMap<>()));
             }
 
             @Override

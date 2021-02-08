@@ -8,20 +8,11 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.sun.jna.Native;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.snapshots.SnapshotUtils;
 
-import java.io.FileOutputStream;
-import java.io.IOError;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -151,43 +142,12 @@ final class Natives {
      *
      * @throws IOException on failure to determine free disk space for a data path
      */
-    @SuppressForbidden(reason = "need access to fd on FileOutputStream")
     public static void tryCreateCacheFile(Environment environment, long fileSize) throws IOException {
-        if (Constants.LINUX == false) {
-            logger.debug("not trying to create a shared cache file using fallocate on non-Linux platform");
-            return;
-        }
         if (JNA_AVAILABLE == false) {
             logger.warn("cannot use fallocate to create cache file because JNA is not available");
             return;
         }
-        Path cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
-        if (cacheFile == null) {
-            throw new IOError(new IOException("Could not find a directory with adequate free space for cache file"));
-        }
-        boolean success = false;
-        try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
-            long currentSize = fileChannel.getChannel().size();
-            if (currentSize < fileSize) {
-                final Field field = fileChannel.getFD().getClass().getDeclaredField("fd");
-                field.setAccessible(true);
-                final int result = JNACLibrary.fallocate((int) field.get(fileChannel.getFD()), 0, currentSize, fileSize - currentSize);
-                final int errno = result == 0 ? 0 : Native.getLastError();
-                if (errno == 0) {
-                    success = true;
-                    logger.info("Allocated cache file [{}] using fallocate", cacheFile);
-                } else {
-                    logger.warn("Failed to initialize cache file [{}] using fallocate errno [{}]", cacheFile, errno);
-                }
-            }
-        } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Failed to initialize cache file [{}] using fallocate", cacheFile), e);
-        } finally {
-            if (success == false) {
-                // if anything goes wrong, delete the potentially created file to not waste disk space
-                Files.deleteIfExists(cacheFile);
-            }
-        }
+        JNANatives.fallocateSnapshotCacheFile(environment, fileSize);
     }
 
 }

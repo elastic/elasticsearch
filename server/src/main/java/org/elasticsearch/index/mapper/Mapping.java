@@ -8,13 +8,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -43,6 +46,7 @@ public final class Mapping implements ToXContentFragment {
     final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     final Map<String, MetadataFieldMapper> metadataMappersByName;
     final Map<String, Object> meta;
+    private final CompressedXContent mappingSource;
 
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
@@ -63,11 +67,21 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
+        try {
+            this.mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        } catch (Exception e) {
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
+        }
+
     }
 
     /** Return the root object mapper. */
     RootObjectMapper root() {
         return root;
+    }
+
+    CompressedXContent mappingSource() {
+        return mappingSource;
     }
 
     void validate(MappingLookup mappers) {

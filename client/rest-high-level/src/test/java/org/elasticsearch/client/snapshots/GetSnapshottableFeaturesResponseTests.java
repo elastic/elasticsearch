@@ -38,7 +38,6 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractResponseTestC
                 )
             )
         );
-
     }
 
     @Override

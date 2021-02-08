@@ -10,6 +10,9 @@ package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
+/**
+ * A type of {@link RestTestTransform} that finds the transformation by a given key that has a value that is an {@link ArrayNode}.
+ */
 public interface RestTestTransformByParentArray extends RestTestTransform<ArrayNode> {
 
     /**

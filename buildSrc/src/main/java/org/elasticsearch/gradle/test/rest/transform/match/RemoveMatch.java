@@ -11,6 +11,10 @@ package org.elasticsearch.gradle.test.rest.transform.match;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 
+/**
+ * A transformation to remove the key/value of a given match. To help keep logic simple, an empty match object will be left behind
+ * if/when the only key/value is removed.
+ */
 public class RemoveMatch implements RestTestTransformByParentObject {
     private final String removeKey;
     private final String testName;

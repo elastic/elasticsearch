@@ -13,16 +13,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
@@ -38,19 +37,22 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
 
+/**
+ * A task to transform REST tests for use in REST API compatibility before they are executed.
+ */
 public class RestCompatTestTransformTask extends DefaultTask {
 
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
     private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class);
+    private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
@@ -61,12 +63,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     private FileCollection input;
     private File output;
-    private static final String REST_TEST_PREFIX = "rest-api-spec/test";
-
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
-    private final Map<String, List<RestTestTransform<?>>> perTestTransformation = new HashMap<>();
-
 
     @Inject
     public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
@@ -76,23 +74,57 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new InjectHeaders(headers));
     }
 
-
+    /**
+     * Replaces all the values of a match assertion all project REST tests. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
+     *
+     * @param subKey the key name directly under match to replace. For example "_type"
+     * @param value  the value used in the replacement. For example "bar"
+     */
     public void replaceMatch(String subKey, Object value) {
         transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
     }
 
+    /**
+     * Replaces the values of a match assertion for the given REST test. For example "match":{"_type": "foo"} to "match":{"_type": "bar"}
+     *
+     * @param subKey   the key name directly under match to replace. For example "_type"
+     * @param value    the value used in the replacement. For example "bar"
+     * @param testName the testName to apply replacement
+     */
     public void replaceMatch(String subKey, Object value, String testName) {
         transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
     }
 
+    /**
+     * Removes the key/value of a match assertion all project REST tests for the matching subkey.
+     * For example "match":{"_type": "foo"} to "match":{}
+     * An empty match is retained if there is only a single key under match.
+     *
+     * @param subKey the key name directly under match to replace. For example "_type"
+     */
     public void removeMatch(String subKey) {
         transformations.add(new RemoveMatch(subKey));
     }
 
+    /**
+     * Removes the key/value of a match assertion for the given REST tests for the matching subkey.
+     * For example "match":{"_type": "foo"} to "match":{}
+     * An empty match is retained if there is only a single key under match.
+     *
+     * @param subKey   the key name directly under match to remove. For example "_type"
+     * @param testName the testName to apply removal
+     */
     public void removeMatch(String subKey, String testName) {
         transformations.add(new RemoveMatch(subKey, testName));
     }
 
+    /**
+     * Adds a match assertion for the given REST test. For example add "match":{"_type": "foo"} to the test.
+     *
+     * @param subKey   the key name directly under match to add. For example "_type"
+     * @param value    the value used in the addition. For example "foo"
+     * @param testName the testName to apply addition
+     */
     public void addMatch(String subKey, Object value, String testName) {
         transformations.add(new AddMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
     }

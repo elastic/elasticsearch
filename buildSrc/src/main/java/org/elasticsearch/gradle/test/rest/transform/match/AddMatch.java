@@ -16,7 +16,9 @@ import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentArr
 
 import java.util.Objects;
 
-//TODO: java doc
+/**
+ * Adds a match for a REST test. For example add the follow where it did not exist prior to running this: "match":{"_type": "foo"}
+ */
 public class AddMatch implements RestTestTransformByParentArray {
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
     private final String matchKey;
@@ -46,7 +48,7 @@ public class AddMatch implements RestTestTransformByParentArray {
     @Override
     public String getKeyOfArrayToFind() {
         // match objects are always in the array that is the direct child of the test name, i.e.
-        // "my test name" : [ {"do" : ... }, { "match" : .... }, {..}, {..}, ... ]
+        // "my test name" : [ {"do" : ... }, { "match" : .... }]
         return testName;
     }
 }

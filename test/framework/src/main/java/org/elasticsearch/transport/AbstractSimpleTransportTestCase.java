@@ -316,6 +316,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/67427")
     public void testThreadContext() throws ExecutionException, InterruptedException {
 
         serviceA.registerRequestHandler("internal:ping_pong", ThreadPool.Names.GENERIC, StringMessageRequest::new,

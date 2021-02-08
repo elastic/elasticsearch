@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
@@ -126,7 +127,7 @@ public class RestoreServiceTests extends ESTestCase {
         verifyZeroInteractions(repositoriesService);
     }
 
-    public void testRefreshRepositoryUuidsRefreshesAsNeeded() {
+    public void testRefreshRepositoryUuidsRefreshesAsNeeded() throws Exception {
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
 
         final int repositoryCount = between(1, 5);
@@ -181,7 +182,7 @@ public class RestoreServiceTests extends ESTestCase {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         when(repositoriesService.getRepositories()).thenReturn(repositories);
         RestoreService.refreshRepositoryUuids(true, repositoriesService, listener);
-        assertNull(listener.actionGet(0L));
+        assertNull(listener.get(0L, TimeUnit.SECONDS));
         assertThat(pendingRefreshes, Matchers.empty());
         finalAssertions.forEach(Runnable::run);
     }

@@ -110,6 +110,7 @@ import org.elasticsearch.xpack.transform.rest.action.compat.RestUpdateTransformA
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -310,14 +311,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             try {
-                templates.put(
-                    TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                    TransformInternalIndex.getIndexTemplateMetadata()
-                );
-            } catch (IOException e) {
-                logger.error("Error creating transform index template", e);
-            }
-            try {
                 // Template upgraders are only ever called on the master nodes, so we can use the current node version as the compatibility
                 // version here because we can be sure that this node, if elected master, will be compatible with itself.
                 templates.put(TransformInternalIndexConstants.AUDIT_INDEX,
@@ -397,8 +390,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.singletonList(
-            new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
-        );
+        try {
+            return Collections.singletonList(TransformInternalIndex.getSystemIndexDescriptor());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

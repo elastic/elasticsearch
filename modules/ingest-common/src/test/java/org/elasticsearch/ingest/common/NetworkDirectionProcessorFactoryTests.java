@@ -10,10 +10,12 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -28,7 +30,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
 
     @Before
     public void init() {
-        factory = new NetworkDirectionProcessor.Factory();
+        factory = new NetworkDirectionProcessor.Factory(TestTemplateService.instance());
     }
 
     public void testCreate() throws Exception {
@@ -52,7 +54,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
         assertThat(networkProcessor.getSourceIpField(), equalTo(sourceIpField));
         assertThat(networkProcessor.getDestinationIpField(), equalTo(destIpField));
         assertThat(networkProcessor.getTargetField(), equalTo(targetField));
-        assertThat(networkProcessor.getInternalNetworks(), equalTo(internalNetworks));
+        assertThat(networkProcessor.getInternalNetworks().get(0).newInstance(Collections.emptyMap()).execute(), equalTo("10.0.0.0/8"));
         assertThat(networkProcessor.getIgnoreMissing(), equalTo(ignoreMissing));
     }
 
@@ -63,7 +65,7 @@ public class NetworkDirectionProcessorFactoryTests extends ESTestCase {
             factory.create(null, processorTag, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[internal_networks] required property is missing"));
+            assertThat(e.getMessage(), equalTo("either [internal_networks] or [internal_networks_field] must be specified"));
         }
     }
 

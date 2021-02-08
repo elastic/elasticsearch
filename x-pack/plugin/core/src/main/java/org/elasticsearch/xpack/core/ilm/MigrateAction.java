@@ -34,8 +34,8 @@ public class MigrateAction implements LifecycleAction {
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
     // Represents an ordered list of data tiers from cold to hot (or slow to fast)
-    private static final List<String> COLD_TO_HOT_TIERS = org.elasticsearch.common.collect.List.of(
-        DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT
+    private static final List<String> FROZEN_TO_HOT_TIERS = org.elasticsearch.common.collect.List.of(
+        DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT
     );
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -115,11 +115,11 @@ public class MigrateAction implements LifecycleAction {
      * This is usually used in conjunction with {@link DataTierAllocationDecider#INDEX_ROUTING_PREFER_SETTING}
      */
     static String getPreferredTiersConfiguration(String targetTier) {
-        int indexOfTargetTier = COLD_TO_HOT_TIERS.indexOf(targetTier);
+        int indexOfTargetTier = FROZEN_TO_HOT_TIERS.indexOf(targetTier);
         if (indexOfTargetTier == -1) {
             throw new IllegalArgumentException("invalid data tier [" + targetTier + "]");
         }
-        return COLD_TO_HOT_TIERS.stream().skip(indexOfTargetTier).collect(Collectors.joining(","));
+        return FROZEN_TO_HOT_TIERS.stream().skip(indexOfTargetTier).collect(Collectors.joining(","));
     }
 
     @Override

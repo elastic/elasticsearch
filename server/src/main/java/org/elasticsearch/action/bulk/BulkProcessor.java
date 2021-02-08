@@ -271,7 +271,7 @@ public class BulkProcessor implements Closeable {
                   int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
                   Scheduler scheduler, Runnable onClose, Supplier<BulkRequest> bulkRequestSupplier) {
         this(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval,
-            scheduler, scheduler, onClose, bulkRequestSupplier );
+            scheduler, scheduler, onClose, bulkRequestSupplier);
     }
 
     /**
@@ -413,18 +413,18 @@ public class BulkProcessor implements Closeable {
     }
 
     // needs to be executed under a lock
-    private Tuple<BulkRequest,Long> newBulkRequestIfNeeded(){
+    private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {
         ensureOpen();
         if (isOverTheLimit() == false) {
             return null;
         }
         final BulkRequest bulkRequest = this.bulkRequest;
         this.bulkRequest = bulkRequestSupplier.get();
-        return new Tuple<>(bulkRequest,executionIdGen.incrementAndGet()) ;
+        return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
     }
 
     // may be executed without a lock
-    private void execute(BulkRequest bulkRequest, long executionId ){
+    private void execute(BulkRequest bulkRequest, long executionId) {
         this.bulkRequestHandler.execute(bulkRequest, executionId);
     }
 

@@ -185,7 +185,32 @@ If `true`, the request does *not* return an error if a wildcard expression or
 This parameter also applies to <<indices-aliases,index aliases>> that point to a
 missing or closed index.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+`expand_wildcards`:::
++
+--
+(Optional, string)
+Type of index that wildcard expressions can match. If the request can target
+data streams, this argument determines whether wildcard expressions match
+hidden data streams. Supports comma-separated values, such as `open,hidden`.
+Valid values are:
+
+`all`::
+Match any data stream or index, including <<hidden-indices,hidden>> ones.
+
+`open`::
+Match open, non-hidden indices. Also matches any non-hidden data stream.
+
+`closed`::
+Match closed, non-hidden indices. Also matches any non-hidden data stream. Data
+streams cannot be closed.
+
+`hidden`::
+Match hidden data streams and hidden indices. Must be combined with `open`,
+`closed`, or both.
+
+`none`::
+Wildcard expressions are not accepted.
+--
 +
 Defaults to `open`.
 

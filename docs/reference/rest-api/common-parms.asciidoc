@@ -991,7 +991,7 @@ Specifies that the {transform} uses a time field to set the retention policy.
 end::transform-retention-time[]
 
 tag::transform-retention-time-field[]
-The date filed that is used to calculate the age of the document.
+The date field that is used to calculate the age of the document.
 end::transform-retention-time-field[]
 
 tag::transform-retention-time-max-age[]

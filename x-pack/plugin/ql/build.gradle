@@ -9,7 +9,7 @@ esplugin {
 archivesBaseName = 'x-pack-ql'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   testImplementation project(':test:framework')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation(project(xpackModule('ql:test'))) {

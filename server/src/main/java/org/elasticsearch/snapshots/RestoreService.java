@@ -55,6 +55,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -81,6 +82,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
@@ -427,6 +429,22 @@ public class RestoreService implements ClusterStateApplier {
                         if (request.includeGlobalState()) {
                             if (metadata.persistentSettings() != null) {
                                 Settings settings = metadata.persistentSettings();
+                                if (request.skipOperatorOnlyState()) {
+                                    // Skip any operator-only settings from the snapshot. This happens when operator privileges are enabled
+                                    Set<String> operatorSettingKeys = Stream.concat(
+                                        settings.keySet().stream(), currentState.metadata().persistentSettings().keySet().stream())
+                                        .filter(k -> {
+                                            final Setting<?> setting = clusterSettings.get(k);
+                                            return setting != null && setting.isOperatorOnly();
+                                        })
+                                        .collect(Collectors.toSet());
+                                    if (false == operatorSettingKeys.isEmpty()) {
+                                        settings = Settings.builder()
+                                            .put(settings.filter(k -> false == operatorSettingKeys.contains(k)))
+                                            .put(currentState.metadata().persistentSettings().filter(operatorSettingKeys::contains))
+                                            .build();
+                                    }
+                                }
                                 clusterSettings.validateUpdate(settings);
                                 mdBuilder.persistentSettings(settings);
                             }
@@ -441,6 +459,7 @@ public class RestoreService implements ClusterStateApplier {
                                     if (RepositoriesMetadata.TYPE.equals(cursor.key) == false
                                             && DataStreamMetadata.TYPE.equals(cursor.key) == false
                                             && cursor.value instanceof Metadata.NonRestorableCustom == false) {
+                                        // TODO: Check request.skipOperatorOnly for Autoscaling policies (NonRestorableCustom)
                                         // Don't restore repositories while we are working with them
                                         // TODO: Should we restore them at the end?
                                         // Also, don't restore data streams here, we already added them to the metadata builder above

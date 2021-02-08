@@ -6,31 +6,32 @@
 <titleabbrev>Fingerprint</titleabbrev>
 ++++
 
-Calculates a hash that can be used for content fingerprinting based on the
-content of the specified fields in a document.
+Computes a hash of the document's content. You can use this hash for
+{wikipedia}/Fingerprint_(computing)[content fingerprinting].
 
 [[fingerprint-options]]
 .Fingerprint Options
 [options="header"]
 |======
 | Name               | Required | Default       | Description
-| `fields`           | yes      | n/a           | Array containing the names of the document
-fields whose content will be used to compute the fingerprint
+| `fields`           | yes      | n/a           | Array of fields to include in
+the fingerprint. For objects, the processor hashes both the field key and
+value. For other fields, the processor hashes only the field value.
 | `target_field`     | no       | `fingerprint` | Output field for the fingerprint.
-| `salt`             | no       | <none>        | Salt value that will be applied to every
-fingerprint calculated by this processor
+| `salt`             | no       | <none>        |
+{wikipedia}/Salt_(cryptography)[Salt value] for the hash function.
 | `method`           | no       | `SHA-1`       | The cryptographic hash function used to
 compute the fingerprint. Must be one of `MD5`, `SHA-1`, `SHA-256`, or `SHA-512`.
-| `ignore_missing`   | no       | `false`       | If true, any missing elements in `fields`
-will be ignored when computing the fingerprint. If all fields are missing, the processor
-silently exits without modifying the document.
+| `ignore_missing`   | no       | `false`       | If `true`, the processor
+ignores any missing `fields`. If all fields are missing, the processor silently
+exits without modifying the document.
 
 include::common-options.asciidoc[]
 |======
 
 [discrete]
 [[fingerprint-processor-ex]]
-===== Examples
+===== Example
 
 The following example illustrates the use of the fingerprint processor:
 
@@ -86,4 +87,3 @@ Which produces the following result:
 }
 ----
 // TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
-// NOTCONSOLE

@@ -14,21 +14,18 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class DocumentMapper implements ToXContentFragment {
+public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
     private final DocumentParser documentParser;
@@ -56,7 +53,7 @@ public class DocumentMapper implements ToXContentFragment {
         this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
 
         try {
-            mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            mappingSource = new CompressedXContent(mapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
@@ -154,10 +151,5 @@ public class DocumentMapper implements ToXContentFragment {
         if (checkLimits) {
             this.mappingLookup.checkLimits(settings);
         }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return mapping().toXContent(builder, params);
     }
 }

@@ -492,7 +492,7 @@ public class MetadataTests extends ESTestCase {
     public void testMetadataGlobalStateChangesOnClusterUUIDChanges() {
         final Metadata metadata1 = Metadata.builder().clusterUUID(UUIDs.randomBase64UUID()).clusterUUIDCommitted(randomBoolean()).build();
         final Metadata metadata2 = Metadata.builder(metadata1).clusterUUID(UUIDs.randomBase64UUID()).build();
-        final Metadata metadata3 = Metadata.builder(metadata1).clusterUUIDCommitted(!metadata1.clusterUUIDCommitted()).build();
+        final Metadata metadata3 = Metadata.builder(metadata1).clusterUUIDCommitted(metadata1.clusterUUIDCommitted() == false).build();
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata2));
         assertFalse(Metadata.isGlobalStateEquals(metadata1, metadata3));
         final Metadata metadata4 = Metadata.builder(metadata2).clusterUUID(metadata1.clusterUUID()).build();

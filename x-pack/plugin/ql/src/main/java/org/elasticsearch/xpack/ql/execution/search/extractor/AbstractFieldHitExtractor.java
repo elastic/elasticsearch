@@ -46,7 +46,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         this.hitName = hitName;
 
         if (hitName != null) {
-            if (!name.contains(hitName)) {
+            if (name.contains(hitName) == false) {
                 throw new QlIllegalArgumentException("Hitname [{}] specified but not part of the name [{}]", hitName, name);
             }
         }

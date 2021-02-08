@@ -327,7 +327,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 }
             }
             // opposite of if it existed before
-            enqueuePipelineResponses(secondWebServer, !pipelineExistsAlready);
+            enqueuePipelineResponses(secondWebServer, pipelineExistsAlready == false);
             enqueueWatcherResponses(secondWebServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
             enqueueResponse(secondWebServer, 200, "{\"errors\": false}");
 
@@ -351,7 +351,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     assertThat(recordedRequest.getBody(), equalTo(getExternalTemplateRepresentation(template.v2())));
                 }
             }
-            assertMonitorPipelines(secondWebServer, !pipelineExistsAlready, null, null);
+            assertMonitorPipelines(secondWebServer, pipelineExistsAlready == false, null, null);
             assertMonitorWatches(secondWebServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists,
                                  null, null);
             assertBulk(secondWebServer);

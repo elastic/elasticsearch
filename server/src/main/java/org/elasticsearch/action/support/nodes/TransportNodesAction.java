@@ -227,7 +227,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
+            if (logger.isDebugEnabled() && (t instanceof NodeShouldNotConnectException) == false) {
                 logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
             responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));

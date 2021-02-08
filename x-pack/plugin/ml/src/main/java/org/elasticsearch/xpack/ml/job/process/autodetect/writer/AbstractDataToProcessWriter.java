@@ -76,7 +76,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
             latestEpochMs = date.getTime();
         }
 
-        boolean isDateFormatString = dataDescription.isTransformTime() && !dataDescription.isEpochMs();
+        boolean isDateFormatString = dataDescription.isTransformTime() && dataDescription.isEpochMs() == false;
         if (isDateFormatString) {
             dateTransformer = new DateFormatDateTransformer(dataDescription.getTimeFormat());
         } else {

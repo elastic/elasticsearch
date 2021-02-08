@@ -29,7 +29,6 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
 
     public void unpack(File tarFile, File targetDir) throws IOException {
         Function<String, Path> pathModifier = pathResolver();
-
         TarArchiveInputStream tar = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile)));
         final Path destinationPath = targetDir.toPath();
         TarArchiveEntry entry = tar.getNextTarEntry();
@@ -62,6 +61,5 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
             }
             entry = tar.getNextTarEntry();
         }
-
     }
 }

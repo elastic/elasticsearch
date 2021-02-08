@@ -26,6 +26,12 @@ GET /my-index-000001/_explain/0
 
 `POST /<index>/_explain/<id>`
 
+[[search-explain-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index.
+
 [[search-explain-api-desc]]
 ==== {api-description-title}
 

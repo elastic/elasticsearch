@@ -45,7 +45,7 @@ public class HitExtractorProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        if (!(input instanceof SearchHit)) {
+        if ((input instanceof SearchHit) == false) {
             throw new QlIllegalArgumentException("Expected a SearchHit but received {}", input);
         }
         return extractor.extract((SearchHit) input);

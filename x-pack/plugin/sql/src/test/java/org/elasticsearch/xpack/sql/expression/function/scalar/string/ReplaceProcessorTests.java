@@ -45,10 +45,8 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
     }
 
     public void testReplaceFunctionWithEdgeCases() {
-        assertEquals("foobarbar",
-                new Replace(EMPTY, l("foobarbar"), l("bar"), l(null)).makePipe().asProcessor().process(null));
-        assertEquals("foobarbar",
-                new Replace(EMPTY, l("foobarbar"), l(null), l("baz")).makePipe().asProcessor().process(null));
+        assertNull(new Replace(EMPTY, l("foobarbar"), l("bar"), l(null)).makePipe().asProcessor().process(null));
+        assertNull(new Replace(EMPTY, l("foobarbar"), l(null), l("baz")).makePipe().asProcessor().process(null));
         assertNull(new Replace(EMPTY, l(null), l("bar"), l("baz")).makePipe().asProcessor().process(null));
         assertNull(new Replace(EMPTY, l(null), l(null), l(null)).makePipe().asProcessor().process(null));
     }

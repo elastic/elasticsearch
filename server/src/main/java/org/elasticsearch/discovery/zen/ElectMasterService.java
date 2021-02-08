@@ -194,7 +194,7 @@ public class ElectMasterService {
             return null;
         }
         // clean non master nodes
-        possibleNodes.removeIf(node -> !node.isMasterNode());
+        possibleNodes.removeIf(node -> node.isMasterNode() == false);
         CollectionUtil.introSort(possibleNodes, ElectMasterService::compareNodes);
         return possibleNodes;
     }

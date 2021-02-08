@@ -583,7 +583,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
                 CollectionUtils.appendToCopy(Arrays.asList(ClusterHealthStatus.values()), null);
         store.onSecurityIndexStateChange(
             dummyState(securityIndexName, isIndexUpToDate, randomFrom(allPossibleHealthStatus)),
-            dummyState(securityIndexName, !isIndexUpToDate, randomFrom(allPossibleHealthStatus)));
+            dummyState(securityIndexName, isIndexUpToDate == false, randomFrom(allPossibleHealthStatus)));
         assertEquals(++count, store.getNumInvalidation().get());
     }
 

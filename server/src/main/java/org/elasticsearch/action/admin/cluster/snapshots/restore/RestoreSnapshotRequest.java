@@ -487,7 +487,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             } else if (name.equals("partial")) {
                 partial(nodeBooleanValue(entry.getValue(), "partial"));
             } else if (name.equals("settings")) {
-                if (!(entry.getValue() instanceof Map)) {
+                if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
                 DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "RestoreSnapshotRequest#settings",

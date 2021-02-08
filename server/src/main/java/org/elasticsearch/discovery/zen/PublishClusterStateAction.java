@@ -202,7 +202,8 @@ public class PublishClusterStateAction {
         try {
             long timeLeftInNanos = Math.max(0, publishTimeout.nanos() - commitTime);
             final BlockingClusterStatePublishResponseHandler publishResponseHandler = sendingController.getPublishResponseHandler();
-            sendingController.setPublishingTimedOut(!publishResponseHandler.awaitAllNodes(TimeValue.timeValueNanos(timeLeftInNanos)));
+            sendingController.setPublishingTimedOut(
+                    publishResponseHandler.awaitAllNodes(TimeValue.timeValueNanos(timeLeftInNanos)) == false);
             if (sendingController.getPublishingTimedOut()) {
                 DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
                 // everyone may have just responded

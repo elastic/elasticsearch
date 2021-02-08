@@ -48,7 +48,7 @@ public class StringScriptFieldPrefixQueryTests extends AbstractStringScriptField
                 prefix += "modified";
                 break;
             case 3:
-                caseInsensitive = !caseInsensitive;
+                caseInsensitive = caseInsensitive == false;
                 break;
             default:
                 fail();

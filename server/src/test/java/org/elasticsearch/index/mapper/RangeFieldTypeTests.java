@@ -266,7 +266,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         // get exact lower and upper bounds similar to what we would parse for `date` fields for same input strings
         DateFieldType dateFieldType = new DateFieldType("field");
-        long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, !includeLower, null, formatter.toDateMathParser(), () -> 0);
+        long lowerBoundLong = dateFieldType.parseToLong(lowerAsString, includeLower == false, null, formatter.toDateMathParser(), () -> 0);
         if (includeLower == false) {
             ++lowerBoundLong;
         }

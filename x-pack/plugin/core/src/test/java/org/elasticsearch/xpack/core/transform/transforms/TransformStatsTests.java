@@ -60,7 +60,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testBwcWith73() throws IOException {

@@ -167,30 +167,27 @@ class StoreKeyConfig extends KeyConfig {
             "the configured PKCS#11 token does not contain a private key entry";
         throw new IllegalArgumentException(message);
     }
+
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         StoreKeyConfig that = (StoreKeyConfig) o;
-
-        if (keyStorePath != null ? !keyStorePath.equals(that.keyStorePath) : that.keyStorePath != null) return false;
-        if (keyStorePassword != null ? !keyStorePassword.equals(that.keyStorePassword) : that.keyStorePassword != null)
-            return false;
-        if (keyStoreAlgorithm != null ? !keyStoreAlgorithm.equals(that.keyStoreAlgorithm) : that.keyStoreAlgorithm != null)
-            return false;
-        if (keyPassword != null ? !keyPassword.equals(that.keyPassword) : that.keyPassword != null) return false;
-        return trustStoreAlgorithm != null ? trustStoreAlgorithm.equals(that.trustStoreAlgorithm) : that.trustStoreAlgorithm == null;
+        return Objects.equals(keyStorePath, that.keyStorePath)
+            && Objects.equals(keyStoreType, that.keyStoreType)
+            && Objects.equals(keyStorePassword, that.keyStorePassword)
+            && Objects.equals(keyStoreAlgorithm, that.keyStoreAlgorithm)
+            && Objects.equals(keyPassword, that.keyPassword)
+            && Objects.equals(trustStoreAlgorithm, that.trustStoreAlgorithm);
     }
 
     @Override
     public int hashCode() {
-        int result = keyStorePath != null ? keyStorePath.hashCode() : 0;
-        result = 31 * result + (keyStorePassword != null ? keyStorePassword.hashCode() : 0);
-        result = 31 * result + (keyStoreAlgorithm != null ? keyStoreAlgorithm.hashCode() : 0);
-        result = 31 * result + (keyPassword != null ? keyPassword.hashCode() : 0);
-        result = 31 * result + (trustStoreAlgorithm != null ? trustStoreAlgorithm.hashCode() : 0);
-        return result;
+        return Objects.hash(keyStorePath, keyStoreType, keyStorePassword, keyStoreAlgorithm, keyPassword, trustStoreAlgorithm);
     }
 
     @Override

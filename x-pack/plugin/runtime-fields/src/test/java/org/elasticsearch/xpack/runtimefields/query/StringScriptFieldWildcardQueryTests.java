@@ -47,7 +47,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
                 pattern += "modified";
                 break;
             case 3:
-                caseInsensitive = !caseInsensitive;
+                caseInsensitive = caseInsensitive == false;
                 break;
             default:
                 fail();

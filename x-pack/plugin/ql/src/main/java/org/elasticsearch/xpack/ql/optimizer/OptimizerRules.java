@@ -615,7 +615,7 @@ public final class OptimizerRules {
                     } else {
                         ranges.add(r);
                     }
-                } else if (ex instanceof BinaryComparison && !(ex instanceof Equals || ex instanceof NotEquals)) {
+                } else if (ex instanceof BinaryComparison && (ex instanceof Equals || ex instanceof NotEquals) == false) {
                     BinaryComparison bc = (BinaryComparison) ex;
 
                     if (bc.right().foldable() && (findConjunctiveComparisonInRange(bc, ranges) || findExistingComparison(bc, bcs, true))) {
@@ -818,7 +818,7 @@ public final class OptimizerRules {
                         }
 
                         // if the range in included, no need to add it
-                        return compared && (!((lower && !lowerEq) || (upper && !upperEq)));
+                        return compared && (((lower && lowerEq == false) || (upper && upperEq == false)) == false);
                     }
                 }
             }

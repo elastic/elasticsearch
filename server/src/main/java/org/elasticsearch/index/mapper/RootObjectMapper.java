@@ -92,7 +92,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
                 Map<String, Mapper> mappers, Version indexCreatedVersion) {
-            assert !nested.isNested();
+            assert nested.isNested() == false;
             return new RootObjectMapper(name, enabled, dynamic, mappers, runtimeFieldTypes,
                     dynamicDateTimeFormatters,
                     dynamicTemplates,

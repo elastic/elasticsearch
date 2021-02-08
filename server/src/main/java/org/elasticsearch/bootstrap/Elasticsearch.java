@@ -156,7 +156,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(!daemonize, pidFile, quiet, initialEnv);
+            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

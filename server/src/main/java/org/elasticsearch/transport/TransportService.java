@@ -960,7 +960,7 @@ public class TransportService extends AbstractLifecycleComponent
             }
         }
         if (exclude.length > 0) {
-            return !Regex.simpleMatch(exclude, action);
+            return Regex.simpleMatch(exclude, action) == false;
         }
         return true;
     }

@@ -363,7 +363,7 @@ public class FetchPhase {
 
         Map<String, DocumentField> docFields = emptyMap();
         Map<String, DocumentField> metaFields = emptyMap();
-        if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
+        if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
             loadStoredFields(searchExecutionContext::getFieldType, searchExecutionContext.getType(),
                 storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());

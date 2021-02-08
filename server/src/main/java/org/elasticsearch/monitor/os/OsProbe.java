@@ -284,7 +284,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /proc/self/cgroup")
     List<String> readProcSelfCgroup() throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/cgroup"));
-        assert lines != null && !lines.isEmpty();
+        assert lines != null && lines.isEmpty() == false;
         return lines;
     }
 
@@ -512,7 +512,7 @@ public class OsProbe {
                 return null;
             } else {
                 final Map<String, String> controllerMap = getControlGroups();
-                assert !controllerMap.isEmpty();
+                assert controllerMap.isEmpty() == false;
 
                 final String cpuAcctControlGroup = controllerMap.get("cpuacct");
                 if (cpuAcctControlGroup == null) {

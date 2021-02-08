@@ -245,11 +245,12 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml" ).exists()
         List<ObjectNode> actual = READER.readValues(file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml")).readAll()
-        SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
-        for (ObjectNode transformedTest : actual) {
-            sequenceWriter.write(transformedTest);
-        }
-        sequenceWriter.close();
+        //uncomment to see the actual test
+//        SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
+//        for (ObjectNode transformedTest : actual) {
+//            sequenceWriter.write(transformedTest);
+//        }
+//        sequenceWriter.close();
 
         List<ObjectNode> expectedAll = READER.readValues(
 """

@@ -48,7 +48,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DATA_TIERS_PREFERENCE;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.getDataTiersPreference;
 
 /**
  * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings
@@ -191,7 +191,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                             Settings.builder()
                                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
                                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
-                                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
+                                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getDataTiersPreference(request.storage()))
                                 .put(request.indexSettings())
                                 .put(
                                     buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId, request.storage())

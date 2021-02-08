@@ -272,7 +272,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testGetOrderedActionsInvalidPhase() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE
             .getOrderedActions(new Phase("invalid", TimeValue.ZERO, Collections.emptyMap())));
-        assertThat(exception.getMessage(), equalTo("lifecycle type[timeseries] does not support phase[invalid]"));
+        assertThat(exception.getMessage(), equalTo("lifecycle type [timeseries] does not support phase [invalid]"));
     }
 
     public void testGetOrderedActionsHot() {

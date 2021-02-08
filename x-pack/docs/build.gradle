@@ -17,7 +17,7 @@ tasks.named("buildRestTests").configure {
 }
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }

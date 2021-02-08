@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -42,7 +41,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_INTRODUCTION_VERSION;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_USAGE_VERSION;
 
 public final class RuntimeUtils {
 
@@ -146,11 +145,10 @@ public final class RuntimeUtils {
     }
 
 
-    public static SearchRequest prepareRequest(Client client,
-                                               SearchSourceBuilder source,
+    public static SearchRequest prepareRequest(SearchSourceBuilder source,
                                                boolean includeFrozen,
                                                String... indices) {
-        SearchRequest searchRequest = new SearchRequest(FIELDS_API_INTRODUCTION_VERSION);
+        SearchRequest searchRequest = new SearchRequest(FIELDS_API_USAGE_VERSION);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);

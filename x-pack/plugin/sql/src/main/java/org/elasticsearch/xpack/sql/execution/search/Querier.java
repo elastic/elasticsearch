@@ -84,7 +84,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_INTRODUCTION_VERSION;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_USAGE_VERSION;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -147,7 +147,7 @@ public class Querier {
         source.trackTotalHits(true);
         source.timeout(timeout);
 
-        SearchRequest searchRequest = new SearchRequest(FIELDS_API_INTRODUCTION_VERSION);
+        SearchRequest searchRequest = new SearchRequest(FIELDS_API_USAGE_VERSION);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);

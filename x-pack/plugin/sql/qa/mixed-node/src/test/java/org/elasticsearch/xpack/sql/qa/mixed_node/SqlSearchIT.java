@@ -18,18 +18,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -40,7 +36,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_INTRODUCTION_VERSION;
+import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
+import static org.elasticsearch.xpack.ql.TestUtils.readResource;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_USAGE_VERSION;
 
 public class SqlSearchIT extends ESRestTestCase {
 
@@ -73,9 +71,9 @@ public class SqlSearchIT extends ESRestTestCase {
         newVersion = nodes.getNewNodes().get(0).getVersion();
         // TODO: remove the 8.0.0 version check after the code reaches 7.x as well
         isBwcNodeBeforeFieldsApiInQL = newVersion == Version.V_8_0_0 || bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
-        isBwcNodeBeforeFieldsApiInES = bwcVersion.before(FIELDS_API_INTRODUCTION_VERSION);
+        isBwcNodeBeforeFieldsApiInES = bwcVersion.before(FIELDS_API_USAGE_VERSION);
         
-        String mappings = readResource("/all_field_types.json");
+        String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(
             index,
             Settings.builder()
@@ -271,39 +269,5 @@ public class SqlSearchIT extends ESRestTestCase {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    private static String readResource(String location) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(SqlSearchIT.class.getResourceAsStream(location),
-            StandardCharsets.UTF_8)))
-        {
-            String line = reader.readLine();
-            while (line != null) {
-                if (line.trim().startsWith("//") == false) {
-                    builder.append(line);
-                    builder.append('\n');
-                }
-                line = reader.readLine();
-            }
-            return builder.toString();
-        }
-    }
-
-    static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
-        Response response = client.performRequest(new Request("GET", "_nodes"));
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        TestNodes nodes = new TestNodes();
-        for (String id : nodesAsMap.keySet()) {
-            nodes.add(
-                new TestNode(
-                    id,
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
-                    HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
-                )
-            );
-        }
-        return nodes;
     }
 }

@@ -10,11 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -26,7 +23,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ql.type.Schema;
-import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
@@ -50,6 +46,7 @@ import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
@@ -95,52 +92,12 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 request.fieldMultiValueLeniency(), request.indexIncludeFrozen());
 
         if (Strings.hasText(request.cursor()) == false) {
-            Holder<Boolean> retrySecondTime = new Holder<Boolean>(false);
-            planExecutor.sql(cfg, request.query(), request.params(),
-                wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), e -> {
-                    // the search request will likely run on nodes with different versions of ES
-                    // we will retry on a node with an older version that should generate a backwards compatible _search request
-                    if (e instanceof SearchPhaseExecutionException
-                        && ((SearchPhaseExecutionException) e).getCause() instanceof VersionMismatchException) {
-
-                        SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
-                        if (log.isTraceEnabled()) {
-                            log.trace("Caught exception type [{}] with cause [{}].", e.getClass().getName(), e.getCause());
-                        }
-                        DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
-                        DiscoveryNode candidateNode = null;
-                        for (DiscoveryNode node : clusterService.state().nodes()) {
-                            // find the first node that's older than the current node
-                            if (node != localNode && node.getVersion().before(localNode.getVersion())) {
-                                candidateNode = node;
-                                break;
-                            }
-                        }
-                        if (candidateNode != null) {
-                            if (log.isTraceEnabled()) {
-                                log.trace("Candidate node to resend the request to: address [{}], id [{}], name [{}], version [{}]",
-                                    candidateNode.getAddress(), candidateNode.getId(), candidateNode.getName(), candidateNode.getVersion());
-                            }
-                            // re-send the request to the older node
-                            transportService.sendRequest(candidateNode, SqlQueryAction.NAME, request,
-                                new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME));
-                        } else {
-                            if (log.isTraceEnabled()) {
-                                log.trace("No candidate node found, likely all were upgraded in the meantime");
-                            }
-                            retrySecondTime.set(true);
-                        }
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }));
-            if (retrySecondTime.get()) {
-                if (log.isTraceEnabled()) {
-                    log.trace("No candidate node found, likely all were upgraded in the meantime. Re-trying the original request.");
-                }
-                planExecutor.sql(cfg, request.query(), request.params(),
-                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), listener::onFailure));
-            }
+            executeRequestWithRetryAttempt(clusterService, listener::onFailure,
+                onFailure -> planExecutor.sql(cfg, request.query(), request.params(),
+                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), onFailure)),
+                node -> transportService.sendRequest(node, SqlQueryAction.NAME, request,
+                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)),
+                log);
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
             planExecutor.nextPage(cfg, decoded.v1(),

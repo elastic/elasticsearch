@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -18,17 +17,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +34,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
+import static org.elasticsearch.xpack.ql.TestUtils.readResource;
 
 /**
  * Class testing the behavior of events and sequence queries in a mixed cluster scenario (during rolling upgrade).
@@ -63,7 +60,7 @@ public class EqlSearchIT extends ESRestTestCase {
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
         
-        String mappings = readResource("/eql_mapping.json");
+        String mappings = readResource(EqlSearchIT.class.getResourceAsStream("/eql_mapping.json"));
         createIndex(
             index,
             Settings.builder()
@@ -217,15 +214,9 @@ public class EqlSearchIT extends ESRestTestCase {
         sequence.put("join_keys", asList(44, "C", "D"));
         sequence.put("events", events);
 
-        final List<String> bulkEntries = getSequencesBulkEntries();
-        StringBuilder builder = new StringBuilder();
-        for (int i = 1; i < 16; i++) {
-            builder.append("{\"index\": {\"_id\":" + i + "}}\n");
-            builder.append(bulkEntries.get(i - 1));
-        }
-        
+        final String bulkEntries = readResource(EqlSearchIT.class.getResourceAsStream("/eql_data.json"));
         Request request = new Request("POST", index + "/_bulk?refresh");
-        request.setJsonEntity(builder.toString());
+        request.setJsonEntity(bulkEntries);
         assertOK(client().performRequest(request));
 
         return expectedResponse;
@@ -244,74 +235,5 @@ public class EqlSearchIT extends ESRestTestCase {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    private static String readResource(String location) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(EqlSearchIT.class.getResourceAsStream(location),
-            StandardCharsets.UTF_8)))
-        {
-            String line = reader.readLine();
-            while (line != null) {
-                if (line.trim().startsWith("//") == false) {
-                    builder.append(line);
-                    builder.append('\n');
-                }
-                line = reader.readLine();
-            }
-            return builder.toString();
-        }
-    }
-
-    private List<String> getSequencesBulkEntries() {
-        List<String> bulkEntries = new ArrayList<>(15);
-        bulkEntries.add("{\"@timestamp\":\"1234567891\",\"event_type\":\"success\",\"sequence\":1,\"correlation_success1\":\"A\","
-            + "\"correlation_success2\":\"B\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567892\",\"event_type\":\"failure\",\"sequence\":2,\"correlation_failure1\":\"A\","
-            + "\"correlation_failure2\":\"B\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567893\",\"event_type\":\"success\",\"sequence\":3,\"correlation_success1\":\"A\","
-            + "\"correlation_success2\":\"A\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567894\",\"event_type\":\"success\",\"sequence\":4,\"correlation_success1\":\"C\","
-            + "\"correlation_success2\":\"C\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567895\",\"event_type\":\"failure\",\"sequence\":5,\"correlation_failure1\":\"B\","
-            + "\"correlation_failure2\":\"C\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567896\",\"event_type\":\"success\",\"sequence\":1,\"correlation_success1\":\"A\","
-            + "\"correlation_success2\":\"A\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567897\",\"event_type\":\"failure\",\"sequence\":1,\"correlation_failure1\":\"A\","
-            + "\"correlation_failure2\":\"A\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567898\",\"event_type\":\"success\",\"sequence\":3,\"correlation_success1\":\"A\","
-            + "\"correlation_success2\":\"A\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"1234567899\",\"event_type\":\"success\",\"sequence\":4,\"correlation_success1\":\"C\","
-            + "\"correlation_success2\":\"B\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"12345678910\",\"event_type\":\"failure\",\"sequence\":4,\"correlation_failure1\":\"B\","
-            + "\"correlation_failure2\":\"B\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"12345678911\",\"event_type\":\"success\",\"sequence\":1,\"correlation_success1\":\"A\","
-            + "\"correlation_success2\":\"A\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"12345678912\",\"event_type\":\"failure\",\"sequence\":1,\"correlation_failure1\":\"A\","
-            + "\"correlation_failure2\":\"B\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"12345678913\",\"event_type\":\"success\",\"sequence\":3,\"correlation_success1\":\"A\","
-            + "\"correlation_success2\":\"A\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"12345678914\",\"event_type\":\"success\",\"sequence\":44,\"correlation_success1\":\"C\","
-            + "\"correlation_success2\":\"D\"}\n");
-        bulkEntries.add("{\"@timestamp\":\"12345678999\",\"event_type\":\"failure\",\"sequence\":44,\"correlation_failure1\":\"C\","
-            + "\"correlation_failure2\":\"D\"}\n");
-        return unmodifiableList(bulkEntries);
-    }
-
-    private static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
-        Response response = client.performRequest(new Request("GET", "_nodes"));
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        TestNodes nodes = new TestNodes();
-        for (String id : nodesAsMap.keySet()) {
-            nodes.add(
-                new TestNode(
-                    id,
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
-                    HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
-                )
-            );
-        }
-        return nodes;
     }
 }

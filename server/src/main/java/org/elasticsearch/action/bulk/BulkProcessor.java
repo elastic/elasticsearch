@@ -401,28 +401,28 @@ public class BulkProcessor implements Closeable {
         return this;
     }
 
-    // needs to be executed under a lock
     private Tuple<BulkRequest, Long> newBulkRequest() {
+        assert lock.isHeldByCurrentThread();
         final BulkRequest bulkRequest = this.bulkRequest;
         this.bulkRequest = bulkRequestSupplier.get();
         return new Tuple<>(bulkRequest, executionIdGen.incrementAndGet());
     }
 
-    // needs to be executed under a lock
     private Tuple<BulkRequest, Long> newBulkRequestIfNeeded() {
+        assert lock.isHeldByCurrentThread();
         if (isOverTheLimit() == false) {
             return null;
         }
         return newBulkRequest();
     }
 
-    // may be executed without a lock
     private void execute(BulkRequest bulkRequest, long executionId) {
+        assert lock.isHeldByCurrentThread() == false; // TRICKY
         this.bulkRequestHandler.execute(bulkRequest, executionId);
     }
 
-    // needs to be executed under a lock
     private boolean isOverTheLimit() {
+        assert lock.isHeldByCurrentThread();
         if (bulkActions != -1 && bulkRequest.numberOfActions() >= bulkActions) {
             return true;
         }

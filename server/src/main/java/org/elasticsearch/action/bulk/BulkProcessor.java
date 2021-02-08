@@ -300,6 +300,7 @@ public class BulkProcessor implements Closeable {
      * @throws InterruptedException If the current thread is interrupted
      */
     public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+        Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         lock.lock();
         try {
             if (closed) {
@@ -310,15 +311,20 @@ public class BulkProcessor implements Closeable {
             this.cancellableFlushTask.cancel();
 
             if (bulkRequest.numberOfActions() > 0) {
-                execute();
-            }
-            try {
-                return this.bulkRequestHandler.awaitClose(timeout, unit);
-            } finally {
-                onClose.run();
+                bulkRequestToExecute = newBulkRequest();
             }
         } finally {
             lock.unlock();
+        }
+
+        if (bulkRequestToExecute != null) {
+            execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+        }
+
+        try {
+            return this.bulkRequestHandler.awaitClose(timeout, unit);
+        } finally {
+            onClose.run();
         }
     }
 
@@ -367,7 +373,7 @@ public class BulkProcessor implements Closeable {
         } finally {
             lock.unlock();
         }
-        //execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
+
         if (bulkRequestToExecute != null) {
             execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
         }
@@ -416,15 +422,6 @@ public class BulkProcessor implements Closeable {
     }
 
     // needs to be executed under a lock
-    private void execute() {
-        final BulkRequest bulkRequest = this.bulkRequest;
-        final long executionId = executionIdGen.incrementAndGet();
-
-        this.bulkRequest = bulkRequestSupplier.get();
-        execute(bulkRequest, executionId);
-    }
-
-    // needs to be executed under a lock
     private boolean isOverTheLimit() {
         if (bulkActions != -1 && bulkRequest.numberOfActions() >= bulkActions) {
             return true;
@@ -436,6 +433,7 @@ public class BulkProcessor implements Closeable {
     }
 
     private void flush(boolean ensureOpen) {
+        Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         lock.lock();
         try {
             if (ensureOpen) {
@@ -447,9 +445,13 @@ public class BulkProcessor implements Closeable {
             if (bulkRequest.numberOfActions() == 0) {
                 return;
             }
-            execute();
+            bulkRequestToExecute = newBulkRequest();
         } finally {
             lock.unlock();
+        }
+
+        if (bulkRequestToExecute != null) {
+            execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
         }
     }
 

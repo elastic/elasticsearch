@@ -90,7 +90,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
 
         List<Term> terms = extendedCommonTermsQuery.getTerms();
-        if (!terms.isEmpty()) {
+        if (terms.isEmpty() == false) {
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             String actualFieldName = terms.iterator().next().field();
             assertThat(actualFieldName, equalTo(expectedFieldName));

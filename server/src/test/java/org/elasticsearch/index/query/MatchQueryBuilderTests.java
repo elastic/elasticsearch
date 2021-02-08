@@ -174,7 +174,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertTrue(queryBuilder.cutoffFrequency() != null);
             ExtendedCommonTermsQuery ectq = (ExtendedCommonTermsQuery) query;
             List<Term> terms = ectq.getTerms();
-            if (!terms.isEmpty()) {
+            if (terms.isEmpty() == false) {
                 Term term = terms.iterator().next();
                 String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
                 assertThat(term.field(), equalTo(expectedFieldName));

@@ -38,7 +38,7 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
     protected TokenStreamComponents createComponents(final String fieldName) {
         final Tokenizer src = new StandardTokenizer();
         TokenStream tok = new LowerCaseFilter(src);
-        if (!stopwords.isEmpty()) {
+        if (stopwords.isEmpty() == false) {
             tok = new StopFilter(tok, stopwords);
         }
         return new TokenStreamComponents(src, tok);

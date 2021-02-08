@@ -201,10 +201,10 @@ public class ElectMasterService {
 
     /** master nodes go before other nodes, with a secondary sort by id **/
      private static int compareNodes(DiscoveryNode o1, DiscoveryNode o2) {
-        if (o1.isMasterNode() && !o2.isMasterNode()) {
+        if (o1.isMasterNode() && o2.isMasterNode() == false) {
             return -1;
         }
-        if (!o1.isMasterNode() && o2.isMasterNode()) {
+        if (o1.isMasterNode() == false && o2.isMasterNode()) {
             return 1;
         }
         return o1.getId().compareTo(o2.getId());

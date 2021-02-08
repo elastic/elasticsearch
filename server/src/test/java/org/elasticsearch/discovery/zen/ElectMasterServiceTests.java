@@ -72,7 +72,7 @@ public class ElectMasterServiceTests extends ESTestCase {
         DiscoveryNode prevNode = sortedNodes.get(0);
         for (int i = 1; i < sortedNodes.size(); i++) {
             DiscoveryNode node = sortedNodes.get(i);
-            if (!prevNode.isMasterNode()) {
+            if (prevNode.isMasterNode() == false) {
                 assertFalse(node.isMasterNode());
             } else if (node.isMasterNode()) {
                 assertTrue(prevNode.getId().compareTo(node.getId()) < 0);

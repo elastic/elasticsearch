@@ -2202,7 +2202,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     } else if (primary.relocating() || primary.initializing()) {
                         shardSnapshotStatus = new ShardSnapshotStatus(
                             primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
-                    } else if (!primary.started()) {
+                    } else if (primary.started() == false) {
                         shardSnapshotStatus =
                             new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
                                 "primary shard hasn't been started yet", shardRepoGeneration);

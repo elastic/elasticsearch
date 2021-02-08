@@ -216,7 +216,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")).get(), value2Docs);
             assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)).get(), value1Docs);
         }
-        if (!indexToAllShards) {
+        if (indexToAllShards == false) {
             // we have to verify primaries are started for them to be restored
             logger.info("Ensure all primaries have been started");
             ensureYellow();

@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -24,7 +25,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexResetApiIT extends ESIntegTestCase {
 
@@ -53,7 +56,9 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
         refresh("my_index");
 
         // call the reset API
-        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
+        ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
+        assertThat(apiResponse.getItemList(), contains(
+            new ResetFeatureStateResponse.Item("SystemIndexTestPlugin", "SUCCESS")));
 
         // verify that both indices are gone
         Exception e1 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()

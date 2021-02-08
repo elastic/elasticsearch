@@ -81,11 +81,18 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         return Objects.hash(itemList);
     }
 
+    @Override
+    public String toString() {
+        return "ResetFeatureStateResponse{" +
+            "itemList=" + itemList +
+            '}';
+    }
+
     public static class Item implements Writeable, ToXContentObject {
         private String featureName;
         private String status;
 
-        Item(String featureName, String status) {
+        public Item(String featureName, String status) {
             this.featureName = featureName;
             this.status = status;
         }
@@ -129,6 +136,14 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         @Override
         public int hashCode() {
             return Objects.hash(featureName, status);
+        }
+
+        @Override
+        public String toString() {
+            return "Item{" +
+                "featureName='" + featureName + '\'' +
+                ", status='" + status + '\'' +
+                '}';
         }
     }
 }

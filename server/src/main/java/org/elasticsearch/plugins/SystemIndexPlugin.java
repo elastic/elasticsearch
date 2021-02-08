@@ -21,7 +21,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -71,7 +70,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
      */
     default void cleanUpFeature(
         ClusterService clusterService, Client client,
-        ActionListener<ResetFeatureStateResponse> listener) {
+        ActionListener<ResetFeatureStateResponse.Item> listener) {
 
         List<String> systemIndices = getSystemIndexDescriptors(clusterService.getSettings()).stream()
             .map(sid -> sid.getMatchingIndices(clusterService.state().getMetadata()))
@@ -88,12 +87,12 @@ public interface SystemIndexPlugin extends ActionPlugin {
         client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(new ResetFeatureStateResponse(new HashMap<>()));
+                listener.onResponse(new ResetFeatureStateResponse.Item(getFeatureName(), "SUCCESS"));
             }
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                listener.onResponse(new ResetFeatureStateResponse.Item(getFeatureName(), "FAILURE"));
             }
         });
     }

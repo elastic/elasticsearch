@@ -14,9 +14,14 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Collections;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Transport action for cleaning up feature index state.
@@ -48,8 +53,22 @@ public class TransportResetFeatureStateAction extends HandledTransportAction<Res
         ResetFeatureStateRequest request,
         ActionListener<ResetFeatureStateResponse> listener) {
 
+        final int features = systemIndices.getFeatures().size();
+        final CountDown completionCounter = new CountDown(features - 1);
+        final SortedMap<String, String> responses = Collections.synchronizedSortedMap(new TreeMap<>());
+        final Runnable terminalHandler = () -> {
+            if (completionCounter.countDown()) {
+                listener.onResponse(new ResetFeatureStateResponse(responses));
+            }
+        };
+
         for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
-            feature.getCleanUpFunction().apply(clusterService, client, listener);
+            feature.getCleanUpFunction().apply(clusterService, client, ActionListener.wrap(
+                response -> {
+                    responses.put(response.getFeatureName(), response.getStatus());
+                    terminalHandler.run();
+                }, failure -> { terminalHandler.run(); }
+            ));
         }
     }
 }

@@ -207,13 +207,13 @@ public class SystemIndices {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<String> associatedIndexPatterns;
-        private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction;
+        private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse.Item>> cleanUpFunction;
 
         public Feature(
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<String> associatedIndexPatterns,
-            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> cleanUpFunction) {
+            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse.Item>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.associatedIndexPatterns = associatedIndexPatterns;
@@ -236,7 +236,7 @@ public class SystemIndices {
             return associatedIndexPatterns;
         }
 
-        public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse>> getCleanUpFunction() {
+        public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse.Item>> getCleanUpFunction() {
             return cleanUpFunction;
         }
     }

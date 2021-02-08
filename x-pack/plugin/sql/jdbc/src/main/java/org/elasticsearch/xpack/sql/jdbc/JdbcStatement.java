@@ -397,7 +397,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     }
 
     final void resultSetWasClosed() throws SQLException {
-        if (closeOnCompletion && !ignoreResultSetClose) {
+        if (closeOnCompletion && ignoreResultSetClose == false) {
             close();
         }
     }

@@ -168,7 +168,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
                 if (internalQueryContext != null) {
                     for (ContextMapping.InternalQueryContext context : internalQueryContext) {
                         scratch.append(context.context);
-                        typedContextQuery.addContext(scratch.toCharsRef(), context.boost, !context.isPrefix);
+                        typedContextQuery.addContext(scratch.toCharsRef(), context.boost, context.isPrefix == false);
                         scratch.setLength(1);
                         hasContext = true;
                     }

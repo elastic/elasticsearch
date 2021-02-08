@@ -48,7 +48,7 @@ final class TermVectorsWriter {
         boolean hasScores = termVectorsFilter != null;
 
         for (String field : termVectorsByField) {
-            if ((selectedFields != null) && (!selectedFields.contains(field))) {
+            if (selectedFields != null && selectedFields.contains(field) == false) {
                 continue;
             }
 
@@ -85,7 +85,7 @@ final class TermVectorsWriter {
                 Term term = new Term(field, termBytesRef);
 
                 // with filtering we only keep the best terms
-                if (hasScores && !termVectorsFilter.hasScoreTerm(term)) {
+                if (hasScores && termVectorsFilter.hasScoreTerm(term) == false) {
                     continue;
                 }
 

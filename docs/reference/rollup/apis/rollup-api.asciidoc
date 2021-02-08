@@ -134,8 +134,8 @@ Groups and stores <<number,numeric>> field values based on a provided interval.
 <<number,Numeric>> fields to group. If you specify a `histogram` object, this
 property is required.
 +
-WARNING: If you specify the same field in both `histogram` and `metrics`, the
-rollup attempt will fail.
+WARNING: Do not use the same fields in `histogram` and `metrics`. If you specify
+the same field in both `histogram` and `metrics`, the rollup attempt will fail.
 
 `interval`::
 (Required*, integer)
@@ -173,8 +173,8 @@ least one `metrics` object.
 (Required, string)
 <<number,Numeric>> field to collect metrics for.
 +
-WARNING: If you specify the same field in both `histogram` and `metrics`, the
-rollup attempt will fail.
+WARNING: Do not use the same fields in `histogram` and `metrics`. If you specify
+the same field in both `histogram` and `metrics`, the rollup attempt will fail.
 
 `metrics`::
 (Required, string or array of strings)

@@ -20,9 +20,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -37,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -58,12 +57,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
@@ -357,15 +354,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final Semaphore innerFailures = new Semaphore(5); // limit the number of suppressed failures
         private final int workerCount;
-        private final GroupedActionListener<Void> workersListener;
+        private final CountDown workerCountdown;
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
         private final List<BlobAnalyzeAction.Response> responses;
         private final RepositoryPerformanceSummary.Builder summary = new RepositoryPerformanceSummary.Builder();
-
-        @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-        private OptionalLong listingStartTimeNanos = OptionalLong.empty();
-        @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-        private OptionalLong deleteStartTimeNanos = OptionalLong.empty();
 
         public AsyncAction(
             TransportService transportService,
@@ -386,21 +378,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             this.listener = listener;
 
             this.workerCount = request.getConcurrency();
-            this.workersListener = new GroupedActionListener<>(
-                new ThreadedActionListener<>(logger, transportService.getThreadPool(), ThreadPool.Names.SNAPSHOT, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Collection<Void> voids) {
-                        onWorkerCompletion();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : e; // workers should not fail
-                        onWorkerCompletion();
-                    }
-                }, false),
-                workerCount
-            );
+            this.workerCountdown = new CountDown(workerCount);
 
             responses = new ArrayList<>(request.blobCount);
         }
@@ -451,7 +429,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         public void run() {
-            assert queue.isEmpty() && failure.get() == null : "must only run action once";
+            assert queue.isEmpty() : "must only run action once";
+            assert failure.get() == null : "must only run action once";
+            assert workerCountdown.isCountedDown() == false : "must only run action once";
 
             logger.info("running analysis of repository [{}] using path [{}]", request.getRepositoryName(), blobPath);
 
@@ -490,7 +470,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private void processNextTask() {
             final VerifyBlobTask thisTask = queue.poll();
             if (isRunning() == false || thisTask == null) {
-                workersListener.onResponse(null);
+                onWorkerCompletion();
             } else {
                 logger.trace("processing [{}]", thisTask);
                 // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
@@ -522,7 +502,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         public void handleException(TransportException exp) {
                             logger.debug(new ParameterizedMessage("failed [{}]", thisTask), exp);
                             fail(exp);
-                            workersListener.onResponse(null);
+                            onWorkerCompletion();
                         }
 
                         @Override
@@ -540,108 +520,80 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         private void onWorkerCompletion() {
-            tryListAndCleanup(0);
+            if (workerCountdown.countDown()) {
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                    final long listingStartTimeNanos = System.nanoTime();
+                    ensureConsistentListing();
+                    final long deleteStartTimeNanos = System.nanoTime();
+                    deleteContainer();
+                    sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
+                });
+            }
         }
 
-        private void tryListAndCleanup(final int retryCount) {
-            // TODO no need for retries any more now that S3 has consistent listings
+        private void ensureConsistentListing() {
             if (timeoutTimeMillis < currentTimeMillisSupplier.getAsLong() || task.isCancelled()) {
                 logger.warn(
-                    "analysis of repository [{}] failed in cleanup phase after [{}] attempts, attempting best-effort cleanup "
+                    "analysis of repository [{}] failed before cleanup phase, attempting best-effort cleanup "
                         + "but you may need to manually remove [{}]",
                     request.getRepositoryName(),
-                    retryCount,
                     blobPath
                 );
                 isRunning(); // set failure if not already set
-                deleteContainerAndSendResponse();
             } else {
-                boolean retry = true;
+                logger.trace(
+                    "all tasks completed, checking expected blobs exist in [{}:{}] before cleanup",
+                    request.repositoryName,
+                    blobPath
+                );
                 try {
-                    if (listingStartTimeNanos.isEmpty()) {
-                        assert retryCount == 0 : retryCount;
-                        logger.trace(
-                            "all tasks completed, checking expected blobs exist in [{}:{}] before cleanup",
-                            request.repositoryName,
-                            blobPath
-                        );
-                        listingStartTimeNanos = OptionalLong.of(System.nanoTime());
-                    } else {
-                        logger.trace(
-                            "retrying check that expected blobs exist in [{}:{}] before cleanup, retry count = {}",
-                            request.repositoryName,
-                            blobPath,
-                            retryCount
-                        );
-                    }
                     final BlobContainer blobContainer = getBlobContainer();
-                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs();
-
                     final Set<String> missingBlobs = new HashSet<>(expectedBlobs);
+                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs();
                     missingBlobs.removeAll(blobsMap.keySet());
+
                     if (missingBlobs.isEmpty()) {
-                        logger.trace(
-                            "all expected blobs found after {} failed attempts, cleaning up [{}:{}]",
-                            retryCount,
-                            request.getRepositoryName(),
-                            blobPath
-                        );
-                        retry = false;
-                        deleteContainerAndSendResponse();
+                        logger.trace("all expected blobs found, cleaning up [{}:{}]", request.getRepositoryName(), blobPath);
                     } else {
-                        // TODO do we need this retry mechanism any more? S3 used not to have consistent listings but it might be ok now.
-                        logger.debug(
-                            "expected blobs [{}] missing in [{}:{}], trying again; retry count = {}",
+                        final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                             request.repositoryName,
-                            blobPath,
-                            missingBlobs,
-                            retryCount
+                            "expected blobs " + missingBlobs + " missing in [" + request.repositoryName + ":" + blobPath + "]"
                         );
+                        logger.debug("failing due to missing blobs", repositoryVerificationException);
+                        fail(repositoryVerificationException);
                     }
                 } catch (Exception e) {
-                    assert retry;
-                    logger.debug(
-                        new ParameterizedMessage(
-                            "failure during cleanup of [{}:{}], will retry; retry count = {}",
-                            request.getRepositoryName(),
-                            blobPath,
-                            retryCount
-                        ),
-                        e
-                    );
+                    logger.debug(new ParameterizedMessage("failure during cleanup of [{}:{}]", request.getRepositoryName(), blobPath), e);
                     fail(e);
-                } finally {
-                    if (retry) {
-                        // Either there were missing blobs, or else listing the blobs failed.
-                        transportService.getThreadPool()
-                            .scheduleUnlessShuttingDown(
-                                TimeValue.timeValueSeconds(10),
-                                ThreadPool.Names.SNAPSHOT,
-                                () -> tryListAndCleanup(retryCount + 1)
-                            );
-                    }
                 }
             }
         }
 
-        private void deleteContainerAndSendResponse() {
+        private void deleteContainer() {
             try {
-                assert deleteStartTimeNanos.isEmpty() : deleteStartTimeNanos;
-                deleteStartTimeNanos = OptionalLong.of(System.nanoTime());
                 getBlobContainer().delete();
-                // TODO can we check that the delete actually succeeded here?
+                final BlobContainer blobContainer = getBlobContainer();
+                blobContainer.delete();
+                if (failure.get() != null) {
+                    return;
+                }
+                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs();
+                if (blobsMap.isEmpty() == false) {
+                    final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
+                        request.repositoryName,
+                        "failed to clean up blobs " + blobsMap.keySet()
+                    );
+                    logger.debug("failing due to leftover blobs", repositoryVerificationException);
+                    fail(repositoryVerificationException);
+                }
             } catch (Exception e) {
                 fail(e);
-            } finally {
-                sendResponse();
             }
         }
 
-        private void sendResponse() {
+        private void sendResponse(final long listingStartTimeNanos, final long deleteStartTimeNanos) {
             final Exception exception = failure.get();
             if (exception == null) {
-                assert listingStartTimeNanos.isPresent();
-                assert deleteStartTimeNanos.isPresent();
                 final long completionTimeNanos = System.nanoTime();
 
                 logger.trace("[{}] completed successfully", request.getDescription());
@@ -662,8 +614,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         blobPath,
                         summary.build(),
                         responses,
-                        deleteStartTimeNanos.getAsLong() - listingStartTimeNanos.getAsLong(),
-                        completionTimeNanos - deleteStartTimeNanos.getAsLong()
+                        deleteStartTimeNanos - listingStartTimeNanos,
+                        completionTimeNanos - deleteStartTimeNanos
                     )
                 );
             } else {

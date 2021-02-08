@@ -34,9 +34,8 @@ public class ReplaceMatchTests extends GradleUnitTestCase {
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
-    private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-    private static final boolean humanDebug = true; // useful for humans trying to debug these tests
+    private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
     @Test
     public void testReplaceAll() throws Exception {

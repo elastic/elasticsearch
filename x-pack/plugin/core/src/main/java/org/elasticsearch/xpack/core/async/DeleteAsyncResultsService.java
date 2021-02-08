@@ -47,19 +47,19 @@ public class DeleteAsyncResultsService {
 
     public void deleteResponse(DeleteAsyncResultRequest request,
                              ActionListener<AcknowledgedResponse> listener) {
-        hasManagePrivilegeAsync(resp -> deleteResponseAsync(request, resp, listener));
+        hasCancelTasksPrivilegeAsync(resp -> deleteResponseAsync(request, resp, listener));
     }
 
     /**
-     * Checks if the authenticated user has the right privilege (manage) to
+     * Checks if the authenticated user has the right privilege (cancel_tasks) to
      * delete async search submitted by another user.
      */
-    private void hasManagePrivilegeAsync(Consumer<Boolean> consumer) {
+    private void hasCancelTasksPrivilegeAsync(Consumer<Boolean> consumer) {
         final Authentication current = store.getAuthentication();
         if (current != null) {
             HasPrivilegesRequest req = new HasPrivilegesRequest();
             req.username(current.getUser().principal());
-            req.clusterPrivileges(ClusterPrivilegeResolver.MANAGE.name());
+            req.clusterPrivileges(ClusterPrivilegeResolver.CANCEL_TASKS.name());
             req.indexPrivileges(new RoleDescriptor.IndicesPrivileges[]{});
             req.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[]{});
             try {
@@ -75,17 +75,17 @@ public class DeleteAsyncResultsService {
     }
 
     private void deleteResponseAsync(DeleteAsyncResultRequest request,
-                                     boolean hasManagePrivilege,
+                                     boolean hasCancelTasksPrivilege,
                                      ActionListener<AcknowledgedResponse> listener) {
         try {
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
-            AsyncTask task = hasManagePrivilege ? store.getTask(taskManager, searchId, AsyncTask.class) :
+            AsyncTask task = hasCancelTasksPrivilege ? store.getTask(taskManager, searchId, AsyncTask.class) :
                 store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncTask.class);
             if (task != null) {
                 //the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.
                 task.cancelTask(taskManager, () -> deleteResponseFromIndex(searchId, true, listener), "cancelled by user");
             } else {
-                if (hasManagePrivilege) {
+                if (hasCancelTasksPrivilege) {
                     deleteResponseFromIndex(searchId, false, listener);
                 } else {
                     store.ensureAuthenticatedUserCanDeleteFromIndex(searchId,

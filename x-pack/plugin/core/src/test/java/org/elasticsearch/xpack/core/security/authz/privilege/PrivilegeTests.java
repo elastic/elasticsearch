@@ -281,4 +281,9 @@ public class PrivilegeTests extends ESTestCase {
 
         }
     }
+
+    public void testCancelTasksPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASKS, "cluster:admin/cancel/task");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.CANCEL_TASKS, "cluster:admin/whatever");
+    }
 }

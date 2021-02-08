@@ -40,14 +40,14 @@ public abstract class AdaptingAggregator extends Aggregator {
          * agg tree. Thisis how it has always been and some aggs rely on it.
          */
         this.delegate = delegate.apply(subAggregators.fixParent(this));
-        assert this.delegate.parent() == parent : "invalid parent set on delegate";
+        assert this.delegate == null || this.delegate.parent() == parent : "invalid parent set on delegate";
     }
 
     /**
      * Adapt the result from the collecting {@linkplain Aggregator} into the
      * result expected by this {@linkplain Aggregator}.
      */
-    protected abstract InternalAggregation adapt(InternalAggregation delegateResult);
+    protected abstract InternalAggregation adapt(InternalAggregation delegateResult) throws IOException;
 
     @Override
     public final void close() {
@@ -96,7 +96,12 @@ public abstract class AdaptingAggregator extends Aggregator {
 
     @Override
     public final InternalAggregation buildEmptyAggregation() {
-        return adapt(delegate.buildEmptyAggregation());
+        try {
+            return adapt(delegate.buildEmptyAggregation());
+        } catch (IOException e) {
+            // We don't expect this to happen, but computers are funny.
+            throw new AggregationExecutionException("io error while building empty agg", e);
+        }
     }
 
     @Override

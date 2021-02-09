@@ -1171,7 +1171,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             randomBoolean());
 
         String[] snapshotName = new String[1];
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + this.index;
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(client(), index);

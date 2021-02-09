@@ -79,6 +79,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
         newCustomData.setSnapshotName(snapshotName);
         newCustomData.setSnapshotRepository(snapshotRepository);
+        newCustomData.setSnapshotIndexName(index.getName());
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetaData);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());

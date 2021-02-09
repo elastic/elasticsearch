@@ -120,6 +120,22 @@ the original index. The restore of a backup will fail to restore any
 {search-snap} indices whose original index snapshot is unavailable.
 
 [discrete]
+[[searchable-snapshots-reliability]]
+=== Reliability of {search-snaps}
+
+The sole copy of the data in a {search-snap} index is the underlying snapshot,
+stored in the repository. If the repository fails or corrupts the contents of
+the snapshot then the data is lost. Although {es} may have made copies of the
+data onto local storage, these copies may be incomplete and cannot be used to
+recover any data after a repository failure. You must make sure that your
+repository is reliable and protects against corruption of your data while it is
+at rest in the repository.
+
+The blob storage offered by all major public cloud providers typically offers
+very good protection against data loss or corruption. If you manage your own
+repository storage then you are responsible for its reliability.
+
+[discrete]
 [[searchable-snapshots-shared-cache]]
 === Shared snapshot cache
 

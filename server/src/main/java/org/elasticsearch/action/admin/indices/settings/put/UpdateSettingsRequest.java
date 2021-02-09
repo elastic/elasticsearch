@@ -51,7 +51,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             origin = in.readString();
         }
     }

@@ -182,7 +182,7 @@ public class ContextGeneratorCommon {
                 .collect(Collectors.toList());
         }
 
-        public PainlessInfos(List<PainlessContextInfo> contextInfos, StdlibJavadocExtractor extractor) throws IOException {
+        public PainlessInfos(List<PainlessContextInfo> contextInfos, JavadocExtractor extractor) throws IOException {
             javaNamesToDisplayNames = getDisplayNames(contextInfos);
 
             javaNamesToJavadoc = new HashMap<>();

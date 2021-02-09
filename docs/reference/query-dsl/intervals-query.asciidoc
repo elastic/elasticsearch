@@ -18,7 +18,7 @@ parent sources.
 ==== Example request
 
 The following `intervals` search returns documents containing `my
-favorite food` immediately followed by `hot water` or `cold porridge` in the
+favorite food` without any gap, followed by `hot water` or `cold porridge` in the
 `my_text` field.
 
 This search would match a `my_text` value of `my favorite food is cold

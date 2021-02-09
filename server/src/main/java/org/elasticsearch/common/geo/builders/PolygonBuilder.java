@@ -557,7 +557,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             final int pos;
             boolean sharedVertex = false;
             if (((pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0)
-                && !(sharedVertex = (edges[pos].intersect.compareTo(current.coordinate) == 0))) {
+                && (sharedVertex = (edges[pos].intersect.compareTo(current.coordinate) == 0)) == false) {
                 // The binary search returned an exact match, but we checked again using compareTo()
                 // and it didn't match after all.
 
@@ -626,8 +626,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             //    ShapeBuilder.intersection that computes dateline edges as valid intersect points
             //    in support of OGC standards
             if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE
-                    && !(e1.next.next.coordinate.equals3D(e2.coordinate) && Math.abs(e1.next.coordinate.x) == DATELINE
-                    && Math.abs(e2.coordinate.x) == DATELINE) ) {
+                && (e1.next.next.coordinate.equals3D(e2.coordinate) && Math.abs(e1.next.coordinate.x) == DATELINE
+                    && Math.abs(e2.coordinate.x) == DATELINE) == false ) {
                 connect(e1, e2);
             }
         }
@@ -729,7 +729,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             }
             // correct the orientation post translation (ccw for shell, cw for holes)
             if (component == 0 || (component != 0 && handedness == orientation)) {
-                orientation = !orientation;
+                orientation = orientation == false;
             }
         }
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
@@ -763,7 +763,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             if (direction) {
                 edges[edgeOffset + i] = new Edge(points[pointOffset + i], edges[edgeOffset + i - 1]);
                 edges[edgeOffset + i].component = component;
-            } else if(!edges[edgeOffset + i - 1].coordinate.equals(points[pointOffset + i])) {
+            } else if (edges[edgeOffset + i - 1].coordinate.equals(points[pointOffset + i]) == false) {
                 edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(points[pointOffset + i], null);
                 edges[edgeOffset + i - 1].component = component;
             } else {

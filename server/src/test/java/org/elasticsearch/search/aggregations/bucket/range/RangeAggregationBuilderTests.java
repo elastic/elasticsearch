@@ -79,7 +79,7 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
                 name += randomAlphaOfLength(1);
                 break;
             case 1:
-                keyed = !keyed;
+                keyed = keyed == false;
                 break;
             case 2:
                 field += randomAlphaOfLength(1);

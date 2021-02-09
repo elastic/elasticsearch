@@ -10,12 +10,12 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -138,7 +138,7 @@ public class CacheFile {
         this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener);
     }
 
-    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, ModificationListener listener) {
+    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<ByteRange> ranges, ModificationListener listener) {
         this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener);
     }
 
@@ -170,7 +170,7 @@ public class CacheFile {
     }
 
     // Only used in tests
-    SortedSet<Tuple<Long, Long>> getCompletedRanges() {
+    SortedSet<ByteRange> getCompletedRanges() {
         return tracker.getCompletedRanges();
     }
 
@@ -343,8 +343,8 @@ public class CacheFile {
      * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed.
      */
     Future<Integer> populateAndRead(
-        final Tuple<Long, Long> rangeToWrite,
-        final Tuple<Long, Long> rangeToRead,
+        final ByteRange rangeToWrite,
+        final ByteRange rangeToRead,
         final RangeAvailableHandler reader,
         final RangeMissingHandler writer,
         final Executor executor
@@ -401,7 +401,7 @@ public class CacheFile {
      *         target range is neither available nor pending.
      */
     @Nullable
-    Future<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
+    Future<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
         final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
         Releasable decrementRef = null;
         try {
@@ -429,7 +429,7 @@ public class CacheFile {
     }
 
     private static ActionListener<Void> rangeListener(
-        Tuple<Long, Long> rangeToRead,
+        ByteRange rangeToRead,
         RangeAvailableHandler reader,
         PlainActionFuture<Integer> future,
         FileChannelReference reference,
@@ -437,12 +437,12 @@ public class CacheFile {
     ) {
         return ActionListener.runAfter(ActionListener.wrap(success -> {
             final int read = reader.onRangeAvailable(reference.fileChannel);
-            assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
+            assert read == rangeToRead.length() : "partial read ["
                 + read
                 + "] does not match the range to read ["
-                + rangeToRead.v2()
+                + rangeToRead.end()
                 + '-'
-                + rangeToRead.v1()
+                + rangeToRead.start()
                 + ']';
             future.onResponse(read);
         }, future::onFailure), releasable::close);
@@ -466,9 +466,9 @@ public class CacheFile {
         return reference;
     }
 
-    public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
+    public ByteRange getAbsentRangeWithin(ByteRange range) {
         ensureOpen();
-        return tracker.getAbsentRangeWithin(start, end);
+        return tracker.getAbsentRangeWithin(range);
     }
 
     // used in tests
@@ -497,7 +497,7 @@ public class CacheFile {
      * @throws IOException                       if the cache file failed to be fsync
      * @throws java.nio.file.NoSuchFileException if the cache file does not exist
      */
-    public SortedSet<Tuple<Long, Long>> fsync() throws IOException {
+    public SortedSet<ByteRange> fsync() throws IOException {
         if (refCounter.tryIncRef()) {
             try {
                 if (needsFsync.compareAndSet(true, false)) {
@@ -506,7 +506,7 @@ public class CacheFile {
                         // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
                         // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
                         // fsync is effectively executed
-                        final SortedSet<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
+                        final SortedSet<ByteRange> completedRanges = tracker.getCompletedRanges();
                         assert completedRanges != null;
                         assert completedRanges.isEmpty() == false;
 

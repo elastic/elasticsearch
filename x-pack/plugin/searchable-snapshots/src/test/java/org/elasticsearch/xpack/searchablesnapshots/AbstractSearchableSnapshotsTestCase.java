@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +38,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
@@ -284,7 +284,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                         final CacheFile.EvictionListener listener = evictedCacheFile -> {};
                         cacheFile.acquire(listener);
                         try {
-                            SortedSet<Tuple<Long, Long>> ranges = Collections.emptySortedSet();
+                            SortedSet<ByteRange> ranges = Collections.emptySortedSet();
                             while (ranges.isEmpty()) {
                                 ranges = randomPopulateAndReads(cacheFile, (channel, from, to) -> {
                                     try {

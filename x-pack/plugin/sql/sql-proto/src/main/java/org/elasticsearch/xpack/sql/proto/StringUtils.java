@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
@@ -169,27 +170,19 @@ public final class StringUtils {
 
         // multivalue
         if (value instanceof Collection) {
-            final StringBuilder sb = new StringBuilder();
-            sb.append('[');
+            final StringJoiner sj = new StringJoiner(",", "[", "]");
             Collection<?> values = (Collection<?>) value;
             values.forEach(x -> {
                 // quote strings and `\`-escape the `"` character inside them
                 if (x instanceof String) { // TODO: IPs should ideally not be quoted.
-                    sb.append('"');
-                    sb.append(((String) x).replace("\"", "\\\""));
-                    sb.append('"');
+                    sj.add('"' + ((String) x).replace("\"", "\\\"") + '"');
                 } else if (x == null) {
-                    sb.append("NULL");
+                    sj.add("NULL");
                 } else {
-                    sb.append(toString(x, sqlVersion));
+                    sj.add(toString(x, sqlVersion));
                 }
-                sb.append(',');
             });
-            if (sb.length() > 1) { // strip trailing comma
-                sb.deleteCharAt(sb.length() - 1);
-            }
-            sb.append(']');
-            return sb.toString();
+            return sj.toString();
         }
 
         return Objects.toString(value);

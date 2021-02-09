@@ -223,14 +223,14 @@ public class TextFormatTests extends ESTestCase {
 
     public void testCsvMultiValueIntegers() {
         String text = CSV.format(req(), withData(singletonList(asList(
-            asList((byte)1, (byte)2), asList((short)3, (short)4), asList(5, 6), asList(7L, 8L)
+            asList((byte) 1, (byte) 2), asList((short) 3, (short) 4), asList(5, 6), asList(7L, 8L)
         ))));
         assertEquals("byte_column,short_column,integer_column,long_column\r\n\"[1,2]\",\"[3,4]\",\"[5,6]\",\"[7,8]\"\r\n", text);
     }
 
     public void testTsvMultiValueIntegers() {
         String text = TSV.format(req(), withData(singletonList(asList(
-            asList((byte)1, (byte)2), asList((short)3, (short)4), asList(5, 6), asList(7L, 8L)
+            asList((byte) 1, (byte) 2), asList((short) 3, (short) 4), asList(5, 6), asList(7L, 8L)
         ))));
         assertEquals("byte_column\tshort_column\tinteger_column\tlong_column\n[1,2]\t[3,4]\t[5,6]\t[7,8]\n", text);
     }

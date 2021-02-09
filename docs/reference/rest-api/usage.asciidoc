@@ -39,6 +39,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ------------------------------------------------------------
 GET /_xpack/usage
 ------------------------------------------------------------
+// TEST[s/usage/usage?filter_path=-watcher.execution.actions.logging*/]
+// This response filter removes watcher logging results if they are included
+// to avoid errors in the CI builds.
 
 [source,console-result]
 ------------------------------------------------------------
@@ -68,10 +71,6 @@ GET /_xpack/usage
       "enabled" : true,
       "execution" : {
         "actions" : {
-          "logging" : {
-            "total" : 0,
-            "total_time_in_ms" : 0
-          },
           "_all" : {
             "total" : 0,
             "total_time_in_ms" : 0
@@ -373,7 +372,6 @@ GET /_xpack/usage
   }
 }
 ------------------------------------------------------------
-// TESTRESPONSE[skip:Awaits fix https://github.com/elastic/elasticsearch/issues/68101]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
@@ -382,7 +380,7 @@ GET /_xpack/usage
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
-// TESTRESPONSE[s/"total" : 0/"total" : $body.watcher.execution.actions.logging.total/]
+
 // These replacements do a few things:
 // 1. Ignore the contents of the `policy_stats` object because we don't know all
 //    of the policies that will be in it. And because we figure folks don't need

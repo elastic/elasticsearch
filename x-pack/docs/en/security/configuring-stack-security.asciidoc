@@ -1,5 +1,79 @@
-[[configuring-security]]
+[[configuring-stack-security]]
 == Configuring security for the Elastic Stack
 ++++
 <titleabbrev>Configuring security</titleabbrev>
 ++++
+Set up security for the Elastic Stack based on your security needs.
+
+[discrete]
+[[stack-security-overview]]
+=== Overview
+
+Security needs vary depending on whether you're developing locally on your
+laptop or securing all communications in a production environment. Because
+security needs vary, the following scenarios provide different paths for
+configuring the Elastic Stack. Each subsequent scenario builds on the previous
+one so that you can add additional security by building on the existing layer.
+
+These scenarios don't cover every situation, but provide a framework for
+securing {es} and the Elastic Stack based on typical use cases.
+
+[discrete]
+[[security-minimal-overview]]
+==== Minimal security
+
+If you want to set up {es} on your laptop and start developing, this
+scenario is for you. This configuration implements usernames and passwords for
+built-in users to cover the minimal security requirements for running a local
+{es} cluster.
+
+WARNING: Do not deploy this security configuration in production environments.
+All communications are sent as plain text, which is unsafe for production
+environments.
+
+[discrete]
+[[security-basic-overview]]
+==== Basic security
+
+This scenario covers how to configure basic security to prevent unauthorized
+access to your {es} cluster. You'll build on the minimal security
+requirements by adding Transport Layer Security (TLS) for communication
+between nodes. Your external HTTP traffic in and out of the cluster won't be
+encrypted, but internode communication will be secured.
+
+[discrete]
+[[security-basic-https-overview]]
+==== Basic security plus secured HTTPS traffic
+
+This scenario builds on the one for basic security and secures all HTTP
+traffic with TLS. In addition to configuring TLS on the transport interface of
+your {es} cluster, you configure TLS on the HTTP interface for both
+{es} and Kibana. TLS on the transport interface is mutual in this
+configuration, but TLS on the HTTP layer is unidirectional.
+
+NOTE: If you need mutual (bidirectional) TLS on the HTTP layer, then you'll
+need to configure <<security-mutual-tls-overview,mutual authenticated encryption>>.
+
+You then configure Kibana, Logstash, and Beats to communicate with
+{es} using TLS so that all communications are encrypted. This level
+of security is strong, and ensures that any communications in and out of your
+cluster are secure.
+
+[discrete]
+[[security-mutual-tls-overview]]
+==== Mutual authenticated encryption
+
+This scenario provides the greatest levels of security. After configuring TLS
+and securing HTTP traffic, you'll configure connections from Kibana, Logstash,
+and Beats with TLS. You'll be running TLS everywhere like in the previous
+scenario, and gain additional security by configuring {es} to require
+client certificates from incoming connections for client authentication.
+
+Additionally, you'll configure connections from Beats to Logstash over TLS
+with client certificates.
+
+[discrete]
+=== Set up minimal security for {es}
+
+include::reference/files.asciidoc[]
+include::fips-140-compliance.asciidoc[]

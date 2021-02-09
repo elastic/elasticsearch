@@ -78,7 +78,7 @@ information, see <<enable-audit-logging>>.
 
 --
 
-include::configuring-es.asciidoc[]
+include::configuring-stack-security.asciidoc[]
 
 include::authentication/index.asciidoc[]
 

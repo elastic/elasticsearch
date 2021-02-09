@@ -202,9 +202,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         BranchingStep skipGeneratingSnapshotStep =
             new BranchingStep(skipGeneratingSnapshotKey, keyForSnapshotGeneration, mountSnapshotKey, (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                if (indexMetadata == null) {
-                    return false;
-                }
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
                 if (lifecycleExecutionState.getSnapshotName() == null) {

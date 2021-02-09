@@ -20,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -256,8 +257,9 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public Object formatObject(Object in) {
-            assert in instanceof Number;
-            return format(((Number) in).longValue());
+            assert in instanceof JodaCompatibleZonedDateTime;
+            JodaCompatibleZonedDateTime dt = (JodaCompatibleZonedDateTime) in;
+            return formatter.format(dt.toInstant().atZone(timeZone));
         }
 
         @Override

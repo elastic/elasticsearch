@@ -120,9 +120,9 @@ public class NumberFieldMapper extends FieldMapper {
             "script",
             false,
             () -> null,
-            (n, c, o) -> new ScriptParameter(Script.parse(o), c.scriptService()),
+            (n, c, o) -> o == null ? null : new ScriptParameter(Script.parse(o), c.scriptService()),
             m -> toType(m).builder.script.get()
-        );
+        ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -1159,7 +1159,9 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public void doPostParse(ParseContext context, IndexTimeScriptParams params) {
-        script.execute(params, v -> indexValue(context, v));
+        if (script != null) {
+            script.execute(params, v -> indexValue(context, v));
+        }
     }
 
     public static final ScriptContext<ScriptFactory> SCRIPT_CONTEXT = new ScriptContext<>(

@@ -63,8 +63,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
         // A further get() call with a matching key re-uses the cached value
         final PlainActionFuture<Integer> future2 = new PlainActionFuture<>();
-        final AtomicBoolean future2Cancelled = new AtomicBoolean();
-        testCache.get("foo", future2Cancelled::get, future2);
+        testCache.get("foo", () -> false, future2);
         testCache.assertNoPendingRefreshes();
         assertThat(future2.actionGet(0L), sameInstance(future1.actionGet(0L)));
 
@@ -169,7 +168,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                 final String input = randomFrom("FAIL", "foo", "barbaz", "quux", "gruly");
                 queue.offer(() -> {
                     try {
-                        startLatch.await(10, TimeUnit.SECONDS);
+                        assertTrue(startLatch.await(10, TimeUnit.SECONDS));
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     }
@@ -207,7 +206,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             }
 
             startLatch.countDown();
-            finishLatch.await(10, TimeUnit.SECONDS);
+            assertTrue(finishLatch.await(10, TimeUnit.SECONDS));
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

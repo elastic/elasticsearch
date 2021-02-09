@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.util.function.Supplier;
+
 /**
  * Parameterized handler used during query translation.
  *
@@ -21,11 +23,9 @@ public interface TranslatorHandler {
 
     Query asQuery(Expression e);
 
-    Query wrapFunctionQuery(ScalarFunction sf, Expression field, Query q);
+    Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier);
 
     String nameOf(Expression e);
-
-    String dateFormat(Expression e);
 
     Object convert(Object value, DataType dataType);
 }

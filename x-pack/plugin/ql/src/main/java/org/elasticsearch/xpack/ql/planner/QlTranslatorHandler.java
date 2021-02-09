@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
+import java.util.function.Supplier;
+
 public class QlTranslatorHandler implements TranslatorHandler {
 
     @Override
@@ -24,9 +26,9 @@ public class QlTranslatorHandler implements TranslatorHandler {
     }
 
     @Override
-    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Query q) {
+    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
         if (field instanceof FieldAttribute) {
-            return ExpressionTranslator.wrapIfNested(q, field);
+            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
         }
         return new ScriptQuery(sf.source(), sf.asScript());
     }
@@ -38,11 +40,6 @@ public class QlTranslatorHandler implements TranslatorHandler {
         } else {
             return e.sourceText();
         }
-    }
-
-    @Override
-    public String dateFormat(Expression e) {
-        return null;
     }
 
     @Override

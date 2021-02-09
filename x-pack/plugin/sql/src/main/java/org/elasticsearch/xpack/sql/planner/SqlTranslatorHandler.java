@@ -16,9 +16,10 @@ import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
+
+import java.util.function.Supplier;
 
 public class SqlTranslatorHandler implements TranslatorHandler {
 
@@ -34,12 +35,12 @@ public class SqlTranslatorHandler implements TranslatorHandler {
     }
 
     @Override
-    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Query q) {
-        if (field instanceof StDistance && q instanceof GeoDistanceQuery) {
-            return ExpressionTranslator.wrapIfNested(q, ((StDistance) field).left());
+    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
+        if (field instanceof StDistance && querySupplier instanceof GeoDistanceQuery) {
+            return ExpressionTranslator.wrapIfNested(querySupplier.get(), ((StDistance) field).left());
         }
         if (field instanceof FieldAttribute) {
-            return ExpressionTranslator.wrapIfNested(q, field);
+            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
         }
         return new ScriptQuery(sf.source(), sf.asScript());
     }
@@ -47,14 +48,6 @@ public class SqlTranslatorHandler implements TranslatorHandler {
     @Override
     public String nameOf(Expression e) {
         return QueryTranslator.nameOf(e);
-    }
-
-    @Override
-    public String dateFormat(Expression e) {
-        if (e instanceof DateTimeFunction) {
-            return ((DateTimeFunction) e).dateTimeFormat();
-        }
-        return null;
     }
 
     @Override

@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
@@ -24,10 +23,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
-import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,12 +43,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(),
-            TimeSyncConfig::new));
-
-        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
-        namedXContents.addAll(new TransformNamedXContentProvider().getNamedXContentParsers());
-
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
     }
 

@@ -71,7 +71,7 @@ class XContentRecordReader {
         clearNestedLevel();
 
         XContentParser.Token token = tryNextTokenOrReadToEndOnError();
-        while (!(token == XContentParser.Token.END_OBJECT && nestedLevel == 0)) {
+        while ((token == XContentParser.Token.END_OBJECT && nestedLevel == 0) == false) {
             if (token == null) {
                 break;
             }

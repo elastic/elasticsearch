@@ -653,7 +653,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             }
             builder.endObject();
         }
-        if (highlightFields != null && !highlightFields.isEmpty()) {
+        if (highlightFields != null && highlightFields.isEmpty() == false) {
             builder.startObject(Fields.HIGHLIGHT);
             for (HighlightField field : highlightFields.values()) {
                 field.toXContent(builder, params);

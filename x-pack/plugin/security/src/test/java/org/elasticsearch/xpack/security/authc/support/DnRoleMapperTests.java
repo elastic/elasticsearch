@@ -131,7 +131,7 @@ public class DnRoleMapperTests extends ESTestCase {
                     .append("  - \"cn=fantastic_four,ou=marvel,o=superheros\"");
             }
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 
@@ -161,7 +161,7 @@ public class DnRoleMapperTests extends ESTestCase {
             // now replacing the content of the users file with something that cannot be read
             Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
                 fail("Waited too long for the updated file to be picked up");
             }
 

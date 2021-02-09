@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,7 +57,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupActionDateHistogramGroupConfig;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -102,8 +102,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> rollup(config));
-        assertThat(exception.getMessage(), containsString(rollupIndex));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(config));
+        assertThat(exception.getMessage(), containsString("Unable to rollup index [" + index + "]"));
     }
 
     public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {
@@ -260,9 +260,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void rollup(RollupActionConfig config) {
-        RollupAction.Response rollupResponse = client().execute(RollupAction.INSTANCE,
+        AcknowledgedResponse rollupResponse = client().execute(RollupAction.INSTANCE,
             new RollupAction.Request(index, rollupIndex, config)).actionGet();
-        assertTrue(rollupResponse.isCreated());
+        assertTrue(rollupResponse.isAcknowledged());
     }
 
     private void assertRollupIndex(RollupActionConfig config) {

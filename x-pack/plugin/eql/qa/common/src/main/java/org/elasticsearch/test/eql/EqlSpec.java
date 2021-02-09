@@ -119,8 +119,8 @@ public class EqlSpec {
     }
 
     private static String appendWithComma(String str, String name, String append) {
-        if (!Strings.isNullOrEmpty(append)) {
-            if (!Strings.isNullOrEmpty(str)) {
+        if (Strings.isNullOrEmpty(append) == false) {
+            if (Strings.isNullOrEmpty(str) == false) {
                 str += ", ";
             }
             str += name + ": " + append;

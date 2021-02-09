@@ -10,23 +10,20 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -195,7 +192,7 @@ enum TextFormat implements MediaType {
                 sb.append('"');
                 for (int i = 0; i < value.length(); i++) {
                     char c = value.charAt(i);
-                    if (value.charAt(i) == '"') {
+                    if (c == '"') {
                         sb.append('"');
                     }
                     sb.append(c);
@@ -319,8 +316,7 @@ enum TextFormat implements MediaType {
         }
 
         for (List<Object> row : response.rows()) {
-            row(sb, row, f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
-                delimiter(request));
+            row(sb, row, f -> f == null ? StringUtils.EMPTY : StringUtils.toString(f), delimiter(request));
         }
 
         return sb.toString();

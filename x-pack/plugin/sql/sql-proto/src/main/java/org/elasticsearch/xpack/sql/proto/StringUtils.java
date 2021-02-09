@@ -14,8 +14,10 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
@@ -164,6 +166,23 @@ public final class StringUtils {
                 sb.append(millis);
             }
             return sb.toString();
+        }
+
+        // multivalue
+        if (value instanceof Collection) {
+            final StringJoiner sj = new StringJoiner(",", "[", "]");
+            Collection<?> values = (Collection<?>) value;
+            values.forEach(x -> {
+                // quote strings and `\`-escape the `"` character inside them
+                if (x instanceof String) { // TODO: IPs should ideally not be quoted.
+                    sj.add('"' + ((String) x).replace("\"", "\\\"") + '"');
+                } else if (x == null) {
+                    sj.add("NULL");
+                } else {
+                    sj.add(toString(x, sqlVersion));
+                }
+            });
+            return sj.toString();
         }
 
         return Objects.toString(value);

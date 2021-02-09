@@ -133,25 +133,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
-    public static final String SEARCHABLE_SNAPSHOT_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
+    public static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
-    public static final Setting<ByteSizeValue> FROZEN_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
-        SEARCHABLE_SNAPSHOT_SETTINGS_PREFIX + "range_size",
+    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "range_size",
         ByteSizeValue.ofMb(16),                                 // default
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
-        SEARCHABLE_SNAPSHOT_SETTINGS_PREFIX + "region_size",
-        FROZEN_CACHE_RANGE_SIZE_SETTING,
+        SHARED_CACHE_SETTINGS_PREFIX + "region_size",
+            SHARED_CACHE_RANGE_SIZE_SETTING,
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
-        SEARCHABLE_SNAPSHOT_SETTINGS_PREFIX + "size",
+        SHARED_CACHE_SETTINGS_PREFIX + "size",
         ByteSizeValue.ZERO,
         Setting.Property.NodeScope
     );
 
-    public static final String CACHE_FILE_NAME = "snap_cache";
+    public static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     private final ClusterService clusterService;
 

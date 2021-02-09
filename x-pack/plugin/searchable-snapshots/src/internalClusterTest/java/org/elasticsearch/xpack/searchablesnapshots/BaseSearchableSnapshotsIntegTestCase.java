@@ -88,7 +88,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         );
         if (randomBoolean()) {
             builder.put(
-                SnapshotsService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(),
+                SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)

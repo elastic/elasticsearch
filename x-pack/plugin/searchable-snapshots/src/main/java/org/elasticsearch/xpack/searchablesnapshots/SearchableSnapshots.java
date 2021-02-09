@@ -253,7 +253,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
             SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING,
             SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
-            SnapshotsService.FROZEN_CACHE_RANGE_SIZE_SETTING,
+            SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING,
             FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,

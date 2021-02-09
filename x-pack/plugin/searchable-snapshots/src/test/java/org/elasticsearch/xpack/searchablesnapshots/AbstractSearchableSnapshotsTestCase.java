@@ -148,7 +148,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(SnapshotsService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+            cacheSettings.put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
@@ -176,7 +176,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             newEnvironment(
                 Settings.builder()
                     .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(SnapshotsService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                    .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                     .build()
             ),
             threadPool

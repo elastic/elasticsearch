@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.flattened.mapper;
+package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
@@ -22,15 +23,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
-import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.KeyedFlattenedFieldType;
-import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
@@ -65,11 +62,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
         checker.registerUpdateCheck(b -> b.field("depth_limit", 10),
             m -> assertEquals(10, ((FlattenedFieldMapper)m).depthLimit()));
-    }
-
-    @Override
-    protected Collection<Plugin> getPlugins() {
-        return Collections.singleton(new FlattenedMapperPlugin());
     }
 
     public void testDefaults() throws Exception {

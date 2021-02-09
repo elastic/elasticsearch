@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -42,6 +44,7 @@ import java.util.stream.Collectors;
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
     private final SystemIndices systemIndices;
@@ -82,14 +85,13 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
 
         final Map<String, List<String>> systemIndexViolations = checkForSystemIndexViolations(concreteIndices, request);
         if (systemIndexViolations.isEmpty() == false) {
-            final String message = "Cannot override settings on system indices: "
+            final String message = "Overriding settings on system indices: "
                 + systemIndexViolations.entrySet()
                     .stream()
                     .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
-                    .collect(Collectors.joining(", "));
-            logger.warn(message);
-            listener.onFailure(new IllegalStateException(message));
-            return;
+                    .collect(Collectors.joining(", "))
+                + ". This will not work in the next major version";
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
         }
 
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()

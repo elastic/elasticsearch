@@ -219,8 +219,8 @@ public class JavadocExtractor {
         ParsedJavadoc parsed = new ParsedJavadoc(cleaned(cleaned));
         for (JavadocBlockTag tag: tags) {
             String tagName = tag.getTagName();
-            // https://docs.oracle.com/javase/7/docs/technotes/tools/windows/javadoc.html#javadoctags
-            // ignore author, deprecated, see, serial*, since and version.
+            // https://docs.oracle.com/en/java/javase/14/docs/specs/javadoc/doc-comment-spec.html#standard-tags
+            // ignore author, deprecated, hidden, provides, uses, see, serial*, since and version.
             if ("param".equals(tagName)) {
                 tag.getName().ifPresent(t -> parsed.param.put(t, cleaned(stripInlineTags(tag.getContent()))));
             } else if ("return".equals(tagName)) {

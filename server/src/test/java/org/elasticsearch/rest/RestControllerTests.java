@@ -637,7 +637,7 @@ public class RestControllerTests extends ESTestCase {
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                // in real use case we will use exact version CompatibleVersion.V_7
+                // in real use case we will use exact version RestApiCompatibleVersion.V_7
                 XContentBuilder xContentBuilder = channel.newBuilder();
                 assertThat(xContentBuilder.getRestApiCompatibilityVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));
                 assertThat(request.contentParser().getRestApiCompatibleVersion(), equalTo(RestApiCompatibleVersion.minimumSupported()));

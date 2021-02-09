@@ -277,9 +277,7 @@ GET /_search
 ===== Multi-position tokens
 
 The `simple_query_string` query supports
-<<token-graphs-multi-position-tokens,multi-position tokens>> produced by graph
-token filters, such as <<analysis-synonym-graph-tokenfilter,`synonym_graph`>> or
-<<analysis-word-delimiter-graph-tokenfilter,`word_delimiter_graph`>>.
+<<token-graphs-multi-position-tokens,multi-position tokens>>.
 
 By default, the parser creates a <<query-dsl-match-query-phrase,`match_phrase`>>
 query for each multi-position token. For example, the parser creates a

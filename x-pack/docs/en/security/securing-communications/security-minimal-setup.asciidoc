@@ -1,0 +1,41 @@
+[[security-minimal-setup]]
+=== Set up minimal security for {es}
+
+You enable the Elasticsearch security features and then create
+passwords for built-in users. You can add more users later, but using the
+built-in users simplifies the process of enabling security for your
+cluster.
+
+[discrete]
+==== Prerequisites
+
+. Install and configure {es} and Kibana. See https://www.elastic.co/guide/en/elastic-stack-get-started/current/get-started-elastic-stack.html[Getting started with the Elastic Stack].
+
+. Verify that you are using a license that includes the specific security
+features you want.
++
+The free licenses include basic security settings for the Elastic Stack. You
+can also enable a free trial license to access all features of the Elastic
+Stack. See https://www.elastic.co/subscriptions[subscriptions] and https://www.elastic.co/guide/en/kibana/7.9/managing-licenses.html[license management].
+
+[discrete]
+==== Enable {es} security features
+
+When you use the free licenses, the {es} security
+features are disabled by default. Enabling the {es} security
+features enables basic authentication so that you can run a local cluster
+with username and password authentication.
+
+1. Stop both Kibana and {es} if they are running.
+
+2. Add the `xpack.security.enabled` setting to the `ES_PATH_CONF/elasticsearch.yml` file and set the value to `true`:
++
+[source,yaml]
+----
+xpack.security.enabled: true
+----
++
+NOTE: The `ES_PATH_CONF` variable is the path for the {es}
+configuration files. If you installed {es} using archive distributions
+(`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
+package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.

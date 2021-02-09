@@ -359,7 +359,7 @@ want to encrypt communications across the {stack}. To learn how, read
 
 For more detailed information about securing the {stack}, see:
 
-* <<configuring-security,Configuring security in {es}>>. Encrypt
+* <<configuring-stack-security,Configuring security in {es}>>. Encrypt
 inter-node communications, set passwords for the built-in users, and manage your
 users and roles.
 

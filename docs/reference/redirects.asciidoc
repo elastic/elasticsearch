@@ -493,7 +493,7 @@ See <<ad-realm-configuration>>.
 [role="exclude",id="how-security-works"]
 === How security works
 
-See <<elasticsearch-security>>.
+See <<configuring-stack-security>>.
 
 [role="exclude",id="rollup-job-config"]
 === Rollup job configuration

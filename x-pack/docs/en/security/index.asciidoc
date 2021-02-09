@@ -21,6 +21,8 @@ Enabling security protects {es} clusters by:
 * <<maintaining-audit-trail, Maintaining an audit trail>>
   so you know who's doing what to your cluster and the data it stores.
 
+<<configuring-stack-security,Configure security for the Elastic Stack>>
+
 [discrete]
 [[preventing-unauthorized-access]]
 == Preventing unauthorized access

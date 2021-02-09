@@ -39,6 +39,7 @@ import java.util.Comparator;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -201,7 +202,7 @@ public final class MlIndexAndAlias {
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(primaryIndex);
         createIndexRequest.settings(descriptor.getSettings());
-        createIndexRequest.mapping(descriptor.getMappings());
+        createIndexRequest.mapping(SINGLE_MAPPING_NAME, descriptor.getMappings(), XContentType.JSON);
         createIndexRequest.origin(ML_ORIGIN);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,

@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -247,8 +246,11 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         assertThat(MountSnapshotStep.bestEffortIndexNameResolution("restored-potato"), equalTo("potato"));
         assertThat(MountSnapshotStep.bestEffortIndexNameResolution("partial-potato"), equalTo("potato"));
         assertThat(MountSnapshotStep.bestEffortIndexNameResolution("partial-restored-potato"), equalTo("potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("restored-partial-potato"), equalTo("partial-potato"));
         assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-restored-potato"), equalTo("my-restored-potato"));
         assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-partial-potato"), equalTo("my-partial-potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-partial-restored-potato"), equalTo("my-partial-restored-potato"));
+        assertThat(MountSnapshotStep.bestEffortIndexNameResolution("my-restored-partial-potato"), equalTo("my-restored-partial-potato"));
     }
 
     public void testMountWithNoPrefix() {

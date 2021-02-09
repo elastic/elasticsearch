@@ -70,7 +70,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
      */
     default void cleanUpFeature(
         ClusterService clusterService, Client client,
-        ActionListener<ResetFeatureStateResponse.Item> listener) {
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
 
         List<String> systemIndices = getSystemIndexDescriptors(clusterService.getSettings()).stream()
             .map(sid -> sid.getMatchingIndices(clusterService.state().getMetadata()))
@@ -87,12 +87,12 @@ public interface SystemIndexPlugin extends ActionPlugin {
         client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(new ResetFeatureStateResponse.Item(getFeatureName(), "SUCCESS"));
+                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(getFeatureName(), "SUCCESS"));
             }
 
             @Override
             public void onFailure(Exception e) {
-                listener.onResponse(new ResetFeatureStateResponse.Item(getFeatureName(), "FAILURE"));
+                listener.onResponse(new ResetFeatureStateResponse.ResetFeatureStateStatus(getFeatureName(), "FAILURE"));
             }
         });
     }

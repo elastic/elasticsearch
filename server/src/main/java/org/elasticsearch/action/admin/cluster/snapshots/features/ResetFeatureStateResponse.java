@@ -24,29 +24,27 @@ import java.util.Objects;
 /** Response to a feature state reset request. */
 public class ResetFeatureStateResponse extends ActionResponse implements ToXContentObject {
 
-    List<Item> itemList;
+    List<ResetFeatureStateStatus> resetFeatureStateStatusList;
 
     public ResetFeatureStateResponse(Map<String, String> statusMap) {
-        // TODO[wrb] - we should return a list or map of feature states and their responses
-        itemList = new ArrayList<>();
+        resetFeatureStateStatusList = new ArrayList<>();
         for (Map.Entry<String, String> entry : statusMap.entrySet()) {
-            itemList.add(new Item(entry.getKey(), entry.getValue()));
+            resetFeatureStateStatusList.add(new ResetFeatureStateStatus(entry.getKey(), entry.getValue()));
         }
     }
 
-    public ResetFeatureStateResponse(List<Item> statuslist) {
-        // TODO[wrb] - we should return a list or map of feature states and their responses
-        itemList = new ArrayList<>();
-        itemList.addAll(statuslist);
+    public ResetFeatureStateResponse(List<ResetFeatureStateStatus> statusList) {
+        resetFeatureStateStatusList = new ArrayList<>();
+        resetFeatureStateStatusList.addAll(statusList);
     }
 
     public ResetFeatureStateResponse(StreamInput in) throws IOException {
         super(in);
-        this.itemList = in.readList(Item::new);
+        this.resetFeatureStateStatusList = in.readList(ResetFeatureStateStatus::new);
     }
 
-    public List<Item> getItemList() {
-        return this.itemList;
+    public List<ResetFeatureStateStatus> getItemList() {
+        return this.resetFeatureStateStatusList;
     }
 
     @Override
@@ -54,8 +52,8 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         builder.startObject();
         {
             builder.startArray("features");
-            for (Item item: this.itemList) {
-                builder.value(item);
+            for (ResetFeatureStateStatus resetFeatureStateStatus : this.resetFeatureStateStatusList) {
+                builder.value(resetFeatureStateStatus);
             }
             builder.endArray();
         }
@@ -65,7 +63,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(this.itemList);
+        out.writeList(this.resetFeatureStateStatusList);
     }
 
     @Override
@@ -73,31 +71,31 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ResetFeatureStateResponse that = (ResetFeatureStateResponse) o;
-        return Objects.equals(itemList, that.itemList);
+        return Objects.equals(resetFeatureStateStatusList, that.resetFeatureStateStatusList);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(itemList);
+        return Objects.hash(resetFeatureStateStatusList);
     }
 
     @Override
     public String toString() {
         return "ResetFeatureStateResponse{" +
-            "itemList=" + itemList +
+            "resetFeatureStateStatusList=" + resetFeatureStateStatusList +
             '}';
     }
 
-    public static class Item implements Writeable, ToXContentObject {
+    public static class ResetFeatureStateStatus implements Writeable, ToXContentObject {
         private String featureName;
         private String status;
 
-        public Item(String featureName, String status) {
+        public ResetFeatureStateStatus(String featureName, String status) {
             this.featureName = featureName;
             this.status = status;
         }
 
-        Item(StreamInput in) throws IOException {
+        ResetFeatureStateStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
             this.status = in.readString();
         }
@@ -129,8 +127,8 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Item item = (Item) o;
-            return Objects.equals(featureName, item.featureName) && Objects.equals(status, item.status);
+            ResetFeatureStateStatus that = (ResetFeatureStateStatus) o;
+            return Objects.equals(featureName, that.featureName) && Objects.equals(status, that.status);
         }
 
         @Override
@@ -140,7 +138,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
         @Override
         public String toString() {
-            return "Item{" +
+            return "ResetFeatureStateStatus{" +
                 "featureName='" + featureName + '\'' +
                 ", status='" + status + '\'' +
                 '}';

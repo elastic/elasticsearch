@@ -42,7 +42,7 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
             .map(item -> item.getFeatureName())
             .collect(Collectors.toSet());
         return new ResetFeatureStateResponse(randomList(minSize, 10,
-            () -> new ResetFeatureStateResponse.Item(
+            () -> new ResetFeatureStateResponse.ResetFeatureStateStatus(
                 randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
                 randomAlphaOfLengthBetween(5, 10))));
     }

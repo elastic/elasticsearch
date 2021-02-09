@@ -55,6 +55,7 @@ public class TransportResetFeatureStateAction extends HandledTransportAction<Res
 
         final int features = systemIndices.getFeatures().size();
         final CountDown completionCounter = new CountDown(features - 1);
+        // TODO[wrb] use concurrent list rather than map
         final SortedMap<String, String> responses = Collections.synchronizedSortedMap(new TreeMap<>());
         final Runnable terminalHandler = () -> {
             if (completionCounter.countDown()) {

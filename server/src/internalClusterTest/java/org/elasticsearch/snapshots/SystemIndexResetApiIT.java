@@ -27,7 +27,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class SystemIndexResetApiIT extends ESIntegTestCase {
 
@@ -58,7 +57,7 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
         assertThat(apiResponse.getItemList(), contains(
-            new ResetFeatureStateResponse.Item("SystemIndexTestPlugin", "SUCCESS")));
+            new ResetFeatureStateResponse.ResetFeatureStateStatus("SystemIndexTestPlugin", "SUCCESS")));
 
         // verify that both indices are gone
         Exception e1 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()

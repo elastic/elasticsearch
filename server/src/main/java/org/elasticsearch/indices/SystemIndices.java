@@ -14,7 +14,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -207,13 +207,13 @@ public class SystemIndices {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<String> associatedIndexPatterns;
-        private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse.Item>> cleanUpFunction;
+        private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
 
         public Feature(
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<String> associatedIndexPatterns,
-            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse.Item>> cleanUpFunction) {
+            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.associatedIndexPatterns = associatedIndexPatterns;
@@ -236,7 +236,7 @@ public class SystemIndices {
             return associatedIndexPatterns;
         }
 
-        public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateResponse.Item>> getCleanUpFunction() {
+        public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> getCleanUpFunction() {
             return cleanUpFunction;
         }
     }

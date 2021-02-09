@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -26,8 +24,6 @@ import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -55,15 +51,13 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     private final JobManager jobManager;
     private final NativeStorageProvider nativeStorageProvider;
     private final AnomalyDetectionAuditor auditor;
-    private final Client client;
     private final long cppMinAvailableDiskSpaceBytes;
 
     @Inject
     public TransportForecastJobAction(TransportService transportService, Settings settings,
                                       ClusterService clusterService, ActionFilters actionFilters,
                                       JobResultsProvider jobResultsProvider, AutodetectProcessManager processManager,
-                                      JobManager jobManager, NativeStorageProvider nativeStorageProvider, AnomalyDetectionAuditor auditor,
-                                      Client client) {
+                                      JobManager jobManager, NativeStorageProvider nativeStorageProvider, AnomalyDetectionAuditor auditor) {
         super(ForecastJobAction.NAME, clusterService, transportService, actionFilters,
             ForecastJobAction.Request::new, ForecastJobAction.Response::new,
             // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
@@ -74,14 +68,10 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
         this.auditor = auditor;
         // The C++ enforces 80% of the free disk space that the Java enforces
         this.cppMinAvailableDiskSpaceBytes = MachineLearning.MIN_DISK_SPACE_OFF_HEAP.get(settings).getBytes() / 5 * 4;
-        this.client = client;
     }
 
     @Override
     protected void taskOperation(ForecastJobAction.Request request, JobTask task, ActionListener<ForecastJobAction.Response> listener) {
-
-
-
         jobManager.getJob(task.getJobId(), ActionListener.wrap(
                 job -> {
                     validate(job, request);
@@ -113,33 +103,16 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                     }
 
                     ForecastParams params = paramsBuilder.build();
-                    ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-                    r -> processManager.forecastJob(task, params, e -> {
+                    processManager.forecastJob(task, params, e -> {
                         if (e == null) {
                             getForecastRequestStats(request.getJobId(), params.getForecastId(), listener);
                         } else {
                             listener.onFailure(e);
                         }
-                    }),
-                    ex -> {
-                        logger.warn(
-                            new ParameterizedMessage(
-                                "[{}] job failed to update results mappings before requesting forecast",
-                                request.getJobId()
-                            ),
-                            ex);
-                        listener.onFailure(ex);
                     });
-                    ElasticsearchMappings.addDocMappingIfMissing(
-                        AnomalyDetectorsIndex.jobResultsAliasedName(request.getJobId()),
-                        AnomalyDetectorsIndex::resultsMapping,
-                        client,
-                        clusterService.state(),
-                        resultsMappingUpdateHandler);
                 },
                 listener::onFailure
         ));
-
     }
 
     private void getForecastRequestStats(String jobId, String forecastId, ActionListener<ForecastJobAction.Response> listener) {

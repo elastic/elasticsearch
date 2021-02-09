@@ -26,9 +26,9 @@ features are disabled by default. Enabling the {es} security
 features enables basic authentication so that you can run a local cluster
 with username and password authentication.
 
-1. Stop both Kibana and {es} if they are running.
+. Stop both Kibana and {es} if they are running.
 
-2. Add the `xpack.security.enabled` setting to the `ES_PATH_CONF/elasticsearch.yml` file and set the value to `true`:
+. Add the `xpack.security.enabled` setting to the `ES_PATH_CONF/elasticsearch.yml` file and set the value to `true`:
 +
 [source,yaml]
 ----
@@ -39,3 +39,44 @@ NOTE: The `ES_PATH_CONF` variable is the path for the {es}
 configuration files. If you installed {es} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
+
+[discrete]
+==== Create passwords for built-in users
+
+To communicate with the cluster, you must specify a username and password for
+the built-in users. Unless you enable anonymous access, all requests that
+don’t include a user name and password are rejected.
+
+NOTE: You only need to set passwords for the `elastic` and `kibana-system` users
+when enabling minimal or basic security.
+
+. Start Elasticsearch. For example, if you installed Elasticsearch with a
+`.tar.gz` package, run the following command from the Elasticsearch directory:
++
+[source,bash]
+----
+./bin/elasticsearch
+----
+
+. Set the passwords for the built-in users by running the `elasticsearch-setup-passwords` utility. Using the `auto` parameter outputs randomly-generated
+passwords to the console that you can change later if necessary:
++
+[source,bash]
+----
+./bin/elasticsearch-setup-passwords auto
+----
++
+If you want to use your own passwords, run the command with the
+`interactive` parameter instead of the `auto` parameter. Using this mode
+steps you through password configuration for all of the built-in users.
++
+[source,bash]
+----
+./bin/elasticsearch-setup-passwords interactive
+----
+
+. Save the generated passwords. You'll need them later when adding the built-in user to Kibana.
+
+WARNING: After you set a password for the `elastic` user, the bootstrap
+password is no longer valid. You cannot run the `elasticsearch-setup-passwords
+command a second time.

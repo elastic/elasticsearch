@@ -76,7 +76,9 @@ import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -107,6 +109,7 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1284,6 +1287,74 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testHeisenpig() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                String[] tags = new String[] {"danger", "fluffiness"};
+                indexWriter.addDocuments(generateAnimalDocsWithNested("1", "sheep", tags, new int[] {1, 10}));
+                indexWriter.addDocuments(generateAnimalDocsWithNested("2", "cow", tags, new int[] {3, 1}));
+                indexWriter.addDocuments(generateAnimalDocsWithNested("3", "pig", tags, new int[] {100, 1}));
+                indexWriter.commit();
+                NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
+                    .subAggregation(
+                        new MaxAggregationBuilder("max_number").field("number")
+                    );
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("str_terms")
+                    .field("str")
+                    .subAggregation(nested)
+                    .shardSize(10)
+                    .size(10)
+                    .order(BucketOrder.aggregation("nested>max_number", false));
+                MappedFieldType nestedFieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+                MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("str");
+                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    StringTerms result = searchAndReduce(newSearcher(indexReader, false, true),
+                        // match root document only
+                        new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), terms, fieldType, nestedFieldType);
+                    assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));
+                    assertThat(result.getBuckets().get(0).docCount, equalTo(1L));
+                    assertThat(((InternalMax) (((InternalNested)result.getBuckets().get(0).getAggregations().get("nested"))
+                        .getAggregations().get("max_number"))).getValue(), closeTo(100.0, 0.00001));
+                }
+            }
+        }
+    }
+
+    public void testSortingWithNestedAggregations() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < 12; i++) {
+                    int[] nestedValues = new int[i];
+                    for (int j = 0; j < i; j++) {
+                        nestedValues[j] = j;
+                    }
+                    indexWriter.addDocuments(generateDocsWithNested(Integer.toString(i), i % 4, nestedValues));
+                }
+                indexWriter.commit();
+                NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
+                    .subAggregation(
+                        new MaxAggregationBuilder("max_val").field("nested_value")
+                    );
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("terms")
+                    .field("value")
+                    .subAggregation(nested)
+                    .shardSize(1)
+                    .size(1)
+                    .order(BucketOrder.aggregation("nested>max_val", false));
+                MappedFieldType nestedFieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    LongTerms result = searchAndReduce(newSearcher(indexReader, false, true),
+                        // match root document only
+                        new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), terms, fieldType, nestedFieldType);
+                    assertThat(result.getBuckets().get(0).term, equalTo(3L));
+                    assertThat(((InternalMax) (((InternalNested)result.getBuckets().get(0).getAggregations().get("nested"))
+                        .getAggregations().get("max_val"))).getValue(), closeTo(10.0, 0.00001));
+                }
+            }
+        }
+    }
+
     public void testNumberToStringValueScript() throws IOException {
         MappedFieldType fieldType
             = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
@@ -1554,6 +1625,28 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return documents;
     }
 
+    private List<Document> generateAnimalDocsWithNested(String id, String animal, String[] tags, int[] nestedValues) {
+        List<Document> documents = new ArrayList<>();
+
+        for (int i = 0; i < tags.length; i++) {
+            Document document = new Document();
+            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+
+            document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new SortedDocValuesField("tag", new BytesRef(tags[i])));
+            document.add(new SortedNumericDocValuesField("number", nestedValues[i]));
+            documents.add(document);
+        }
+
+        Document document = new Document();
+        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new SortedDocValuesField("str", new BytesRef(animal)));
+        document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        document.add(sequenceIDFields.primaryTerm);
+        documents.add(document);
+
+        return documents;
+    }
 
     private IndexReader createIndexWithLongs() throws IOException {
         Directory directory = newDirectory();

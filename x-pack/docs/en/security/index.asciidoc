@@ -3,14 +3,15 @@
 
 [partintro]
 --
-Enable the {stack-security-features} to secure {es} clusters. You can
-password-protect your data as well as implement more advanced security
-measures such as encrypting communications, role-based access control,
-IP filtering, and auditing.
 
 An {es} cluster is typically made out of many moving parts. There are the {es}
 nodes that form the cluster and often {ls} instances, {kib} instances, Beats
 agents, and clients all communicating with the cluster.
+
+<<configuring-stack-security,Configure security for the Elastic Stack>> to
+secure {es} clusters. You can password-protect your data as well as implement
+more advanced security measures such as encrypting communications, role-based
+access control, IP filtering, and auditing.
 
 Enabling security protects {es} clusters by:
 
@@ -20,8 +21,6 @@ Enabling security protects {es} clusters by:
   with SSL/TLS encryption.
 * <<maintaining-audit-trail, Maintaining an audit trail>>
   so you know who's doing what to your cluster and the data it stores.
-
-<<configuring-stack-security,Configure security for the Elastic Stack>>
 
 [discrete]
 [[preventing-unauthorized-access]]

@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotActionTests.randomStorageType;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -70,7 +71,8 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         checkCurrentLicenseIs("basic");
 
         ResponseException exception = expectThrows(ResponseException.class,
-            () -> createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true)));
+            () -> createNewSingletonPolicy(client(), policy, "cold",
+                new SearchableSnapshotAction(snapshotRepo, true, randomStorageType())));
         assertThat(EntityUtils.toString(exception.getResponse().getEntity()),
             containsStringIgnoringCase("policy [" + policy + "] defines the [" + SearchableSnapshotAction.NAME + "] action but the " +
                 "current license is non-compliant for [searchable-snapshots]"));
@@ -80,7 +82,7 @@ public class LifecycleLicenseIT extends ESRestTestCase {
     public void testSearchableSnapshotActionErrorsOnInvalidLicense() throws Exception {
         String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
+        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true, null));
 
         createComposableTemplate(client(), "template-name", dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null));
@@ -114,7 +116,7 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         putTrialLicense();
         checkCurrentLicenseIs("trial");
 
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(restoredIndexName);

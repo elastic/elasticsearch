@@ -200,8 +200,8 @@ history of operations on a shard.
 end::docs-deleted[]
 
 tag::docs-deleted-transform[]
-The number of documents that have been deleted from the destination index
-for the {transform}.
+The number of documents that have been deleted from the destination index due to
+the retention policy for this {transform}.
 end::docs-deleted-transform[]
 
 tag::docs-indexed[]
@@ -989,6 +989,24 @@ tag::transform-latest[]
 The `latest` method transforms the data by finding the latest document for each
 unique key.
 end::transform-latest[]
+
+tag::transform-retention[]
+Defines a retention policy for the {transform}. Data that meets the defined 
+criteria is deleted from the destination index.
+end::transform-retention[]
+
+tag::transform-retention-time[]
+Specifies that the {transform} uses a time field to set the retention policy.
+end::transform-retention-time[]
+
+tag::transform-retention-time-field[]
+The date field that is used to calculate the age of the document.
+end::transform-retention-time-field[]
+
+tag::transform-retention-time-max-age[]
+Specifies the maximum age of a document in the destination index. Documents that 
+are older than the configured value are removed from the destination index.
+end::transform-retention-time-max-age[]
 
 tag::transform-settings[]
 Defines optional {transform} settings.

@@ -610,8 +610,9 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     private SecurityIndexManager.State dummyState(
         String concreteSecurityIndexName, boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isIndexUpToDate, true, null,
-            concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid");
+            Instant.now(), isIndexUpToDate, true, true, null,
+            concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null, "my_uuid"
+        );
     }
 
     private SearchHit[] buildHits(List<ApplicationPrivilegeDescriptor> sourcePrivileges) {

@@ -181,17 +181,10 @@ public class ResizeRequestTests extends ESTestCase {
     private static ResizeRequest createTestItem() {
         ResizeRequest resizeRequest = new ResizeRequest(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest(randomAlphaOfLengthBetween(3, 10));
-            if (randomBoolean()) {
-                RandomCreateIndexGenerator.randomAliases(createIndexRequest);
-            }
-            if (randomBoolean()) {
-                createIndexRequest.settings(RandomCreateIndexGenerator.randomIndexSettings());
-            }
-            resizeRequest.setTargetIndex(createIndexRequest);
-            if (randomBoolean()) {
-                resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
-            }
+            resizeRequest.setTargetIndex(RandomCreateIndexGenerator.randomCreateIndexRequest());
+        }
+        if (randomBoolean()) {
+            resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
         }
         return resizeRequest;
     }

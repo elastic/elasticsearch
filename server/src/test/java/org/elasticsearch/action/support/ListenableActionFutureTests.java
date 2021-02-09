@@ -68,6 +68,7 @@ public class ListenableActionFutureTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68772")
     public void testListenersNotifiedOnCorrectThreads() throws InterruptedException {
 
         final int adderThreads = between(1, 5);

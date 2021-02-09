@@ -82,6 +82,7 @@ for the same stream.
 [[rollup-api-request-body]]
 ==== {api-request-body-title}
 
+// tag::rollup-config[]
 `groups`::
 (Required, object)
 Aggregates and stores fields in the rollup.
@@ -193,6 +194,7 @@ stores both the `sum` and `value_count` values. This lets you accurately average
 rollups over larger time intervals. For example, you can accurately roll up
 hourly averages into daily averages.
 =====
+// end::rollup-config[]
 
 `page_size`::
 (Optional, integer)

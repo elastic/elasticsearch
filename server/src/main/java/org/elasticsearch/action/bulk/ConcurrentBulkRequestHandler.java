@@ -111,33 +111,33 @@ public class ConcurrentBulkRequestHandler {
         }
     }
 
-    private final static class Execution {
+    private static final class Execution {
         private final BulkRequest request;
         private final long executionId;
 
-        public Execution(BulkRequest request, long executionId) {
+        private Execution(BulkRequest request, long executionId) {
             this.request = request;
             this.executionId = executionId;
         }
     }
 
     private class BulkActionListener implements ActionListener<BulkResponse> {
-        private final long finalExecutionId;
-        private final BulkRequest finalRequest;
+        private final long executionId;
+        private final BulkRequest request;
 
-        public BulkActionListener(long finalExecutionId, BulkRequest finalRequest) {
-            this.finalExecutionId = finalExecutionId;
-            this.finalRequest = finalRequest;
+        private BulkActionListener(long executionId, BulkRequest request) {
+            this.executionId = executionId;
+            this.request = request;
         }
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            listener.afterBulk(finalExecutionId, finalRequest, bulkItemResponses);
+            listener.afterBulk(executionId, request, bulkItemResponses);
         }
 
         @Override
         public void onFailure(Exception e) {
-            listener.afterBulk(finalExecutionId, finalRequest, e);
+            listener.afterBulk(executionId, request, e);
         }
     }
 }

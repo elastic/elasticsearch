@@ -28,7 +28,6 @@ import java.util.function.Supplier;
 
 public class ConcurrentBulkProcessor implements AutoCloseable {
 
-    private static final long REQUEST_OVERHEAD = 50;
     private static final State EMPTY_STATE = new State(PersistentStack.empty(), 0);
 
     private final ConcurrentBulkRequestHandler bulkRequestHandler;
@@ -116,7 +115,7 @@ public class ConcurrentBulkProcessor implements AutoCloseable {
         return scheduler.scheduleWithFixedDelay(this::flush, flushInterval, ThreadPool.Names.GENERIC);
     }
 
-    private final static class State {
+    private static final class State {
         private final PersistentStack<DocWriteRequest<?>> actions;
         private final long size;
 

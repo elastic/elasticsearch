@@ -54,12 +54,14 @@ import java.util.Objects;
 
 class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> implements ClusterStateListener {
 
+    public static final boolean GEOIP_V2_FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.geoip_v2_feature_flag_enabled"));
+
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("geoip.downloader.poll.interval",
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("geoip.downloader.endpoint",
         "https://paisano.elastic.dev/v1/geoip/database", Property.NodeScope);
-    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", true, Property.Dynamic,
-        Property.NodeScope);
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", GEOIP_V2_FEATURE_FLAG_ENABLED,
+        Property.Dynamic, Property.NodeScope);
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";
     static final String DATABASES_INDEX = ".geoip_databases";

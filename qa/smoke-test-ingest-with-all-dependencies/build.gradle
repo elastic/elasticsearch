@@ -19,10 +19,6 @@ dependencies {
   testImplementation project(':modules:reindex')
 }
 
-testClusters.configureEach {
-  setting 'geoip.downloader.enabled', 'fasle'
-}
-
 tasks.named("testingConventions").configure {
   naming {
     IT {

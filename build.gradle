@@ -489,11 +489,3 @@ subprojects {
     }
   }
 }
-
-subprojects {
-  pluginManager.withPlugin("elasticsearch.testclusters") {
-    testClusters.all {
-      setting 'geoip.downloader.enabled', 'false'
-    }
-  }
-}

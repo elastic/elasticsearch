@@ -13,7 +13,11 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public class RLike extends RegexMatch<RLikePattern> {
 
     public RLike(Source source, Expression value, RLikePattern pattern) {
-        super(source, value, pattern);
+        super(source, value, pattern, false);
+    }
+
+    public RLike(Source source, Expression field, RLikePattern rLikePattern, boolean caseInsensitive) {
+        super(source, field, rLikePattern, caseInsensitive);
     }
 
     @Override

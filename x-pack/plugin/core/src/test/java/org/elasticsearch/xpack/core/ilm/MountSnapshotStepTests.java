@@ -45,7 +45,6 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix, storage);
     }
 
-    @Nullable
     public static MountSearchableSnapshotRequest.Storage randomStorageType() {
         if (randomBoolean()) {
             return MountSearchableSnapshotRequest.Storage.FULL_COPY;

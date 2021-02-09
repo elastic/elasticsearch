@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
+import java.util.function.Supplier;
+
 public class SqlTranslatorHandler implements TranslatorHandler {
 
     private final boolean onAggs;
@@ -33,12 +35,12 @@ public class SqlTranslatorHandler implements TranslatorHandler {
     }
 
     @Override
-    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Query q) {
-        if (field instanceof StDistance && q instanceof GeoDistanceQuery) {
-            return ExpressionTranslator.wrapIfNested(q, ((StDistance) field).left());
+    public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
+        if (field instanceof StDistance && querySupplier.get() instanceof GeoDistanceQuery) {
+            return ExpressionTranslator.wrapIfNested(querySupplier.get(), ((StDistance) field).left());
         }
         if (field instanceof FieldAttribute) {
-            return ExpressionTranslator.wrapIfNested(q, field);
+            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
         }
         return new ScriptQuery(sf.source(), sf.asScript());
     }

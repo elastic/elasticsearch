@@ -88,7 +88,7 @@ public class ResizeRequestTests extends ESTestCase {
     }
 
     public void testToAndFromXContent() throws IOException {
-        final ResizeRequest resizeRequest = createTestItem();
+        final ResizeRequest resizeRequest = createTestInstance();
 
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = randomFrom(XContentType.values());
@@ -112,7 +112,7 @@ public class ResizeRequestTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        ResizeRequest request = createTestItem();
+        ResizeRequest request = createTestInstance();
         assertEquals(request, request);
         assertEquals(request.hashCode(), request.hashCode());
 
@@ -161,7 +161,7 @@ public class ResizeRequestTests extends ESTestCase {
     }
 
     public void testSerializeRequest() throws IOException {
-        ResizeRequest request = createTestItem();
+        ResizeRequest request = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
         BytesReference bytes = out.bytes();
@@ -178,7 +178,7 @@ public class ResizeRequestTests extends ESTestCase {
         assertEquals(request.getMaxPrimaryShardSize(), deserializedReq.getMaxPrimaryShardSize());
     }
 
-    private static ResizeRequest createTestItem() {
+    private static ResizeRequest createTestInstance() {
         ResizeRequest resizeRequest = new ResizeRequest(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             resizeRequest.setTargetIndex(RandomCreateIndexGenerator.randomCreateIndexRequest());

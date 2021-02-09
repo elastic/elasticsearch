@@ -147,7 +147,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
-        out.writeByte(stage.id());
+        // We need to serialize the display stage so the correct
+        // stage is shown on the information APIs.
+        out.writeByte(getDisplayStage().id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         targetNode.writeTo(out);
@@ -166,6 +168,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this.stage;
     }
 
+    /**
+     * Returns the stage that should be displayed in the information APIs,
+     * this can be useful to provide a different stage depending on the
+     * recovery type.
+     */
+    public synchronized Stage getDisplayStage() {
+        return this.stage;
+    }
 
     protected void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
@@ -267,7 +277,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         builder.field(Fields.ID, shardId.id());
         builder.field(Fields.TYPE, recoverySource.getType());
-        builder.field(Fields.STAGE, stage.toString());
+        builder.field(Fields.STAGE, getDisplayStage().toString());
         builder.field(Fields.PRIMARY, primary);
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {

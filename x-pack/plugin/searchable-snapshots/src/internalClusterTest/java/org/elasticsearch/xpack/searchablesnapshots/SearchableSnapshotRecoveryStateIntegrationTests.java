@@ -49,15 +49,24 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.routing.RecoverySource.Type.PEER;
+import static org.elasticsearch.cluster.routing.RecoverySource.Type.SNAPSHOT;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 1)
+@ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -73,7 +82,98 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         return builder.build();
     }
 
+    public void testRecoveryStateDisplayStageIsFinalizeUntilPreWarmFinishes() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String firstDataNode = internalCluster().startDataOnlyNode();
+        final String fsRepoName = randomAlphaOfLength(10);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        createRepository(fsRepoName, "fs");
+
+        final Settings.Builder originalIndexSettings = Settings.builder();
+        originalIndexSettings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        originalIndexSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+
+        createAndPopulateIndex(indexName, originalIndexSettings);
+
+        createFullSnapshot(fsRepoName, snapshotName);
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final CountDownLatch latch = fillPreWarmThreadPool(firstDataNode);
+
+        mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
+
+        assertBusy(() -> {
+            final List<RecoveryState> recoveryStates = getRecoveryStates(restoredIndexName).filter(
+                recoveryState -> recoveryState.getRecoverySource().getType() == SNAPSHOT
+            ).collect(Collectors.toList());
+            assertThat(recoveryStates, hasSize(1));
+            final RecoveryState recoveryState = recoveryStates.get(0);
+            assertThat(recoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.FINALIZE));
+        });
+
+        logger.info("--> release busy worker threads from pre-warm thread pool on node {}", firstDataNode);
+        latch.countDown();
+
+        assertBusy(() -> {
+            final List<RecoveryState> recoveryStates = getRecoveryStates(restoredIndexName).filter(
+                recoveryState -> recoveryState.getRecoverySource().getType() == SNAPSHOT
+            ).collect(Collectors.toList());
+            assertThat(recoveryStates, hasSize(1));
+            final RecoveryState recoveryState = recoveryStates.get(0);
+            assertThat(recoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.DONE));
+        });
+
+        final String secondDataNode = internalCluster().startDataOnlyNode();
+        final CountDownLatch latch2 = fillPreWarmThreadPool(secondDataNode);
+
+        logger.info("--> force index [{}] to relocate to [{}]", restoredIndexName, secondDataNode);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(restoredIndexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(
+                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                            secondDataNode
+                        )
+                )
+        );
+
+        assertBusy(() -> {
+            final List<RecoveryState> recoveryStates = getRecoveryStates(restoredIndexName).filter(
+                recoveryState -> recoveryState.getRecoverySource().getType() == PEER
+            ).collect(Collectors.toList());
+            assertThat(recoveryStates, hasSize(1));
+            final RecoveryState shardRecoveryState = recoveryStates.get(0);
+            assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
+            assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
+            assertThat(shardRecoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.FINALIZE));
+        });
+
+        logger.info("--> release busy worker threads from pre-warm thread pool on node {}", secondDataNode);
+        latch2.countDown();
+
+        assertBusy(() -> {
+            final List<RecoveryState> recoveryStates = getRecoveryStates(restoredIndexName).filter(
+                recoveryState -> recoveryState.getRecoverySource().getType() == PEER
+            ).collect(Collectors.toList());
+            assertThat(recoveryStates, hasSize(1));
+            final RecoveryState shardRecoveryState = recoveryStates.get(0);
+            assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
+            assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
+            assertThat(shardRecoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.DONE));
+        });
+    }
+
     public void testRecoveryStateRecoveredBytesMatchPhysicalCacheState() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -120,6 +220,9 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
     }
 
     public void testFilesStoredInThePersistentCacheAreMarkedAsReusedInRecoveryState() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -216,13 +319,38 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         }
     }
 
+    private CountDownLatch fillPreWarmThreadPool(String node) throws InterruptedException, BrokenBarrierException {
+        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, node);
+        final int preWarmThreads = threadPool.info(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME).getMax();
+        final Executor executor = threadPool.executor(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
+        final CyclicBarrier barrier = new CyclicBarrier(preWarmThreads + 1);
+        final CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < preWarmThreads; i++) {
+            executor.execute(() -> {
+                try {
+                    barrier.await();
+                    latch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
+        logger.info("--> waiting for prewarm threads to all become blocked");
+        barrier.await();
+        return latch;
+    }
+
     private RecoveryState getRecoveryState(String indexName) {
+        Optional<RecoveryState> recoveryStates = getRecoveryStates(indexName).findFirst();
+        assertThat(recoveryStates.isPresent(), equalTo(true));
+        return recoveryStates.get();
+    }
+
+    private Stream<RecoveryState> getRecoveryStates(String indexName) {
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
         Map<String, List<RecoveryState>> shardRecoveries = recoveryResponse.shardRecoveryStates();
         assertThat(shardRecoveries.containsKey(indexName), equalTo(true));
-        List<RecoveryState> recoveryStates = shardRecoveries.get(indexName);
-        assertThat(recoveryStates.size(), equalTo(1));
-        return recoveryStates.get(0);
+        return shardRecoveries.get(indexName).stream();
     }
 
     @SuppressForbidden(reason = "Uses FileSystem APIs")

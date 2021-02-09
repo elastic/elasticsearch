@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -122,11 +121,6 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .setActiveOnly(true)
             .get()
             .shardRecoveryStates()
-            .get(restoredIndex)
-            .stream()
-            // filter for relocations that are not in stage FINALIZE (they could end up in this stage without progress for good if the
-            // target node does not have enough cache space available to hold the primary completely
-            .filter(recoveryState -> recoveryState.getSourceNode() != null && recoveryState.getStage() != RecoveryState.Stage.FINALIZE)
-            .collect(Collectors.toList());
+            .get(restoredIndex);
     }
 }

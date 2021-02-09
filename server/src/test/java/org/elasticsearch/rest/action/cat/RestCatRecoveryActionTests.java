@@ -57,7 +57,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             when(timer.stopTime()).thenReturn(startTime + time);
             when(state.getTimer()).thenReturn(timer);
             when(state.getRecoverySource()).thenReturn(TestShardRouting.randomRecoverySource());
-            when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
+            when(state.getDisplayStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
             final DiscoveryNode sourceNode = randomBoolean() ? mock(DiscoveryNode.class) : null;
             if (sourceNode != null) {
                 when(sourceNode.getHostName()).thenReturn(randomAlphaOfLength(8));
@@ -157,7 +157,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                     state.getTimer().stopTime(),
                     new TimeValue(state.getTimer().time()),
                     state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
-                    state.getStage().name().toLowerCase(Locale.ROOT),
+                    state.getDisplayStage().name().toLowerCase(Locale.ROOT),
                     state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
                     state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
                     state.getTargetNode().getHostName(),

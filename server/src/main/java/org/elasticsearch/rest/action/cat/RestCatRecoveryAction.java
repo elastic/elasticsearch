@@ -150,7 +150,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getTimer().stopTime());
                 t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getRecoverySource().getType().toString().toLowerCase(Locale.ROOT));
-                t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
+                t.addCell(state.getDisplayStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName());
                 t.addCell(state.getTargetNode().getHostName());

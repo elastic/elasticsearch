@@ -52,6 +52,15 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
         preWarmComplete = true;
     }
 
+    @Override
+    public synchronized Stage getDisplayStage() {
+        if (preWarmComplete == false) {
+            // Stay on FINALIZE until pre-warming is completed
+            return Stage.FINALIZE;
+        }
+        return super.getDisplayStage();
+    }
+
     public synchronized boolean isPreWarmComplete() {
         return preWarmComplete;
     }

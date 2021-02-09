@@ -127,15 +127,9 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                         listener.onFailure(e);
                         return;
                     }
-                } // else it's just about to be cancelled, so we must perform our own one-shot refresh
+                } // else it's just about to be cancelled, so we can just retry knowing that it will be removed very soon
 
-                final CachedItem singleUseCachedItem = newCachedItem == null ? new CachedItem(key) : newCachedItem;
-                final boolean singleUseListenerAdded = singleUseCachedItem.addListener(listener, isCancelled);
-                assert singleUseListenerAdded;
-                startRefresh(input, singleUseCachedItem);
-                singleUseCachedItem.decRef();
-                singleUseCachedItem.decRef();
-                return;
+                continue;
             }
 
             if (newCachedItem == null) {

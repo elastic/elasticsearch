@@ -436,16 +436,16 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         boolean columnar = randomBoolean();
         expected.put(
             "columns",
-            Arrays.asList(
+            asList(
                 columnInfo(mode, "gender", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
                 columnInfo(mode, "cnt", "long", JDBCType.BIGINT, 20),
                 columnInfo(mode, "cnt_dist", "long", JDBCType.BIGINT, 20)
             )
         );
         if (columnar) {
-            expected.put("values", Arrays.asList(Arrays.asList("f", "m"), Arrays.asList(6, 5), Arrays.asList(3, 3)));
+            expected.put("values", asList(asList("f", "m"), asList(6, 5), asList(3, 3)));
         } else {
-            expected.put("rows", Arrays.asList(Arrays.asList("f", 6, 3), Arrays.asList("m", 5, 3)));
+            expected.put("rows", asList(asList("f", 6, 3), asList("m", 5, 3)));
         }
 
         Map<String, Object> response = runSql(

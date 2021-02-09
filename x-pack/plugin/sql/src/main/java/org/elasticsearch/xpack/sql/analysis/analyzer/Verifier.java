@@ -668,13 +668,12 @@ public final class Verifier {
                     if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
                         if (filterChild instanceof Project) {
                             filter.condition().forEachDown(FieldAttribute.class,
-                                fa -> localFailures.add(
-                                    fail(e, "[{}] field must appear in the GROUP BY clause or be used in an aggregate function",
-                                        Expressions.name(fa)))
+                                f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
+                                        Expressions.name(f)))
                             );
                         } else {
-                            localFailures.add(
-                                fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
+                            localFailures.add(fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead",
+                                Expressions.name(e)));
 
                         }
                     }

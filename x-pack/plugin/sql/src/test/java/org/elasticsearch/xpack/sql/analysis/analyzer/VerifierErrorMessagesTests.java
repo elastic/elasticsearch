@@ -916,13 +916,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testHavingInAggs() {
-        assertEquals("1:29: [int] field must appear in the GROUP BY clause or be used in an aggregate function",
+        assertEquals("1:29: [int] field must appear in the GROUP BY clause or in an aggregate function",
             error("SELECT int FROM test HAVING MAX(int) = 0"));
 
-        assertEquals("1:35: [int] field must appear in the GROUP BY clause or be used in an aggregate function",
+        assertEquals("1:35: [int] field must appear in the GROUP BY clause or in an aggregate function",
                 error("SELECT int FROM test HAVING int = count(1)"));
-        // Note: "SELECT int FROM test HAVING int = 1" works, though it normally shouldn't; to correct this out, we'd need to qualify the
-        // Filter (WHERE vs HAVING); but this "extra flexibility" shouldn't be harmful atp.
+    }
+
+    public void testHavingAsWhere() {
+        // TODO: this query works, though it normally shouldn't; a check about it could only be enforced if the Filter would be qualified
+        // (WHERE vs HAVING). Otoh, this "extra flexibility" shouldn't be harmful atp.
+        accept("SELECT int FROM test HAVING int = 1");
+        accept("SELECT int FROM test HAVING SIN(int) + 5 > 5.5");
+        // HAVING's expression being AND'ed to WHERE's
+        accept("SELECT int FROM test WHERE int > 3 HAVING POWER(int, 2) < 100");
     }
 
     public void testHistogramInFilter() {

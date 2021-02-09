@@ -147,7 +147,7 @@ public class MathProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        if (input != null && !(input instanceof Number)) {
+        if (input != null && (input instanceof Number) == false) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", input);
         }
 

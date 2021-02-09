@@ -33,6 +33,6 @@ public class PutDatafeedResponseTests extends AbstractXContentTestCase<PutDatafe
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 }

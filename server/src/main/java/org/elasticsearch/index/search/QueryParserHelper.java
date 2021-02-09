@@ -76,7 +76,14 @@ public final class QueryParserHelper {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
             boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
-            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight, !multiField, !allField, fieldSuffix);
+            Map<String, Float> fieldMap = resolveMappingField(
+                context,
+                fieldEntry.getKey(),
+                weight,
+                multiField == false,
+                allField == false,
+                fieldSuffix
+            );
 
             for (Map.Entry<String, Float> field : fieldMap.entrySet()) {
                 float boost = field.getValue();

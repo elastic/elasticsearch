@@ -137,7 +137,7 @@ public interface ClusterStateTaskExecutor<T> {
         }
 
         public Exception getFailure() {
-            assert !isSuccess();
+            assert isSuccess() == false;
             return failure;
         }
     }

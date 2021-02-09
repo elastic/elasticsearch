@@ -38,7 +38,7 @@ public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

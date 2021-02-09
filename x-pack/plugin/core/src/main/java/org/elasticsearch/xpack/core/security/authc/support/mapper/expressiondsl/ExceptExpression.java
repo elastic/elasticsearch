@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * A negating expression. That is, this expression evaluates to <code>true</code> if-and-only-if
@@ -45,7 +45,7 @@ public final class ExceptExpression implements RoleMapperExpression {
 
     @Override
     public boolean match(ExpressionModel model) {
-        return !expression.match(model);
+        return expression.match(model) == false;
     }
 
     @Override

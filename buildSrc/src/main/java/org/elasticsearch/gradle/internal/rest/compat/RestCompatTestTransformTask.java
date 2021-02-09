@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
 
@@ -165,7 +166,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     @Input
     public List<String> getTransformations() {
-        return transformations.stream().map(t -> t.getClass().getName()).collect(toList());
+        return transformations.stream().map(t -> t.getClass().getName()).collect(Collectors.toList());
     }
 
     public void setInput(FileCollection input) {

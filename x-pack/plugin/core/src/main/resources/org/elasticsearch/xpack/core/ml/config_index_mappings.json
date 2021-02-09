@@ -21,6 +21,9 @@
       "allow_lazy_open" : {
         "type" : "keyword"
       },
+      "allow_lazy_start" : {
+        "type" : "keyword"
+      },
       "analysis" : {
         "properties" : {
           "classification" : {
@@ -33,6 +36,9 @@
               },
               "downsample_factor" : {
                 "type" : "double"
+              },
+              "early_stopping_enabled" : {
+                "type": "boolean"
               },
               "eta" : {
                 "type" : "double"
@@ -70,6 +76,9 @@
               "prediction_field_name" : {
                 "type" : "keyword"
               },
+              "randomize_seed" : {
+                "type" : "keyword"
+              },
               "soft_tree_depth_limit" : {
                 "type" : "double"
               },
@@ -78,22 +87,28 @@
               },
               "training_percent" : {
                 "type" : "double"
-              },
-              "early_stopping_enabled" : {
-                "type": "boolean"
               }
             }
           },
           "outlier_detection" : {
             "properties" : {
+              "compute_feature_influence" : {
+                "type" : "keyword"
+              },
               "feature_influence_threshold" : {
                 "type" : "double"
               },
               "method" : {
                 "type" : "keyword"
               },
+              "outlier_fraction" : {
+                "type" : "keyword"
+              },
               "n_neighbors" : {
                 "type" : "integer"
+              },
+              "standardization_enabled" : {
+                "type" : "keyword"
               }
             }
           },
@@ -107,6 +122,9 @@
               },
               "downsample_factor" : {
                 "type" : "double"
+              },
+              "early_stopping_enabled" : {
+                "type": "boolean"
               },
               "eta" : {
                 "type" : "double"
@@ -144,6 +162,9 @@
               "prediction_field_name" : {
                 "type" : "keyword"
               },
+              "randomize_seed" : {
+                "type" : "keyword"
+              },
               "soft_tree_depth_limit" : {
                 "type" : "double"
               },
@@ -152,9 +173,6 @@
               },
               "training_percent" : {
                 "type" : "double"
-              },
-              "early_stopping_enabled" : {
-                "type": "boolean"
               }
             }
           }
@@ -328,6 +346,9 @@
           }
         }
       },
+      "deleting" : {
+        "type" : "keyword"
+      },
       "description" : {
         "type" : "text"
       },
@@ -371,6 +392,9 @@
         "type" : "keyword"
       },
       "job_version" : {
+        "type" : "keyword"
+      },
+      "max_empty_searches" : {
         "type" : "keyword"
       },
       "max_num_threads" : {

@@ -1233,16 +1233,19 @@ public final class OptimizerRules {
             super(TransformDirection.DOWN);
         }
 
+        @Override
         protected Expression rule(Expression e) {
             if (e instanceof RegexMatch) {
                 RegexMatch<?> regexMatch = (RegexMatch<?>) e;
                 StringPattern pattern = regexMatch.pattern();
                 if (pattern.matchesAll()) {
                     e = new IsNotNull(e.source(), regexMatch.field());
-                }
-                else if (pattern.isExactMatch()) {
-                    Literal literal = new Literal(regexMatch.source(), regexMatch.pattern().asString(), DataTypes.KEYWORD);
-                    e = new Equals(e.source(), regexMatch.field(), literal);
+                } else {
+                    String match = pattern.exactMatch();
+                    if (match != null) {
+                        Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                        e = new Equals(e.source(), regexMatch.field(), literal);
+                    }
                 }
             }
             return e;
@@ -1259,7 +1262,7 @@ public final class OptimizerRules {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (!plan.optimized()) {
+            if (plan.optimized() == false) {
                 plan.setOptimized();
             }
             return plan;

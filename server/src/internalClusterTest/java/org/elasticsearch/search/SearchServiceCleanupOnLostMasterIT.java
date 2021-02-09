@@ -9,7 +9,6 @@
 package org.elasticsearch.search;
 
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -27,7 +26,7 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 0, scope= ESIntegTestCase.Scope.TEST)
+@ESIntegTestCase.ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -78,7 +79,13 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     @Override
     public Object extract(SearchHit hit) {
         Object value = null;
-        DocumentField field = hit.field(fieldName);
+        DocumentField field = null;
+        if (hitName != null) {
+            // a nested field value is grouped under the nested parent name (ie dep.dep_name lives under "dep":[{dep_name:value}])
+            field = hit.field(hitName);
+        } else {
+            field = hit.field(fieldName);
+        }
         if (field != null) {
             value = unwrapFieldsMultiValue(field.getValues());
         }
@@ -88,6 +95,10 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     protected Object unwrapFieldsMultiValue(Object values) {
         if (values == null) {
             return null;
+        }
+        if (values instanceof Map && hitName != null) {
+            // extract the sub-field from a nested field (dep.dep_name -> dep_name)
+            return unwrapFieldsMultiValue(((Map<?,?>) values).get(fieldName.substring(hitName.length() + 1)));
         }
         if (values instanceof List) {
             List<?> list = (List<?>) values;

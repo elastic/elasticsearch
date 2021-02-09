@@ -1,8 +1,6 @@
 [[searchable-snapshots]]
 == {search-snaps-cap}
 
-beta::[]
-
 {search-snaps-cap} let you reduce your operating costs by using
 <<snapshot-restore, snapshots>> for resiliency rather than maintaining
 <<scalability,replica shards>> within a cluster. When you mount an index from a

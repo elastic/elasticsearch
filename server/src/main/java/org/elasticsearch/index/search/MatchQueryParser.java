@@ -258,32 +258,23 @@ public class MatchQueryParser {
             }
         }
 
-        return parseInternal(type, fieldType.name(), builder, value);
-    }
-
-    protected final Query parseInternal(Type type, String fieldName, MatchQueryBuilder builder, Object value) throws IOException {
-        final Query query;
+        Query query;
         switch (type) {
             case BOOLEAN:
                 query = builder.createBooleanQuery(fieldName, value.toString(), occur);
                 break;
-
             case BOOLEAN_PREFIX:
                 query = builder.createBooleanPrefixQuery(fieldName, value.toString(), occur);
                 break;
-
             case PHRASE:
                 query = builder.createPhraseQuery(fieldName, value.toString(), phraseSlop);
                 break;
-
             case PHRASE_PREFIX:
                 query = builder.createPhrasePrefixQuery(fieldName, value.toString(), phraseSlop);
                 break;
-
             default:
                 throw new IllegalStateException("No type found for [" + type + "]");
         }
-
         return query == null ? zeroTermsQuery() : query;
     }
 

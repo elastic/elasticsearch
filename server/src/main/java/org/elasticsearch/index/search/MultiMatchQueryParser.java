@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -66,7 +67,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                 break;
 
             case CROSS_FIELDS:
-                queries = buildCrossFieldQuery(type, fieldNames, value, minimumShouldMatch, tieBreaker);
+                queries = buildCrossFieldQuery(fieldNames, value, minimumShouldMatch, tieBreaker);
                 break;
 
             default:
@@ -108,15 +109,16 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         return queries;
     }
 
-    private List<Query> buildCrossFieldQuery(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
-                                            Object value, String minimumShouldMatch, float tieBreaker) throws IOException {
+    private List<Query> buildCrossFieldQuery(Map<String, Float> fieldNames,
+                                             Object value, String minimumShouldMatch, float tieBreaker) {
+
         Map<Analyzer, List<FieldAndBoost>> groups = new HashMap<>();
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
             if (fieldType != null) {
-                Analyzer actualAnalyzer = getAnalyzer(fieldType, type == MultiMatchQueryBuilder.Type.PHRASE);
+                Analyzer actualAnalyzer = getAnalyzer(fieldType, false);
                 if (groups.containsKey(actualAnalyzer) == false) {
                     groups.put(actualAnalyzer, new ArrayList<>());
                 }
@@ -140,7 +142,11 @@ public class MultiMatchQueryParser extends MatchQueryParser {
              * fields are already grouped by their analyzers/types.
              */
             String representativeField = group.getValue().get(0).fieldType.name();
-            Query query = parseInternal(type.matchQueryType(), representativeField, builder, value);
+            Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
+            if (query == null) {
+                query = zeroTermsQuery();
+            }
+
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
             if (query != null) {
                 if (group.getValue().size() == 1) {
@@ -169,6 +175,21 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         }
 
         @Override
+        public Query createPhraseQuery(String field, String queryText, int phraseSlop) {
+            throw new IllegalArgumentException("[multi_match] queries in [cross_fields] mode don't support phrases");
+        }
+
+        @Override
+        protected Query createPhrasePrefixQuery(String field, String queryText, int slop) {
+            throw new IllegalArgumentException("[multi_match] queries in [cross_fields] mode don't support phrase prefix");
+        }
+
+        @Override
+        protected Query createBooleanPrefixQuery(String field, String queryText, BooleanClause.Occur occur) {
+            throw new IllegalArgumentException("[multi_match] queries in [cross_fields] mode don't support boolean prefix");
+        }
+
+        @Override
         protected Query newSynonymQuery(TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
@@ -184,15 +205,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
 
         @Override
         protected Query newPrefixQuery(Term term) {
-            List<Query> disjunctions = new ArrayList<>();
-            for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.prefixQuery(term.text(), null, context);
-                if (fieldType.boost != 1f) {
-                    query = new BoostQuery(query, fieldType.boost);
-                }
-                disjunctions.add(query);
-            }
-            return new DisjunctionMaxQuery(disjunctions, tieBreaker);
+            throw new IllegalArgumentException("[multi_match] queries in [cross_fields] mode don't support prefix");
         }
 
         @Override

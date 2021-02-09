@@ -68,7 +68,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        boolean hasValue = !Double.isInfinite(min);
+        boolean hasValue = Double.isInfinite(min) == false;
         builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? min : null);
         if (hasValue && format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(min).toString());

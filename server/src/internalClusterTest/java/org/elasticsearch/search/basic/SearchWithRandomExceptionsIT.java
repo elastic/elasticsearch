@@ -128,14 +128,14 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                         .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                         .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
+                if (searchResponse.getSuccessfulShards() == test.numPrimaries && refreshFailed == false) {
                     assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
                 searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setSize(numCreated)
                         .addSort("_id", SortOrder.ASC).get();
                 logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
+                if (searchResponse.getSuccessfulShards() == test.numPrimaries && refreshFailed == false) {
                     assertResultsAndLogOnFailure(numCreated, searchResponse);
                 }
 

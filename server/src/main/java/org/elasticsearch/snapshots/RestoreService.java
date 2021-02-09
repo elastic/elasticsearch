@@ -16,9 +16,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -34,11 +36,11 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -49,6 +51,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -67,10 +70,12 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -119,6 +124,12 @@ public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
+    public static final Setting<Boolean> REFRESH_REPO_UUID_ON_RESTORE_SETTING = Setting.boolSetting(
+            "snapshot.refresh_repo_uuid_on_restore",
+            true,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic);
+
     private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
             SETTING_VERSION_CREATED,
@@ -151,6 +162,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
+    private volatile boolean refreshRepositoryUuidOnRestore;
+
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
@@ -166,6 +179,10 @@ public class RestoreService implements ClusterStateApplier {
         }
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
+        this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+                REFRESH_REPO_UUID_ON_RESTORE_SETTING,
+                this::setRefreshRepositoryUuidOnRestore);
     }
 
     /**
@@ -190,10 +207,18 @@ public class RestoreService implements ClusterStateApplier {
                                 final ActionListener<RestoreCompletionResponse> listener,
                                 final BiConsumer<ClusterState, Metadata.Builder> updater) {
         try {
+
+            // Try and fill in any missing repository UUIDs in case they're needed during the restore
+            final StepListener<Void> repositoryUuidRefreshListener = new StepListener<>();
+            refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, repositoryUuidRefreshListener);
+
             // Read snapshot info and metadata from the repository
             final String repositoryName = request.repository();
             Repository repository = repositoriesService.repository(repositoryName);
-            ActionListener<RepositoryData> repoDataListener = ActionListener.wrap(repositoryData -> {
+            final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
+            repository.getRepositoryData(repositoryDataListener);
+
+            final CheckedConsumer<RepositoryData, IOException> onRepositoryDataReceived = repositoryData -> {
                 final String snapshotName = request.snapshot();
                 final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                     .filter(s -> snapshotName.equals(s.getName())).findFirst();
@@ -610,16 +635,75 @@ public class RestoreService implements ClusterStateApplier {
                         listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
                     }
                 });
-            }, listener::onFailure);
-            // fork handling the above listener to the generic pool since it loads various pieces of metadata from the repository over a
+            };
+
+            // fork handling the above consumer to the generic pool since it loads various pieces of metadata from the repository over a
             // longer period of time
-            repository.getRepositoryData(new ThreadedActionListener<>(logger, clusterService.getClusterApplierService().threadPool(),
-                    ThreadPool.Names.GENERIC, repoDataListener, false));
+            repositoryDataListener.whenComplete(repositoryData -> repositoryUuidRefreshListener.whenComplete(ignored ->
+                    clusterService.getClusterApplierService().threadPool().generic().execute(
+                            ActionRunnable.wrap(listener, l -> onRepositoryDataReceived.accept(repositoryData))
+                    ), listener::onFailure), listener::onFailure);
+
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot",
                 request.repository() + ":" + request.snapshot()), e);
             listener.onFailure(e);
         }
+    }
+
+    private void setRefreshRepositoryUuidOnRestore(boolean refreshRepositoryUuidOnRestore) {
+        this.refreshRepositoryUuidOnRestore = refreshRepositoryUuidOnRestore;
+    }
+
+    /**
+     * Best-effort attempt to make sure that we know all the repository UUIDs. Calls {@link Repository#getRepositoryData} on every
+     * {@link BlobStoreRepository} with a missing UUID.
+     *
+     * @param enabled If {@code false} this method completes the listener immediately
+     * @param repositoriesService Supplies the repositories to check
+     * @param refreshListener Listener that is completed when all repositories have been refreshed.
+     */
+    // Exposed for tests
+    static void refreshRepositoryUuids(boolean enabled, RepositoriesService repositoriesService, ActionListener<Void> refreshListener) {
+
+        if (enabled == false) {
+            logger.debug("repository UUID refresh is disabled");
+            refreshListener.onResponse(null);
+            return;
+        }
+
+        // We only care about BlobStoreRepositories because they're the only ones that can contain a searchable snapshot, and we only care
+        // about ones with missing UUIDs. It's possible to have the UUID change from under us if, e.g., the repository was wiped by an
+        // external force, but in this case any searchable snapshots are lost anyway so it doesn't really matter.
+        final List<Repository> repositories = repositoriesService.getRepositories().values().stream()
+                .filter(repository -> repository instanceof BlobStoreRepository
+                        && repository.getMetadata().uuid().equals(RepositoryData.MISSING_UUID)).collect(Collectors.toList());
+        if (repositories.isEmpty()) {
+            logger.debug("repository UUID refresh is not required");
+            refreshListener.onResponse(null);
+            return;
+        }
+
+        logger.info("refreshing repository UUIDs for repositories [{}]",
+                repositories.stream().map(repository -> repository.getMetadata().name()).collect(Collectors.joining(",")));
+        final ActionListener<RepositoryData> groupListener = new GroupedActionListener<>(new ActionListener<Collection<Void>>() {
+            @Override
+            public void onResponse(Collection<Void> ignored) {
+                logger.debug("repository UUID refresh completed");
+                refreshListener.onResponse(null);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("repository UUID refresh failed", e);
+                refreshListener.onResponse(null); // this refresh is best-effort, the restore should proceed either way
+            }
+        }, repositories.size()).map(repositoryData -> null /* don't collect the RepositoryData */);
+
+        for (Repository repository : repositories) {
+            repository.getRepositoryData(groupListener);
+        }
+
     }
 
     //visible for testing

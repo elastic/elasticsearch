@@ -110,7 +110,7 @@ public class NamedPipeHelper {
 
         // Can't use Files.isRegularFile() on on named pipes on Windows, as it renders them unusable,
         // but luckily there's an even simpler check (that's not possible on *nix)
-        if (Constants.WINDOWS && !file.toString().startsWith(WIN_PIPE_PREFIX)) {
+        if (Constants.WINDOWS && file.toString().startsWith(WIN_PIPE_PREFIX) == false) {
             throw new IOException(file + " is not a named pipe");
         }
 
@@ -231,7 +231,7 @@ public class NamedPipeHelper {
 
         // Periodically check whether the file exists until the timeout expires, then, if
         // it's still not available throw a FileNotFoundException
-        while (timeoutMillisRemaining > 0 && !Files.exists(file)) {
+        while (timeoutMillisRemaining > 0 && Files.exists(file) == false) {
             long thisSleep = Math.min(timeoutMillisRemaining, PAUSE_TIME_MS);
             timeoutMillisRemaining -= thisSleep;
             try {

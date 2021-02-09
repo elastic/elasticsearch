@@ -180,9 +180,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     }
 
                     logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted " +
-                        "as a searchable snapshot, however, the repository ([{}] vs [{}]) or storage type ([{}] vs [{}]) " +
+                        "as a searchable snapshot in repository [{}], however, the storage type ([{}] vs [{}]) " +
                         "differs, so a new index will be created",
-                        SearchableSnapshotAction.NAME, index.getName(), policyName, repo, this.snapshotRepository, existingType, type);
+                        SearchableSnapshotAction.NAME, index.getName(), policyName, this.snapshotRepository, existingType, type);
                     // Perform the searchable snapshot
                     return false;
                 }

@@ -36,7 +36,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
     public void testNoPendingRefreshIfAlreadyCancelled() {
         final TestCache testCache = new TestCache();
-        final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+        final TestFuture future = new TestFuture();
         testCache.get("foo", () -> true, future);
         testCache.assertPendingRefreshes(0);
         assertTrue(future.isDone());
@@ -47,12 +47,12 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         final TestCache testCache = new TestCache();
 
         // The first get() calls the refresh function
-        final PlainActionFuture<Integer> future0 = new PlainActionFuture<>();
+        final TestFuture future0 = new TestFuture();
         testCache.get("foo", () -> false, future0);
         testCache.assertPendingRefreshes(1);
 
         // The second get() with a matching key does not refresh again
-        final PlainActionFuture<Integer> future1 = new PlainActionFuture<>();
+        final TestFuture future1 = new TestFuture();
         testCache.get("foo", () -> false, future1);
         assertFalse(future0.isDone());
         assertFalse(future1.isDone());
@@ -62,13 +62,13 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertThat(future0.actionGet(0L), sameInstance(future1.actionGet(0L)));
 
         // A further get() call with a matching key re-uses the cached value
-        final PlainActionFuture<Integer> future2 = new PlainActionFuture<>();
+        final TestFuture future2 = new TestFuture();
         testCache.get("foo", () -> false, future2);
         testCache.assertNoPendingRefreshes();
         assertThat(future2.actionGet(0L), sameInstance(future1.actionGet(0L)));
 
         // A call with a different key triggers another refresh
-        final PlainActionFuture<Integer> future3 = new PlainActionFuture<>();
+        final TestFuture future3 = new TestFuture();
         testCache.get("bar", () -> false, future3);
         assertFalse(future3.isDone());
         testCache.assertPendingRefreshes(1);
@@ -80,7 +80,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         final TestCache testCache = new TestCache();
 
         // This computation is discarded before it completes.
-        final PlainActionFuture<Integer> future1 = new PlainActionFuture<>();
+        final TestFuture future1 = new TestFuture();
         final AtomicBoolean future1Cancelled = new AtomicBoolean();
         testCache.get("foo", future1Cancelled::get, future1);
         future1Cancelled.set(true);
@@ -88,7 +88,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertFalse(future1.isDone());
 
         // However the refresh continues and makes its result available to a later get() call for the same value.
-        final PlainActionFuture<Integer> future2 = new PlainActionFuture<>();
+        final TestFuture future2 = new TestFuture();
         testCache.get("foo", () -> false, future2);
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("foo", 1);
@@ -102,7 +102,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         final TestCache testCache = new TestCache();
 
         // This computation is discarded before it completes.
-        final PlainActionFuture<Integer> future1 = new PlainActionFuture<>();
+        final TestFuture future1 = new TestFuture();
         final AtomicBoolean future1Cancelled = new AtomicBoolean();
         testCache.get("foo", future1Cancelled::get, future1);
         future1Cancelled.set(true);
@@ -111,7 +111,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertFalse(future1.isDone());
 
         // A second get() call with a non-matching key cancels the original refresh and starts another one
-        final PlainActionFuture<Integer> future2 = new PlainActionFuture<>();
+        final TestFuture future2 = new TestFuture();
         testCache.get("bar", () -> false, future2);
         testCache.assertPendingRefreshes(2);
         testCache.assertNextRefreshCancelled();
@@ -124,8 +124,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         final TestCache testCache = new TestCache();
 
         // If a refresh results in an exception then all the pending get() calls complete exceptionally
-        final PlainActionFuture<Integer> future0 = new PlainActionFuture<>();
-        final PlainActionFuture<Integer> future1 = new PlainActionFuture<>();
+        final TestFuture future0 = new TestFuture();
+        final TestFuture future1 = new TestFuture();
         testCache.get("foo", () -> false, future0);
         testCache.get("foo", () -> false, future1);
         testCache.assertPendingRefreshes(1);
@@ -136,7 +136,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
         testCache.assertNoPendingRefreshes();
         // The exception is not cached, however, so a subsequent get() call with a matching key performs another refresh
-        final PlainActionFuture<Integer> future2 = new PlainActionFuture<>();
+        final TestFuture future2 = new TestFuture();
         testCache.get("foo", () -> false, future2);
         testCache.assertPendingRefreshes(1);
         testCache.completeNextRefresh("foo", 1);
@@ -174,8 +174,10 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                     }
 
                     final StepListener<Integer> stepListener = new StepListener<>();
+                    final AtomicBoolean isComplete = new AtomicBoolean();
                     final AtomicBoolean isCancelled = new AtomicBoolean();
-                    testCache.get(input, isCancelled::get, stepListener);
+                    testCache.get(input, isCancelled::get, ActionListener.runBefore(stepListener,
+                            () -> assertTrue(isComplete.compareAndSet(false, true))));
 
                     final Runnable next = queue.poll();
                     if (next != null) {
@@ -258,6 +260,23 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             return nextRefresh;
         }
 
+    }
+
+    private static class TestFuture extends PlainActionFuture<Integer> {
+
+        private final AtomicBoolean isCompleted = new AtomicBoolean();
+
+        @Override
+        public void onResponse(Integer result) {
+            assertTrue(isCompleted.compareAndSet(false, true));
+            super.onResponse(result);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assertTrue(isCompleted.compareAndSet(false, true));
+            super.onFailure(e);
+        }
     }
 
 }

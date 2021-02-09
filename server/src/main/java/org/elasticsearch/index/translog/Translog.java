@@ -641,6 +641,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
+        if (toSeqNo - fromSeqNo >= Integer.MAX_VALUE - 128) {
+            return null;
+        }
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             final int size = Math.toIntExact(toSeqNo - fromSeqNo + 1);

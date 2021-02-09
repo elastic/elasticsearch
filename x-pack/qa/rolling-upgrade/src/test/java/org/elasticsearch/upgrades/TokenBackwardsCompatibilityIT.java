@@ -394,9 +394,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "    \"password\": \"" + password + "\",\n" +
                 "    \"grant_type\": \"password\"\n" +
                 "}");
-        createTokenRequest.setOptions(RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings ->
-                warnings.size() > 1 || warnings.get(0).contains("system indices can only use mappings from their descriptors") == false));
+        createTokenRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> warnings.isEmpty() == false
+                        && (warnings.size() > 1
+                            || warnings.get(0).contains("system indices can only use mappings from their descriptors") == false)
+                )
+        );
         Response response = client().performRequest(createTokenRequest);
         assertOK(response);
         return entityAsMap(response);
@@ -429,9 +434,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "    \"refresh_token\": \"" + refreshToken + "\",\n" +
                 "    \"grant_type\": \"refresh_token\"\n" +
                 "}");
-        refreshTokenRequest.setOptions(RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings ->
-                warnings.size() > 1 || warnings.get(0).contains("system indices can only use mappings from their descriptors") == false));
+        refreshTokenRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> warnings.isEmpty() == false
+                        && (warnings.size() > 1
+                            || warnings.get(0).contains("system indices can only use mappings from their descriptors") == false)
+                )
+        );
         Response refreshResponse = client.performRequest(refreshTokenRequest);
         assertOK(refreshResponse);
         return entityAsMap(refreshResponse);

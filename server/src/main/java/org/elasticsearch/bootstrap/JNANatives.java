@@ -22,7 +22,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.snapshots.SnapshotUtils;
 
 import java.io.FileOutputStream;
-import java.io.IOError;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -278,7 +277,7 @@ class JNANatives {
         }
         Path cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
         if (cacheFile == null) {
-            throw new IOError(new IOException("Could not find a directory with adequate free space for cache file"));
+            throw new IOException("Could not find a directory with adequate free space for cache file");
         }
         boolean success = false;
         try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {

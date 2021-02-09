@@ -109,7 +109,7 @@ sizes smaller than, but not including, 8GB.
 
 In 7.11, we move {dfanalytics} from experimental to beta.
 
-{ml-docs}/ml-dfanalytics.html/[{dfanalytics-cap}] enable you to perform 
+{ml-docs}/ml-dfanalytics.html[{dfanalytics-cap}] enable you to perform 
 different analyses of your data and annotate it with the results. Possible 
 analysis types are {oldetection}, {regression}, and {classification}. 
 {dfanalytics-cap} evolved a lot while it was an experimental feature starting 

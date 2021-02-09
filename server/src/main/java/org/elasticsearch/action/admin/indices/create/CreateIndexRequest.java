@@ -458,7 +458,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         writeSettingsToStream(settings, out);
-        if (out.getVersion().before(Version.V_7_12_0)) {
+        if (out.getVersion().before(Version.V_8_0_0)) {
             if ("{}".equals(mappings)) {
                 out.writeVInt(0);
             } else {
@@ -474,7 +474,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         waitForActiveShards.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeString(origin);
         }
     }

@@ -8,12 +8,20 @@ package org.elasticsearch.xpack.matchonlytext.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
@@ -31,6 +39,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -39,6 +48,7 @@ import org.elasticsearch.xpack.matchonlytext.query.SourceConfirmedTextQuery;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -176,15 +186,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
-        private Query toQuery(Query query, SearchExecutionContext queryShardContext) {
-            if (queryShardContext.isSourceEnabled() == false) {
+        private Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(SearchExecutionContext searchExecutionContext) {
+            if (searchExecutionContext.isSourceEnabled() == false) {
                 throw new IllegalArgumentException(
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
                 );
             }
-            SourceLookup sourceLookup = queryShardContext.lookup().source();
-            ValueFetcher valueFetcher = valueFetcher(queryShardContext, null);
-            Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider = context -> {
+            SourceLookup sourceLookup = searchExecutionContext.lookup().source();
+            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+            return context -> {
                 valueFetcher.setNextReader(context);
                 return docID -> {
                     try {
@@ -195,7 +205,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     }
                 };
             };
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, valueFetcherProvider, indexAnalyzer));
+        }
+
+        private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
+            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(searchExecutionContext), indexAnalyzer));
         }
 
         @Override
@@ -215,6 +228,29 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         ) {
             // Disable scoring
             return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
+        }
+
+        @Override
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
+                                         NamedAnalyzer analyzer, boolean prefix, SearchExecutionContext context) throws IOException {
+            final IntervalsSource intervalsSource = textFieldType.intervals(text, maxGaps, ordered, analyzer, prefix, context);
+
+            if (analyzer == null) {
+                analyzer = getTextSearchInfo().getSearchAnalyzer();
+            }
+            Query approximation;
+            if (prefix) {
+                approximation = new PrefixQuery(name(), analyzer.normalize(name(), text));
+            } else {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                try (TokenStream ts = analyzer.tokenStream(name(), text)) {
+                    TermToBytesRefAttribute term = ts.addAttribute(TermToBytesRefAttribute.class);
+                    ts.reset();
+                    while (ts.incrementToken()) {
+                        
+                    }
+                }
+            }
         }
 
         @Override

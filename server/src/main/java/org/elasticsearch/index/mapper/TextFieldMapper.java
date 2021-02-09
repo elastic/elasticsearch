@@ -681,7 +681,7 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
-                                         NamedAnalyzer analyzer, boolean prefix) throws IOException {
+                                         NamedAnalyzer analyzer, boolean prefix, SearchExecutionContext context) throws IOException {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }

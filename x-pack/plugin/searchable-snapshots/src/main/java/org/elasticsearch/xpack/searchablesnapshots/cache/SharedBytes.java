@@ -36,7 +36,9 @@ public class SharedBytes extends AbstractRefCounted {
     private static final String CACHE_FILE_NAME = "snap_cache";
 
     final int numRegions;
+    final int numSmallRegions;
     final long regionSize;
+    final long smallRegionSize;
 
     // TODO: for systems like Windows without true p-write/read support we should split this up into multiple channels since positional
     // operations in #IO are not contention-free there (https://bugs.java.com/bugdatabase/view_bug.do?bug_id=6265734)
@@ -44,11 +46,14 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Path path;
 
-    SharedBytes(int numRegions, long regionSize, Environment environment) throws IOException {
+    SharedBytes(int numRegions, long regionSize, int numSmallRegions, long smallRegionSize, Environment environment) throws IOException {
         super("shared-bytes");
         this.numRegions = numRegions;
         this.regionSize = regionSize;
-        final long fileSize = numRegions * regionSize;
+        this.numSmallRegions = numSmallRegions;
+        this.smallRegionSize = smallRegionSize;
+        assert smallRegionSize < regionSize;
+        final long fileSize = numRegions * regionSize + smallRegionSize * numSmallRegions;
         Path cacheFile = null;
         if (fileSize > 0) {
             for (Path path : environment.dataFiles()) {
@@ -115,7 +120,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Map<Integer, IO> ios = ConcurrentCollections.newConcurrentMap();
 
-    IO getFileChannel(int sharedBytesPos) {
+    IO getFileChannel(int sharedBytesPos, boolean small) {
         assert fileChannel != null;
         return ios.compute(sharedBytesPos, (p, io) -> {
             if (io == null || io.tryIncRef() == false) {
@@ -123,7 +128,7 @@ public class SharedBytes extends AbstractRefCounted {
                 boolean success = false;
                 incRef();
                 try {
-                    newIO = new IO(p);
+                    newIO = new IO(p, small);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -137,8 +142,14 @@ public class SharedBytes extends AbstractRefCounted {
     }
 
     long getPhysicalOffset(long chunkPosition) {
-        long physicalOffset = chunkPosition * regionSize;
-        assert physicalOffset <= numRegions * regionSize;
+        long physicalOffset;
+        if (chunkPosition > numRegions) {
+            physicalOffset = numRegions * regionSize + (chunkPosition - numRegions) * smallRegionSize;
+            assert physicalOffset <= numRegions * regionSize + numSmallRegions * regionSize;
+        } else {
+            physicalOffset = chunkPosition * regionSize;
+            assert physicalOffset <= numRegions * regionSize;
+        }
         return physicalOffset;
     }
 
@@ -146,10 +157,12 @@ public class SharedBytes extends AbstractRefCounted {
 
         private final int sharedBytesPos;
         private final long pageStart;
+        private final boolean small;
 
-        private IO(final int sharedBytesPos) {
+        private IO(final int sharedBytesPos, boolean small) {
             super("shared-bytes-io");
             this.sharedBytesPos = sharedBytesPos;
+            this.small = small;
             pageStart = getPhysicalOffset(sharedBytesPos);
         }
 
@@ -166,6 +179,7 @@ public class SharedBytes extends AbstractRefCounted {
         }
 
         private void checkOffsets(long position, long length) {
+            final long regionSize = small ? smallRegionSize : SharedBytes.this.regionSize;
             long pageEnd = pageStart + regionSize;
             if (position < pageStart || position > pageEnd || position + length > pageEnd) {
                 assert false;

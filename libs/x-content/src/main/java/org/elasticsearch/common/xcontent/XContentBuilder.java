@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.compatibility.CompatibleVersion;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -157,7 +157,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private boolean humanReadable = false;
 
-    private CompatibleVersion restCompatibilityVersion;
+    private RestApiCompatibleVersion restApiCompatibilityVersion;
 
     private ParsedMediaType responseContentType;
 
@@ -1008,14 +1008,12 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Sets a version used for serialising a response compatible with a previous version.
-     * @param compatibleVersion - indicates requested a version of API that the builder will be creating
+     * @param restApiCompatibleVersion - indicates requested a version of API that the builder will be creating
      */
-    public XContentBuilder withCompatibleVersion(CompatibleVersion compatibleVersion) {
-        assert this.restCompatibilityVersion == null : "Compatible version has already been set";
-        if (compatibleVersion == null) {
-            throw new IllegalArgumentException("Compatible major version must not be null");
-        }
-        this.restCompatibilityVersion = compatibleVersion;
+    public XContentBuilder withCompatibleVersion(RestApiCompatibleVersion restApiCompatibleVersion) {
+        assert this.restApiCompatibilityVersion == null : "restApiCompatibleVersion has already been set";
+        Objects.requireNonNull(restApiCompatibleVersion, "restApiCompatibleVersion cannot be null");
+        this.restApiCompatibilityVersion = restApiCompatibleVersion;
         return this;
     }
 
@@ -1023,12 +1021,12 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Returns a version used for serialising a response.
      * @return a compatible version
      */
-    public CompatibleVersion getRestCompatibilityVersion() {
-        return restCompatibilityVersion;
+    public RestApiCompatibleVersion getRestApiCompatibilityVersion() {
+        return restApiCompatibilityVersion;
     }
 
-    public boolean useCompatibility(CompatibleVersion codeChangeVersion) {
-        return this.restCompatibilityVersion == codeChangeVersion;
+    public boolean useCompatibility(RestApiCompatibleVersion codeChangeVersion) {
+        return this.restApiCompatibilityVersion == codeChangeVersion;
     }
 
     @Override

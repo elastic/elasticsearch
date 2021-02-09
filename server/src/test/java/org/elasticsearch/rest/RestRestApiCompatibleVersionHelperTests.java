@@ -9,7 +9,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.compatibility.CompatibleVersion;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RestCompatibleVersionHelperTests extends ESTestCase {
+public class RestRestApiCompatibleVersionHelperTests extends ESTestCase {
     int CURRENT_VERSION = Version.CURRENT.major;
     int PREVIOUS_VERSION = Version.CURRENT.major - 1;
     int OBSOLETE_VERSION = Version.CURRENT.major - 2;
@@ -323,11 +323,11 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
 
     }
 
-    private Matcher<CompatibleVersion> isCompatible() {
+    private Matcher<RestApiCompatibleVersion> isCompatible() {
         return requestHasVersion(PREVIOUS_VERSION);
     }
 
-    private Matcher<CompatibleVersion> requestHasVersion(int version) {
+    private Matcher<RestApiCompatibleVersion> requestHasVersion(int version) {
         return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(v -> (int) v.major, equalTo(version));
     }
 
@@ -362,7 +362,7 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
         return null;
     }
 
-    private CompatibleVersion requestWith(String accept, String contentType, String body) {
+    private RestApiCompatibleVersion requestWith(String accept, String contentType, String body) {
         ParsedMediaType parsedAccept = ParsedMediaType.parseMediaType(accept);
         ParsedMediaType parsedContentType = ParsedMediaType.parseMediaType(contentType);
         return RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, body.isEmpty() == false);

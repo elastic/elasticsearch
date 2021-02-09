@@ -17,7 +17,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.compatibility.CompatibleVersion;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 
@@ -28,23 +28,25 @@ import org.elasticsearch.common.xcontent.ParsedMediaType;
  */
 class RestCompatibleVersionHelper {
 
-    static CompatibleVersion getCompatibleVersion(
+    static RestApiCompatibleVersion getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,
         @Nullable ParsedMediaType contentTypeHeader,
         boolean hasContent
     ) {
         Byte aVersion = parseVersion(acceptHeader);
-        byte acceptVersion = aVersion == null ? CompatibleVersion.CURRENT.major : Integer.valueOf(aVersion).byteValue();
+        byte acceptVersion = aVersion == null ? RestApiCompatibleVersion.currentVersion().major : Integer.valueOf(aVersion).byteValue();
         Byte cVersion = parseVersion(contentTypeHeader);
-        byte contentTypeVersion = cVersion == null ? CompatibleVersion.CURRENT.major : Integer.valueOf(cVersion).byteValue();
+        byte contentTypeVersion = cVersion == null ?
+            RestApiCompatibleVersion.currentVersion().major : Integer.valueOf(cVersion).byteValue();
 
         // accept version must be current or prior
-        if (acceptVersion > CompatibleVersion.CURRENT.major || acceptVersion < CompatibleVersion.minimumRestCompatibilityVersion().major) {
+        if (acceptVersion > RestApiCompatibleVersion.currentVersion().major ||
+            acceptVersion < RestApiCompatibleVersion.minimumSupported().major) {
             throw new ElasticsearchStatusException(
                 "Accept version must be either version {} or {}, but found {}. Accept={}",
                 RestStatus.BAD_REQUEST,
-                CompatibleVersion.CURRENT.major,
-                CompatibleVersion.minimumRestCompatibilityVersion().major,
+                RestApiCompatibleVersion.currentVersion().major,
+                RestApiCompatibleVersion.minimumSupported().major,
                 acceptVersion,
                 acceptHeader
             );
@@ -52,13 +54,13 @@ class RestCompatibleVersionHelper {
         if (hasContent) {
 
             // content-type version must be current or prior
-            if (contentTypeVersion > CompatibleVersion.CURRENT.major
-                || contentTypeVersion < CompatibleVersion.minimumRestCompatibilityVersion().major) {
+            if (contentTypeVersion > RestApiCompatibleVersion.currentVersion().major
+                || contentTypeVersion < RestApiCompatibleVersion.minimumSupported().major) {
                 throw new ElasticsearchStatusException(
                     "Content-Type version must be either version {} or {}, but found {}. Content-Type={}",
                     RestStatus.BAD_REQUEST,
-                    CompatibleVersion.CURRENT.major,
-                    CompatibleVersion.minimumRestCompatibilityVersion().major,
+                    RestApiCompatibleVersion.currentVersion().major,
+                    RestApiCompatibleVersion.minimumSupported().major,
                     contentTypeVersion,
                     contentTypeHeader
                 );
@@ -85,15 +87,15 @@ class RestCompatibleVersionHelper {
                 );
             }
             if (contentTypeVersion < Version.CURRENT.major) {
-                return CompatibleVersion.fromMajorVersion(Version.CURRENT.previousMajor().major);
+                return RestApiCompatibleVersion.fromMajorVersion(Version.CURRENT.previousMajor().major);
             }
         }
 
         if (acceptVersion < Version.CURRENT.major) {
-            return CompatibleVersion.fromMajorVersion(Version.CURRENT.previousMajor().major);
+            return RestApiCompatibleVersion.fromMajorVersion(Version.CURRENT.previousMajor().major);
         }
 
-        return CompatibleVersion.fromMajorVersion(Version.CURRENT.major);
+        return RestApiCompatibleVersion.fromMajorVersion(Version.CURRENT.major);
     }
 
     static Byte parseVersion(ParsedMediaType parsedMediaType) {

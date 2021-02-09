@@ -14,7 +14,7 @@ import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.compatibility.CompatibleVersion;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -336,11 +336,11 @@ public class NodeTests extends ESTestCase {
     }
 
 
-    interface MockCompatibleVersion {
-        CompatibleVersion minimumRestCompatibilityVersion();
+    interface MockRestApiCompatibleVersion {
+        RestApiCompatibleVersion minimumRestCompatibilityVersion();
     }
 
-    static MockCompatibleVersion MockCompatibleVersion = Mockito.mock(MockCompatibleVersion.class);
+    static MockRestApiCompatibleVersion MockCompatibleVersion = Mockito.mock(MockRestApiCompatibleVersion.class);
 
     static NamedXContentRegistry.Entry v7CompatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
         new ParseField("name"), Mockito.mock(ContextParser.class));
@@ -353,13 +353,13 @@ public class NodeTests extends ESTestCase {
         public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
             // real plugin will use CompatibleVersion.minimumRestCompatibilityVersion()
             if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
-                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(CompatibleVersion.V_7)) {
+                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiCompatibleVersion.V_7)) {
                 //return set of N-1 entries
                 return List.of(v7CompatibleEntries);
             }
             // after major release, new compatible apis can be added before the old ones are removed.
             if (/*CompatibleVersion.minimumRestCompatibilityVersion()*/
-                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(CompatibleVersion.V_8)) {
+                MockCompatibleVersion.minimumRestCompatibilityVersion().equals(RestApiCompatibleVersion.V_8)) {
                 return List.of(v8CompatibleEntries);
 
             }
@@ -371,7 +371,7 @@ public class NodeTests extends ESTestCase {
     public void testLoadingMultipleRestCompatibilityPlugins() throws IOException {
 
         Mockito.when(MockCompatibleVersion.minimumRestCompatibilityVersion())
-            .thenReturn(CompatibleVersion.V_7);
+            .thenReturn(RestApiCompatibleVersion.V_7);
 
         {
             Settings.Builder settings = baseSettings();
@@ -387,7 +387,7 @@ public class NodeTests extends ESTestCase {
         }
         // after version bump CompatibleVersion.minimumRestCompatibilityVersion() will return V_8
         Mockito.when(MockCompatibleVersion.minimumRestCompatibilityVersion())
-            .thenReturn(CompatibleVersion.V_8);
+            .thenReturn(RestApiCompatibleVersion.V_8);
         {
             Settings.Builder settings = baseSettings();
 

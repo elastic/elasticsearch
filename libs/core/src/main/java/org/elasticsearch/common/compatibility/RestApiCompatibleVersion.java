@@ -14,29 +14,32 @@ package org.elasticsearch.common.compatibility;
  *
  * Only major versions are supported.
  */
-public enum CompatibleVersion {
+public enum RestApiCompatibleVersion {
 
     V_8(8),
     V_7(7),
     V_6(6);//used in testing, to prove validation
 
-    // This needs to be aligned with Version.CURRENT
-    public static final CompatibleVersion CURRENT = V_8;
     public byte major;
+    private static RestApiCompatibleVersion CURRENT = V_8;
 
-    CompatibleVersion(int major) {
+    RestApiCompatibleVersion(int major) {
         this.major = (byte) major;
     }
 
-    public CompatibleVersion previousMajor() {
+    public RestApiCompatibleVersion previousMajor() {
         return fromMajorVersion(major - 1);
     }
 
-    public static CompatibleVersion fromMajorVersion(int majorVersion) {
+    public static RestApiCompatibleVersion fromMajorVersion(int majorVersion) {
         return valueOf("V_" + majorVersion);
     }
 
-    public static CompatibleVersion minimumRestCompatibilityVersion() {
-        return CURRENT.previousMajor();
+    public static RestApiCompatibleVersion minimumSupported() {
+        return currentVersion().previousMajor();
     }
+
+    public static RestApiCompatibleVersion currentVersion() {
+        return CURRENT;
+    };
 }

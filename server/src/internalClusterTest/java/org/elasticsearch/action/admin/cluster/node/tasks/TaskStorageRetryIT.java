@@ -63,7 +63,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
         });
         barrier.await();
         Task task;
-        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = ListenableActionFuture.newListenableFuture();
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = new ListenableActionFuture<>();
         try {
             logger.info("start a task that will store its results");
             TestTaskPlugin.NodesRequest req = new TestTaskPlugin.NodesRequest("foo");

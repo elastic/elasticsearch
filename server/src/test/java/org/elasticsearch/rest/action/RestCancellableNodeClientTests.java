@@ -74,7 +74,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 TestHttpChannel channel = new TestHttpChannel();
                 totalSearches += numTasks;
                 for (int j = 0; j < numTasks; j++) {
-                    ListenableActionFuture<SearchResponse> actionFuture = ListenableActionFuture.newListenableFuture();
+                    ListenableActionFuture<SearchResponse> actionFuture = new ListenableActionFuture<>();
                     RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
                     threadPool.generic().submit(() -> client.execute(SearchAction.INSTANCE, new SearchRequest(), actionFuture));
                     futures.add(actionFuture);

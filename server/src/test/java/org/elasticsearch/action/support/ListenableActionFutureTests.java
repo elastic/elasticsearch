@@ -29,7 +29,7 @@ public class ListenableActionFutureTests extends ESTestCase {
     public void testListenerIsCallableFromNetworkThreads() throws Exception {
         ThreadPool threadPool = new TestThreadPool("testListenerIsCallableFromNetworkThreads");
         try {
-            final ListenableActionFuture<Object> future = ListenableActionFuture.newListenableFuture();
+            final ListenableActionFuture<Object> future = new ListenableActionFuture<>();
             final CountDownLatch listenerCalled = new CountDownLatch(1);
             final AtomicReference<Exception> error = new AtomicReference<>();
             final Object response = new Object();
@@ -73,7 +73,7 @@ public class ListenableActionFutureTests extends ESTestCase {
         final int adderThreads = between(1, 5);
         final int completerThreads = between(1, 3);
 
-        final ListenableActionFuture<Void> future = ListenableActionFuture.newListenableFuture();
+        final ListenableActionFuture<Void> future = new ListenableActionFuture<>();
 
         final AtomicBoolean preComplete = new AtomicBoolean();
         final AtomicBoolean postComplete = new AtomicBoolean();

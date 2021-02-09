@@ -22,19 +22,6 @@ public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
     private Object listeners;
     private boolean executedListeners = false;
 
-    protected ListenableActionFuture() {}
-
-    /**
-     * This method returns a listenable future. The listeners will be called on completion of the future.
-     * The listeners will be executed by the same thread that completes the future.
-     *
-     * @param <T> the result of the future
-     * @return a listenable future
-     */
-    public static <T> ListenableActionFuture<T> newListenableFuture() {
-        return new ListenableActionFuture<>();
-    }
-
     /**
      * Registers an {@link ActionListener<T>} to be notified when this future is completed. If the future is already completed then the
      * listener is notified immediately, on the calling thread. If not, the listener is notified on the thread that completes the listener.

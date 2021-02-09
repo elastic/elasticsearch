@@ -1400,7 +1400,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     return;
                 }
                 logger.trace("[{}] initializing repository generation in cluster state", metadata.name());
-                repoDataInitialized = ListenableActionFuture.newListenableFuture();
+                repoDataInitialized = new ListenableActionFuture<>();
                 repoDataInitialized.addListener(listener);
                 final Consumer<Exception> onFailure = e -> {
                     logger.warn(new ParameterizedMessage("[{}] Exception when initializing repository generation in cluster state",

@@ -281,7 +281,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
-        private ListenableActionFuture<Void> future = ListenableActionFuture.newListenableFuture();
+        private ListenableActionFuture<Void> future = new ListenableActionFuture<>();
         private ActivityType activityType = ActivityType.IDLE; // indicates what any listeners are awaiting
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
@@ -415,7 +415,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         private ListenableActionFuture<Void> getAndClearFuture() {
             assert Thread.holdsLock(mutex) : "mutex not held";
             final ListenableActionFuture<Void> drainedFuture = future;
-            future = ListenableActionFuture.newListenableFuture();
+            future = new ListenableActionFuture<>();
             return drainedFuture;
         }
 

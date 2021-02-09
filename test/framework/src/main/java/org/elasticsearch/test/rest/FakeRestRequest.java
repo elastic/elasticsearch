@@ -129,7 +129,7 @@ public class FakeRestRequest extends RestRequest {
     private static class FakeHttpChannel implements HttpChannel {
 
         private final InetSocketAddress remoteAddress;
-        private final ListenableActionFuture<Void> closeFuture = ListenableActionFuture.newListenableFuture();
+        private final ListenableActionFuture<Void> closeFuture = new ListenableActionFuture<>();
 
         private FakeHttpChannel(InetSocketAddress remoteAddress) {
             this.remoteAddress = remoteAddress;

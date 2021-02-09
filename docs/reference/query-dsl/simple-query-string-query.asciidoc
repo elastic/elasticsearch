@@ -277,9 +277,10 @@ GET /_search
 ===== Multi-position tokens
 
 By default, the `simple_query_string` query parser creates a
-<<query-dsl-match-query-phrase,`match_phrase`>> query for
-<<token-graphs-multi-position-tokens,multi-position tokens>>. For example, the
-parser creates a `match_phrase` query for the multi-word synonym `ny, new york`:
+<<query-dsl-match-query-phrase,`match_phrase`>> query for each
+<<token-graphs-multi-position-tokens,multi-position token>> in the query string.
+For example, the parser creates a `match_phrase` query for the multi-word
+synonym `ny, new york`:
 
 `(ny OR ("new york"))`
 

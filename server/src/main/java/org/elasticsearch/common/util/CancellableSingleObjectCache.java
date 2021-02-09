@@ -192,6 +192,9 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                     cancellationChecks.clear();
                     // Do not cache this failure
                     if (currentCachedItemRef.compareAndSet(CachedItem.this, null)) {
+                        // Release reference held by the cache, so that concurrent calls to addListener() fail and retry. Not totally
+                        // necessary, we could also fail those listeners as if they'd been added slightly sooner, but it makes the ref
+                        // counting easier to document.
                         decRef();
                     }
                 }

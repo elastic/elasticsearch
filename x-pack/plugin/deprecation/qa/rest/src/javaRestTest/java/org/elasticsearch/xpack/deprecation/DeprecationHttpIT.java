@@ -51,9 +51,14 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
+ * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
 public class DeprecationHttpIT extends ESRestTestCase {
+
+    /**
+     * Same as <code>DeprecationIndexingAppender#DEPRECATION_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
+     */
+    private static final String DATA_STREAM_NAME = ".logs-deprecation-elasticsearch.default";
 
     /**
      * Check that configuring deprecation settings causes a warning to be added to the
@@ -242,8 +247,10 @@ public class DeprecationHttpIT extends ESRestTestCase {
             assertBusy(() -> {
                 Response response;
                 try {
-                    client().performRequest(new Request("POST", "/.logs-deprecation-elasticsearch/_refresh?ignore_unavailable=true"));
-                    response = client().performRequest(new Request("GET", "/.logs-deprecation-elasticsearch/_search"));
+                    client().performRequest(
+                        new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true")
+                    );
+                    response = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
                 } catch (Exception e) {
                     // It can take a moment for the index to be created. If it doesn't exist then the client
                     // throws an exception. Translate it into an assertion error so that assertBusy() will
@@ -316,7 +323,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }, 30, TimeUnit.SECONDS);
         } finally {
             configureWriteDeprecationLogsToIndex(null);
-            client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));
+            client().performRequest(new Request("DELETE", "_data_stream/" + DATA_STREAM_NAME));
         }
     }
 

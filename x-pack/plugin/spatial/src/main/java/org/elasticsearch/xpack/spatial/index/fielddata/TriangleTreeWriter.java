@@ -75,8 +75,8 @@ class TriangleTreeWriter {
         }
         TriangleTreeNode newNode = components[mid];
         // find children
-        newNode.left = createTree(components, low, mid - 1, !splitX);
-        newNode.right = createTree(components, mid + 1, high, !splitX);
+        newNode.left = createTree(components, low, mid - 1, splitX == false);
+        newNode.right = createTree(components, mid + 1, high, splitX == false);
 
         // pull up max values to this node
         if (newNode.left != null) {

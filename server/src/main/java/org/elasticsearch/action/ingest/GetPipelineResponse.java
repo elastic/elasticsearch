@@ -64,7 +64,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     }
 
     public boolean isFound() {
-        return !pipelines.isEmpty();
+        return pipelines.isEmpty() == false;
     }
 
     @Override

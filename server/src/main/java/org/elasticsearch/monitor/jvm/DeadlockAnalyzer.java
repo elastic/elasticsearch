@@ -66,7 +66,7 @@ public class DeadlockAnalyzer {
         Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<>();
         for (Map.Entry<Long, ThreadInfo> entry : threadInfoMap.entrySet()) {
             LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<>();
-            for (ThreadInfo t = entry.getValue(); !cycle.contains(t); t = threadInfoMap.get(Long.valueOf(t.getLockOwnerId()))) {
+            for (ThreadInfo t = entry.getValue(); cycle.contains(t) == false; t = threadInfoMap.get(Long.valueOf(t.getLockOwnerId()))) {
                 cycle.add(t);
             }
 

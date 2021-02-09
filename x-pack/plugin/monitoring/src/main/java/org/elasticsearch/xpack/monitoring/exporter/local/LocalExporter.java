@@ -531,7 +531,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
-        assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
+        assert Thread.currentThread().isInterrupted() == false : "current thread has been interrupted before putting index template!!!";
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request, listener,
                 client.admin().indices()::putTemplate);

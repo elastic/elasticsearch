@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_USAGE_VERSION;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
 
 public final class RuntimeUtils {
 
@@ -148,7 +148,7 @@ public final class RuntimeUtils {
     public static SearchRequest prepareRequest(SearchSourceBuilder source,
                                                boolean includeFrozen,
                                                String... indices) {
-        SearchRequest searchRequest = new SearchRequest(FIELDS_API_USAGE_VERSION);
+        SearchRequest searchRequest = new SearchRequest(SWITCH_TO_FIELDS_API_VERSION);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);

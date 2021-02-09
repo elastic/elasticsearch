@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.FIELDS_API_USAGE_VERSION;
+import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.SWITCH_TO_FIELDS_API_VERSION;
 
 public class SqlSearchIT extends ESRestTestCase {
 
@@ -71,7 +71,7 @@ public class SqlSearchIT extends ESRestTestCase {
         newVersion = nodes.getNewNodes().get(0).getVersion();
         // TODO: remove the 8.0.0 version check after the code reaches 7.x as well
         isBwcNodeBeforeFieldsApiInQL = newVersion == Version.V_8_0_0 || bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
-        isBwcNodeBeforeFieldsApiInES = bwcVersion.before(FIELDS_API_USAGE_VERSION);
+        isBwcNodeBeforeFieldsApiInES = bwcVersion.before(SWITCH_TO_FIELDS_API_VERSION);
         
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(

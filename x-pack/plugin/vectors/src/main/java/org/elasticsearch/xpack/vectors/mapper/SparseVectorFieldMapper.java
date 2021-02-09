@@ -24,6 +24,8 @@ import org.elasticsearch.search.DocValueFormat;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A {@link FieldMapper} for indexing a sparse vector of floats.
@@ -88,7 +90,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
         }
 

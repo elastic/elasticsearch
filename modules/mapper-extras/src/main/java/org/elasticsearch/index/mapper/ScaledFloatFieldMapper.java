@@ -205,7 +205,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(sourcePaths.apply(name()), null) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), null) {
                 @Override
                 protected Double parseSourceValue(Object value) {
                     double doubleValue;

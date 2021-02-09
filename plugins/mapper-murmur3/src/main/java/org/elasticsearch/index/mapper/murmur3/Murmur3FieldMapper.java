@@ -31,6 +31,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class Murmur3FieldMapper extends FieldMapper {
@@ -93,8 +95,8 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
+            return SourceValueFetcher.toString(name(), sourcePaths, format);
         }
 
         @Override

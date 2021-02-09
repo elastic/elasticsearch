@@ -58,6 +58,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -132,8 +134,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.toString(name(), context, format);
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
+            return SourceValueFetcher.toString(name(), sourcePaths, format);
         }
 
         @Override
@@ -385,6 +387,11 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public String format(BytesRef value) {
             return VersionEncoder.decodeVersion(value);
+        }
+
+        @Override
+        public Object formatObject(Object in) {
+            return format((BytesRef) in);
         }
 
         @Override

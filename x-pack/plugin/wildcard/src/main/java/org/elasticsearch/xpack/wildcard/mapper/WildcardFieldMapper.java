@@ -78,6 +78,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -909,12 +910,12 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
          @Override
-         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+         public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
              if (format != null) {
                  throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
              }
 
-             return new SourceValueFetcher(name(), context, nullValue) {
+             return new SourceValueFetcher(name(), sourcePaths.apply(name()), nullValue) {
                  @Override
                  protected String parseSourceValue(Object value) {
                      String keywordValue = value.toString();

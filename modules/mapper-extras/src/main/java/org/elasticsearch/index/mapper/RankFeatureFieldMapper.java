@@ -108,7 +108,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(sourcePaths.apply(name()), null) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), null) {
                 @Override
                 protected Float parseSourceValue(Object value) {
                     return objectToFloat(value);

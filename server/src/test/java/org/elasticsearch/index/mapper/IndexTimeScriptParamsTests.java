@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Set;
 
-public class IndexTimeScriptParamsTest extends ESTestCase {
+public class IndexTimeScriptParamsTests extends ESTestCase {
 
     public void testSource() throws IOException {
         BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()

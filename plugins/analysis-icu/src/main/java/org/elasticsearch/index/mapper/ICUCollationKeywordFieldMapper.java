@@ -37,6 +37,8 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class ICUCollationKeywordFieldMapper extends FieldMapper {
@@ -70,12 +72,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return new SourceValueFetcher(name(), sourcePaths.apply(name()), nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
@@ -152,6 +154,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 char[] encoded = new char[encodedLength];
                 IndexableBinaryStringTools.encode(value.bytes, value.offset, value.length, encoded, 0, encodedLength);
                 return new String(encoded, 0, encodedLength);
+            }
+
+            @Override
+            public Object formatObject(Object in) {
+                return format((BytesRef)in);
             }
 
             @Override

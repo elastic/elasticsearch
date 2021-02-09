@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
 
 import java.util.Arrays;
@@ -110,9 +111,8 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType fieldType = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", null);
         ValueFetcher fetcher = fieldType.valueFetcher(null, null);
 
-        SourceLookup missingValueLookup = new SourceLookup();
-        SourceLookup nullValueLookup = new SourceLookup();
-        nullValueLookup.setSource(Collections.singletonMap("field", null));
+        ValuesLookup missingValueLookup = ValuesLookup.sourceOnly(new BytesArray("{}"));
+        ValuesLookup nullValueLookup = ValuesLookup.sourceOnly(Collections.singletonMap("field", null));
 
         assertTrue(fetcher.fetchValues(missingValueLookup, Collections.emptySet()).isEmpty());
         assertTrue(fetcher.fetchValues(nullValueLookup, Collections.emptySet()).isEmpty());

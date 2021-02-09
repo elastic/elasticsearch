@@ -7,16 +7,13 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.lookup.ValuesLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;

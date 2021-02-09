@@ -37,6 +37,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -198,7 +199,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+    public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
         return new DocValueFetcher(docValueFormat(format, null), name());
     }
 

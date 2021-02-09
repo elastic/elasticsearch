@@ -51,6 +51,8 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -135,8 +137,8 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return SourceValueFetcher.identity(name(), context, format);
+        public ValueFetcher valueFetcher(Function<String, Set<String>> sourcePaths, String format) {
+            return SourceValueFetcher.identity(name(), sourcePaths, format);
         }
 
         @Override

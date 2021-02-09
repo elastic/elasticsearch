@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.transform.transforms;
+package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,8 +34,11 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MockDeprecatedAggregationBuilder.class);
 
-    protected MockDeprecatedAggregationBuilder(MockDeprecatedAggregationBuilder clone, Builder factoriesBuilder,
-            Map<String, Object> metadata) {
+    protected MockDeprecatedAggregationBuilder(
+        MockDeprecatedAggregationBuilder clone,
+        Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -71,8 +74,7 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void innerWriteTo(StreamOutput out) throws IOException {}
 
     @Override
     public BucketCardinality bucketCardinality() {
@@ -80,10 +82,12 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
         return null;
     }
 

@@ -217,7 +217,7 @@ public class HtmlSanitizer {
                     continue;
                 }
                 // reject external image source (only allow embedded ones)
-                if ("src".equals(attrName) && !attr.startsWith("cid:")) {
+                if ("src".equals(attrName) && attr.startsWith("cid:") == false) {
                     return null;
                 }
             }

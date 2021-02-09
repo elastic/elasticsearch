@@ -742,7 +742,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private void allocateUnassigned() {
             RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
-            assert !nodes.isEmpty();
+            assert nodes.isEmpty() == false;
             if (logger.isTraceEnabled()) {
                 logger.trace("Start allocating unassigned shards");
             }
@@ -1125,7 +1125,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             highestPrimary = -1;
-            assert !shards.contains(shard) : "Shard already allocated on current node: " + shard;
+            assert shards.contains(shard) == false : "Shard already allocated on current node: " + shard;
             shards.add(shard);
         }
 

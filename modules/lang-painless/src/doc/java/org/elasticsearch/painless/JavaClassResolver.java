@@ -6,17 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action;
+package org.elasticsearch.painless;
 
-/**
- * An {@link ActionFuture} that listeners can be added to.
- *
- *
- */
-public interface ListenableActionFuture<T> extends ActionFuture<T> {
+import java.io.IOException;
+import java.io.InputStream;
 
-    /**
-     * Add an action listener to be invoked when a response has received.
-     */
-    void addListener(ActionListener<T> listener);
+public interface JavaClassResolver {
+    InputStream openClassFile(String className) throws IOException;
 }

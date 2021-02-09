@@ -152,8 +152,21 @@ public class TransformProgressIT extends ESRestTestCase {
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        TransformConfig config =
-            new TransformConfig(transformId, sourceConfig, destConfig, null, null, null, pivotConfig, null, null, null, null, null);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            sourceConfig,
+            destConfig,
+            null,
+            null,
+            null,
+            pivotConfig,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
         Pivot pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);
 

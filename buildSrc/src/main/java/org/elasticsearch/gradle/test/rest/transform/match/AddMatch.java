@@ -14,13 +14,12 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentArray;
 
-import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * Adds a match for a REST test. For example add the follow where it did not exist prior to running this: "match":{"_type": "foo"}
  */
-public class AddMatch implements RestTestTransformByParentArray, Serializable {
+public class AddMatch implements RestTestTransformByParentArray {
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
     private final String matchKey;
     private final String testName;

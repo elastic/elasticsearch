@@ -19,7 +19,6 @@ import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalSetup
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalTeardown;
 
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -27,12 +26,7 @@ import java.util.Map;
  * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section
  * as well as adding headers as a features to the "setup" and "teardown" sections.
  */
-public class InjectHeaders
-    implements
-        RestTestTransformByParentObject,
-        RestTestTransformGlobalSetup,
-        RestTestTransformGlobalTeardown,
-        Serializable {
+public class InjectHeaders implements RestTestTransformByParentObject, RestTestTransformGlobalSetup, RestTestTransformGlobalTeardown {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 

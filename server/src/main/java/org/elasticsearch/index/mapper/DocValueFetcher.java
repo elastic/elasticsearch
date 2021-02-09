@@ -16,7 +16,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -39,7 +38,7 @@ public final class DocValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, Set<String> ignoredFields) throws IOException {
+    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
         if (false == leaf.advanceExact(lookup.docId())) {
             return emptyList();
         }

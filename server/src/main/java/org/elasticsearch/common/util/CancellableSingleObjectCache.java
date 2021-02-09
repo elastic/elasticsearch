@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -171,7 +171,7 @@ public abstract class CancellableSingleObjectCache<Key, Value> {
     private final class CachedItem extends AbstractRefCounted {
 
         private final Key key;
-        private final PlainListenableActionFuture<Value> future = PlainListenableActionFuture.newListenableFuture();
+        private final ListenableActionFuture<Value> future = new ListenableActionFuture<>();
         private final CancellationChecks cancellationChecks = new CancellationChecks();
 
         CachedItem(Key key) {
@@ -199,7 +199,7 @@ public abstract class CancellableSingleObjectCache<Key, Value> {
             return key;
         }
 
-        PlainListenableActionFuture<Value> getFuture() {
+        ListenableActionFuture<Value> getFuture() {
             return future;
         }
 

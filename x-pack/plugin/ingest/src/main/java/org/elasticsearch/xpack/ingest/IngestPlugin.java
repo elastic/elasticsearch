@@ -22,7 +22,9 @@ public class IngestPlugin extends Plugin implements org.elasticsearch.plugins.In
             NetworkDirectionProcessor.TYPE,
             new NetworkDirectionProcessor.Factory(),
             CommunityIdProcessor.TYPE,
-            new CommunityIdProcessor.Factory()
+            new CommunityIdProcessor.Factory(),
+            FingerprintProcessor.TYPE,
+            new FingerprintProcessor.Factory()
         );
     }
 }

@@ -143,7 +143,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        sizeInBytes += getSize(request);
         indices.add(request.index());
         return this;
     }
@@ -160,15 +160,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        if (request.doc() != null) {
-            sizeInBytes += request.doc().source().length();
-        }
-        if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().source().length();
-        }
-        if (request.script() != null) {
-            sizeInBytes += request.script().getIdOrCode().length() * 2;
-        }
+        long size = getSize(request);
+        sizeInBytes +=size;
         indices.add(request.index());
         return this;
     }
@@ -181,7 +174,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         applyGlobalMandatoryParameters(request);
 
         requests.add(request);
-        sizeInBytes += REQUEST_OVERHEAD;
+        sizeInBytes += getSize(request);
         indices.add(request.index());
         return this;
     }
@@ -428,5 +421,27 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
+    }
+
+    public static long getSize(UpdateRequest request) {
+        long size = REQUEST_OVERHEAD;
+        if (request.doc() != null) {
+            size += request.doc().source().length();
+        }
+        if (request.upsertRequest() != null) {
+            size += request.upsertRequest().source().length();
+        }
+        if (request.script() != null) {
+            size += ((long) request.script().getIdOrCode().length()) * 2;
+        }
+        return size;
+    }
+
+    public static long getSize(DeleteRequest request) {
+        return REQUEST_OVERHEAD;
+    }
+
+    public static long getSize(IndexRequest request) {
+        return (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
     }
 }

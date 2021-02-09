@@ -1,0 +1,5 @@
+[[configuring-security]]
+== Configuring security for the Elastic Stack
+++++
+<titleabbrev>Configuring security</titleabbrev>
+++++

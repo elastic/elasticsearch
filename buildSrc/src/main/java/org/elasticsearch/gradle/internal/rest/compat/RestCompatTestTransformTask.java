@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -160,6 +161,11 @@ public class RestCompatTestTransformTask extends DefaultTask {
                 }
             }
         }
+    }
+
+    @Input
+    public List<String> getTransformations() {
+        return transformations.stream().map(t -> t.getClass().getName()).collect(toList());
     }
 
     public void setInput(FileCollection input) {

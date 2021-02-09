@@ -247,9 +247,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             assertBusy(() -> {
                 Response response;
                 try {
-                    client().performRequest(
-                        new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true")
-                    );
+                    client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
                     response = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
                 } catch (Exception e) {
                     // It can take a moment for the index to be created. If it doesn't exist then the client

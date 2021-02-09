@@ -163,7 +163,11 @@ public class XContentMapValues {
                     } else {
                         Object val = extractValue(pathElements, nextIndex, mapValue, nullValue);
                         if (val != null) {
-                            extractedValues.add(val);
+                            if (val instanceof List) {
+                                extractedValues.addAll((List<?>) val);
+                            } else {
+                                extractedValues.add(val);
+                            }
                         }
                     }
                 }

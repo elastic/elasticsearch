@@ -101,7 +101,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         } else {
             this.forceMergeIndex = true;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             this.storageType = in.readOptionalEnum(MountSearchableSnapshotRequest.Storage.class);
         } else {
             this.storageType = null;
@@ -333,7 +333,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(forceMergeIndex);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalEnum(storageType);
         }
     }

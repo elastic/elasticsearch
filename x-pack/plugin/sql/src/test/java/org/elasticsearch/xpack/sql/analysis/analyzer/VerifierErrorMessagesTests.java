@@ -912,7 +912,17 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
-                error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+            error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+    }
+
+    public void testHavingInAggs() {
+        assertEquals("1:29: [int] field must appear in the GROUP BY clause or be used in an aggregate function",
+            error("SELECT int FROM test HAVING MAX(int) = 0"));
+
+        assertEquals("1:35: [int] field must appear in the GROUP BY clause or be used in an aggregate function",
+                error("SELECT int FROM test HAVING int = count(1)"));
+        // Note: "SELECT int FROM test HAVING int = 1" works, though it normally shouldn't; to correct this out, we'd need to qualify the
+        // Filter (WHERE vs HAVING); but this "extra flexibility" shouldn't be harmful atp.
     }
 
     public void testHistogramInFilter() {

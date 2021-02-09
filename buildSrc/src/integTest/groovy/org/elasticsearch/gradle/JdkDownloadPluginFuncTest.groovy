@@ -83,6 +83,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPEN_JDK_VERSION    | "Contents/Home/bin/java" | ""
         "mac"     | "x64"     | VENDOR_OPENJDK      | OPENJDK_VERSION_OLD | "Contents/Home/bin/java" | "(old version)"
         "darwin"  | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION  | "Contents/Home/bin/java" | ""
+        "linux"   | "aarch64" | VENDOR_AZUL         | AZUL_AARCH_VERSION  | "bin/java"               | ""
     }
 
     def "transforms are reused across projects"() {
@@ -204,10 +205,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
             final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + effectivePlatform + "-x64_bin." + extension(platform);
             return "/java/GA/" + versionPath + "/GPL/" + filename;
-        } else if(vendor.equals(VENDOR_AZUL)) {
+        } else if (vendor.equals(VENDOR_AZUL)) {
             final String module = isMac(platform) ? "macosx" : platform;
             // we only test zulu 15 darwin aarch64 for now
-            return "/zulu/bin/zulu15.28.1013-ca-jdk15.0.1-${module}_aarch64.tar.gz";
+            return "/zulu${module.equals('linux') ? '-embedded' : ''}/bin/zulu15.29.15-ca-jdk15.0.2-${module}_aarch64.tar.gz";
         }
     }
 

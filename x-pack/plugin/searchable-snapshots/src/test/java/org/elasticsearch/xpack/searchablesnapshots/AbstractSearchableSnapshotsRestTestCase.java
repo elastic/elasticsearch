@@ -348,6 +348,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected static void mountSnapshot(String snapshotIndexName, String mountIndexName) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME + "/_mount");
         request.addParameter("wait_for_completion", Boolean.toString(true));
+        request.addParameter("storage", randomFrom("full_copy", "shared_cache"));
 
         final XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("index", snapshotIndexName);
         if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {

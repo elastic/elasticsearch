@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +109,31 @@ public class XContentMapValues {
             return null;
         }
         return XContentMapValues.extractValue(pathElements, 0, map, null);
+    }
+
+    /**
+     * For the provided nested path, return its value in the xContent map.
+     *
+     * @param nestedPath the nested field value's path in the map.
+     *
+     * @return the list associated with the path in the map or {@code null} if the path does not exits.
+     */
+    public static List<?> extractNestedValue(String nestedPath, Map<?, ?> map) {
+        Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
+        List<?> nestedParsedSource = null;
+        if (extractedValue != null) {
+            if (extractedValue instanceof List) {
+                // nested field has an array value in the _source
+                nestedParsedSource = (List<?>) extractedValue;
+            } else if (extractedValue instanceof Map) {
+                // nested field has an object value in the _source. This just means the nested field has just one inner object,
+                // which is valid, but uncommon.
+                nestedParsedSource = Collections.singletonList(extractedValue);
+            } else {
+                throw new IllegalStateException("extracted source isn't an object or an array");
+            }
+        }
+        return nestedParsedSource;
     }
 
     /**

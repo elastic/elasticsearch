@@ -34,11 +34,12 @@ import java.util.function.BooleanSupplier;
  * Cancellation is based on polling: the {@link #refresh} method checks whether it should abort whenever it is convenient to do so, which in
  * turn checks all the pending retrievals to see whether they have been cancelled.
  *
- * @param <Key>   The key type. The cached value is associated with a key, and subsequent {@link #get} calls compare keys to determine
- *                whether the cached value is fresh or not. See {@link #isFresh}.
+ * @param <Input> The type of the input to the computation of the cached value.
+ * @param <Key>   The key type. The cached value is associated with a key, and subsequent {@link #get} calls compare keys of the given input
+ *                value to determine whether the cached value is fresh or not. See {@link #isFresh}.
  * @param <Value> The type of the cached value.
  */
-public abstract class CancellableSingleObjectCache<Key, Value> {
+public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
     private final AtomicReference<CachedItem> currentCachedItemRef = new AtomicReference<>();
 
@@ -52,15 +53,20 @@ public abstract class CancellableSingleObjectCache<Key, Value> {
      * computation is cancelled if all of the corresponding retrievals have been cancelled <i>and</i> a retrieval has since happened for a
      * fresher key.
      *
-     * @param key                The key associated with this computation, which will be used to determine whether it is suitably fresh for
-     *                           future requests too.
+     * @param input              The input to this computation, which will be converted to a key and used to determine whether it is
+     *                           suitably fresh for future requests too.
      * @param ensureNotCancelled A {@link Runnable} which throws a {@link TaskCancelledException} if the result of the computation is no
      *                           longer needed. On cancellation, notifying the {@code listener} is optional.
      * @param listener           A {@link ActionListener} which should be notified when the computation completes. If the computation fails
      *                           by calling {@link ActionListener#onFailure} then the result is returned to the pending listeners but is not
      *                           cached.
      */
-    protected abstract void refresh(Key key, Runnable ensureNotCancelled, ActionListener<Value> listener);
+    protected abstract void refresh(Input input, Runnable ensureNotCancelled, ActionListener<Value> listener);
+
+    /**
+     * Compute the key for the given input value.
+     */
+    protected abstract Key getKey(Input input);
 
     /**
      * Compute whether the {@code currentKey} is fresh enough for a retrieval associated with {@code newKey}.
@@ -74,18 +80,21 @@ public abstract class CancellableSingleObjectCache<Key, Value> {
     }
 
     /**
-     * Start a retrieval for the value associated with the given {@code key}, and pass it to the given {@code listener}.
+     * Start a retrieval for the value associated with the given {@code input}, and pass it to the given {@code listener}.
      * <p>
      * If a fresh-enough result is available when this method is called then the {@code listener} is notified immediately, on this thread.
      * If a fresh-enough result is already being computed then the {@code listener} is captured and will be notified when the result becomes
      * available, on the thread on which the refresh completes. If no fresh-enough result is either pending or available then this method
      * starts to compute one by calling {@link #refresh} on this thread.
      *
-     * @param key         The key of the desired value, used to determine if any value that's currently cached or pending is fresh enough.
+     * @param input       The input to compute the desired value, converted to a {@link Key} to determine if the value that's currently
+     *                    cached or pending is fresh enough.
      * @param isCancelled Returns {@code true} if the listener no longer requires the value being computed.
      * @param listener    The listener to notify when the desired value becomes available.
      */
-    public final void get(Key key, BooleanSupplier isCancelled, ActionListener<Value> listener) {
+    public final void get(Input input, BooleanSupplier isCancelled, ActionListener<Value> listener) {
+
+        final Key key = getKey(input);
 
         CachedItem newCachedItem = null;
 
@@ -123,7 +132,7 @@ public abstract class CancellableSingleObjectCache<Key, Value> {
                 final CachedItem singleUseCachedItem = newCachedItem == null ? new CachedItem(key) : newCachedItem;
                 final boolean singleUseListenerAdded = singleUseCachedItem.addListener(listener, isCancelled);
                 assert singleUseListenerAdded;
-                startRefresh(key, singleUseCachedItem);
+                startRefresh(input, singleUseCachedItem);
                 singleUseCachedItem.decRef();
                 singleUseCachedItem.decRef();
                 return;
@@ -137,7 +146,7 @@ public abstract class CancellableSingleObjectCache<Key, Value> {
                 if (currentCachedItem != null) {
                     currentCachedItem.decRef();
                 }
-                startRefresh(key, newCachedItem);
+                startRefresh(input, newCachedItem);
                 final boolean listenerAdded = newCachedItem.addListener(listener, isCancelled);
                 assert listenerAdded;
                 newCachedItem.decRef();
@@ -148,9 +157,9 @@ public abstract class CancellableSingleObjectCache<Key, Value> {
         } while (true);
     }
 
-    private void startRefresh(Key key, CachedItem cachedItem) {
+    private void startRefresh(Input input, CachedItem cachedItem) {
         try {
-            refresh(key, cachedItem::ensureNotCancelled, cachedItem.getFuture());
+            refresh(input, cachedItem::ensureNotCancelled, cachedItem.getFuture());
         } catch (Exception e) {
             cachedItem.getFuture().onFailure(e);
         }

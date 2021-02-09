@@ -199,7 +199,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         }
     }
 
-    private static class MetadataStatsCache<T> extends CancellableSingleObjectCache<Metadata, T> {
+    private static class MetadataStatsCache<T> extends CancellableSingleObjectCache<Metadata, Long, T> {
         private final BiFunction<Metadata, Runnable, T> function;
 
         MetadataStatsCache(BiFunction<Metadata, Runnable, T> function) {
@@ -212,8 +212,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         }
 
         @Override
-        protected boolean isFresh(Metadata currentKey, Metadata newKey) {
-            return newKey.version() <= currentKey.version();
+        protected Long getKey(Metadata indexMetadata) {
+            return indexMetadata.version();
+        }
+
+        @Override
+        protected boolean isFresh(Long currentKey, Long newKey) {
+            return newKey <= currentKey;
         }
     }
 }

@@ -146,7 +146,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
     public void testConcurrentRefreshesAndCancellation() throws InterruptedException {
         final ThreadPool threadPool = new TestThreadPool("test");
         try {
-            final CancellableSingleObjectCache<String, Integer> testCache = new CancellableSingleObjectCache<>() {
+            final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>() {
                 @Override
                 protected void refresh(String s, Runnable ensureNotCancelled, ActionListener<Integer> listener) {
                     threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
@@ -156,6 +156,11 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         }
                         return s.length();
                     }));
+                }
+
+                @Override
+                protected String getKey(String s) {
+                    return s;
                 }
             };
             final int count = 1000;
@@ -214,18 +219,23 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         }
     }
 
-    private static class TestCache extends CancellableSingleObjectCache<String, Integer> {
+    private static class TestCache extends CancellableSingleObjectCache<String, String, Integer> {
 
         private final LinkedList<StepListener<Function<String, Integer>>> pendingRefreshes = new LinkedList<>();
 
         @Override
-        protected void refresh(String key, Runnable ensureNotCancelled, ActionListener<Integer> listener) {
+        protected void refresh(String input, Runnable ensureNotCancelled, ActionListener<Integer> listener) {
             final StepListener<Function<String, Integer>> stepListener = new StepListener<>();
             pendingRefreshes.offer(stepListener);
             stepListener.whenComplete(f -> ActionListener.completeWith(listener, () -> {
                 ensureNotCancelled.run();
-                return f.apply(key);
+                return f.apply(input);
             }), listener::onFailure);
+        }
+
+        @Override
+        protected String getKey(String s) {
+            return s;
         }
 
         void assertPendingRefreshes(int expected) {

@@ -17,7 +17,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFa
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -41,7 +39,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -157,13 +154,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     @After
     public void cleanupSecurityIndex() throws Exception {
         super.deleteSecurityIndex();
-    }
-
-    @Override
-    public Set<String> excludeTemplates() {
-        Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7); // don't remove the security index template
-        return templates;
     }
 
     private List<String> getRoleMappingContent(Function<RoleMappingEntry, String> contentFunction) {

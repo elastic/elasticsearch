@@ -617,7 +617,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         String concreteSecurityIndexName, boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
             Instant.now(), isIndexUpToDate, true, true, null,
-            concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN
+            concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null
         );
     }
 

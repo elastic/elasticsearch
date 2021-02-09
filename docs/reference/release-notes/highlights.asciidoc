@@ -103,4 +103,27 @@ Our benchmarks have demonstrated that when {es} is using a smaller heap
 size, it performs better with an alternative set of garbage collection
 options.  {es} now ergonomically chooses different G1GC options for heap
 sizes smaller than, but not including, 8GB.
+
+[discrete]
+=== {dfanalytics-cap} is now beta!
+
+In 7.11, we move {dfanalytics} from experimental to beta.
+
+{ml-docs}/ml-dfanalytics.html[{dfanalytics-cap}] enable you to perform 
+different analyses of your data and annotate it with the results. Possible 
+analysis types are {oldetection}, {regression}, and {classification}. 
+{dfanalytics-cap} evolved a lot while it was an experimental feature starting 
+from 7.3. The aim is to move the feature to GA in the near future with the least 
+possible breaking changes.
+
+[discrete]
+=== Latest document {transform}
+
+beta:[]
+As an alternative to the `pivot` type of {transform}, you can now choose a 
+`latest` type of {transform}. It enables you to copy the most recent documents 
+into a new index. You need to identify one or more fields as the unique key for 
+grouping your data, as well as a date field that sorts the data chronologically. 
+For example, you can use this type of {transform} to keep track of the latest 
+purchase for each customer or the latest event for each host.
 // end::notable-highlights[]

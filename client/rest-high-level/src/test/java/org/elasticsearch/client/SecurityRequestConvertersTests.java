@@ -457,7 +457,7 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = buildCreateApiKeyRequest();
         final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(randomBoolean()
             ? GrantApiKeyRequest.Grant.accessTokenGrant(randomAlphaOfLength(24))
-            : GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(6, 12).toCharArray()),
+            : GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLengthBetween(14, 18).toCharArray()),
             createApiKeyRequest);
         final Map<String, String> expectedParams;
         final RefreshPolicy refreshPolicy = createApiKeyRequest.getRefreshPolicy();

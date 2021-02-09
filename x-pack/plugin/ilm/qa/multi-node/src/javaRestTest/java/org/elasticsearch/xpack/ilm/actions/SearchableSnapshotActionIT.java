@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.actions;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -19,6 +18,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
@@ -36,7 +37,9 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -153,8 +156,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/54433")
-    public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
+       @SuppressWarnings("unchecked")
+       public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 
         // create policy with cold and delete phases
@@ -182,32 +185,29 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String[] snapshotName = new String[1];
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
-        assertTrue(waitUntil(() -> {
-            try {
-                Map<String, Object> explainIndex = explainIndex(client(), backingIndexName);
-                if (explainIndex == null) {
-                    // in case we missed the original index and it was deleted
-                    explainIndex = explainIndex(client(), restoredIndexName);
-                }
-                snapshotName[0] = (String) explainIndex.get("snapshot_name");
-                return snapshotName[0] != null;
-            } catch (IOException e) {
-                return false;
-            }
-        }, 30, TimeUnit.SECONDS));
-        assertBusy(() -> assertFalse(indexExists(restoredIndexName)));
+
+        // let's wait for ILM to finish
+        assertBusy(() -> assertFalse(indexExists(backingIndexName)), 60, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse(indexExists(restoredIndexName)), 60, TimeUnit.SECONDS);
 
         assertTrue("the snapshot we generate in the cold phase should be deleted by the delete phase", waitUntil(() -> {
-            try {
-                Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/" + snapshotName[0]);
-                Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
-                return EntityUtils.toString(getSnapshotsResponse.getEntity()).contains("snapshot_missing_exception");
-            } catch (IOException e) {
-                return false;
-            }
+           try {
+               Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/_all");
+               Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+
+               Map<String, Object> responseMap;
+               try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
+                   responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+               }
+               List<Object> responses = (List<Object>) responseMap.get("responses");
+               Object snapshots = ((Map<String, Object>) responses.get(0)).get("snapshots");
+               return ((List<Map<String, Object>>) snapshots).size() == 0;
+           } catch (Exception e) {
+               logger.error(e.getMessage(), e);
+               return false;
+           }
         }, 30, TimeUnit.SECONDS));
     }
 

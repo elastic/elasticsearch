@@ -133,7 +133,7 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date)
 
 isoWeekOfYear
 schema::birth_date:ts|iso_week:i|week:i
-SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 ORDER BY iso_week;
+SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 AND week >=2 ORDER BY iso_week;
 
        birth_date       |   iso_week    |     week      
 ------------------------+---------------+---------------

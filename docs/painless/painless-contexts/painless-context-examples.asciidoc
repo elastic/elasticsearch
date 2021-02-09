@@ -103,5 +103,7 @@ POST seats/_bulk?pipeline=seats&refresh=true
 {"theatre":"Skyline","play":"Sunnyside Down","actors":["Krissy Smith","Joe Muir","Ryan Earns","Nora Blue","Mike Candlestick","Jacey Bell"],"date":"2018-6-12","time":"4:00PM","cost":21.25,"row":8,"number":15,"sold":true}
 {"create":{"_index":"seats","_id":"10"}}
 {"theatre":"Graye","play":"Line and Single","actors":["Nora Blue","Mike Candlestick"],"date":"2018-6-5","time":"2:00PM","cost":30,"row":1,"number":2,"sold":false}
+{"create":{"_index":"seats","_id":"11"}}
+{"theatre":"Graye","play":"Hamilton","actors":["Lin-Manuel Miranda","Leslie Odom Jr."],"date":"2018-6-5","time":"2:00PM","cost":5000,"row":1,"number":20,"sold":true}
 ----
 // TEST[continued]

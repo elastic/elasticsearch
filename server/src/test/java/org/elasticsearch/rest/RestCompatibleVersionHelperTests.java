@@ -8,7 +8,6 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.test.ESTestCase;
@@ -21,9 +20,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RestCompatibleVersionHelperTests extends ESTestCase {
-    int CURRENT_VERSION = Version.CURRENT.major;
-    int PREVIOUS_VERSION = Version.CURRENT.major - 1;
-    int OBSOLETE_VERSION = Version.CURRENT.major - 2;
+    int CURRENT_VERSION = RestApiCompatibleVersion.currentVersion().major;
+    int PREVIOUS_VERSION = RestApiCompatibleVersion.currentVersion().major - 1;
+    int OBSOLETE_VERSION = RestApiCompatibleVersion.currentVersion().major - 2;
 
     public void testAcceptAndContentTypeCombinations() {
         assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent()), isCompatible());

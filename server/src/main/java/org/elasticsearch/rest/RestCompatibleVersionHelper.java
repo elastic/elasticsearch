@@ -15,7 +15,6 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -86,16 +85,16 @@ class RestCompatibleVersionHelper {
                     contentTypeHeader
                 );
             }
-            if (contentTypeVersion < Version.CURRENT.major) {
-                return RestApiCompatibleVersion.fromMajorVersion(Version.CURRENT.previousMajor().major);
+            if (contentTypeVersion < RestApiCompatibleVersion.currentVersion().major) {
+                return RestApiCompatibleVersion.minimumSupported();
             }
         }
 
-        if (acceptVersion < Version.CURRENT.major) {
-            return RestApiCompatibleVersion.fromMajorVersion(Version.CURRENT.previousMajor().major);
+        if (acceptVersion < RestApiCompatibleVersion.currentVersion().major) {
+            return RestApiCompatibleVersion.minimumSupported();
         }
 
-        return RestApiCompatibleVersion.fromMajorVersion(Version.CURRENT.major);
+        return RestApiCompatibleVersion.currentVersion();
     }
 
     static Byte parseVersion(ParsedMediaType parsedMediaType) {

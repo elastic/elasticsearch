@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -43,6 +45,7 @@ import java.util.Optional;
 public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
@@ -90,9 +93,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
             final String message = checkForSystemIndexViolations(systemIndices, concreteIndices, request);
             if (message != null) {
-                logger.warn(message);
-                listener.onFailure(new IllegalStateException(message));
-                return;
+                deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access", message);
             }
 
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
@@ -169,10 +170,11 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         }
 
         if (violations.isEmpty() == false) {
-            return "Cannot update mappings in "
+            return "Updating mappings in "
                 + violations
-                + ": system indices can only use mappings from their descriptors, "
-                + "but the mappings in the request [" + requestMappings + "] did not match those in the descriptor(s)";
+                + ": system indices can only use mappings from their descriptors,"
+                + " but the mappings in the request [" + requestMappings + "] did not match those in the descriptor(s)."
+                + " This will not work in the next major version";
         }
 
         return null;

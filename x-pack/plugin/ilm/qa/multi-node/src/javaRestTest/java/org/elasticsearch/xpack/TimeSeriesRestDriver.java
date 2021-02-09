@@ -200,8 +200,9 @@ public final class TimeSeriesRestDriver {
         client.performRequest(request);
     }
 
-    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase, @Nullable Phase warmPhase,
-                                    @Nullable Phase coldPhase, @Nullable Phase deletePhase) throws IOException {
+    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
+                                    @Nullable Phase warmPhase, @Nullable Phase coldPhase,
+                                    @Nullable Phase frozenPhase, @Nullable Phase deletePhase) throws IOException {
         if (hotPhase == null && warmPhase == null && coldPhase == null && deletePhase == null) {
             throw new IllegalArgumentException("specify at least one phase");
         }
@@ -214,6 +215,9 @@ public final class TimeSeriesRestDriver {
         }
         if (coldPhase != null) {
             phases.put("cold", coldPhase);
+        }
+        if (frozenPhase != null) {
+            phases.put("frozen", frozenPhase);
         }
         if (deletePhase != null) {
             phases.put("delete", deletePhase);

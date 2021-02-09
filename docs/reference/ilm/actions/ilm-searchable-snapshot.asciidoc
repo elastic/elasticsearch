@@ -54,6 +54,12 @@ the shards are relocating, in which case they will not be merged.
 The `searchable_snapshot` action will continue executing even if not all shards
 are force merged.
 
+`storage`::
+(Optional, string)
+Specifies the type of snapshot that should be mounted for a searchable snapshot. This corresponds to
+the <<searchable-snapshots-api-mount-query-params, `storage` option when mounting a snapshot>>.
+Defaults to `full_copy` in non-frozen phases, or `shared_cache` in the frozen phase.
+
 [[ilm-searchable-snapshot-ex]]
 ==== Examples
 [source,console]
@@ -65,7 +71,8 @@ PUT _ilm/policy/my_policy
       "cold": {
         "actions": {
           "searchable_snapshot" : {
-            "snapshot_repository" : "backing_repo"
+            "snapshot_repository" : "backing_repo",
+            "storage": "shared_cache"
           }
         }
       }

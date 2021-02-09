@@ -265,7 +265,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
         }
         // wrap it in a type map if its not
-        if (source.size() != 1 || !source.containsKey(type)) {
+        if (source.size() != 1 || source.containsKey(type) == false) {
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {

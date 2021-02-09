@@ -304,7 +304,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        if (!fetchSourceContext.fetchSource()) {
+        if (fetchSourceContext.fetchSource() == false) {
             source = null;
         }
 

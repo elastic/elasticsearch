@@ -394,7 +394,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     filteredValues.add(value);
                 }
             }
-            if (!filteredValues.isEmpty()) {
+            if (filteredValues.isEmpty() == false) {
                 return true;
             }
         }
@@ -435,7 +435,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
                     }
                 }
-                if (!filteredMappings.isEmpty()) {
+                if (filteredMappings.isEmpty() == false) {
                     indexMapBuilder.put(index, filteredMappings.build());
                 }
             }
@@ -616,7 +616,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
             }
             if (routing != null) {
-                if (!routing.equals(aliasMd.indexRouting())) {
+                if (routing.equals(aliasMd.indexRouting()) == false) {
                     throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it ["
                         + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }

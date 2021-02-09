@@ -125,7 +125,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     boolean assertNoCustomDistro(String clusterName) {
-        assert !customDistroFolder(clusterName).exists()
+        assert customDistroFolder(clusterName).exists() == false
         true
     }
 

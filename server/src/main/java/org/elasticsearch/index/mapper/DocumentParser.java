@@ -454,7 +454,7 @@ final class DocumentParser {
 
     private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
         for (IndexableField field : nestedDoc.getFields()) {
-            if (!field.name().equals(TypeFieldMapper.NAME)) {
+            if (field.name().equals(TypeFieldMapper.NAME) == false) {
                 rootDoc.add(field);
             }
         }

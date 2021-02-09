@@ -257,7 +257,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
         assertThat(getRequests, hasSize(greaterThan(0)));
 
         for (RequestAndHeaders request : getRequests) {
-            if (!((GetRequest)request.request).index().equals(index)) {
+            if (((GetRequest)request.request).index().equals(index) == false) {
                 continue;
             }
             assertRequestContainsHeader(request.request, request.headers);

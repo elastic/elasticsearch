@@ -171,7 +171,7 @@ public class MetadataMappingService {
                                                        mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                 if (mapper != null) {
                     final String type = mapper.type();
-                    if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
+                    if (mapper.mappingSource().equals(builder.mapping(type).source()) == false) {
                         updatedTypes.add(type);
                     }
                 }

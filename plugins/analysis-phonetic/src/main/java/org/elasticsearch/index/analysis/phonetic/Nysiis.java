@@ -141,7 +141,7 @@ public class Nysiis implements StringEncoder {
         }
 
         // 5. H -> If previous or next is a non vowel, previous.
-        if (curr == 'H' && (!isVowel(prev) || !isVowel(next))) {
+        if (curr == 'H' && (isVowel(prev) == false || isVowel(next) == false)) {
             return new char[]{prev};
         }
 
@@ -192,7 +192,7 @@ public class Nysiis implements StringEncoder {
      */
     @Override
     public Object encode(Object obj) throws EncoderException {
-        if (!(obj instanceof String)) {
+        if ((obj instanceof String) == false) {
             throw new EncoderException("Parameter supplied to Nysiis encode is not of type java.lang.String");
         }
         return this.nysiis((String) obj);

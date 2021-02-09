@@ -31,12 +31,12 @@ public final class TransportActionUtils {
 
         Holder<Boolean> retrySecondTime = new Holder<Boolean>(false);
         queryRunner.accept(e -> {
-            // the search request will likely run on nodes with different versions of ES
+            // the search request likely ran on nodes with different versions of ES
             // we will retry on a node with an older version that should generate a backwards compatible _search request
             if (e instanceof SearchPhaseExecutionException
                 && ((SearchPhaseExecutionException) e).getCause() instanceof VersionMismatchException) {
-                if (log.isTraceEnabled()) {
-                    log.trace("Caught exception type [{}] with cause [{}].", e.getClass().getName(), e.getCause());
+                if (log.isDebugEnabled()) {
+                    log.debug("Caught exception type [{}] with cause [{}].", e.getClass().getName(), e.getCause());
                 }
                 DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
                 DiscoveryNode candidateNode = null;
@@ -48,8 +48,8 @@ public final class TransportActionUtils {
                     }
                 }
                 if (candidateNode != null) {
-                    if (log.isTraceEnabled()) {
-                        log.trace("Candidate node to resend the request to: address [{}], id [{}], name [{}], version [{}]",
+                    if (log.isDebugEnabled()) {
+                        log.debug("Candidate node to resend the request to: address [{}], id [{}], name [{}], version [{}]",
                             candidateNode.getAddress(), candidateNode.getId(), candidateNode.getName(), candidateNode.getVersion());
                     }
                     // re-send the request to the older node
@@ -62,8 +62,8 @@ public final class TransportActionUtils {
             }
         });
         if (retrySecondTime.get()) {
-            if (log.isTraceEnabled()) {
-                log.trace("No candidate node found, likely all were upgraded in the meantime. Re-trying the original request.");
+            if (log.isDebugEnabled()) {
+                log.debug("No candidate node found, likely all were upgraded in the meantime. Re-trying the original request.");
             }
             queryRunner.accept(onFailure);
         }

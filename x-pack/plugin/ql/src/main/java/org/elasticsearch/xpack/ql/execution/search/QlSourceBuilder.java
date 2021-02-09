@@ -22,7 +22,7 @@ import java.util.Set;
  * the resulting ES document as a field.
  */
 public class QlSourceBuilder {
-    public static final Version FIELDS_API_USAGE_VERSION = Version.V_7_10_0;
+    public static final Version SWITCH_TO_FIELDS_API_VERSION = Version.V_7_10_0;
     // The LinkedHashMaps preserve the order of the fields in the response
     private final Set<FieldAndFormat> fetchFields = new LinkedHashSet<>();
     private final Map<String, Script> scriptFields = new LinkedHashMap<>();

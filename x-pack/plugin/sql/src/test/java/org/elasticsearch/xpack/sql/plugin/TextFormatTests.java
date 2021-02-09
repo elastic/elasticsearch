@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -17,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
@@ -27,6 +30,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.fromJava;
 
 public class TextFormatTests extends ESTestCase {
 
@@ -152,6 +156,151 @@ public class TextFormatTests extends ESTestCase {
         }
     }
 
+    public void testCsvMultiValueEmpty() {
+        String text = CSV.format(req(), withData(singletonList(singletonList(emptyList()))));
+        assertEquals("null_column\r\n[]\r\n", text);
+    }
+
+    public void testTsvMultiValueEmpty() {
+        String text = TSV.format(req(), withData(singletonList(singletonList(emptyList()))));
+        assertEquals("null_column\n[]\n", text);
+    }
+
+    public void testCsvMultiValueNull() {
+        String text = CSV.format(req(), withData(singletonList(singletonList(singletonList(null)))));
+        assertEquals("null_column\r\n[NULL]\r\n", text);
+    }
+
+    public void testTsvMultiValueNull() {
+        String text = TSV.format(req(), withData(singletonList(singletonList(asList(null, null)))));
+        assertEquals("null_column\n[NULL,NULL]\n", text);
+    }
+
+    public void testCsvMultiValueKeywords() {
+        String text = CSV.format(req(), withData(singletonList(singletonList(asList("one", "two", "one, two")))));
+        assertEquals("keyword_column\r\n\"[\"\"one\"\",\"\"two\"\",\"\"one, two\"\"]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueKeywords() {
+        String text = TSV.format(req(), withData(singletonList(singletonList(asList("one", "two", "one, two")))));
+        assertEquals("keyword_column\n[\"one\",\"two\",\"one, two\"]\n", text);
+    }
+
+    public void testCsvMultiValueKeywordWithQuote() {
+        String text = CSV.format(req(), withData(singletonList(singletonList(asList("one", "two", "one\"two")))));
+        assertEquals("keyword_column\r\n\"[\"\"one\"\",\"\"two\"\",\"\"one\\\"\"two\"\"]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueKeywordWithQuote() {
+        String text = TSV.format(req(), withData(singletonList(singletonList(asList("one", "two", "one\"two")))));
+        assertEquals("keyword_column\n[\"one\",\"two\",\"one\\\"two\"]\n", text);
+    }
+
+    public void testTsvMultiValueKeywordWithTab() {
+        String text = TSV.format(req(), withData(singletonList(singletonList(asList("one", "two", "one\ttwo")))));
+        assertEquals("keyword_column\n[\"one\",\"two\",\"one\\ttwo\"]\n", text);
+    }
+
+    public void testCsvMultiValueKeywordTwoColumns() {
+        String text = CSV.format(req(), withData(singletonList(asList(asList("one", "two", "three"), asList("4", "5")))));
+        assertEquals("keyword_column,keyword_column\r\n\"[\"\"one\"\",\"\"two\"\",\"\"three\"\"]\",\"[\"\"4\"\",\"\"5\"\"]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueKeywordTwoColumns() {
+        String text = TSV.format(req(), withData(singletonList(asList(asList("one", "two", "three"), asList("4", "5")))));
+        assertEquals("keyword_column\tkeyword_column\n[\"one\",\"two\",\"three\"]\t[\"4\",\"5\"]\n", text);
+    }
+
+    public void testCsvMultiValueBooleans() {
+        String text = CSV.format(req(), withData(singletonList(singletonList(asList(true, false, true)))));
+        assertEquals("boolean_column\r\n\"[true,false,true]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueBooleans() {
+        String text = TSV.format(req(), withData(singletonList(singletonList(asList(true, false, true)))));
+        assertEquals("boolean_column\n[true,false,true]\n", text);
+    }
+
+    public void testCsvMultiValueIntegers() {
+        String text = CSV.format(req(), withData(singletonList(asList(
+            asList((byte) 1, (byte) 2), asList((short) 3, (short) 4), asList(5, 6), asList(7L, 8L)
+        ))));
+        assertEquals("byte_column,short_column,integer_column,long_column\r\n\"[1,2]\",\"[3,4]\",\"[5,6]\",\"[7,8]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueIntegers() {
+        String text = TSV.format(req(), withData(singletonList(asList(
+            asList((byte) 1, (byte) 2), asList((short) 3, (short) 4), asList(5, 6), asList(7L, 8L)
+        ))));
+        assertEquals("byte_column\tshort_column\tinteger_column\tlong_column\n[1,2]\t[3,4]\t[5,6]\t[7,8]\n", text);
+    }
+
+    public void testCsvMultiValueFloatingPoints() {
+        String text = CSV.format(req(), withData(singletonList(asList(asList(1.1f, 2.2f), asList(3.3d, 4.4d)))));
+        assertEquals("float_column,double_column\r\n\"[1.1,2.2]\",\"[3.3,4.4]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueFloatingPoints() {
+        String text = TSV.format(req(), withData(singletonList(asList(asList(1.1f, 2.2f), asList(3.3d, 4.4d)))));
+        assertEquals("float_column\tdouble_column\n[1.1,2.2]\t[3.3,4.4]\n", text);
+    }
+
+    public void testCsvMultiValueDates() {
+        String date1 = "2020-02-02T02:02:02.222+03:00";
+        String date2 = "1969-01-23T23:34:56.123456789+13:30";
+        String text = CSV.format(req(), withData(singletonList(singletonList(
+            asList(ZonedDateTime.parse(date1), ZonedDateTime.parse(date2))
+        ))));
+        assertEquals("datetime_column\r\n\"[" + date1 + "," + date2 + "]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueDates() {
+        String date1 = "2020-02-02T02:02:02.222+03:00";
+        String date2 = "1969-01-23T23:34:56.123456789+13:30";
+        String text = TSV.format(req(), withData(singletonList(singletonList(
+            asList(ZonedDateTime.parse(date1), ZonedDateTime.parse(date2))
+        ))));
+        assertEquals("datetime_column\n[" + date1 + "," + date2 + "]\n", text);
+    }
+
+    public void testCsvMultiValueGeoPoints() {
+        GeoShape point1 = new GeoShape(12.34, 56.78);
+        double lat = randomDouble(), lon = randomDouble();
+        GeoShape point2 = new GeoShape(lat, lon);
+        String text = CSV.format(req(), withData(singletonList(singletonList(asList(point1, point2)))));
+        assertEquals("geo_shape_column\r\n\"[POINT (12.34 56.78),POINT (" + lat + " " + lon + ")]\"\r\n", text);
+    }
+
+    public void testTsvMultiValueGeoPoints() {
+        GeoShape point1 = new GeoShape(12.34, 56.78);
+        double lat = randomDouble(), lon = randomDouble();
+        GeoShape point2 = new GeoShape(lat, lon);
+        String text = TSV.format(req(), withData(singletonList(singletonList(asList(point1, point2)))));
+        assertEquals("geo_shape_column\n[POINT (12.34 56.78),POINT (" + lat + " " + lon + ")]\n", text);
+    }
+
+    public void testCsvMultiValueSingletons() {
+        String text = CSV.format(req(), withData(singletonList(asList(emptyList(), singletonList(false), singletonList("string"),
+            singletonList(1), singletonList(2.), singletonList(new GeoShape(12.34, 56.78))))));
+        assertEquals("null_column,boolean_column,keyword_column,integer_column,double_column,geo_shape_column\r\n" +
+            "[],[false],\"[\"\"string\"\"]\",[1],[2.0],[POINT (12.34 56.78)]\r\n", text);
+    }
+
+    public void testCsvMultiValueWithDelimiter() {
+        String text = CSV.format(reqWithParam("delimiter", String.valueOf("|")),
+            withData(singletonList(asList(emptyList(), asList(null, null), asList(false, true), asList("string", "strung"),
+            asList(1, 2), asList(3.3, 4.), asList(new GeoShape(12.34, 56.78), new GeoShape(90, 10))))));
+        assertEquals("null_column|null_column|boolean_column|keyword_column|integer_column|double_column|geo_shape_column\r\n" +
+            "[]|[NULL,NULL]|[false,true]|\"[\"\"string\"\",\"\"strung\"\"]\"|[1,2]|[3.3,4.0]|[POINT (12.34 56.78),POINT (90.0 10.0)]\r\n",
+            text);
+    }
+
+    public void testTsvMultiValueSingletons() {
+        String text = TSV.format(req(), withData(singletonList(asList(emptyList(), singletonList(false), singletonList("string"),
+            singletonList(1), singletonList(2.), singletonList(new GeoShape(12.34, 56.78))))));
+        assertEquals("null_column\tboolean_column\tkeyword_column\tinteger_column\tdouble_column\tgeo_shape_column\n" +
+            "[]\t[false]\t[\"string\"]\t[1]\t[2.0]\t[POINT (12.34 56.78)]\n", text);
+    }
 
     private static SqlQueryResponse emptyData() {
         return new SqlQueryResponse(
@@ -162,6 +311,24 @@ public class TextFormatTests extends ESTestCase {
             singletonList(new ColumnInfo("index", "name", "keyword")),
             emptyList()
         );
+    }
+
+    private static SqlQueryResponse withData(List<List<Object>> rows) {
+        List<ColumnInfo> headers = new ArrayList<>();
+        if (rows.isEmpty() == false) {
+            // headers
+            for (Object o : rows.get(0)) {
+                if (o instanceof Collection) {
+                    Collection<?> col = (Collection<?>) o;
+                    o = col.isEmpty() ? null : col.toArray()[0];
+                }
+
+                String typeName = fromJava(o).typeName();
+                headers.add(new ColumnInfo("index", typeName + "_column", typeName + "_array"));
+            }
+        }
+
+        return new SqlQueryResponse(null, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, headers, rows);
     }
 
     private static SqlQueryResponse regularData() {

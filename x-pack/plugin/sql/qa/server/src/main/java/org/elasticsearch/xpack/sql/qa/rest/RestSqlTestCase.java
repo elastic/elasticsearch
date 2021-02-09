@@ -1178,6 +1178,28 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
+    public void testMultiValueQueryText() throws IOException {
+        index(
+            "{"
+                + toJson("text")
+                + ":["
+                + toJson("one")
+                + ","
+                + toJson("two, three")
+                + ","
+                + toJson("\"four\"")
+                + "], "
+                + toJson("number")
+                + " : [1, [2, 3], 4] }"
+        );
+
+        String expected = "               t               |       n       \n"
+            + "-------------------------------+---------------\n"
+            + "[\"one\",\"two, three\",\"\\\"four\\\"\"]|[1,2,3,4]      \n";
+        Tuple<String, String> response = runSqlAsText("SELECT ARRAY(text) t, ARRAY(number) n FROM test", "text/plain");
+        assertEquals(expected, response.v1());
+    }
+
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
         return runSqlAsText(StringUtils.EMPTY, new StringEntity(query(sql).toString(), ContentType.APPLICATION_JSON), accept);
     }

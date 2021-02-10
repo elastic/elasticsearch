@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -171,6 +172,12 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         CacheIndexInputStats(final StreamInput in) throws IOException {
+            if (in.getVersion().before(Version.V_7_12_0)) {
+                // This API is currently only used internally for testing, so BWC breaking changes are OK.
+                // We just throw an exception here to get a better error message in case this would be called
+                // in a mixed version cluster
+                throw new IllegalArgumentException("BWC breaking change for internal API");
+            }
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
             this.totalSize = in.readVLong();
@@ -221,6 +228,12 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().before(Version.V_7_12_0)) {
+                // This API is currently only used internally for testing, so BWC breaking changes are OK.
+                // We just throw an exception here to get a better error message in case this would be called
+                // in a mixed version cluster
+                throw new IllegalArgumentException("BWC breaking change for internal API");
+            }
             out.writeString(fileExt);
             out.writeVLong(numFiles);
             out.writeVLong(totalSize);

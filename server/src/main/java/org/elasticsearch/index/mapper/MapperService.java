@@ -295,7 +295,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return newMapper;
     }
 
-    private synchronized Mapping mergeMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
+    private Mapping mergeMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
         Mapping incomingMapping;
         try {
             incomingMapping = mappingParser.parse(mappingType, mappingSource);

@@ -6,6 +6,11 @@ apply plugin: 'elasticsearch.rest-resources'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 tasks.named("buildRestTests").configure {
+  docs = fileTree("content") {
+    // These file simply doesn't pass yet. We should figure out how to fix them.
+    exclude 'en/watcher/reference/actions.asciidoc'
+    exclude 'en/rest-api/security/ssl.asciidoc'
+  }
   expectedUnconvertedCandidates = [
           'en/rest-api/watcher/put-watch.asciidoc',
           'en/security/authentication/user-cache.asciidoc',
@@ -69,16 +74,6 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.named("buildRestTests").configure { buildRestTests ->
-
-  buildRestTests.docs = fileTree(projectDir) {
-    // No snippets in here!
-    exclude 'build.gradle'
-    // That is where the snippets go, not where they come from!
-    exclude 'build'
-    // These file simply doesn't pass yet. We should figure out how to fix them.
-    exclude 'en/watcher/reference/actions.asciidoc'
-    exclude 'en/rest-api/security/ssl.asciidoc'
-  }
 
   Map<String, String> setups = buildRestTests.setups
   setups['my_inactive_watch'] = '''

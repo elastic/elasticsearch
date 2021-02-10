@@ -130,9 +130,7 @@ public class RestTestTransformer {
                 }
             }
             currentNode.elements()
-                .forEachRemaining(node -> {
-                    traverseTest(testContext, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders);
-                });
+                .forEachRemaining(node -> { traverseTest(testContext, node, parentKeyName, objectKeyFinders, arrayByObjectKeyFinders); });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 List<RestTestTransformByParentObject> transforms = objectKeyFinders.get(entry.getKey());

@@ -25,7 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class DocumentMapper {
+public final class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
     private final DocumentParser documentParser;

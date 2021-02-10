@@ -495,7 +495,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 final int numberOfParts = file.numberOfParts();
                 final StepListener<Collection<Void>> fileCompletionListener = new StepListener<>();
                 fileCompletionListener.whenComplete(voids -> input.close(), e -> IOUtils.closeWhileHandlingException(input));
-                fileCompletionListener.whenComplete(voids -> completionListener.onResponse(null), completionListener::onFailure);
+                fileCompletionListener.addListener(completionListener.map(voids -> null));
 
                 final GroupedActionListener<Void> partsListener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
 

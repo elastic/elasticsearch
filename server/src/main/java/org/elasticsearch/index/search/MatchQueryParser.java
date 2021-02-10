@@ -55,7 +55,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
-public class MatchQuery {
+public class MatchQueryParser {
 
     public enum Type implements Writeable {
         /**
@@ -161,7 +161,7 @@ public class MatchQuery {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    public MatchQuery(SearchExecutionContext context) {
+    public MatchQueryParser(SearchExecutionContext context) {
         this.context = context;
     }
 

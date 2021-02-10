@@ -57,6 +57,11 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
 
         @Override
         protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
+            if (request == null || authentication == null) {
+                throw new IllegalArgumentException(
+                    "manage own cluster permission check only supported in context of request and authentication");
+            }
+
             if (request instanceof CreateApiKeyRequest) {
                 return true;
             } else if (request instanceof GetApiKeyRequest) {

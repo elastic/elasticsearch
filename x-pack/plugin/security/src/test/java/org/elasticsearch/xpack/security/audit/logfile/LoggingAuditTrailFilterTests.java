@@ -145,7 +145,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // user field matches
         assertTrue("Matches the user filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(
                 new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.empty(), Optional.empty(), Optional.empty(),
-                    Optional.empty())));
+                    Optional.empty(), null, null)));
         final User unfilteredUser = mock(User.class);
         if (randomBoolean()) {
             when(unfilteredUser.authenticatedUser()).thenReturn(new User(randomFrom(filteredUsernames)));
@@ -154,51 +154,51 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertFalse("Does not match the user filter predicate because of null username.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                         .test(new AuditEventMetaInfo(Optional.of(unfilteredUser), Optional.empty(), Optional.empty(), Optional.empty(),
-                            Optional.empty())));
+                            Optional.empty(), null, null)));
         // realm field matches
         assertTrue("Matches the realm filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(
                 new AuditEventMetaInfo(Optional.empty(), Optional.of(randomFrom(filteredRealms)), Optional.empty(), Optional.empty(),
-                    Optional.empty())));
+                    Optional.empty(), null, null)));
         // null realm field does NOT match
         assertFalse("Does not match the realm filter predicate because of null realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                         .test(new AuditEventMetaInfo(Optional.empty(), Optional.ofNullable(null), Optional.empty(), Optional.empty(),
-                            Optional.empty())));
+                            Optional.empty(), null, null)));
         // role field matches
         assertTrue("Matches the role filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
                         Optional.of(authzInfo(
                             randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
-                        Optional.empty(), Optional.empty())));
+                        Optional.empty(), Optional.empty(), null, null)));
         // privilege field matches
         Random random = random();
         assertTrue("Matches the privileges filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(
             new AuditEventMetaInfo(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         // null privilege field does NOT match
         assertFalse("Does not matches the privileges filter predicate.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-                        Optional.ofNullable(null))));
+                        Optional.ofNullable(null), null, null)));
         final List<String> unfilteredRoles = new ArrayList<>();
         unfilteredRoles.add(null);
         unfilteredRoles.addAll(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles));
         // null role among roles field does NOT match
         assertFalse("Does not match the role filter predicate because of null role.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
-                        Optional.of(authzInfo(unfilteredRoles.toArray(new String[0]))), Optional.empty(), Optional.empty())));
+                        Optional.of(authzInfo(unfilteredRoles.toArray(new String[0]))), Optional.empty(), Optional.empty(), null, null)));
         // indices field matches
         assertTrue("Matches the index filter predicate.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
                         Optional.empty(),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.empty())));
+                        Optional.empty(), null, null)));
         final List<String> unfilteredIndices = new ArrayList<>();
         unfilteredIndices.add(null);
         unfilteredIndices.addAll(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices));
         // null index among indices field does NOT match
         assertFalse("Does not match the indices filter predicate because of null index.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(),
-                        Optional.empty(), Optional.of(unfilteredIndices.toArray(new String[0])), Optional.empty())));
+                        Optional.empty(), Optional.of(unfilteredIndices.toArray(new String[0])), Optional.empty(), null, null)));
     }
 
     public void testSingleCompletePolicyPredicate() throws Exception {
@@ -247,7 +247,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
                 Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
                 Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         final User unfilteredUser;
         if (randomBoolean()) {
             unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
@@ -262,35 +262,35 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                    Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                    Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertFalse("Does not match the filter predicate because of the empty user.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(),
                         Optional.of(randomFrom(filteredRealms)),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertFalse("Does not match the filter predicate because of the realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertFalse("Does not match the filter predicate because of the empty realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.empty(),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                                 .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertFalse("Does not match the filter predicate because of the empty privileges.",
             auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                 Optional.of(randomFrom(filteredRealms)),
                 Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                     .toArray(new String[0]))),
                 Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                Optional.empty())));
+                Optional.empty(), null, null)));
         final List<String> someRolesDoNotMatch = new ArrayList<>(randomSubsetOf(randomIntBetween(0, filteredRoles.size()), filteredRoles));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
             someRolesDoNotMatch.add(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
@@ -299,13 +299,13 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)), Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         final Optional<AuthorizationInfo> emptyRoles = randomBoolean() ? Optional.empty() : Optional.of(authzInfo(new String[0]));
         assertFalse("Does not match the filter predicate because of the empty roles.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)), emptyRoles,
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         final List<String> someIndicesDoNotMatch = new ArrayList<>(
                 randomSubsetOf(randomIntBetween(0, filteredIndices.size()), filteredIndices));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
@@ -317,14 +317,14 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                                 .toArray(new String[0]))),
                         Optional.of(someIndicesDoNotMatch.toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         final Optional<String[]> emptyIndices = randomBoolean() ? Optional.empty() : Optional.of(new String[0]);
         assertFalse("Does not match the filter predicate because of the empty indices.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
-                        emptyIndices, Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        emptyIndices, Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
     }
 
     public void testSingleCompleteWithEmptyFieldPolicyPredicate() throws Exception {
@@ -381,7 +381,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         final User unfilteredUser;
         if (randomBoolean()) {
             unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
@@ -396,35 +396,35 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertTrue("Matches the filter predicate because of the empty user.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.empty(),
                         Optional.of(randomFrom(filteredRealms)),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertFalse("Does not match the filter predicate because of the realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertTrue("Matches the filter predicate because of the empty realm.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.empty(),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertFalse("Does not match the filter predicate because of the pivilege.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                     Optional.of(randomFrom(filteredRealms)),
                     Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                         .toArray(new String[0]))),
                     Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                    Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)))));
+                    Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)), null, null)));
         final List<String> someRolesDoNotMatch = new ArrayList<>(randomSubsetOf(randomIntBetween(0, filteredRoles.size()), filteredRoles));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
             someRolesDoNotMatch.add(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
@@ -433,13 +433,13 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)), Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         final Optional<AuthorizationInfo> emptyRoles = randomBoolean() ? Optional.empty() : Optional.of(authzInfo(new String[0]));
         assertTrue("Matches the filter predicate because of the empty roles.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(randomFrom(filteredRealms)), emptyRoles,
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         final List<String> someIndicesDoNotMatch = new ArrayList<>(
                 randomSubsetOf(randomIntBetween(0, filteredIndices.size()), filteredIndices));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
@@ -451,23 +451,23 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(someIndicesDoNotMatch.toArray(new String[0])),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertTrue("Matches the filter predicate because of the empty indices.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
                         Optional.of(authzInfo(
                             randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
-                        Optional.empty(), Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.empty(), Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertTrue("Matches the filter predicate because of the empty indices.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
                         Optional.of(authzInfo(
                             randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
-                        Optional.of(new String[0]), Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(new String[0]), Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
         assertTrue("Matches the filter predicate because of the empty indices.", auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)), Optional.of(randomFrom(filteredRealms)),
                         Optional.of(authzInfo(
                             randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles).toArray(new String[0]))),
                         Optional.of(new String[] { null }),
-                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))))));
+                        Optional.of(filteredActions.get(random.nextInt(filteredActions.size()))), null, null)));
     }
 
     public void testTwoPolicyPredicatesWithMissingFields() throws Exception {
@@ -518,28 +518,28 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.empty())));
+                        Optional.empty(), null, null)));
         // matches first policy but not the second
         assertTrue("Matches the first filter predicate but not the second.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(unfilteredUser),
                         Optional.of(randomFrom(filteredRealms)),
                         Optional.of(authzInfo(randomSubsetOf(randomIntBetween(1, filteredRoles.size()), filteredRoles)
                             .toArray(new String[0]))),
-                        Optional.of(someIndicesDoNotMatch.toArray(new String[0])), Optional.of("_action"))));
+                        Optional.of(someIndicesDoNotMatch.toArray(new String[0])), Optional.of("_action"), null, null)));
         // matches the second policy but not the first
         assertTrue("Matches the second filter predicate but not the first.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(randomFrom(filteredUsers)),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
                         Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
                         Optional.of(randomSubsetOf(randomIntBetween(1, filteredIndices.size()), filteredIndices).toArray(new String[0])),
-                        Optional.empty())));
+                        Optional.empty(), null, null)));
         // matches neither the first nor the second policies
         assertFalse("Matches neither the first nor the second filter predicates.",
                 auditTrail.eventFilterPolicyRegistry.ignorePredicate()
                         .test(new AuditEventMetaInfo(Optional.of(unfilteredUser),
                         Optional.of(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
                         Optional.of(authzInfo(someRolesDoNotMatch.toArray(new String[0]))),
-                        Optional.of(someIndicesDoNotMatch.toArray(new String[0])), Optional.empty())));
+                        Optional.of(someIndicesDoNotMatch.toArray(new String[0])), Optional.empty(), null, null)));
     }
 
     public void testUsersFilter() throws Exception {
@@ -2033,7 +2033,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         for (int i = 0; i < listOfActions.size(); i++) {
             Collection<String> privileges = AuthorizationService.isIndexAction(listOfActions.get(i)) ?
                 IndexPrivilege.findPrivilegesThatGrant(listOfActions.get(i)) :
-                ClusterPrivilegeResolver.findPrivilegesThatGrant(listOfActions.get(i));
+                ClusterPrivilegeResolver.findPrivilegesThatGrant(listOfActions.get(i), null, null);
             assertNotNull(privileges);
             filtered.addAll(privileges);
         }

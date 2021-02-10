@@ -80,6 +80,14 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate fieldAsScript = asScript(field());
+        // keep backwards compatibility with previous 7.x versions
+        if (caseInsensitive == false) {
+            return new ScriptTemplate(
+                formatTemplate(format("{ql}.", "regex({},{})", fieldAsScript.template())),
+                paramsBuilder().script(fieldAsScript.params()).variable(pattern.asJavaRegex()).build(),
+                dataType()
+            );
+        }
         return new ScriptTemplate(
             formatTemplate(format("{ql}.", "regex({},{},{})", fieldAsScript.template())),
             paramsBuilder().script(fieldAsScript.params()).variable(pattern.asJavaRegex()).variable(caseInsensitive).build(),

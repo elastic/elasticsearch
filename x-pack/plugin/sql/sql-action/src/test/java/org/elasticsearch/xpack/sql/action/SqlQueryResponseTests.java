@@ -54,7 +54,8 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
         if (randomBoolean()) {
             columns = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), randomInt(25)));
+                columns.add(new ColumnInfo(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+                    randomBoolean() ? null : randomInt(25)));
             }
         }
 

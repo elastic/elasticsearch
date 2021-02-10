@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
@@ -96,7 +97,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.getDataTiersPreference;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1288,6 +1291,34 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         logger.info("--> finished restoring snapshot-2");
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
+
+        final IllegalArgumentException remountException = expectThrows(IllegalArgumentException.class, () -> {
+            try {
+                mountSnapshot(
+                    restoreRepositoryName,
+                    snapshotTwo.getName(),
+                    restoredIndexName,
+                    randomAlphaOfLength(10).toLowerCase(Locale.ROOT),
+                    Settings.EMPTY
+                );
+            } catch (Exception e) {
+                final Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+                throw cause == null ? e : cause;
+            }
+        });
+        assertThat(
+            remountException.getMessage(),
+            allOf(
+                containsString("is a snapshot of a searchable snapshot index backed by index"),
+                containsString(repositoryName),
+                containsString(snapshotOne.getName()),
+                containsString(indexName),
+                containsString(restoreRepositoryName),
+                containsString(snapshotTwo.getName()),
+                containsString(restoredIndexName),
+                containsString("cannot be mounted; did you mean to restore it instead?")
+            )
+        );
     }
 
     private void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

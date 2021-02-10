@@ -41,6 +41,7 @@ public class RestSubmitPersistentSearchAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
         IntConsumer setSize = size -> searchRequest.source().size(size);
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize));

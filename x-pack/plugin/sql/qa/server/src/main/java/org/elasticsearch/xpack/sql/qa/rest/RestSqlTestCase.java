@@ -734,7 +734,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @Ignore("Test disabled while merging fields API in")
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testBasicQueryWithMultiValues() throws IOException {
         List<Long> values = randomList(1, 5, ESTestCase::randomLong);
         String field = randomAlphaOfLength(5);
@@ -755,7 +755,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @Ignore("Test disabled while merging fields API in")
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testBasicQueryWithMultiValuesAndMultiPathAndMultiDoc() throws IOException {
         // formatter will leave first argument as is, but fold the following on a line
         index(
@@ -814,7 +814,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @Ignore("Test disabled while merging fields API in")
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testFilteringQueryWithMultiValuesAndWithout() throws IOException {
         index("{\"a\": [2, 3, 4, 5]}", "{\"a\": 6}", "{\"a\": [7, 8]}");
         String mode = randomMode();
@@ -1101,7 +1101,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
-    @Ignore("Test disabled while merging fields API in")
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testMultiValueQueryText() throws IOException {
         index(
             "{"

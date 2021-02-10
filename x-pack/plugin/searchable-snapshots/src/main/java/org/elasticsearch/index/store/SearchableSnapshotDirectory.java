@@ -275,9 +275,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return Collections.unmodifiableMap(stats);
     }
 
+    // only used for tests
     @Nullable
-    public IndexInputStats getStats(String fileName) {
-        return stats.get(fileName);
+    IndexInputStats getStats(String fileName) {
+        return stats.get(getNonNullFileExt(fileName));
     }
 
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo(final String name) throws FileNotFoundException {
@@ -354,8 +355,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    protected IndexInputStats createIndexInputStats(final long fileLength) {
-        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier);
+    protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
+        return new IndexInputStats(numFiles, totalSize, statsCurrentTimeNanosSupplier);
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -387,7 +388,16 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             return ChecksumBlobContainerIndexInput.create(fileInfo.physicalName(), fileInfo.length(), fileInfo.checksum(), context);
         }
 
-        final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
+        final String ext = getNonNullFileExt(name);
+        final IndexInputStats inputStats = stats.computeIfAbsent(ext, n -> {
+            // get all fileInfo with same extension
+            final Tuple<Integer, Long> fileExtCompoundStats = files().stream()
+                .filter(fi -> ext.equals(getNonNullFileExt(fi.physicalName())))
+                .map(fi -> Tuple.tuple(1, fi.length()))
+                .reduce((t1, t2) -> Tuple.tuple(t1.v1() + t2.v1(), t1.v2() + t2.v2()))
+                .get();
+            return createIndexInputStats(fileExtCompoundStats.v1(), fileExtCompoundStats.v2());
+        });
         if (useCache && isExcludedFromCache(name) == false) {
             if (partial) {
                 return new FrozenIndexInput(
@@ -418,6 +428,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 bufferSize(context)
             );
         }
+    }
+
+    static String getNonNullFileExt(String name) {
+        final String ext = IndexFileNames.getExtension(name);
+        return ext == null ? "" : ext;
     }
 
     private long getUncachedChunkSize() {

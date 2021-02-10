@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -352,7 +353,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig("transform_test_delete_old_configurations");
         client().admin()
             .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings()))
+            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings())
+                .origin(ClientHelper.TRANSFORM_ORIGIN))
             .actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -388,7 +390,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         TransformStoredDoc transformStoredDoc = TransformStoredDocTests.randomTransformStoredDoc(transformId);
         client().admin()
             .indices()
-            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings()))
+            .create(new CreateIndexRequest(oldIndex).mapping(MapperService.SINGLE_MAPPING_NAME, mappings())
+                .origin(ClientHelper.TRANSFORM_ORIGIN))
             .actionGet();
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

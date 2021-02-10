@@ -14,10 +14,14 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -51,12 +55,13 @@ public class CancellationTests extends ESTestCase {
         Client client = mock(Client.class);
         EqlSearchTask task = mock(EqlSearchTask.class);
         when(task.isCancelled()).thenReturn(true);
+        ClusterService mockClusterService = mockClusterService();
 
         IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().query("foo where blah"), "", "", "node_id",
-            new ActionListener<>() {
+        TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().query("foo where blah"), "",
+            mock(TransportService.class), mockClusterService, new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
                     fail("Shouldn't be here");
@@ -96,10 +101,10 @@ public class CancellationTests extends ESTestCase {
 
         AtomicBoolean cancelled = new AtomicBoolean(false);
         EqlSearchTask task = mock(EqlSearchTask.class);
-        String nodeId = randomAlphaOfLength(10);
         long taskId = randomNonNegativeLong();
         when(task.isCancelled()).then(invocationOnMock -> cancelled.get());
         when(task.getId()).thenReturn(taskId);
+        ClusterService mockClusterService = mockClusterService();
 
         String[] indices = new String[]{"endgame"};
 
@@ -119,7 +124,7 @@ public class CancellationTests extends ESTestCase {
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
-            .query("process where foo==3"), "", "", nodeId, new ActionListener<>() {
+            .query("process where foo==3"), "", mock(TransportService.class), mockClusterService, new ActionListener<>() {
             @Override
             public void onResponse(EqlSearchResponse eqlSearchResponse) {
                 fail("Shouldn't be here");
@@ -149,6 +154,7 @@ public class CancellationTests extends ESTestCase {
         long taskId = randomNonNegativeLong();
         when(task.isCancelled()).thenReturn(false);
         when(task.getId()).thenReturn(taskId);
+        ClusterService mockClusterService = mockClusterService(nodeId);
 
         String[] indices = new String[]{"endgame"};
 
@@ -183,7 +189,7 @@ public class CancellationTests extends ESTestCase {
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
-            .query("process where foo==3"), "", "", nodeId, new ActionListener<>() {
+            .query("process where foo==3"), "", mock(TransportService.class), mockClusterService, new ActionListener<>() {
             @Override
             public void onResponse(EqlSearchResponse eqlSearchResponse) {
                 fail("Shouldn't be here");
@@ -207,4 +213,18 @@ public class CancellationTests extends ESTestCase {
         verifyNoMoreInteractions(client, task);
     }
 
+    private ClusterService mockClusterService() {
+        return mockClusterService(null);
+    }
+
+    private ClusterService mockClusterService(String nodeId) {
+        final ClusterService mockClusterService = mock(ClusterService.class);
+        final DiscoveryNode mockNode = mock(DiscoveryNode.class);
+        final ClusterName mockClusterName = mock(ClusterName.class);
+        when(mockNode.getId()).thenReturn(nodeId == null ? randomAlphaOfLength(10) : nodeId);
+        when(mockClusterService.localNode()).thenReturn(mockNode);
+        when(mockClusterName.value()).thenReturn(randomAlphaOfLength(10));
+        when(mockClusterService.getClusterName()).thenReturn(mockClusterName);
+        return mockClusterService;
+    }
 }

@@ -23,7 +23,7 @@ public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
     private boolean executedListeners = false;
 
     /**
-     * Registers an {@link ActionListener<T>} to be notified when this future is completed. If the future is already completed then the
+     * Registers an {@link ActionListener} to be notified when this future is completed. If the future is already completed then the
      * listener is notified immediately, on the calling thread. If not, the listener is notified on the thread that completes the listener.
      */
     @SuppressWarnings("unchecked,rawtypes")

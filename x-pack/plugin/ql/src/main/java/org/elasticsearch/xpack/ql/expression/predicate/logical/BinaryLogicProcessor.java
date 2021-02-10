@@ -85,7 +85,7 @@ public class BinaryLogicProcessor extends FunctionalEnumBinaryProcessor<Boolean,
 
     @Override
     protected void checkParameter(Object param) {
-        if (param != null && !(param instanceof Boolean)) {
+        if (param != null && (param instanceof Boolean) == false) {
             throw new QlIllegalArgumentException("A boolean is required; received {}", param);
         }
     }

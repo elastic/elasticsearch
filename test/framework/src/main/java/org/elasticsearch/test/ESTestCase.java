@@ -602,7 +602,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * The exact opposite of {@link #rarely()}.
      */
     public static boolean frequently() {
-        return !rarely();
+        return rarely() == false;
     }
 
     public static boolean randomBoolean() {
@@ -1056,6 +1056,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public Environment newEnvironment() {
         Settings build = buildEnvSettings(Settings.EMPTY);
+        return TestEnvironment.newEnvironment(build);
+    }
+
+    public Environment newEnvironment(Settings settings) {
+        Settings build = buildEnvSettings(settings);
         return TestEnvironment.newEnvironment(build);
     }
 

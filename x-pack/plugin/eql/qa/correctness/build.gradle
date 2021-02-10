@@ -15,7 +15,7 @@ restResources {
 
 dependencies {
   javaRestTestImplementation project(':test:framework')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   javaRestTestImplementation project(xpackModule('ql:test'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'

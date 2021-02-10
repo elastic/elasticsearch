@@ -101,7 +101,8 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseSearchableS
             indexName,
             Settings.EMPTY,
             Strings.EMPTY_ARRAY,
-            true
+            true,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
 
         final ActionFuture<RestoreSnapshotResponse> responseFuture = client().execute(MountSearchableSnapshotAction.INSTANCE, req);

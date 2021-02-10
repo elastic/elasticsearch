@@ -58,7 +58,6 @@ import java.util.Locale;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
-import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -214,7 +213,6 @@ public abstract class PackagingTestCase extends Assert {
             case DOCKER:
             case DOCKER_UBI:
                 installation = Docker.runContainer(distribution);
-                waitForElasticsearch(installation);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
             default:

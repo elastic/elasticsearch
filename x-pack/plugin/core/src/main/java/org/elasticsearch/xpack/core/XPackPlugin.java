@@ -393,7 +393,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             DataTier.DATA_CONTENT_NODE_ROLE,
             DataTier.DATA_HOT_NODE_ROLE,
             DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE));
+            DataTier.DATA_COLD_NODE_ROLE,
+            DataTier.DATA_FROZEN_NODE_ROLE));
     }
 
     @Override

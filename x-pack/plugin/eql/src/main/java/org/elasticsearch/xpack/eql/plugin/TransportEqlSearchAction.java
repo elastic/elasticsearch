@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -43,14 +46,17 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
 public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
 
+    private static final Logger log = LogManager.getLogger(TransportEqlSearchAction.class);
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
     private final ThreadPool threadPool;
+    private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
 
     @Inject
@@ -64,6 +70,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.threadPool = threadPool;
+        this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
             registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool);
@@ -78,8 +85,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, task, request, username(securityContext), clusterName(clusterService),
-            clusterService.localNode().getId(), listener);
+        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, listener);
     }
 
     @Override
@@ -99,13 +105,15 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepAlive(),
                 request.keepOnCompletion(), listener);
         } else {
-            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), clusterName(clusterService),
-                clusterService.localNode().getId(), listener);
+            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
         }
     }
 
     public static void operation(PlanExecutor planExecutor, EqlSearchTask task, EqlSearchRequest request, String username,
-                                 String clusterName, String nodeId, ActionListener<EqlSearchResponse> listener) {
+                                 TransportService transportService, ClusterService clusterService,
+                                 ActionListener<EqlSearchResponse> listener) {
+        String nodeId = clusterService.localNode().getId();
+        String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
         ZoneId zoneId = DateUtils.of("Z");
         QueryBuilder filter = request.filter();
@@ -122,8 +130,12 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout,
                 request.indicesOptions(), request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
-        planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
-            listener::onFailure));
+        executeRequestWithRetryAttempt(clusterService, listener::onFailure,
+            onFailure -> planExecutor.eql(cfg, request.query(), params,
+                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)),
+            node -> transportService.sendRequest(node, EqlSearchAction.NAME, request,
+                new ActionListenerResponseHandler<>(listener, EqlSearchResponse::new, ThreadPool.Names.SAME)),
+            log);
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {

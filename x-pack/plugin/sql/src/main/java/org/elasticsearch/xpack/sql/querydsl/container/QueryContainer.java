@@ -336,8 +336,7 @@ public class QueryContainer {
             fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
             rootField = rootField.parent();
         }
-        return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
+        return new SearchHitFieldRef(aliasName(actualField), fieldAttr.field().getDataType());
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
@@ -347,8 +346,7 @@ public class QueryContainer {
                 SqlDataTypes.format(attr.field().getDataType()),
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
-                false, attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(), attr.parent().name());
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,

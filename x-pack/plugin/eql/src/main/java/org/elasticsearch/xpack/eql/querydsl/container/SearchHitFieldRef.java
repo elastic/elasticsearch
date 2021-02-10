@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
 // NB: this class is taken from SQL - it hasn't been ported over to QL
 // since at this stage is unclear whether the whole FieldExtraction infrastructure
@@ -62,10 +61,6 @@ public class SearchHitFieldRef implements FieldExtraction {
     @Override
     public String toString() {
         return name;
-    }
-
-    private static boolean hasDocValues(DataType dataType) {
-        return dataType == KEYWORD || dataType == DATETIME;
     }
 
     private static String format(DataType dataType) {

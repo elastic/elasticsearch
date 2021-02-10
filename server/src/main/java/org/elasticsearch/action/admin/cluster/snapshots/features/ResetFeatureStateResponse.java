@@ -17,8 +17,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /** Response to a feature state reset request. */
@@ -26,16 +26,10 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     List<ResetFeatureStateStatus> resetFeatureStateStatusList;
 
-    public ResetFeatureStateResponse(Map<String, String> statusMap) {
-        resetFeatureStateStatusList = new ArrayList<>();
-        for (Map.Entry<String, String> entry : statusMap.entrySet()) {
-            resetFeatureStateStatusList.add(new ResetFeatureStateStatus(entry.getKey(), entry.getValue()));
-        }
-    }
-
     public ResetFeatureStateResponse(List<ResetFeatureStateStatus> statusList) {
         resetFeatureStateStatusList = new ArrayList<>();
         resetFeatureStateStatusList.addAll(statusList);
+        resetFeatureStateStatusList.sort(Comparator.comparing(ResetFeatureStateStatus::getFeatureName));
     }
 
     public ResetFeatureStateResponse(StreamInput in) throws IOException {

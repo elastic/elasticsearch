@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -26,10 +26,14 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected ResetFeatureStateResponse createTestInstance() {
-        Map<String, String> responses = new HashMap<>();
-        responses.put("feature_one", randomFrom("SUCCESS", "FAILURE"));
-        responses.put("feature_two", randomFrom("SUCCESS", "FAILURE"));
-        return new ResetFeatureStateResponse(responses);
+        List<ResetFeatureStateResponse.ResetFeatureStateStatus> resetStatuses = new ArrayList<>();
+        String feature1 = randomAlphaOfLengthBetween(4, 10);
+        String feature2 = randomValueOtherThan(feature1, () -> randomAlphaOfLengthBetween(4, 10));
+        resetStatuses.add(new ResetFeatureStateResponse.ResetFeatureStateStatus(
+            feature1, randomFrom("SUCCESS", "FAILURE")));
+        resetStatuses.add(new ResetFeatureStateResponse.ResetFeatureStateStatus(
+            feature2, randomFrom("SUCCESS", "FAILURE")));
+        return new ResetFeatureStateResponse(resetStatuses);
     }
 
     @Override
@@ -39,7 +43,7 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
             minSize = 1;
         }
         Set<String> existingFeatureNames = instance.getItemList().stream()
-            .map(item -> item.getFeatureName())
+            .map(ResetFeatureStateResponse.ResetFeatureStateStatus::getFeatureName)
             .collect(Collectors.toSet());
         return new ResetFeatureStateResponse(randomList(minSize, 10,
             () -> new ResetFeatureStateResponse.ResetFeatureStateStatus(

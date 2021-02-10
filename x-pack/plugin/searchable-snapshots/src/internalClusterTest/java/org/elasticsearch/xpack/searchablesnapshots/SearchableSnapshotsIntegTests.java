@@ -1306,7 +1306,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             }
         });
         assertThat(remountException.getMessage(), allOf(
-                containsString("is a searchable snapshot backed by index"),
+                containsString("is a snapshot of a searchable snapshot index backed by index"),
                 containsString(repositoryName),
                 containsString(snapshotOne.getName()),
                 containsString(indexName),

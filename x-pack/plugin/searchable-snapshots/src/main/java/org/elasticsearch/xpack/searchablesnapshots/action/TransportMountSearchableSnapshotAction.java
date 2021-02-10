@@ -184,8 +184,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
             if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
                 throw new IllegalArgumentException(String.format(Locale.ROOT,
-                        "index [%s] in snapshot [%s/%s:%s] is a searchable snapshot backed by index [%s] in snapshot [%s/%s:%s] " +
-                                "and cannot be mounted; did you mean to restore it instead?",
+                        "index [%s] in snapshot [%s/%s:%s] is a snapshot of a searchable snapshot index " +
+                                "backed by index [%s] in snapshot [%s/%s:%s] and cannot be mounted; did you mean to restore it instead?",
                         indexName,
                         repoName,
                         repository.getMetadata().uuid(),

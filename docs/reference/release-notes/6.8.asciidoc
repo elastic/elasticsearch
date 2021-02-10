@@ -16,7 +16,7 @@ Engine::
 * Fix the version and term field initialization error of `NoOpResult` {es-pull}66269[#66269] (issue: {es-issue}66267[#66267])
 
 Features/Monitoring::
-* Do not report negative values for swap sizes {es-pull}57317[#57317] (issues: {es-issue}42725[#42725], {es-issue}56435[#56435], {es-issue}57312[#57312])
+* Do not report negative values for swap sizes {es-pull}57317[#57317] (issue: {es-issue}57312[#57312])
 
 Infra/Core::
 * Fix missing `QuotaPath.unwrap()` instances {es-pull}67165[#67165] (issue: {es-issue}67164[#67164])

@@ -7,11 +7,14 @@
  */
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -23,15 +26,20 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
-    private final boolean isCompatible;
-    private final boolean newVersionOnly;
+    private final Set<RestApiCompatibleVersion> versions = new HashSet<>();
     private String allReplacedWith = null;
     private final String[] allNames;
     private boolean fullyDeprecated = false;
 
     private static final String[] EMPTY = new String[0];
 
-    public ParseField(String name, String[] deprecatedNames, boolean isCompatible, boolean newVersionOnly) {
+    /**
+     * @param name            the primary name for this field. This will be returned by
+     *                        {@link #getPreferredName()}
+     * @param deprecatedNames names for this field which are deprecated and will not be
+     *                        accepted when strict matching is used.
+     */
+    public ParseField(String name, Collection<RestApiCompatibleVersion> versions, String[] deprecatedNames) {
         this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = EMPTY;
@@ -40,31 +48,19 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
-        this.isCompatible = isCompatible;
-        this.newVersionOnly = newVersionOnly;
+        this.versions.addAll(versions);
+
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
         Collections.addAll(allNames, this.deprecatedNames);
         this.allNames = allNames.toArray(new String[allNames.size()]);
     }
 
-    /**
-     * @param name            the primary name for this field. This will be returned by
-     *                        {@link #getPreferredName()}
-     * @param deprecatedNames names for this field which are deprecated and will not be
-     *                        accepted when strict matching is used.
-     */
+
     public ParseField(String name, String... deprecatedNames) {
-        this(name, deprecatedNames, false, false);
+        this(name, List.of(RestApiCompatibleVersion.currentVersion(), RestApiCompatibleVersion.minimumSupported()) ,deprecatedNames);
     }
 
-    public static ParseField withCompatibleFieldNames(String name, String... compatibleNames) {
-        return new ParseField(name, compatibleNames, true, false);
-    }
-
-    public static ParseField newVersionOnly(String name) {
-        return new ParseField(name, null, false, true);
-    }
 
     /**
      * @return the preferred name used for this field
@@ -90,6 +86,14 @@ public class ParseField {
      */
     public ParseField withDeprecation(String... deprecatedNames) {
         return new ParseField(this.name, deprecatedNames);
+    }
+
+    public ParseField forVersions(RestApiCompatibleVersion... minimumSupported) {
+        return new ParseField(this.name, List.of(minimumSupported), this.deprecatedNames);
+    }
+
+    public Set<RestApiCompatibleVersion> getVersions() {
+        return versions;
     }
 
     /**
@@ -183,14 +187,6 @@ public class ParseField {
         return deprecatedNames;
     }
 
-
-    public boolean isCompatible() {
-        return isCompatible;
-    }
-
-    public boolean isNewVersionOnly() {
-        return newVersionOnly;
-    }
 
     public static class CommonFields {
         public static final ParseField FIELD = new ParseField("field");

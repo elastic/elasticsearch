@@ -9,6 +9,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -278,7 +279,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 currentPosition = parser.getTokenLocation();
-                if(parser.useCompatibility()){
+                if(parser.getRestApiCompatibleVersion() == RestApiCompatibleVersion.minimumSupported()){
                     fieldParser = compatibleFieldParserMap.get(currentFieldName);
                 }else{
                     fieldParser = fieldParserMap.get(currentFieldName);
@@ -363,19 +364,12 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             throw new IllegalArgumentException("[type] is required");
         }
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
-        if (parseField.isCompatible()) {
-            fieldParserMap.putIfAbsent(parseField.getPreferredName(), fieldParser);
-            for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
+        for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
+            if (parseField.getVersions().contains(RestApiCompatibleVersion.minimumSupported())) {
                 compatibleFieldParserMap.putIfAbsent(fieldValue, fieldParser);
             }
-        } else if (parseField.isNewVersionOnly()) {
-            for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
+            if (parseField.getVersions().contains(RestApiCompatibleVersion.currentVersion())) {
                 fieldParserMap.putIfAbsent(fieldValue, fieldParser);
-            }
-        } else {
-            for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
-                fieldParserMap.putIfAbsent(fieldValue, fieldParser);
-                compatibleFieldParserMap.putIfAbsent(fieldValue, fieldParser);
             }
         }
 

@@ -1,6 +1,3 @@
-[role="xpack"]
-[testenv="basic"]
-
 [[flattened]]
 === Flattened field type
 ++++

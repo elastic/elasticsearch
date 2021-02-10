@@ -48,14 +48,9 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                String v = values.toString();
-                if (v.contains("-")) {
-                    return DateUtils.asDateTimeWithNanos(v, zoneId());
-                } else {
-                    // We ask @timestamp (or the defined alternative field) to be returned as `epoch_millis`
-                    // when matching sequence to avoid parsing into ZonedDateTime objects for performance reasons.
-                    return parseEpochMillisAsString(v);
-                }
+                // We ask @timestamp (or the defined alternative field) to be returned as `epoch_millis`
+                // when matching sequence to avoid parsing into ZonedDateTime objects for performance reasons.
+                return parseEpochMillisAsString(values.toString());
             }
         }
 

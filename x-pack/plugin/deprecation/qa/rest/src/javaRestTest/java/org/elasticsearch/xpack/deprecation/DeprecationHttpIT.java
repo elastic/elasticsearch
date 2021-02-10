@@ -42,6 +42,7 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -345,7 +346,21 @@ public class DeprecationHttpIT extends ESRestTestCase {
             compatibleRequest.setEntity(
                 buildSettingsRequest(Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1), true)
             );
-            assertOK(client().performRequest(compatibleRequest));
+            Response deprecatedApiResponse = client().performRequest(compatibleRequest);
+            assertOK(deprecatedApiResponse);
+
+            final List<String> deprecatedWarnings = getWarningHeaders(deprecatedApiResponse.getHeaders());
+            final List<String> actualWarningValues = deprecatedWarnings.stream()
+                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+                .collect(Collectors.toList());
+            assertThat(
+                actualWarningValues,
+                containsInAnyOrder(
+                    TestDeprecationHeaderRestAction.DEPRECATED_ENDPOINT,
+                    TestDeprecationHeaderRestAction.DEPRECATED_USAGE,
+                    TestDeprecationHeaderRestAction.COMPATIBLE_API_USAGE
+                )
+            );
 
             assertBusy(() -> {
                 Response response;
@@ -442,7 +457,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }, 30, TimeUnit.SECONDS);
         } finally {
             configureWriteDeprecationLogsToIndex(null);
-            client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));
+            try {
+                client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));
+            } catch (Exception e) {
+
+            }
         }
     }
 

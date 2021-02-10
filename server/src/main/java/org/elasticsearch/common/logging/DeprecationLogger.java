@@ -54,14 +54,14 @@ public class DeprecationLogger {
     }
 
     private DeprecationLogger(String parentLoggerName) {
-        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName, "deprecation"));
+        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName));
     }
 
-    private static String getLoggerName(String name, String prefix) {
+    private static String getLoggerName(String name) {
         if (name.startsWith("org.elasticsearch")) {
-            name = name.replace("org.elasticsearch.", "org.elasticsearch." + prefix + ".");
+            name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
         } else {
-            name = prefix + "." + name;
+            name = "deprecation." + name;
         }
         return name;
     }

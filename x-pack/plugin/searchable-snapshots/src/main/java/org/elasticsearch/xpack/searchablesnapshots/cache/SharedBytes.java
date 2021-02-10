@@ -120,7 +120,7 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final Map<Integer, IO> ios = ConcurrentCollections.newConcurrentMap();
 
-    IO getFileChannel(int sharedBytesPos, boolean small) {
+    IO getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
         return ios.compute(sharedBytesPos, (p, io) -> {
             if (io == null || io.tryIncRef() == false) {
@@ -128,7 +128,7 @@ public class SharedBytes extends AbstractRefCounted {
                 boolean success = false;
                 incRef();
                 try {
-                    newIO = new IO(p, small);
+                    newIO = new IO(p);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -157,12 +157,10 @@ public class SharedBytes extends AbstractRefCounted {
 
         private final int sharedBytesPos;
         private final long pageStart;
-        private final boolean small;
 
-        private IO(final int sharedBytesPos, boolean small) {
+        private IO(final int sharedBytesPos) {
             super("shared-bytes-io");
             this.sharedBytesPos = sharedBytesPos;
-            this.small = small;
             pageStart = getPhysicalOffset(sharedBytesPos);
         }
 
@@ -179,7 +177,7 @@ public class SharedBytes extends AbstractRefCounted {
         }
 
         private void checkOffsets(long position, long length) {
-            final long regionSize = small ? smallRegionSize : SharedBytes.this.regionSize;
+            final long regionSize = pageStart >= numRegions * SharedBytes.this.regionSize ? smallRegionSize : SharedBytes.this.regionSize;
             long pageEnd = pageStart + regionSize;
             if (position < pageStart || position > pageEnd || position + length > pageEnd) {
                 assert false;

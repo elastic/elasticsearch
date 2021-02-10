@@ -133,7 +133,10 @@ public class FrozenCacheService implements Releasable {
 
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<Integer> freeSmallRegions = new ConcurrentLinkedQueue<>();
-    private final Entry<CacheFileRegion>[] freqs;
+
+    private final Entry<CacheFileRegion>[] regionFreqs;
+    private final Entry<CacheFileRegion>[] smallRegionFreqs;
+
     private final int maxFreq;
     private final long minTimeDelta;
 
@@ -170,7 +173,8 @@ public class FrozenCacheService implements Releasable {
         assert regionSize > 0L;
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
         this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
-        freqs = new Entry[maxFreq];
+        regionFreqs = new Entry[maxFreq];
+        smallRegionFreqs = new Entry[maxFreq];
         try {
             sharedBytes = new SharedBytes(numRegions, regionSize, numSmallRegions, smallRegionSize, environment);
         } catch (IOException e) {
@@ -240,13 +244,9 @@ public class FrozenCacheService implements Releasable {
             : region * regionSize;
     }
 
-    private ByteRange getRegionRange(int region, long fileLength) {
-        final long regionStart = getRegionStart(region, fileLength);
-        return ByteRange.of(regionStart, regionStart + (isSmallRegion(region, fileLength) ? smallRegionSize : regionSize));
-    }
-
     private ByteRange mapSubRangeToRegion(ByteRange range, int region, long fileLength) {
-        final ByteRange regionRange = getRegionRange(region, fileLength);
+        final long regionStart = getRegionStart(region, fileLength);
+        ByteRange regionRange = ByteRange.of(regionStart, regionStart + (isSmallRegion(region, fileLength) ? smallRegionSize : regionSize));
         if (range.hasOverlap(regionRange) == false) {
             return ByteRange.EMPTY;
         }
@@ -303,7 +303,7 @@ public class FrozenCacheService implements Releasable {
                 } else {
                     // need to evict something
                     synchronized (this) {
-                        maybeEvict();
+                        maybeEvict(isSmall);
                     }
                     final Integer freeSlotRetry = tryPollFreeSlot(isSmall);
                     if (freeSlotRetry != null) {
@@ -343,7 +343,7 @@ public class FrozenCacheService implements Releasable {
 
     public void onClose(CacheFileRegion chunk) {
         assert regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
-        if (chunk.sharedBytesPos >= sharedBytes.numRegions) {
+        if (chunk.isSmall()) {
             freeSmallRegions.add(chunk.sharedBytesPos);
         } else {
             freeRegions.add(chunk.sharedBytesPos);
@@ -355,8 +355,14 @@ public class FrozenCacheService implements Releasable {
         return freeRegions.size();
     }
 
+    // used by tests
+    int freeSmallRegionCount() {
+        return freeSmallRegions.size();
+    }
+
     private synchronized boolean invariant(final Entry<CacheFileRegion> e, boolean present) {
         boolean found = false;
+        final Entry<CacheFileRegion>[] freqs = e.chunk.isSmall() ? smallRegionFreqs : regionFreqs;
         for (int i = 0; i < maxFreq; i++) {
             assert freqs[i] == null || freqs[i].prev != null;
             assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
@@ -384,8 +390,9 @@ public class FrozenCacheService implements Releasable {
         return true;
     }
 
-    private void maybeEvict() {
+    private void maybeEvict(boolean small) {
         assert Thread.holdsLock(this);
+        final Entry<CacheFileRegion>[] freqs = small ? smallRegionFreqs : regionFreqs;
         for (int i = 0; i < maxFreq; i++) {
             for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvict();
@@ -403,19 +410,19 @@ public class FrozenCacheService implements Releasable {
         assert invariant(entry, false);
         assert entry.prev == null;
         assert entry.next == null;
+        final Entry<CacheFileRegion>[] freqs = entry.chunk.isSmall() ? smallRegionFreqs : regionFreqs;
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         if (currFront == null) {
             freqs[entry.freq] = entry;
             entry.prev = entry;
-            entry.next = null;
         } else {
             assert currFront.freq == entry.freq;
             final Entry<CacheFileRegion> last = currFront.prev;
             currFront.prev = entry;
             last.next = entry;
             entry.prev = last;
-            entry.next = null;
         }
+        entry.next = null;
         assert freqs[entry.freq].prev == entry;
         assert freqs[entry.freq].prev.next == null;
         assert entry.prev != null;
@@ -428,6 +435,7 @@ public class FrozenCacheService implements Releasable {
         assert Thread.holdsLock(this);
         assert invariant(entry, true);
         assert entry.prev != null;
+        final Entry<CacheFileRegion>[] freqs = entry.chunk.isSmall() ? smallRegionFreqs : regionFreqs;
         final Entry<CacheFileRegion> currFront = freqs[entry.freq];
         assert currFront != null;
         if (currFront == entry) {
@@ -453,14 +461,20 @@ public class FrozenCacheService implements Releasable {
     private void computeDecay() {
         synchronized (this) {
             long now = currentTimeSupplier.getAsLong();
-            for (int i = 0; i < maxFreq; i++) {
-                for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
-                    if (now - entry.lastAccessed >= 2 * minTimeDelta) {
-                        if (entry.freq > 0) {
-                            unlink(entry);
-                            entry.freq--;
-                            pushEntryToBack(entry);
-                        }
+            doComputeDecay(now, regionFreqs);
+            doComputeDecay(now, smallRegionFreqs);
+        }
+    }
+
+    private void doComputeDecay(long now, Entry<CacheFileRegion>[] freqs) {
+        assert Thread.holdsLock(this);
+        for (int i = 0; i < maxFreq; i++) {
+            for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
+                if (now - entry.lastAccessed >= 2 * minTimeDelta) {
+                    if (entry.freq > 0) {
+                        unlink(entry);
+                        entry.freq--;
+                        pushEntryToBack(entry);
                     }
                 }
             }
@@ -591,6 +605,10 @@ public class FrozenCacheService implements Releasable {
             tracker = new SparseFileTracker("file", regionSize);
         }
 
+        public boolean isSmall() {
+            return sharedBytesPos >= sharedBytes.numRegions;
+        }
+
         public long physicalStartOffset() {
             return sharedBytes.getPhysicalOffset(sharedBytesPos);
         }
@@ -662,7 +680,7 @@ public class FrozenCacheService implements Releasable {
                 ensureOpen();
                 Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos, tracker.getLength() <= smallRegionSize);
+                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
                 if (rangeToRead.length() == 0L) {
@@ -721,7 +739,7 @@ public class FrozenCacheService implements Releasable {
                 ensureOpen();
                 final Releasable finalDecrementRef = decrementRef;
                 listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
-                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos, tracker.getLength() <= smallRegionSize);
+                final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
                 if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
                     return listener;

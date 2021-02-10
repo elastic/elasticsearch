@@ -1,0 +1,258 @@
+[[security-basic-setup]]
+=== Set up basic security for the Elastic Stack
+
+Let's say you want to set up the Elastic Stack with some security, but don't
+need to encrypt all traffic flowing in and out of your cluster. You'll need to
+configure the Elastic Stack with user and password authentication for
+built-in users, plus Transport Layer Security (TLS). The transport layer
+handles all internal communication between nodes and communication with nodes
+in a remote cluster.
+
+The transport layer relies on mutual TLS for both encryption and
+authentication. Applying TLS ensures that a malicious node cannot join the
+cluster and exchange data with other nodes. While implementing username and
+password authentication at the HTTP layer is useful for securing a local
+cluster, there is no internode security without configuring TLS.
+
+Configuring TLS is the basic security setup to prevent unauthorized nodes from
+accessing to your cluster.
+
+[[basic-setup-prerequisites]]
+==== Prerequisites
+
+Complete all steps in <<security-minimal-setup,Minimal security for the Elastic Stack>> on every node in your cluster. After enabling {es} security and setting
+passwords for the built-in users, you can encrypt communications between your
+nodes with TLS.
+
+[[generate-certificates]]
+==== Generate the certificate authority
+
+You can add as many nodes as you want in a cluster but they must be able to communicate with each other. The communication between nodes in a cluster is handled by the transport module. To secure your cluster, you must ensure that the internode communications are encrypted and that mutual TLS is configured.
+
+In a secured cluster, {es} nodes use certificates to identify
+themselves when communicating with other nodes.
+
+The cluster must validate the authenticity of these certificates. The
+recommended approach is to trust a specific certificate authority (CA). When
+nodes are added to your cluster they can use a certificate signed by the same
+CA.
+
+For the transport layer, we recommend using a separate, dedicated CA instead
+of an existing, possibly shared CA. Use the `elasticsearch-certutil` tool to
+generate a CA for your cluster.
+
+NOTE: If you're running a multi-node cluster, jump to
+<<multi-node-certs,Generate certificates for a multi-node cluster>> and use
+that method of generating a CA and certificates.
+
+. Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
++
+[source,bash]
+----
+./bin/elasticsearch-certutil ca
+----
+
+   a. When prompted, accept the default file name, which is `elastic-stack-ca.p12`. This file contains the public certificate for your CA and the private key used to sign certificates for each node.
+
+   b. Enter a password for your CA. You can leave the password
+   blank if you're configuring security for a minimal development environment.
+
+. Generate a certificate and private key for your node. You include the
+   `elastic-stack-ca.p12` output file that you generated in the previous step.
++
+[source,bash]
+----
+./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
+----
+
+   a. Enter the password for your CA.
+
+   b. Create a password for the certificate.
++
+The output file is a keystore named `elastic-certificates.p12`. This file
+contains a node certificate, node key, and CA certificate.
+
+. Copy the `elastic-certificates.p12` file to the `ES_PATH_CONF`
+   directory.
+
+*Next*: <<encrypt-internode-communication>>
+
+[[multi-node-certs]]
+===== Generate certificates for a multi-node cluster
+
+If you're running a multi-node cluster, this method of generating certificates
+is simpler than generating one certificate at a time.
+You run the `elasticsearch-certutil` tool in `--silent` mode to create a single
+CA, plus a security certificate for each node in your cluster.
+
+. Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
++
+[source,bash]
+----
+./bin/elasticsearch-certutil ca
+----
+
+   a. When prompted, accept the default file name, which is `elastic-stack-ca.p12`. This file contains the public certificate for your CA and the private key used to sign certificates for each node.
+
+   b. Enter a password for your CA.
+
+. In the installation directory on one your {es} nodes, create a
+`certificates.yaml` file to contain information about each node.
++
+Enter a `name` value for each node in your cluster, which can be a simple string value or a Distinguished Name (DN). This is the only required field.
++
+[source,yaml]
+----
+instances:
+ - name: "node-1"
+ - name: "node-2"
+ - name: "node-3"
+----
+
+. Run the `elasticsearch-certutil` tool in `--silent` mode with the `cert`
+parameter and the following options:
++
+[source,bash]
+----
+./bin/elasticsearch-certutil cert --ca elastic-certificates.p12 --silent --in certificates.yaml --out node-certs.zip --pass <password>
+----
++
+This command generates a compressed `node-certs.zip` file.
+
+   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
+   default file name from the `elasticsearch-certutil` tool is `elastic-certificates.p12`.
+
+   `--in <input_file>`:: Name of the file that is used to run in https://www.elastic.co/guide/en/elasticsearch/reference/current/certutil.html#certutil-silent[silent mode]. The input file must be a YAML file. This parameter cannot be used with the `ca` parameter.
+
+   `--out <file_path>`:: Path and file name for the output files.
+
+   `--pass <password>`:: Password for the generated private keys.
+
+. Enter the password for your CA when prompted.
+
+. Unzip the `node-certs.zip` output file, which results in one directory for each node that was included in the `certificates.yaml` file.
++
+Each node directory contains a single `<node-name>.p12` certificate file, which contains the node certificate, instance private key, and CA certificate.
+
+. Copy the appropriate `<node-name>.p12` certificate file to the
+   `ES_PATH_CONF` directory on each node.
++
+WARNING: This file must reside in the `ES_PATH_CONF` directory or {es}
+will not start.
+
+*Next*: <<encrypt-internode-communication>>
+
+[[encrypt-internode-communication]]
+==== Encrypt internode communications with TLS
+
+The transport networking layer is used for internal communication between
+nodes in a cluster. When security features are enabled, you must use TLS to
+ensure that communication between the nodes is encrypted.
+
+Now that you've generated a certificate authority and certificates, you'll
+update your cluster to use these files.
+
+NOTE: Complete the following steps for each node in your cluster.
+
+.  Open the `ES_PATH_CONF/elasticsearch.yml` file and make the following
+changes:
+
+   a. Add the `cluster-name` setting and enter a name for your cluster:
++
+[source,yaml]
+----
+cluster.name: my-cluster
+----
+
+b. Add the `node.name` setting and enter the name of the certificate that
+you generated for this node. The value must match the certificate name that
+you defined in your `certificates.yaml` file:
++
+[source,yaml]
+----
+node.name: node-1
+----
+
+c. Add the following settings to enable internode communication and provide
+access to the node's certificate:
++
+[source,yaml]
+----
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.client_authentication: required
+xpack.security.transport.ssl.keystore.path: <node-name>.p12
+xpack.security.transport.ssl.truststore.path: <node-name>.p12
+----
+
+.  If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
++
+[source,bash]
+----
+./bin/elasticsearch-keystore add xpack.security.transport.ssl.keystore.secure_password
+
+./bin/elasticsearch-keystore add xpack.security.transport.ssl.truststore.secure_password
+----
+
+.  Complete the previous steps for each node in your cluster.
+
+.  Restart {es}. The method for starting and stopping {es}
+varies depending on how you installed it.
++
+For example, if you installed {es} with an archive distribution
+(`tar.gz` or `.zip`), enter `Ctrl+C` on the command line to stop
+{es}.
++
+WARNING: You must perform a full cluster restart. Nodes that are configured to
+use TLS cannot communicate with nodes that are using unencrypted (and vice-versa).
+
+*Next*: <<add-built-in-user,Add the built-in users to {kib}>>
+
+[[add-built-in-users]]
+==== Add the built-in users to {kib}
+
+When the {es} security features are enabled, users must log in to
+{kib} with a valid user ID and password.
+
+{kib} also performs some background tasks that require use of the built-in
+`kibana_system` user.
+
+You'll configure {kib} to use the built-in `kibana_system` user and the
+password that you created earlier.
+
+1. From the directory where you installed {kib}, run the following commands
+   to create the {kib} keystore and add the secure settings:
+
+   a. Create the {kib} keystore:
++
+[source,bash]
+----
+./bin/kibana-keystore create
+----
+
+   b. Add the {es} user to the {kib} keystore:
++
+[source,bash]
+----
+./bin/kibana-keystore add elasticsearch.username
+----
++
+When prompted, specify the `kibana_system` user.
+
+   c. Add the password for the {es} user to the {kib} keystore:
++
+[source,bash]
+----
+./bin/kibana-keystore add elasticsearch.password
+----
++
+When prompted, enter the password for the `kibana_system` user.
+
+2. Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
++
+[source,bash]
+----
+./bin/kibana
+----
+
+3. Log in to {kib} as the `elastic` user.

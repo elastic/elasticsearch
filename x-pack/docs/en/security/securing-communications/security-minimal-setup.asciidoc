@@ -9,7 +9,7 @@ cluster.
 [discrete]
 ==== Prerequisites
 
-. Install and configure {es} and Kibana. See https://www.elastic.co/guide/en/elastic-stack-get-started/current/get-started-elastic-stack.html[Getting started with the Elastic Stack].
+. Install and configure {es} and {kib}. See https://www.elastic.co/guide/en/elastic-stack-get-started/current/get-started-elastic-stack.html[Getting started with the Elastic Stack].
 
 . Verify that you are using a license that includes the specific security
 features you want.
@@ -26,7 +26,7 @@ features are disabled by default. Enabling the {es} security
 features enables basic authentication so that you can run a local cluster
 with username and password authentication.
 
-. Stop both Kibana and {es} if they are running.
+. Stop both {kib} and {es} if they are running.
 
 . Add the `xpack.security.enabled` setting to the `ES_PATH_CONF/elasticsearch.yml` file and set the value to `true`:
 +

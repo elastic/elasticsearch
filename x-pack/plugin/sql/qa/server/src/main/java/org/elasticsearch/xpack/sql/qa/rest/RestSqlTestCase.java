@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -178,6 +179,21 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
 
             final String[] ignoreIndexSettings = Arrays.copyOf(request.ignoreIndexSettings(), request.ignoreIndexSettings().length + 1);
             ignoreIndexSettings[ignoreIndexSettings.length - 1] = IndexMetadata.SETTING_DATA_PATH;
+
+            final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
+            if (INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings()).equals(SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
+                        "index [%s] in snapshot [%s/%s:%s] is a searchable snapshot backed by index [%s] in snapshot [%s/%s:%s] " +
+                                "and cannot be mounted; did you mean to restore it instead?",
+                        indexName,
+                        repoName,
+                        repository.getMetadata().uuid(),
+                        snapName,
+                        SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexMetadata.getSettings()),
+                        SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())));
+            }
 
             client.admin()
                 .cluster()

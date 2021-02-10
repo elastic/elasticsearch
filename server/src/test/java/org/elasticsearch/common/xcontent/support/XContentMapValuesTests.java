@@ -205,15 +205,6 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             Map<String, Object> map = parser.map();
             assertThat((List<?>) XContentMapValues.extractValue("foo.cat", map), containsInAnyOrder("meow", "miau"));
         }
-
-        builder = XContentFactory.jsonBuilder().startObject()
-            .startObject("foo").field("cat", "meow").endObject()
-            .array("foo.cat", "miau", "purr")
-            .endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            Map<String, Object> map = parser.map();
-            assertThat((List<?>) XContentMapValues.extractValue("foo.cat", map), containsInAnyOrder("meow", "miau", "purr"));
-        }
     }
 
     public void testExtractRawValue() throws Exception {

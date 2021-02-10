@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,7 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -97,8 +99,8 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
         ConcurrentBulkProcessor bulkProcessor = new ConcurrentBulkProcessor((r, l) -> l.onResponse(response),
             BackoffPolicy.noBackoff(),
             countingListener(reqCount, successCount, failureCount, docCount, exception),
-            3,
             1,
+            3,
             new ByteSizeValue(1, GB),
             null,
             threadPool,
@@ -120,7 +122,7 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
         assertNull(exception.get());
     }
 
-    public void testConcurrentBulkProcessorFlushPreservesContext() throws InterruptedException {
+    public void testBulkProcessorFlushPreservesContext() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         final String headerKey = randomAlphaOfLengthBetween(1, 8);
         final String transientKey = randomAlphaOfLengthBetween(1, 8);
@@ -144,7 +146,7 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
             threadPool.getThreadContext().putTransient(transientKey, transientValue);
             bulkProcessor = new ConcurrentBulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
                 1, bulkSize, new ByteSizeValue(5, ByteSizeUnit.MB), flushInterval,
-                threadPool, threadPool, () -> {
+                threadPool, () -> {
             }, BulkRequest::new);
         }
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
@@ -208,19 +210,23 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
         try (ConcurrentBulkProcessor bulkProcessor = new ConcurrentBulkProcessor(consumer, BackoffPolicy.noBackoff(),
             countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
             concurrentBulkRequests, maxBatchSize, new ByteSizeValue(Integer.MAX_VALUE), null,
-            (command, delay, executor) -> null, (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new)) {
+            (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new)) {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
 
-            List<Future<?>> futures = new ArrayList<>();
-            for (final AtomicInteger i = new AtomicInteger(0); i.get() < maxDocuments; i.incrementAndGet()) {
-                IndexRequest indexRequest = new IndexRequest().id("" + i);
+            IndexRequest indexRequest = new IndexRequest();
+            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            BytesReference bytesReference =
+                BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8))});
+            List<Future> futures = new ArrayList<>();
+            for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
                 futures.add(executorService.submit(() -> {
                     try {
                         //don't start any work until all tasks are submitted
                         startGate.countDown();
                         startGate.await();
+
                         bulkProcessor.add(indexRequest);
 
                     } catch (Exception e) {
@@ -231,7 +237,7 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
             startGate.countDown();
             startGate.await();
 
-            for (Future<?> f : futures) {
+            for (Future f : futures) {
                 try {
                     f.get();
                 } catch (Exception e) {
@@ -242,11 +248,20 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
             executorService.shutdown();
             executorService.awaitTermination(10, TimeUnit.SECONDS);
 
-            if (exceptionRef.get() != null) {
-                logger.error("exception(s) caught during test", exceptionRef.get());
+            if (failureCount.get() > 0 || successCount.get() != expectedExecutions || requestCount.get() != successCount.get()) {
+                if (exceptionRef.get() != null) {
+                    logger.error("exception(s) caught during test", exceptionRef.get());
+                }
+                fail("\nExpected Bulks: " + expectedExecutions + "\n" +
+                    "Requested Bulks: " + requestCount.get() + "\n" +
+                    "Successful Bulks: " + successCount.get() + "\n" +
+                    "Failed Bulks: " + failureCount.get() + "\n" +
+                    "Max Documents: " + maxDocuments + "\n" +
+                    "Max Batch Size: " + maxBatchSize + "\n" +
+                    "Concurrent Clients: " + concurrentClients + "\n" +
+                    "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"
+                );
             }
-            assertEquals(0, failureCount.get());
-            assertEquals(successCount.get(), requestCount.get());
         }
         //count total docs after processor is closed since there may have been partial batches that are flushed on close.
         assertEquals(docCount.get(), maxDocuments);
@@ -283,8 +298,6 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
             TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
             (command, delay, executor) ->
                 Scheduler.wrapAsScheduledCancellable(flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)),
-            (command, delay, executor) ->
-                Scheduler.wrapAsScheduledCancellable(flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)),
             () ->
             {
                 flushExecutor.shutdown();
@@ -301,6 +314,9 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             IndexRequest indexRequest = new IndexRequest();
+            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            BytesReference bytesReference =
+                BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8))});
             List<Future> futures = new ArrayList<>();
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
             for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
@@ -309,7 +325,6 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
                         //don't start any work until all tasks are submitted
                         startGate.countDown();
                         startGate.await();
-
                         bulkProcessor.add(indexRequest);
                     } catch (Exception e) {
                         throw ExceptionsHelper.convertToRuntime(e);
@@ -353,7 +368,7 @@ public class ConcurrentBulkProcessorTests extends ESTestCase {
         };
         ConcurrentBulkProcessor bulkProcessor = new ConcurrentBulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
             0, 10, new ByteSizeValue(1000), null,
-            (command, delay, executor) -> null, (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new);
+            (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new);
 
         assertFalse(called.get());
         bulkProcessor.awaitClose(100, TimeUnit.MILLISECONDS);

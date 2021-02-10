@@ -28,10 +28,10 @@ import java.util.function.Supplier;
 
 public class ConcurrentBulkProcessor implements AutoCloseable {
 
-    private static final State EMPTY_STATE = new State(PersistentStack.empty(), 0);
+    private static final State EMPTY_STATE = new State(PersistentStack.empty(), null, 0);
 
     private final ConcurrentBulkRequestHandler bulkRequestHandler;
-    private final ByteSizeValue bulkSize;
+    private final long bulkSize;
     private final long bulkActions;
     private final Runnable onClose;
     private final Supplier<BulkRequest> bulkRequestSupplier;
@@ -42,9 +42,17 @@ public class ConcurrentBulkProcessor implements AutoCloseable {
 
     public ConcurrentBulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy,
                                    BulkProcessor.Listener listener, int concurrentRequests, long bulkActions, ByteSizeValue bulkSize,
+                                   TimeValue flushInterval, Scheduler scheduler, Runnable onClose,
+                                   Supplier<BulkRequest> bulkRequestSupplier) {
+        this(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval, scheduler, scheduler, onClose,
+            bulkRequestSupplier);
+    }
+
+    public ConcurrentBulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy,
+                                   BulkProcessor.Listener listener, int concurrentRequests, long bulkActions, ByteSizeValue bulkSize,
                                    TimeValue flushInterval, Scheduler flushScheduler, Scheduler retryScheduler, Runnable onClose,
                                    Supplier<BulkRequest> bulkRequestSupplier) {
-        this.bulkSize = bulkSize;
+        this.bulkSize = bulkSize.getBytes();
         this.bulkActions = bulkActions;
         this.onClose = onClose;
         this.bulkRequestSupplier = bulkRequestSupplier;
@@ -68,15 +76,31 @@ public class ConcurrentBulkProcessor implements AutoCloseable {
         if (closed.get()) {
             throw new IllegalStateException("bulk process already closed");
         }
-        State newState = state.updateAndGet(s -> new State(s.actions.push(request), s.size + finalSizeInBytes));
-        if (closed.get() || newState.actions.size() >= bulkActions || new ByteSizeValue(newState.size).compareTo(bulkSize) >= 0) {
+        State newState = state.updateAndGet(s -> {
+            long size = s.size + finalSizeInBytes;
+            PersistentStack<DocWriteRequest<?>> actions = s.actions.push(request);
+            if (actions.size() >= bulkActions || size >= bulkSize) {
+                return new State(PersistentStack.empty(), actions, 0);
+            } else {
+                return new State(actions, null, size);
+            }
+        });
+
+        if (newState.toFlush != null) {
+            flush(newState.toFlush);
+        }
+        if (closed.get()) {
             flush();
         }
     }
 
     public void flush() {
+        flush(state.getAndSet(EMPTY_STATE).actions);
+    }
+
+    private void flush(PersistentStack<DocWriteRequest<?>> actions) {
         BulkRequest bulkRequest = bulkRequestSupplier.get();
-        for (DocWriteRequest<?> action : state.getAndSet(EMPTY_STATE).actions) {
+        for (DocWriteRequest<?> action : actions) {
             bulkRequest.add(action);
         }
         if (bulkRequest.numberOfActions() > 0) {
@@ -117,10 +141,12 @@ public class ConcurrentBulkProcessor implements AutoCloseable {
 
     private static final class State {
         private final PersistentStack<DocWriteRequest<?>> actions;
+        private final PersistentStack<DocWriteRequest<?>> toFlush;
         private final long size;
 
-        private State(PersistentStack<DocWriteRequest<?>> actions, long size) {
+        private State(PersistentStack<DocWriteRequest<?>> actions, PersistentStack<DocWriteRequest<?>> toFlush, long size) {
             this.actions = actions;
+            this.toFlush = toFlush;
             this.size = size;
         }
     }

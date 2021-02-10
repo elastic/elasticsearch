@@ -11,7 +11,6 @@ package org.elasticsearch.gradle
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.ObjectReader
 import com.fasterxml.jackson.databind.ObjectWriter
-import com.fasterxml.jackson.databind.SequenceWriter
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
@@ -214,27 +213,27 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         setupRestResources([], [])
 
         file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
-"one":
-  - do:
-      get:
-        index: test
-        id: 1
-  - match: { _source.values: ["foo"] }
-  - match: { _type: "_foo" }
-  - match: { _source.blah: 1234 }
-  - match: { _source.junk: true }
----
-"two":
-  - do:
-      get:
-        index: test
-        id: 1
-  - match: { _source.values: ["foo"] }
-  - match: { _type: "_foo" }
-  - match: { _source.blah: 1234 }
-  - match: { _source.junk: true }
+        "one":
+          - do:
+              get:
+                index: test
+                id: 1
+          - match: { _source.values: ["foo"] }
+          - match: { _type: "_foo" }
+          - match: { _source.blah: 1234 }
+          - match: { _source.junk: true }
+        ---
+        "two":
+          - do:
+              get:
+                index: test
+                id: 1
+          - match: { _source.values: ["foo"] }
+          - match: { _type: "_foo" }
+          - match: { _source.blah: 1234 }
+          - match: { _source.junk: true }
 
-"""
+        """.stripIndent()
         when:
         def result = gradleRunner("yamlRestCompatTest").build()
 
@@ -245,59 +244,52 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml" ).exists()
         List<ObjectNode> actual = READER.readValues(file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml")).readAll()
-        //uncomment to see the actual test
-//        SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
-//        for (ObjectNode transformedTest : actual) {
-//            sequenceWriter.write(transformedTest);
-//        }
-//        sequenceWriter.close();
-
         List<ObjectNode> expectedAll = READER.readValues(
-"""
----
-setup:
-- skip:
-    features: "headers"
----
-one:
-- do:
-    get:
-      index: "test"
-      id: 1
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-- match:
-    _source.values:
-    - "z"
-    - "x"
-    - "y"
-- match:
-    _type: "_doc"
-- match: {}
-- match:
-    _source.junk: true
-- match:
-    _source.added:
-      name: "jake"
-      likes: "cheese"
----
-two:
-- do:
-    get:
-      index: "test"
-      id: 1
-    headers:
-      Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
-      Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-- match:
-    _source.values:
-    - "foo"
-- match:
-    _type: "_doc"
-- match: {}
-- match: {}
-""").readAll()
+        """
+        ---
+        setup:
+        - skip:
+            features: "headers"
+        ---
+        one:
+        - do:
+            get:
+              index: "test"
+              id: 1
+            headers:
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        - match:
+            _source.values:
+            - "z"
+            - "x"
+            - "y"
+        - match:
+            _type: "_doc"
+        - match: {}
+        - match:
+            _source.junk: true
+        - match:
+            _source.added:
+              name: "jake"
+              likes: "cheese"
+        ---
+        two:
+        - do:
+            get:
+              index: "test"
+              id: 1
+            headers:
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        - match:
+            _source.values:
+            - "foo"
+        - match:
+            _type: "_doc"
+        - match: {}
+        - match: {}
+        """.stripIndent()).readAll()
 
         expectedAll.eachWithIndex{ ObjectNode expected, int i ->
            assert expected == actual.get(i)

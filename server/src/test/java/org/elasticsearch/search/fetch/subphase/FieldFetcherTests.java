@@ -98,6 +98,35 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         DocumentField field = fields.get("foo.bar");
         assertThat(field.getValues().size(), equalTo(1));
         assertThat(field.getValue(), equalTo("baz"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.cat", "miau")
+            .endObject();
+
+        doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
+
+        fields = fetchFields(mapperService, source, "foo.cat");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("foo.cat");
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), containsInAnyOrder("meow", "miau"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .array("foo.cat", "miau", "purr")
+            .endObject();
+
+        doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
+
+        fields = fetchFields(mapperService, source, "foo.cat");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("foo.cat");
+        assertThat(field.getValues().size(), equalTo(3));
+        System.out.println(field.getValues());
+        assertThat(field.getValues(), containsInAnyOrder("meow", "miau", "purr"));
     }
 
     public void testMixedDottedObjectSyntax() throws IOException {

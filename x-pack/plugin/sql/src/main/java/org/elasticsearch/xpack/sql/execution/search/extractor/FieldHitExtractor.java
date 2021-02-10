@@ -42,18 +42,16 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
      */
     static final String NAME = "f";
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue,
-                             MultiValueHandling multiValueHandling) {
-        super(name, dataType, zoneId, useDocValue, multiValueHandling);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, MultiValueHandling multiValueHandling) {
+        super(name, dataType, zoneId, multiValueHandling);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
-        super(name, dataType, zoneId, useDocValue);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
+        super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
-                             MultiValueHandling multiValueHandling) {
-        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, multiValueHandling);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, MultiValueHandling multiValueHandling) {
+        super(name, dataType, zoneId, hitName, multiValueHandling);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {
@@ -92,19 +90,15 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
-
-    @Override
-    protected boolean isFromDocValuesOnly(DataType dataType) {
-        return SqlDataTypes.isFromDocValuesOnly(dataType);
-    }
-
     @Override
     protected Object unwrapCustomValue(Object values) {
         DataType dataType = dataType();
 
         if (dataType == GEO_POINT) {
             try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) values;
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(map.get("coordinates"), true);
                 return new GeoShape(geoPoint.lon(), geoPoint.lat());
             } catch (ElasticsearchParseException ex) {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());

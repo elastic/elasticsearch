@@ -1,0 +1,59 @@
+"properties": {
+  "long_field": {
+    "type": "long"
+  },
+  "integer_field": {
+    "type": "integer"
+  },
+  "short_field": {
+    "type": "short"
+  },
+  "byte_field": {
+    "type": "byte"
+  },
+  "double_field": {
+    "type": "double"
+  },
+  "float_field": {
+    "type": "float"
+  },
+  "half_float_field": {
+    "type": "half_float"
+  },
+  "scaled_float_field": {
+    "type": "scaled_float",
+    "scaling_factor": 10
+  },
+  "boolean_field": {
+   "type": "boolean"
+  },
+  "ip_field": {
+    "type": "ip"
+  },
+  "text_field": {
+    "type": "text"
+  },
+  "keyword_field": {
+    "type": "keyword"
+  },
+  "constant_keyword_field": {
+    "type": "constant_keyword"
+  },
+  // added in 7.9.0
+  "wildcard_field": {
+    "type": "wildcard"
+  },
+  "geo_point_field": {
+    "type": "geo_point"
+  },
+  "geo_point_no_dv_field": {
+    "type": "geo_point",
+    "doc_values": "false"
+  },
+  "geo_shape_field": {
+    "type": "geo_shape"
+  },
+  "shape_field": {
+    "type": "shape"
+  }
+}

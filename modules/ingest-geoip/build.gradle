@@ -34,7 +34,6 @@ restResources {
 }
 
 internalClusterTest {
-  systemProperty "es.geoip_v2_feature_flag_enabled", "true"
   if ("true" != System.getenv("geoip_use_service")) {
     exclude("**/GeoIpDownloaderIT.class")
   }

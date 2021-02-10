@@ -203,9 +203,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testActionsThatCannotFollowSearchableSnapshot() {
-        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(5));
+        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
         assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME,
-            ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME));
+            ForceMergeAction.NAME, RollupILMAction.NAME));
     }
 
     public void testValidateActionsFollowingSearchableSnapshot() {
@@ -216,7 +216,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
         assertThat(e.getMessage(), is(
-            "phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup] actions" +
+            "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
             " which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 

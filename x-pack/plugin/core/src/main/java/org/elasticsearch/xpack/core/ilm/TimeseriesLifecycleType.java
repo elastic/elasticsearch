@@ -61,7 +61,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
     // a set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot
     static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME, RollupILMAction.NAME);
+        FreezeAction.NAME, RollupILMAction.NAME);
 
     static {
         if (RollupV2.isEnabled()) {

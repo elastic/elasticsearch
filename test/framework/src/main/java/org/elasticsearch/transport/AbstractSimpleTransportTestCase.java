@@ -316,7 +316,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/67427")
     public void testThreadContext() throws ExecutionException, InterruptedException {
 
         serviceA.registerRequestHandler("internal:ping_pong", ThreadPool.Names.GENERIC, StringMessageRequest::new,
@@ -2745,7 +2744,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
-        responseListener.whenComplete(future::onResponse, future::onFailure);
+        responseListener.addListener(future);
         return future;
     }
 }

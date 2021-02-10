@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -40,11 +40,9 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -60,9 +58,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
     public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String HYPERPARAMETERS = "hyperparameters";
-    private static final Set<String> RESERVED_METADATA_FIELDS = new HashSet<>(Arrays.asList(
-        TOTAL_FEATURE_IMPORTANCE,
-        FEATURE_IMPORTANCE_BASELINE));
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 

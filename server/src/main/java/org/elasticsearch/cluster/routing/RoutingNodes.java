@@ -324,7 +324,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // be accessible. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-                .filter(shr -> !shr.primary() && shr.active())
+                .filter(shr -> shr.primary() == false && shr.active())
                 .filter(shr -> node(shr.currentNodeId()) != null)
                 .max(Comparator.comparing(shr -> node(shr.currentNodeId()).node(),
                                 Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))))

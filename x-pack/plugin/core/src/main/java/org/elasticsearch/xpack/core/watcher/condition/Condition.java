@@ -75,7 +75,7 @@ public interface Condition extends ToXContentObject {
                     builder.field("met", met);
                     break;
                 case FAILURE:
-                    assert reason != null && !met;
+                    assert reason != null && met == false;
                     builder.field("reason", reason);
                     break;
                 default:

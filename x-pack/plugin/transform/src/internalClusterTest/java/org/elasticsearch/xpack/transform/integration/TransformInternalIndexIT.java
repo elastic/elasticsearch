@@ -84,7 +84,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
         assertThat(getTransformResponse.getTransformConfigurations().get(0).getId(), equalTo(transformId));
 
         UpdateTransformAction.Request updateTransformActionRequest = new UpdateTransformAction.Request(
-            new TransformConfigUpdate(null, null, null, null, "updated", null),
+            new TransformConfigUpdate(null, null, null, null, "updated", null, null),
             transformId, false);
         UpdateTransformAction.Response updateTransformActionResponse =
             client().execute(UpdateTransformAction.INSTANCE, updateTransformActionRequest).actionGet();

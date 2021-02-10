@@ -9,6 +9,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -78,7 +79,9 @@ import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -697,7 +700,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(76, namedXContents.size());
+        assertEquals(77, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -707,7 +710,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 14, categories.size());
+        assertEquals("Had: " + categories, 15, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -744,6 +747,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(ClassificationStats.NAME.getPreferredName()));
         assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
         assertTrue(names.contains(TimeSyncConfig.NAME));
+        assertEquals(Integer.valueOf(1), categories.get(RetentionPolicyConfig.class));
+        assertTrue(names.contains(TimeRetentionPolicyConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(OutlierDetection.NAME, Classification.NAME, Regression.NAME));
         assertEquals(Integer.valueOf(13), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));

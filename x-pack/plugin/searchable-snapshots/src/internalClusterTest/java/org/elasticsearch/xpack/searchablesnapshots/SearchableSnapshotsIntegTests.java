@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
@@ -27,6 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,11 +41,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoryData;
@@ -77,6 +82,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -91,13 +97,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.getDataTiersPreference;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -480,6 +489,28 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
         }
 
+        final AtomicBoolean statsWatcherRunning = new AtomicBoolean(true);
+        final Thread statsWatcher = new Thread(() -> {
+            while (statsWatcherRunning.get()) {
+                final IndicesStatsResponse indicesStatsResponse;
+                try {
+                    indicesStatsResponse = client().admin().indices().prepareStats(restoredIndexName).clear().setStore(true).get();
+                } catch (IndexNotFoundException | IndexClosedException e) {
+                    continue;
+                    // ok
+                }
+
+                for (ShardStats shardStats : indicesStatsResponse.getShards()) {
+                    assertThat(
+                        shardStats.getShardRouting().toString(),
+                        shardStats.getStats().getStore().getReservedSize().getBytes(),
+                        equalTo(0L)
+                    );
+                }
+            }
+        }, "test-stats-watcher");
+        statsWatcher.start();
+
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
             fsRepoName,
@@ -493,6 +524,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+
+        statsWatcherRunning.set(false);
+        statsWatcher.join();
 
         final Settings settings = client().admin()
             .indices()
@@ -509,6 +543,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(expectedDataTiersPreference));
+        assertTrue(SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(settings));
+        assertTrue(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings));
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, false);
@@ -547,6 +583,29 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
+
+        final Decision diskDeciderDecision = client().admin()
+            .cluster()
+            .prepareAllocationExplain()
+            .setIndex(restoredIndexName)
+            .setShard(0)
+            .setPrimary(true)
+            .setIncludeYesDecisions(true)
+            .get()
+            .getExplanation()
+            .getShardAllocationDecision()
+            .getMoveDecision()
+            .getCanRemainDecision()
+            .getDecisions()
+            .stream()
+            .filter(d -> d.label().equals(DiskThresholdDecider.NAME))
+            .findFirst()
+            .orElseThrow();
+        assertThat(diskDeciderDecision.type(), equalTo(Decision.Type.YES));
+        assertThat(
+            diskDeciderDecision.getExplanation(),
+            oneOf("disk watermarks are ignored on this index", "there is only a single data node present")
+        );
 
         internalCluster().fullRestart();
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
@@ -1232,6 +1291,34 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         logger.info("--> finished restoring snapshot-2");
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
+
+        final IllegalArgumentException remountException = expectThrows(IllegalArgumentException.class, () -> {
+            try {
+                mountSnapshot(
+                    restoreRepositoryName,
+                    snapshotTwo.getName(),
+                    restoredIndexName,
+                    randomAlphaOfLength(10).toLowerCase(Locale.ROOT),
+                    Settings.EMPTY
+                );
+            } catch (Exception e) {
+                final Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+                throw cause == null ? e : cause;
+            }
+        });
+        assertThat(
+            remountException.getMessage(),
+            allOf(
+                containsString("is a snapshot of a searchable snapshot index backed by index"),
+                containsString(repositoryName),
+                containsString(snapshotOne.getName()),
+                containsString(indexName),
+                containsString(restoreRepositoryName),
+                containsString(snapshotTwo.getName()),
+                containsString(restoredIndexName),
+                containsString("cannot be mounted; did you mean to restore it instead?")
+            )
+        );
     }
 
     private void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

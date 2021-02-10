@@ -48,7 +48,7 @@ public final class StringUtils {
             char ch = s.charAt(i);
             if (Character.isAlphabetic(ch)) {
                 if (Character.isUpperCase(ch)) {
-                    if (i > 0 && !previousCharWasUp) {
+                    if (i > 0 && previousCharWasUp == false) {
                         sb.append("_");
                     }
                     previousCharWasUp = true;

@@ -6,6 +6,20 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
+import org.junit.Before;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -48,20 +62,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.elasticsearch.client.Request;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.junit.Before;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
@@ -141,7 +141,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             SQLException.class,
             () -> doWithQuery(() -> esWithLeniency(false), "SELECT int, keyword FROM test", results -> {})
         );
-        assertTrue(expected.getMessage().contains("Cannot return multiple values for field [int]; use ARRAY(int) instead"));
+        assertTrue(expected.getMessage().contains("Arrays (returned by [int]) are not supported"));
 
         // default has multi value disabled
         expectThrows(SQLException.class, () -> doWithQuery(this::esJdbc, "SELECT int, keyword FROM test", results -> {}));
@@ -177,8 +177,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 results -> {}
             )
         );
-        assertTrue(expected.getMessage().contains("Cannot return multiple values for field [object.intsubfield]; " +
-            "use ARRAY(object.intsubfield) instead"));
+        assertTrue(expected.getMessage().contains("Arrays (returned by [object.intsubfield]) are not supported"));
 
         // default has multi value disabled
         expectThrows(
@@ -1182,7 +1181,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertErrorMessageForDateTimeValues(sqle, Boolean.class, toMilliSeconds(randomDateNanos2), extractNanosOnly(randomDateNanos2));
 
             results.next();
-            for (String fld : fieldsNames.stream().filter(f -> !f.equals("test_keyword")).collect(Collectors.toCollection(HashSet::new))) {
+            for (String fld : fieldsNames.stream().filter(f -> f.equals("test_keyword") == false).collect(Collectors.toSet())) {
                 assertTrue("Expected: <true> but was: <false> for field " + fld, results.getBoolean(fld));
                 assertEquals("Expected: <true> but was: <false> for field " + fld, true, results.getObject(fld, Boolean.class));
             }

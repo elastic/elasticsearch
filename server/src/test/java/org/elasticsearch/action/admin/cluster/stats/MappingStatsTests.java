@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -75,7 +76,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        MappingStats mappingStats = MappingStats.of(metadata);
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         IndexFeatureStats expectedStats = new IndexFeatureStats("long");
         expectedStats.count = 1;
         expectedStats.indexCount = 1;
@@ -98,7 +99,23 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        MappingStats mappingStats = MappingStats.of(metadata);
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals(Collections.emptySet(), mappingStats.getFieldTypeStats());
+    }
+
+    public void testChecksForCancellation() {
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
+                .settings(settings);
+        Metadata metadata = new Metadata.Builder()
+                .put(indexMetadata)
+                .build();
+        expectThrows(TaskCancelledException.class, () -> MappingStats.of(metadata, () -> {
+            throw new TaskCancelledException("task cancelled");
+        }));
     }
 }

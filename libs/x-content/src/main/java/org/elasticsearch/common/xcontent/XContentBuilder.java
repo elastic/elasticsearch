@@ -1025,10 +1025,6 @@ public final class XContentBuilder implements Closeable, Flushable {
         return restApiCompatibilityVersion;
     }
 
-    public boolean useCompatibility(RestApiCompatibleVersion codeChangeVersion) {
-        return this.restApiCompatibilityVersion == codeChangeVersion;
-    }
-
     @Override
     public void flush() throws IOException {
         generator.flush();

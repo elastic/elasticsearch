@@ -734,23 +734,6 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
-    public void testRegisterIncompatibleVersionHandler() {
-        //using restController which uses a compatible version function returning always Version.CURRENT
-        final byte version = (byte) (Version.CURRENT.major - 2);
-
-        expectThrows(AssertionError.class,
-            () -> restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-                @Override
-                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                }
-
-                @Override
-                public RestApiCompatibleVersion compatibleWithVersion() {
-                    return RestApiCompatibleVersion.fromMajorVersion(version);
-                }
-            }));
-    }
-
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
         HttpServerTransport {
 

@@ -17,8 +17,7 @@ package org.elasticsearch.common.compatibility;
 public enum RestApiCompatibleVersion {
 
     V_8(8),
-    V_7(7),
-    V_6(6);//used in testing, to prove validation
+    V_7(7);
 
     public byte major;
     private static RestApiCompatibleVersion CURRENT = V_8;

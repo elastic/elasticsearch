@@ -76,7 +76,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
-            preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
+            preWarmListener.whenComplete(e -> {
                 logger.warn(
                     new ParameterizedMessage(
                         "pre-warm operation failed for [{}] while it was the target of primary relocation [{}]",
@@ -86,7 +86,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                     e
                 );
                 preWarmCondition.run();
-            });
+            }, v -> preWarmCondition.run());
         }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success || indexShard.routingEntry().recoverySource().getType() == RecoverySource.Type.PEER

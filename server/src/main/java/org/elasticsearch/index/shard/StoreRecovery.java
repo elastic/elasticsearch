@@ -483,8 +483,13 @@ final class StoreRecovery {
                 indexIdListener.onResponse(indexId);
             }
             assert indexShard.getEngineOrNull() == null;
-            indexIdListener.whenComplete(idx -> repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
-                idx, snapshotShardId, indexShard.recoveryState(), restoreListener), restoreListener::onFailure);
+            indexIdListener.whenComplete(restoreListener::onFailure, idx -> repository.restoreShard(
+                    indexShard.store(),
+                    restoreSource.snapshot().getSnapshotId(),
+                    idx,
+                    snapshotShardId,
+                    indexShard.recoveryState(),
+                    restoreListener));
         } catch (Exception e) {
             restoreListener.onFailure(e);
         }

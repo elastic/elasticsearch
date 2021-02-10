@@ -718,7 +718,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             //       index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
             //       written if all shard paths have been successfully updated.
             final StepListener<RepositoryData> writeUpdatedRepoDataStep = new StepListener<>();
-            writeShardMetaDataAndComputeDeletesStep.whenComplete(deleteResults -> {
+            writeShardMetaDataAndComputeDeletesStep.whenComplete(listener::onFailure, deleteResults -> {
                 final ShardGenerations.Builder builder = ShardGenerations.builder();
                 for (ShardSnapshotMetaDeleteResult newGen : deleteResults) {
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
@@ -726,16 +726,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, builder.build());
                 writeIndexGen(updatedRepoData, repositoryStateId, repoMetaVersion, Function.identity(),
                     ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure));
-            }, listener::onFailure);
+            });
             // Once we have updated the repository, run the clean-ups
-            writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
+            writeUpdatedRepoDataStep.whenComplete(listener::onFailure, updatedRepoData -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                 final ActionListener<Void> afterCleanupsListener =
                     new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(updatedRepoData)), 2);
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
                 asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotIds, writeShardMetaDataAndComputeDeletesStep.result(),
                     afterCleanupsListener);
-            }, listener::onFailure);
+            });
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
             final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
@@ -746,9 +746,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, afterCleanupsListener);
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
                 writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, writeMetaAndComputeDeletesStep);
-                writeMetaAndComputeDeletesStep.whenComplete(deleteResults ->
-                        asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotIds, deleteResults, afterCleanupsListener),
-                    afterCleanupsListener::onFailure);
+                writeMetaAndComputeDeletesStep.whenComplete(afterCleanupsListener::onFailure, deleteResults ->
+                        asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotIds, deleteResults, afterCleanupsListener));
             }, listener::onFailure));
         }
     }
@@ -823,7 +822,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }));
             }
-            shardCountListener.whenComplete(counts -> {
+            shardCountListener.whenComplete(deleteIndexMetadataListener::onFailure, counts -> {
                 final int shardCount = counts.stream().mapToInt(i -> i).max().orElse(0);
                 if (shardCount == 0) {
                     deleteIndexMetadataListener.onResponse(null);
@@ -865,7 +864,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     });
                 }
-            }, deleteIndexMetadataListener::onFailure);
+            });
         }
     }
 
@@ -1091,7 +1090,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         final StepListener<RepositoryData> repoDataListener = new StepListener<>();
         getRepositoryData(repoDataListener);
-        repoDataListener.whenComplete(existingRepositoryData -> {
+        repoDataListener.whenComplete(onUpdateFailure, existingRepositoryData -> {
             final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
             if (existingSnapshotCount >= maxSnapshotCount) {
                 listener.onFailure(new RepositoryException(metadata.name(), "Cannot add another snapshot to this repository as it " +
@@ -1157,7 +1156,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             executor.execute(ActionRunnable.run(allMetaListener,
                 () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress, bigArrays)));
-        }, onUpdateFailure);
+        });
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
@@ -1789,38 +1788,39 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final StepListener<RepositoryData> filterRepositoryDataStep = new StepListener<>();
 
         // Step 2: Write new index-N blob to repository and update index.latest
-        setPendingStep.whenComplete(newGen -> threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-            // BwC logic: Load snapshot version information if any snapshot is missing a version in RepositoryData so that the new
-            // RepositoryData contains a version for every snapshot
-            final List<SnapshotId> snapshotIdsWithoutVersion = repositoryData.getSnapshotIds().stream().filter(
-                snapshotId -> repositoryData.getVersion(snapshotId) == null).collect(Collectors.toList());
-            if (snapshotIdsWithoutVersion.isEmpty() == false) {
-                final Map<SnapshotId, Version> updatedVersionMap = new ConcurrentHashMap<>();
-                final GroupedActionListener<Void> loadAllVersionsListener = new GroupedActionListener<>(
-                    ActionListener.runAfter(
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Collection<Void> voids) {
-                                logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",
-                                    AllocationService.firstListElementsToCommaDelimitedString(
-                                        snapshotIdsWithoutVersion, SnapshotId::toString, logger.isDebugEnabled()));
-                            }
+        setPendingStep.whenComplete(listener::onFailure, newGen ->
+                threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+                    // BwC logic: Load snapshot version information if any snapshot is missing a version in RepositoryData so that the new
+                    // RepositoryData contains a version for every snapshot
+                    final List<SnapshotId> snapshotIdsWithoutVersion = repositoryData.getSnapshotIds().stream().filter(
+                        snapshotId -> repositoryData.getVersion(snapshotId) == null).collect(Collectors.toList());
+                    if (snapshotIdsWithoutVersion.isEmpty() == false) {
+                        final Map<SnapshotId, Version> updatedVersionMap = new ConcurrentHashMap<>();
+                        final GroupedActionListener<Void> loadAllVersionsListener = new GroupedActionListener<>(
+                            ActionListener.runAfter(
+                                new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(Collection<Void> voids) {
+                                        logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",
+                                            AllocationService.firstListElementsToCommaDelimitedString(
+                                                snapshotIdsWithoutVersion, SnapshotId::toString, logger.isDebugEnabled()));
+                                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("Failure when trying to load missing version information from snapshot metadata", e);
-                            }
-                        }, () -> filterRepositoryDataStep.onResponse(repositoryData.withVersions(updatedVersionMap))),
-                    snapshotIdsWithoutVersion.size());
-                for (SnapshotId snapshotId : snapshotIdsWithoutVersion) {
-                    threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadAllVersionsListener, () ->
-                        updatedVersionMap.put(snapshotId, getSnapshotInfo(snapshotId).version())));
-                }
-            } else {
-                filterRepositoryDataStep.onResponse(repositoryData);
-            }
-        })), listener::onFailure);
-        filterRepositoryDataStep.whenComplete(filteredRepositoryData -> {
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        logger.warn("Failure when trying to load missing version information from snapshot metadata", e);
+                                    }
+                                }, () -> filterRepositoryDataStep.onResponse(repositoryData.withVersions(updatedVersionMap))),
+                            snapshotIdsWithoutVersion.size());
+                        for (SnapshotId snapshotId : snapshotIdsWithoutVersion) {
+                            threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadAllVersionsListener, () ->
+                                updatedVersionMap.put(snapshotId, getSnapshotInfo(snapshotId).version())));
+                        }
+                    } else {
+                        filterRepositoryDataStep.onResponse(repositoryData);
+                    }
+                })));
+        filterRepositoryDataStep.whenComplete(listener::onFailure, filteredRepositoryData -> {
             final long newGen = setPendingStep.result();
             final RepositoryData newRepositoryData = updateRepositoryData(filteredRepositoryData, version, newGen);
             if (latestKnownRepoGen.get() >= newGen) {
@@ -1898,7 +1898,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }));
                     }
                 });
-        }, listener::onFailure);
+        });
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, Version repositoryMetaversion, long newGen) {
@@ -2277,7 +2277,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
-            allFilesUploadedListener.whenComplete(v -> {
+            allFilesUploadedListener.whenComplete(listener::onFailure, v -> {
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
                     snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
 
@@ -2298,7 +2298,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 afterWriteSnapBlob.run();
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
                 listener.onResponse(indexGeneration);
-            }, listener::onFailure);
+            });
             if (indexIncrementalFileCount == 0) {
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;

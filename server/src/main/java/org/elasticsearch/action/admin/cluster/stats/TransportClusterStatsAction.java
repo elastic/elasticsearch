@@ -91,18 +91,18 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         final StepListener<AnalysisStats> analysisStatsStep = new StepListener<>();
         mappingStatsCache.get(metadata, cancellableTask::isCancelled, mappingStatsStep);
         analysisStatsCache.get(metadata, cancellableTask::isCancelled, analysisStatsStep);
-        mappingStatsStep.whenComplete(mappingStats -> analysisStatsStep.whenComplete(analysisStats -> ActionListener.completeWith(
-                listener,
-                () -> new ClusterStatsResponse(
-                        System.currentTimeMillis(),
-                        metadata.clusterUUID(),
-                        clusterService.getClusterName(),
-                        responses,
-                        failures,
-                        mappingStats,
-                        analysisStats,
-                        VersionStats.of(metadata, responses))
-        ), listener::onFailure), listener::onFailure);
+        mappingStatsStep.whenComplete(listener::onFailure, mappingStats -> analysisStatsStep.whenComplete(listener::onFailure,
+                analysisStats -> ActionListener.completeWith(
+                        listener,
+                        () -> new ClusterStatsResponse(
+                                System.currentTimeMillis(),
+                                metadata.clusterUUID(),
+                                clusterService.getClusterName(),
+                                responses,
+                                failures,
+                                mappingStats,
+                                analysisStats,
+                                VersionStats.of(metadata, responses)))));
     }
 
     @Override

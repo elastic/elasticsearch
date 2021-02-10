@@ -375,8 +375,8 @@ public class AuthorizationService {
             while (requestInterceptorIterator.hasNext()) {
                 final RequestInterceptor nextInterceptor = requestInterceptorIterator.next();
                 final StepListener<Void> current = new StepListener<>();
-                prevListener.whenComplete(v -> nextInterceptor.intercept(requestInfo, authorizationEngine, authorizationInfo, current),
-                    listener::onFailure);
+                prevListener.whenComplete(listener::onFailure,
+                        v -> nextInterceptor.intercept(requestInfo, authorizationEngine, authorizationInfo, current));
                 prevListener = current;
             }
 

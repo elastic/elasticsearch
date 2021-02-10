@@ -379,7 +379,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     // case, simply move on.
                     onCacheFillComplete.close();
                 } else {
-                    readListener.whenComplete(read -> {
+                    readListener.whenComplete(e -> onCacheFillComplete.close(), read -> {
                         assert read == indexCacheMissLength;
                         byteBuffer.position(read); // mark all bytes as accounted for
                         byteBuffer.flip();
@@ -395,7 +395,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                                 onCacheFillComplete.close();
                             }
                         });
-                    }, e -> onCacheFillComplete.close());
+                    });
                 }
             }
 

@@ -144,7 +144,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
         repository.getRepositoryData(repositoryDataListener);
-        repositoryDataListener.whenComplete(repositoryData -> {
+        repositoryDataListener.whenComplete(listener::onFailure, repositoryData -> {
             final long repositoryStateId = repositoryData.getGenId();
             logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);
             clusterService.submitStateUpdateTask("cleanup repository [" + repositoryName + "][" + repositoryStateId + ']',
@@ -242,6 +242,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             });
                     }
                 });
-        }, listener::onFailure);
+        });
     }
 }

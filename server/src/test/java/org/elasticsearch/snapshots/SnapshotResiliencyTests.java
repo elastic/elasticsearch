@@ -375,7 +375,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final AtomicBoolean snapshotNeverStarted = new AtomicBoolean(false);
 
-        createSnapshotResponseStepListener.whenComplete(createSnapshotResponse -> {
+        createSnapshotResponseStepListener.whenComplete(e -> {
+            if (partial == false) {
+                final SnapshotException unwrapped = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
+                assertNotNull(unwrapped);
+                assertThat(unwrapped.getMessage(), endsWith("Indices don't have primary shards [test]"));
+                snapshotNeverStarted.set(true);
+            } else {
+                throw new AssertionError(e);
+            }
+        }, createSnapshotResponse -> {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectOrRestartDataNode);
             }
@@ -388,15 +397,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleSoon(() -> testClusterNodes.clearNetworkDisruptions());
             } else if (randomBoolean()) {
                 scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
-            }
-        }, e -> {
-            if (partial == false) {
-                final SnapshotException unwrapped = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
-                assertNotNull(unwrapped);
-                assertThat(unwrapped.getMessage(), endsWith("Indices don't have primary shards [test]"));
-                snapshotNeverStarted.set(true);
-            } else {
-                throw new AssertionError(e);
             }
         });
 
@@ -1171,9 +1171,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private static <T> void continueOrDie(StepListener<T> listener, CheckedConsumer<T, Exception> onResponse) {
-        listener.whenComplete(onResponse, e -> {
+        listener.whenComplete(e -> {
             throw new AssertionError(e);
-        });
+        }, onResponse);
     }
 
     private static <T> ActionListener<T> noopListener() {

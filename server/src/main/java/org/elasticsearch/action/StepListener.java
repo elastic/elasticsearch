@@ -62,10 +62,10 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * Registers the given actions which are called when this step is completed. If this step is completed successfully,
      * the {@code onResponse} is called with the result; otherwise the {@code onFailure} is called with the failure.
      *
-     * @param onResponse is called when this step is completed successfully
      * @param onFailure  is called when this step is completed with a failure
+     * @param onResponse is called when this step is completed successfully
      */
-    public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
+    public void whenComplete(Consumer<Exception> onFailure, CheckedConsumer<Response, Exception> onResponse) {
         addListener(ActionListener.wrap(onResponse, onFailure));
     }
 
@@ -80,7 +80,7 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
             StepListener<OtherResponse> other,
             BiFunction<Response, OtherResponse, OuterResponse> fn) {
         final StepListener<OuterResponse> combined = new StepListener<>();
-        whenComplete(r1 -> other.whenComplete(r2 -> combined.onResponse(fn.apply(r1, r2)), combined::onFailure), combined::onFailure);
+        whenComplete(combined::onFailure, r1 -> other.whenComplete(combined::onFailure, r2 -> combined.onResponse(fn.apply(r1, r2))));
         return combined;
     }
 

@@ -238,13 +238,13 @@ public class RecoverySourceHandler {
                     final int estimateNumOps = estimateNumberOfHistoryOperations(startingSeqNo);
                     final Releasable releaseStore = acquireStore(shard.store());
                     resources.add(releaseStore);
-                    sendFileStep.whenComplete(r -> IOUtils.close(safeCommitRef, releaseStore), e -> {
+                    sendFileStep.whenComplete(e -> {
                         try {
                             IOUtils.close(safeCommitRef, releaseStore);
                         } catch (final IOException ex) {
                             logger.warn("releasing snapshot caused exception", ex);
                         }
-                    });
+                    }, r -> IOUtils.close(safeCommitRef, releaseStore));
 
                     final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
                     runUnderPrimaryPermit(() -> {
@@ -262,10 +262,10 @@ public class RecoverySourceHandler {
                         }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]",
                         shard, cancellableThreads, logger);
 
-                    deleteRetentionLeaseStep.whenComplete(ignored -> {
+                    deleteRetentionLeaseStep.whenComplete(onFailure, ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
                         phase1(safeCommitRef.getIndexCommit(), startingSeqNo, () -> estimateNumOps, sendFileStep);
-                    }, onFailure);
+                    });
 
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
@@ -273,13 +273,13 @@ public class RecoverySourceHandler {
             }
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
-            sendFileStep.whenComplete(r -> {
+            sendFileStep.whenComplete(onFailure, r -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
                 prepareTargetForTranslog(estimateNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
-            }, onFailure);
+            });
 
-            prepareEngineStep.whenComplete(prepareEngineTime -> {
+            prepareEngineStep.whenComplete(onFailure, prepareEngineTime -> {
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
                 /*
                  * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
@@ -304,14 +304,13 @@ public class RecoverySourceHandler {
                 final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
                 phase2(startingSeqNo, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
                     retentionLeases, mappingVersionOnPrimary, sendSnapshotStep);
-
-            }, onFailure);
+            });
 
             // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
             final long trimAboveSeqNo = startingSeqNo - 1;
-            sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep), onFailure);
+            sendSnapshotStep.whenComplete(onFailure, r -> finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep));
 
-            finalizeStep.whenComplete(r -> {
+            finalizeStep.whenComplete(onFailure, r -> {
                 final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
                 final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
                 final SendFileResult sendFileResult = sendFileStep.result();
@@ -324,7 +323,7 @@ public class RecoverySourceHandler {
                 } finally {
                     IOUtils.close(resources);
                 }
-            }, onFailure);
+            });
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
         }
@@ -521,44 +520,42 @@ public class RecoverySourceHandler {
                 recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
                         phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep);
 
-                sendFileInfoStep.whenComplete(r ->
-                    sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep), listener::onFailure);
+                sendFileInfoStep.whenComplete(listener::onFailure,
+                        r -> sendFiles(store, phase1Files.toArray(new StoreFileMetadata[0]), translogOps, sendFilesStep));
 
-                sendFilesStep.whenComplete(r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep), listener::onFailure);
+                sendFilesStep.whenComplete(listener::onFailure, r -> createRetentionLease(startingSeqNo, createRetentionLeaseStep));
 
-                createRetentionLeaseStep.whenComplete(retentionLease ->
-                    {
-                        final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
-                        assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
+                createRetentionLeaseStep.whenComplete(listener::onFailure, retentionLease -> {
+                    final long lastKnownGlobalCheckpoint = shard.getLastKnownGlobalCheckpoint();
+                    assert retentionLease == null || retentionLease.retainingSequenceNumber() - 1 <= lastKnownGlobalCheckpoint
                             : retentionLease + " vs " + lastKnownGlobalCheckpoint;
-                        // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
-                        // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
-                        // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
-                        // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
-                        cleanFiles(store, recoverySourceMetadata, translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
-                    },
-                    listener::onFailure);
+                    // Establishes new empty translog on the replica with global checkpoint set to lastKnownGlobalCheckpoint. We want
+                    // the commit we just copied to be a safe commit on the replica, so why not set the global checkpoint on the replica
+                    // to the max seqno of this commit? Because (in rare corner cases) this commit might not be a safe commit here on
+                    // the primary, and in these cases the max seqno would be too high to be valid as a global checkpoint.
+                    cleanFiles(store, recoverySourceMetadata, translogOps, lastKnownGlobalCheckpoint, cleanFilesStep);
+                });
 
                 final long totalSize = totalSizeInBytes;
                 final long existingTotalSize = existingTotalSizeInBytes;
-                cleanFilesStep.whenComplete(r -> {
+                cleanFilesStep.whenComplete(listener::onFailure, r -> {
                     final TimeValue took = stopWatch.totalTime();
                     logger.trace("recovery [phase1]: took [{}]", took);
                     listener.onResponse(new SendFileResult(phase1FileNames, phase1FileSizes, totalSize, phase1ExistingFileNames,
                         phase1ExistingFileSizes, existingTotalSize, took));
-                }, listener::onFailure);
+                });
             } else {
                 logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
 
                 // but we must still create a retention lease
                 final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
                 createRetentionLease(startingSeqNo, createRetentionLeaseStep);
-                createRetentionLeaseStep.whenComplete(retentionLease -> {
+                createRetentionLeaseStep.whenComplete(listener::onFailure, retentionLease -> {
                     final TimeValue took = stopWatch.totalTime();
                     logger.trace("recovery [phase1]: took [{}]", took);
                     listener.onResponse(new SendFileResult(Collections.emptyList(), Collections.emptyList(), 0L, Collections.emptyList(),
                         Collections.emptyList(), 0L, took));
-                }, listener::onFailure);
+                });
 
             }
         } catch (Exception e) {
@@ -671,19 +668,18 @@ public class RecoverySourceHandler {
         final StepListener<Void> sendListener = new StepListener<>();
         final OperationBatchSender sender = new OperationBatchSender(startingSeqNo, endingSeqNo, snapshot, maxSeenAutoIdTimestamp,
             maxSeqNoOfUpdatesOrDeletes, retentionLeases, mappingVersion, sendListener);
-        sendListener.whenComplete(
-            ignored -> {
-                final long skippedOps = sender.skippedOps.get();
-                final int totalSentOps = sender.sentOps.get();
-                final long targetLocalCheckpoint = sender.targetLocalCheckpoint.get();
-                assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps + totalSentOps
+        sendListener.whenComplete(listener::onFailure, ignored -> {
+            final long skippedOps = sender.skippedOps.get();
+            final int totalSentOps = sender.sentOps.get();
+            final long targetLocalCheckpoint = sender.targetLocalCheckpoint.get();
+            assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps + totalSentOps
                     : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
                     snapshot.totalOperations(), snapshot.skippedOperations(), skippedOps, totalSentOps);
-                stopWatch.stop();
-                final TimeValue tookTime = stopWatch.totalTime();
-                logger.trace("recovery [phase2]: took [{}]", tookTime);
-                listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
-            }, listener::onFailure);
+            stopWatch.stop();
+            final TimeValue tookTime = stopWatch.totalTime();
+            logger.trace("recovery [phase2]: took [{}]", tookTime);
+            listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
+        });
         sender.start();
     }
 
@@ -805,7 +801,7 @@ public class RecoverySourceHandler {
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.checkForCancel();
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
-        finalizeListener.whenComplete(r -> {
+        finalizeListener.whenComplete(listener::onFailure, r -> {
             runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint", shard, cancellableThreads, logger);
 
@@ -824,7 +820,7 @@ public class RecoverySourceHandler {
             } else {
                 completeFinalizationListener(listener, stopWatch);
             }
-        }, listener::onFailure);
+        });
     }
 
     private void completeFinalizationListener(ActionListener<Void> listener, StopWatch stopWatch) {

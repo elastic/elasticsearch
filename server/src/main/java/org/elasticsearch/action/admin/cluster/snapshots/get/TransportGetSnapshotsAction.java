@@ -130,8 +130,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             repositoriesService.getRepositoryData(repo, repositoryDataListener);
         }
 
-        repositoryDataListener.whenComplete(repositoryData -> loadSnapshotInfos(snapshotsInProgress, repo, snapshots,
-                ignoreUnavailable, verbose, allSnapshotIds, currentSnapshots, repositoryData, listener), listener::onFailure);
+        repositoryDataListener.whenComplete(listener::onFailure, repositoryData -> loadSnapshotInfos(snapshotsInProgress, repo, snapshots,
+                ignoreUnavailable, verbose, allSnapshotIds, currentSnapshots, repositoryData, listener));
     }
 
     /**

@@ -639,10 +639,10 @@ public class RestoreService implements ClusterStateApplier {
 
             // fork handling the above consumer to the generic pool since it loads various pieces of metadata from the repository over a
             // longer period of time
-            repositoryDataListener.whenComplete(repositoryData -> repositoryUuidRefreshListener.whenComplete(ignored ->
+            repositoryDataListener.whenComplete(listener::onFailure, repositoryData ->
+                repositoryUuidRefreshListener.whenComplete(listener::onFailure, ignored ->
                     clusterService.getClusterApplierService().threadPool().generic().execute(
-                            ActionRunnable.wrap(listener, l -> onRepositoryDataReceived.accept(repositoryData))
-                    ), listener::onFailure), listener::onFailure);
+                            ActionRunnable.wrap(listener, l -> onRepositoryDataReceived.accept(repositoryData)))));
 
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot",

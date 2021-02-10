@@ -578,9 +578,9 @@ public class FrozenCacheService implements Releasable {
                 decrementRef = Releasables.releaseOnce(this::decRef);
                 ensureOpen();
                 Releasable finalDecrementRef = decrementRef;
-                listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
+                listener.whenComplete(throwable -> finalDecrementRef.close(), integer -> finalDecrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
+                listener.whenComplete(e -> fileChannel.decRef(), integer -> fileChannel.decRef());
                 final ActionListener<Void> rangeListener = rangeListener(rangeToRead, reader, listener, fileChannel);
                 if (rangeToRead.length() == 0L) {
                     // nothing to read, skip
@@ -637,9 +637,9 @@ public class FrozenCacheService implements Releasable {
                 decrementRef = Releasables.releaseOnce(this::decRef);
                 ensureOpen();
                 final Releasable finalDecrementRef = decrementRef;
-                listener.whenComplete(integer -> finalDecrementRef.close(), throwable -> finalDecrementRef.close());
+                listener.whenComplete(throwable -> finalDecrementRef.close(), integer -> finalDecrementRef.close());
                 final SharedBytes.IO fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                listener.whenComplete(integer -> fileChannel.decRef(), e -> fileChannel.decRef());
+                listener.whenComplete(e -> fileChannel.decRef(), integer -> fileChannel.decRef());
                 if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, listener, fileChannel))) {
                     return listener;
                 } else {

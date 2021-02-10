@@ -52,8 +52,8 @@ public class StepListenerTests extends ESTestCase {
         StepListener<String> step1 = new StepListener<>(); //[a]sync provide a string
         executeAction(() -> step1.onResponse("hello"));
         StepListener<Integer> step2 = new StepListener<>(); //[a]sync calculate the length of the string
-        step1.whenComplete(str -> executeAction(() -> step2.onResponse(str.length())), onFailure);
-        step2.whenComplete(length -> executeAction(latch::countDown), onFailure);
+        step1.whenComplete(onFailure, str -> executeAction(() -> step2.onResponse(str.length())));
+        step2.whenComplete(onFailure, length -> executeAction(latch::countDown));
         latch.await();
         assertThat(step1.result(), equalTo("hello"));
         assertThat(step2.result(), equalTo(5));
@@ -77,15 +77,15 @@ public class StepListenerTests extends ESTestCase {
         }
 
         StepListener<Integer> step2 = new StepListener<>(); //[a]sync calculate the length of the string
-        step1.whenComplete(str -> {
+        step1.whenComplete(onFailure, str -> {
             if (failedStep == 2) {
                 executeAction(() -> step2.onFailure(new RuntimeException("failed at step 2")));
             } else {
                 executeAction(() -> step2.onResponse(str.length()));
             }
-        }, onFailure);
+        });
 
-        step2.whenComplete(length -> latch.countDown(), onFailure);
+        step2.whenComplete(onFailure, length -> latch.countDown());
         latch.await();
         assertThat(failureNotified.get(), equalTo(1));
 
@@ -116,9 +116,9 @@ public class StepListenerTests extends ESTestCase {
         StepListener<String> step = new StepListener<>();
         step.onFailure(new RemoteTransportException("test", new RuntimeException("expected")));
         AtomicReference<RuntimeException> exception = new AtomicReference<>();
-        step.whenComplete(null, e -> {
+        step.whenComplete(e -> {
             exception.set((RuntimeException) e);
-        });
+        }, null);
 
         assertEquals(RemoteTransportException.class, exception.get().getClass());
         RuntimeException e = expectThrows(RuntimeException.class, () -> step.result());

@@ -231,14 +231,20 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             }
 
             final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
-            openConnectionStep.whenComplete(connection -> {
+            openConnectionStep.whenComplete(onFailure, connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                 transportService.handshake(connection, connectionProfile.getHandshakeTimeout(),
                     getRemoteClusterNamePredicate(), handshakeStep);
-            }, onFailure);
+            });
 
             final StepListener<Void> fullConnectionStep = new StepListener<>();
-            handshakeStep.whenComplete(handshakeResponse -> {
+            handshakeStep.whenComplete(e -> {
+                final Transport.Connection connection = openConnectionStep.result();
+                final DiscoveryNode node = connection.getNode();
+                logger.debug(() -> new ParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
+                IOUtils.closeWhileHandlingException(connection);
+                onFailure.accept(e);
+            }, handshakeResponse -> {
                 final DiscoveryNode handshakeNode = handshakeResponse.getDiscoveryNode();
 
                 if (nodePredicate.test(handshakeNode) && shouldOpenMoreConnections()) {
@@ -250,15 +256,16 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 } else {
                     fullConnectionStep.onResponse(null);
                 }
-            }, e -> {
-                final Transport.Connection connection = openConnectionStep.result();
-                final DiscoveryNode node = connection.getNode();
-                logger.debug(() -> new ParameterizedMessage("[{}] failed to handshake with seed node: [{}]", clusterAlias, node), e);
-                IOUtils.closeWhileHandlingException(connection);
-                onFailure.accept(e);
             });
 
-            fullConnectionStep.whenComplete(aVoid -> {
+            fullConnectionStep.whenComplete(e -> {
+                final Transport.Connection connection = openConnectionStep.result();
+                final DiscoveryNode node = connection.getNode();
+                logger.debug(() -> new ParameterizedMessage(
+                    "[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node), e);
+                IOUtils.closeWhileHandlingException(openConnectionStep.result());
+                onFailure.accept(e);
+            }, aVoid -> {
                 if (remoteClusterName.get() == null) {
                     TransportService.HandshakeResponse handshakeResponse = handshakeStep.result();
                     assert handshakeResponse.getClusterName().value() != null;
@@ -284,13 +291,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
                         responseHandler);
                 }
-            }, e -> {
-                final Transport.Connection connection = openConnectionStep.result();
-                final DiscoveryNode node = connection.getNode();
-                logger.debug(() -> new ParameterizedMessage(
-                    "[{}] failed to open managed connection to seed node: [{}]", clusterAlias, node), e);
-                IOUtils.closeWhileHandlingException(openConnectionStep.result());
-                onFailure.accept(e);
             });
         } else {
             listener.onFailure(new NoSeedNodeLeftException(clusterAlias));

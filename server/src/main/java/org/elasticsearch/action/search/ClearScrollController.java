@@ -158,7 +158,7 @@ public final class ClearScrollController implements Runnable {
         } else {
             lookupListener.onResponse((cluster, nodeId) -> nodes.get(nodeId));
         }
-        lookupListener.whenComplete(nodeLookup -> {
+        lookupListener.whenComplete(listener::onFailure, nodeLookup -> {
             final GroupedActionListener<Boolean> groupedListener = new GroupedActionListener<>(
                 listener.map(rs -> Math.toIntExact(rs.stream().filter(r -> r).count())),
                 contextIds.size()
@@ -177,6 +177,6 @@ public final class ClearScrollController implements Runnable {
                     }
                 }
             }
-        }, listener::onFailure);
+        });
     }
 }

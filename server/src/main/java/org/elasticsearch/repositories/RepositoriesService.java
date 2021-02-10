@@ -136,30 +136,28 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
             // to wait for the publication to be complete too)
             final StepListener<List<DiscoveryNode>> verifyStep = new StepListener<>();
-            publicationStep.whenComplete(ignored -> acknowledgementStep.whenComplete(clusterStateUpdateResponse -> {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
-                    // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                    verifyRepository(request.name(), verifyStep);
-                } else {
-                    verifyStep.onResponse(null);
-                }
-            }, listener::onFailure), listener::onFailure);
+            publicationStep.whenComplete(listener::onFailure, ignored ->
+                    acknowledgementStep.whenComplete(listener::onFailure, clusterStateUpdateResponse -> {
+                        if (clusterStateUpdateResponse.isAcknowledged()) {
+                            // The response was acknowledged - all nodes should know about the new repository, let's verify them
+                            verifyRepository(request.name(), verifyStep);
+                        } else {
+                            verifyStep.onResponse(null);
+                        }
+                    }));
 
             // When verification has completed, get the repository data for the first time
             final StepListener<RepositoryData> getRepositoryDataStep = new StepListener<>();
-            verifyStep.whenComplete(ignored -> threadPool.generic().execute(
-                    ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))), listener::onFailure);
+            verifyStep.whenComplete(listener::onFailure, ignored -> threadPool.generic().execute(
+                    ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))));
 
             // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
             final StepListener<Void> updateRepoUuidStep = new StepListener<>();
-            getRepositoryDataStep.whenComplete(
-                    repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep),
-                    listener::onFailure);
+            getRepositoryDataStep.whenComplete(listener::onFailure,
+                    repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep));
 
             // Finally respond to the outer listener with the response from the original cluster state update
-            updateRepoUuidStep.whenComplete(
-                    ignored -> acknowledgementStep.addListener(listener),
-                    listener::onFailure);
+            updateRepoUuidStep.whenComplete(listener::onFailure, ignored -> acknowledgementStep.addListener(listener));
 
         } else {
             acknowledgementStep.addListener(listener);

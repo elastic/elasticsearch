@@ -104,7 +104,7 @@ public class TaskCancellationService {
             final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
                 .preserveContext(() -> removeBanOnChildConnections(task, childConnections));
             // We remove bans after all child tasks are completed although in theory we can do it on a per-connection basis.
-            completedListener.whenComplete(r -> removeBansRunnable.run(), e -> removeBansRunnable.run());
+            completedListener.whenComplete(e -> removeBansRunnable.run(), r -> removeBansRunnable.run());
             // if wait_for_completion is true, then only return when (1) bans are placed on child connections, (2) child tasks are
             // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child connections.
             if (waitForCompletion) {

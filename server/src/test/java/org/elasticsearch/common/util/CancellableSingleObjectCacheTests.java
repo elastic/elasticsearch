@@ -193,17 +193,17 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         isCancelled.set(true);
                     }
 
-                    stepListener.whenComplete(len -> {
-                        finishLatch.countDown();
-                        assertThat(len, equalTo(input.length()));
-                        assertNotEquals("FAIL", input);
-                    }, e -> {
+                    stepListener.whenComplete(e -> {
                         finishLatch.countDown();
                         if (e instanceof TaskCancelledException) {
                             assertTrue(cancel);
                         } else {
                             assertEquals("FAIL", input);
                         }
+                    }, len -> {
+                        finishLatch.countDown();
+                        assertThat(len, equalTo(input.length()));
+                        assertNotEquals("FAIL", input);
                     });
                 });
             }
@@ -227,10 +227,10 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         protected void refresh(String input, Runnable ensureNotCancelled, ActionListener<Integer> listener) {
             final StepListener<Function<String, Integer>> stepListener = new StepListener<>();
             pendingRefreshes.offer(stepListener);
-            stepListener.whenComplete(f -> ActionListener.completeWith(listener, () -> {
+            stepListener.whenComplete(listener::onFailure, f -> ActionListener.completeWith(listener, () -> {
                 ensureNotCancelled.run();
                 return f.apply(input);
-            }), listener::onFailure);
+            }));
         }
 
         @Override

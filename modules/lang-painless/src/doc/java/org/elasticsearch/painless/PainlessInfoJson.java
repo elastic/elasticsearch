@@ -173,13 +173,20 @@ public class PainlessInfoJson {
         private final String declaring;
         private final String name;
         private final String rtn;
-        private final String javadoc;
+        private final JavadocExtractor.ParsedJavadoc javadoc;
         private final List<String> parameters;
         private final List<String> parameterNames;
         public static final ParseField PARAMETER_NAMES = new ParseField("parameter_names");
         public static final ParseField JAVADOC = new ParseField("javadoc");
 
-        private Method(String declaring, String name, String rtn, String javadoc, List<String> parameters, List<String> parameterNames) {
+        private Method(
+                String declaring,
+                String name,
+                String rtn,
+                JavadocExtractor.ParsedJavadoc javadoc,
+                List<String> parameters,
+                List<String> parameterNames
+        ) {
             this.declaring = declaring;
             this.name = name;
             this.rtn = rtn;
@@ -210,11 +217,11 @@ public class PainlessInfoJson {
         ) {
             List<Method> methods = new ArrayList<>(infos.size());
             for (PainlessContextMethodInfo info: infos) {
-                String javadoc = null;
+                JavadocExtractor.ParsedJavadoc javadoc = null;
                 List<String> parameterNames = null;
 
                 String name = info.getName();
-                List<String> parameterTypes = info.getParameters();
+                List<String> parameterTypes = toDisplayParameterTypes(info.getParameters(), javaNamesToDisplayNames);
 
                 JavadocExtractor.ParsedMethod parsedMethod = parsed.getMethod(name, parameterTypes);
                 if (parsedMethod != null) {
@@ -227,7 +234,7 @@ public class PainlessInfoJson {
                         name,
                         ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getRtn()),
                         javadoc,
-                        toDisplayParameterTypes(parameterTypes, javaNamesToDisplayNames),
+                        parameterTypes,
                         parameterNames
                 ));
             }
@@ -240,7 +247,7 @@ public class PainlessInfoJson {
             builder.field(PainlessContextMethodInfo.DECLARING.getPreferredName(), declaring);
             builder.field(PainlessContextMethodInfo.NAME.getPreferredName(), name);
             builder.field(PainlessContextMethodInfo.RTN.getPreferredName(), rtn);
-            if (javadoc != null && "".equals(javadoc) == false) {
+            if (javadoc != null && javadoc.isEmpty() == false) {
                 builder.field(JAVADOC.getPreferredName(), javadoc);
             }
             builder.field(PainlessContextMethodInfo.PARAMETERS.getPreferredName(), parameters);
@@ -257,12 +264,17 @@ public class PainlessInfoJson {
         private final String declaring;
         private final List<String> parameters;
         private final List<String> parameterNames;
-        private final String javadoc;
+        private final JavadocExtractor.ParsedJavadoc javadoc;
 
         public static final ParseField JAVADOC = new ParseField("javadoc");
         public static final ParseField PARAMETER_NAMES = new ParseField("parameter_names");
 
-        private Constructor(String declaring, List<String> parameters, List<String> parameterNames, String javadoc) {
+        private Constructor(
+                String declaring,
+                List<String> parameters,
+                List<String> parameterNames,
+                JavadocExtractor.ParsedJavadoc javadoc
+        ) {
             this.declaring = declaring;
             this.parameters = parameters;
             this.parameterNames = parameterNames;
@@ -289,9 +301,9 @@ public class PainlessInfoJson {
         ) {
             List<Constructor> constructors = new ArrayList<>(infos.size());
             for (PainlessContextConstructorInfo info: infos) {
-                List<String> parameterTypes = info.getParameters();
+                List<String> parameterTypes = toDisplayParameterTypes(info.getParameters(), javaNamesToDisplayNames);
                 List<String> parameterNames = null;
-                String javadoc = null;
+                JavadocExtractor.ParsedJavadoc javadoc = null;
 
                 JavadocExtractor.ParsedMethod parsed = pj.getConstructor(parameterTypes);
                 if (parsed != null) {
@@ -301,7 +313,7 @@ public class PainlessInfoJson {
 
                 constructors.add(new Constructor(
                         javaNamesToDisplayNames.get(info.getDeclaring()),
-                        toDisplayParameterTypes(parameterTypes, javaNamesToDisplayNames),
+                        parameterTypes,
                         parameterNames,
                         javadoc
                 ));
@@ -317,7 +329,7 @@ public class PainlessInfoJson {
             if (parameterNames != null && parameterNames.size() > 0) {
                 builder.field(PARAMETER_NAMES.getPreferredName(), parameterNames);
             }
-            if (javadoc != null && "".equals(javadoc) == false) {
+            if (javadoc != null && javadoc.isEmpty() == false) {
                 builder.field(JAVADOC.getPreferredName(), javadoc);
             }
             builder.endObject();

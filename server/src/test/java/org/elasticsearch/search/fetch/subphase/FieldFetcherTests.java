@@ -125,7 +125,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         field = fields.get("foo.cat");
         assertThat(field.getValues().size(), equalTo(3));
-        System.out.println(field.getValues());
         assertThat(field.getValues(), containsInAnyOrder("meow", "miau", "purr"));
     }
 

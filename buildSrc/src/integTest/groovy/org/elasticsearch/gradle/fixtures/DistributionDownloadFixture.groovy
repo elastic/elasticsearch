@@ -44,8 +44,7 @@ class DistributionDownloadFixture {
     private static String urlPath(String version,ElasticsearchDistribution.Platform platform) {
         String fileType = ((platform == ElasticsearchDistribution.Platform.LINUX ||
                 platform == ElasticsearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
-        String arch = Architecture.current() == Architecture.AARCH64 ? "aarch64" : "x86_64"
-        "/downloads/elasticsearch/elasticsearch-${version}-${platform}-${arch}.$fileType"
+        "/downloads/elasticsearch/elasticsearch-${version}-${platform}-${Architecture.current().classifier}.$fileType"
     }
 
     private static byte[] filebytes(String urlPath) throws IOException {

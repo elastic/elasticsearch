@@ -391,8 +391,8 @@ public final class Verifier {
                             Expressions.names(unsupported)));
                     groupingFailures.add(a);
                     return false;
+                }
             }
-        }
         }
         return true;
     }
@@ -662,11 +662,20 @@ public final class Verifier {
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            if ((filter.child() instanceof Aggregate) == false) {
+            LogicalPlan filterChild = filter.child();
+            if (filterChild instanceof Aggregate == false) {
                 filter.condition().forEachDown(Expression.class, e -> {
                     if (Functions.isAggregate(attributeRefs.getOrDefault(e, e))) {
-                        localFailures.add(
-                            fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
+                        if (filterChild instanceof Project) {
+                            filter.condition().forEachDown(FieldAttribute.class,
+                                f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
+                                        Expressions.name(f)))
+                            );
+                        } else {
+                            localFailures.add(fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead",
+                                Expressions.name(e)));
+
+                        }
                     }
                 });
             }

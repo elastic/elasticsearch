@@ -217,10 +217,28 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     public static Number tan(Number value) {
         return MathOperation.TAN.apply(value);
     }
+    
+    
 
     //
     // Date/Time functions
-    //
+    //    
+    @Deprecated
+    public static Integer dateTimeChrono(Object dateTime, String tzId, String chronoName) {
+        String extractorName = null;
+        switch (chronoName) {
+            case "DAY_OF_WEEK":
+                extractorName = "ISO_DAY_OF_WEEK";
+                break;
+            case "ALIGNED_WEEK_OF_YEAR":
+                extractorName = "ISO_WEEK_OF_YEAR";
+                break;
+            default:
+                extractorName = chronoName;
+        }
+        return dateTimeExtract(dateTime, tzId, extractorName);
+    }
+    
     public static Integer dateTimeExtract(Object dateTime, String tzId, String extractorName) {
         if (dateTime == null || tzId == null || extractorName == null) {
             return null;

@@ -18,14 +18,12 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
@@ -123,15 +121,6 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName());
         }
         if (dataType == DATETIME) {
-            if (values instanceof String) {
-                try {
-                    return DateUtils.asDateTimeWithMillis(Long.parseLong(values.toString()), zoneId());
-                } catch (NumberFormatException e) {
-                    return DateUtils.asDateTimeWithNanos(values.toString()).withZoneSameInstant(zoneId());
-                }
-            }
-        }
-        if (dataType == DATETIME_NANOS) {
             if (values instanceof String) {
                 return DateUtils.asDateTimeWithNanos(values.toString()).withZoneSameInstant(zoneId());
             }

@@ -216,17 +216,15 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), () -> translate(isNotNull, handler));
-        }
-
-        private static Query translate(IsNotNull isNotNull, TranslatorHandler handler) {
             Query query = null;
+
             if (isNotNull.field() instanceof FieldAttribute) {
                 query = new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
             } else {
                 query = new ScriptQuery(isNotNull.source(), isNotNull.asScript());
             }
-            return query;
+
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), query);
         }
     }
 
@@ -238,10 +236,6 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(isNull, isNull.field(), () -> translate(isNull, handler));
-        }
-
-        private static Query translate(IsNull isNull, TranslatorHandler handler) {
             Query query = null;
 
             if (isNull.field() instanceof FieldAttribute) {
@@ -250,7 +244,7 @@ public final class ExpressionTranslators {
                 query = new ScriptQuery(isNull.source(), isNull.asScript());
             }
 
-            return query;
+            return handler.wrapFunctionQuery(isNull, isNull.field(), query);
         }
     }
 
@@ -271,7 +265,7 @@ public final class ExpressionTranslators {
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
             checkBinaryComparison(bc);
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+            return handler.wrapFunctionQuery(bc, bc.left(), translate(bc, handler));
         }
 
         private static Query translate(BinaryComparison bc, TranslatorHandler handler) {
@@ -346,11 +340,10 @@ public final class ExpressionTranslators {
             return doTranslate(r, handler);
         }
 
-        public static Query doTranslate(Range r, TranslatorHandler handler) {            
-            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
-        }
+        public static Query doTranslate(Range r, TranslatorHandler handler) {
+            Expression val = r.value();
 
-        private static RangeQuery translate(Range r, TranslatorHandler handler) {
+            Query query = null;
             Object lower = valueOf(r.lower());
             Object upper = valueOf(r.upper());
             String format = null;
@@ -375,9 +368,10 @@ public final class ExpressionTranslators {
                 }
                 format = formatter.pattern();
             }
-            return new RangeQuery(
-                r.source(), handler.nameOf(r.value()), lower, r.includeLower(), upper, r.includeUpper(), format, 
-                r.zoneId());
+            query = handler.wrapFunctionQuery(r, val,
+                    new RangeQuery(r.source(), handler.nameOf(val), lower, r.includeLower(), upper, r.includeUpper(), format, r.zoneId()));
+            
+            return query;
         }
     }
 
@@ -389,10 +383,6 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(In in, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
-        }
-
-        private static Query translate(In in, TranslatorHandler handler) {
             Query q;
             if (in.value() instanceof FieldAttribute) {
                 // equality should always be against an exact match (which is important for strings)
@@ -416,9 +406,8 @@ public final class ExpressionTranslators {
                         assert o instanceof ZonedDateTime : "expected a ZonedDateTime, but got: " + o.getClass().getName();
                         // see comment in Ranges#doTranslate() as to why formatting as String is required
                         String zdt = formatter.format((ZonedDateTime) o);
-                        RangeQuery right = new RangeQuery(
-                            in.source(), fa.exactAttribute().name(),
-                            zdt, true, zdt, true, formatter.pattern(), in.zoneId());
+                        RangeQuery right = new RangeQuery(in.source(), fa.exactAttribute().name(),
+                                zdt, true, zdt, true, formatter.pattern(), in.zoneId());
                         q = q == null ? right : new BoolQuery(in.source(), false, q, right);
                     }
                 } else {
@@ -427,7 +416,7 @@ public final class ExpressionTranslators {
             } else {
                 q = new ScriptQuery(in.source(), in.asScript());
             }
-            return q;
+            return handler.wrapFunctionQuery(in, in.value(), q);
         }
     }
 
@@ -443,7 +432,7 @@ public final class ExpressionTranslators {
             if (q != null) {
                 return q;
             }
-            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
+            return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
         }
 
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {

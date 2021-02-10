@@ -14,8 +14,10 @@ Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
   indicating that `Could not initialize class com.unboundid.util.Debug`. This
   exception is fatal. If you encounter this during an upgrade, because
   Elasticsearch failed during node construction, you can safely downgrade to
-  your previous version of Elasticsearch. We are actively working on a fix for
-  this issue. For more details, see {es-issue}68838[#68838].
+  your previous version of Elasticsearch. Note: these downgrade instructions
+  only apply if you encounter this specific error message; in general,
+  downgrades are not safe. Elasticsearch 7.11.1 will contain a fix for this
+  issue. For more details, see {es-issue}68838[#68838].
 
 [discrete]
 [[fips-140-2-compliance-7.11.0]]

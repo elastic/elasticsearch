@@ -22,11 +22,11 @@ public class RLike extends RegexMatch<RLikePattern> {
 
     @Override
     protected NodeInfo<RLike> info() {
-        return NodeInfo.create(this, RLike::new, field(), pattern());
+        return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 
     @Override
     protected RLike replaceChild(Expression newChild) {
-        return new RLike(source(), newChild, pattern());
+        return new RLike(source(), newChild, pattern(), caseInsensitive());
     }
 }

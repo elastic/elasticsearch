@@ -188,8 +188,7 @@ GET /_search
 	    "keep_alive": "1m"
   },
   "sort": [
-    {"@timestamp": "asc"},
-    {"tie_breaker_id": "asc"}
+    {"@timestamp": "asc"}
   ],
   "search_after": [                                <2>
     4098435132000,

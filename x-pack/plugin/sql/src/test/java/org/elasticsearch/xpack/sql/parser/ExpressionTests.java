@@ -304,11 +304,6 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(INTEGER, mul.dataType());
     }
 
-    public void testCastToDatetimeNanosNotSupported() {
-        ParsingException e = expectThrows(ParsingException.class, () -> parser.createExpression("CAST('foo' AS DATETIME_NANOS)"));
-        assertEquals("line 1:16: Does not recognize type [DATETIME_NANOS]", e.getMessage());
-    }
-
     public void testCastWithQuotedDataType() {
         Expression expr = parser.createExpression("CAST(10*2 AS \"LonG\")");
         assertEquals(Cast.class, expr.getClass());

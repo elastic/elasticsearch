@@ -156,8 +156,10 @@ public class TransformStatsTests extends AbstractResponseTestCase<
         assertThat(serverTestInstance.getNumDocuments(), equalTo(clientInstance.getDocumentsProcessed()));
         assertThat(serverTestInstance.getNumInvocations(), equalTo(clientInstance.getTriggerCount()));
         assertThat(serverTestInstance.getOutputDocuments(), equalTo(clientInstance.getDocumentsIndexed()));
+        assertThat(serverTestInstance.getNumDeletedDocuments(), equalTo(clientInstance.getDocumentsDeleted()));
         assertThat(serverTestInstance.getSearchFailures(), equalTo(clientInstance.getSearchFailures()));
         assertThat(serverTestInstance.getSearchTime(), equalTo(clientInstance.getSearchTime()));
         assertThat(serverTestInstance.getSearchTotal(), equalTo(clientInstance.getSearchTotal()));
+        assertThat(serverTestInstance.getDeleteTime(), equalTo(clientInstance.getDeleteTime()));
     }
 }

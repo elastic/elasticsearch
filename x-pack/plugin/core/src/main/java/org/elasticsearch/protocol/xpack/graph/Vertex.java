@@ -225,19 +225,14 @@ public class Vertex implements ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (o == null || getClass() != o.getClass())
+            }
+            if (o == null || getClass() != o.getClass()) {
                 return false;
-
+            }
             VertexId vertexId = (VertexId) o;
-
-            if (field != null ? !field.equals(vertexId.field) : vertexId.field != null)
-                return false;
-            if (term != null ? !term.equals(vertexId.term) : vertexId.term != null)
-                return false;
-
-            return true;
+            return Objects.equals(field, vertexId.field) && Objects.equals(term, vertexId.term);
         }
 
         @Override

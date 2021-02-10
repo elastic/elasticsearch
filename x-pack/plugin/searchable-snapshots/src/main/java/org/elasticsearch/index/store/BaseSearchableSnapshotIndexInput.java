@@ -173,11 +173,11 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             if (isClone == false) {
                 stats.incrementCloseCount();
             }
-            innerClose();
+            doClose();
         }
     }
 
-    public abstract void innerClose() throws IOException;
+    public abstract void doClose() throws IOException;
 
     protected final boolean assertCurrentThreadMayAccessBlobStore() {
         final String threadName = Thread.currentThread().getName();

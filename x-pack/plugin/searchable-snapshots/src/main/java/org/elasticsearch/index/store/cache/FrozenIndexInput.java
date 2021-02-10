@@ -108,7 +108,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     @Override
-    public void innerClose() {
+    public void doClose() {
         // nothing needed to be done here
     }
 

@@ -116,7 +116,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public void innerClose() {
+    public void doClose() {
         if (isClone == false) {
             cacheFileReference.releaseOnClose();
         }

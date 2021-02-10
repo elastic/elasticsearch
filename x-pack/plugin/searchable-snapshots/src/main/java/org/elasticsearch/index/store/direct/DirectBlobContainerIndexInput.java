@@ -319,7 +319,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     @Override
-    public void innerClose() throws IOException {
+    public void doClose() throws IOException {
         closeStreamForSequentialReads();
     }
 

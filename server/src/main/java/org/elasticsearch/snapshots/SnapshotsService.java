@@ -142,7 +142,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "region_size",
-            SHARED_CACHE_RANGE_SIZE_SETTING,
+        SHARED_CACHE_RANGE_SIZE_SETTING,
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(

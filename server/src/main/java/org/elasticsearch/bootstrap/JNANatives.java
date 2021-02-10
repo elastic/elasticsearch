@@ -277,7 +277,7 @@ class JNANatives {
         }
         Path cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
         if (cacheFile == null) {
-            throw new IOException("Could not find a directory with adequate free space for cache file");
+            throw new IOException("could not find a directory with adequate free space for cache file");
         }
         boolean success = false;
         try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
@@ -289,13 +289,13 @@ class JNANatives {
                 final int errno = result == 0 ? 0 : Native.getLastError();
                 if (errno == 0) {
                     success = true;
-                    logger.info("Allocated cache file [{}] using fallocate", cacheFile);
+                    logger.info("allocated cache file [{}] using fallocate", cacheFile);
                 } else {
-                    logger.warn("Failed to initialize cache file [{}] using fallocate errno [{}]", cacheFile, errno);
+                    logger.warn("failed to initialize cache file [{}] using fallocate errno [{}]", cacheFile, errno);
                 }
             }
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Failed to initialize cache file [{}] using fallocate", cacheFile), e);
+            logger.warn(new ParameterizedMessage("failed to initialize cache file [{}] using fallocate", cacheFile), e);
         } finally {
             if (success == false) {
                 // if anything goes wrong, delete the potentially created file to not waste disk space

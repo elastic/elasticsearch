@@ -56,7 +56,7 @@ public class PersistentSearchStorageService {
     public static final String REDUCED_SHARDS_INDEX_FIELD = "reduced_shards_index_field";
 
     private static final Setting<TimeValue> INITIAL_DELAY_SETTING = Setting.timeSetting("search.persistent.storage.initial_delay",
-        TimeValue.timeValueSeconds(2), TimeValue.timeValueSeconds(2));
+        TimeValue.timeValueMillis(50), TimeValue.timeValueMillis(50));
     private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.timeSetting("search.persistent.storage.retry_timeout",
         TimeValue.timeValueSeconds(20), TimeValue.timeValueSeconds(20));
 
@@ -148,8 +148,8 @@ public class PersistentSearchStorageService {
                         indexRequest.source(persistentSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS));
                     }
 
-                    client.index(indexRequest, ActionListener.delegateFailure(listener, (
-                        delegate, indexResponse) -> delegate.onResponse(persistentSearchResponse.getId())));
+                    client.index(indexRequest, ActionListener.delegateFailure(listener,
+                        (delegate, indexResponse) -> delegate.onResponse(persistentSearchResponse.getId())));
 
                 } catch (Exception e) {
                     listener.onFailure(e);

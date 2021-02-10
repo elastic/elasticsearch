@@ -13,6 +13,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.persistent.AsyncPersistentSearch;
 import org.elasticsearch.action.search.persistent.ExecutePersistentQueryFetchRequest;
 import org.elasticsearch.action.search.persistent.ExecutePersistentQueryFetchResponse;
+import org.elasticsearch.action.search.persistent.PersistentSearchShard;
 import org.elasticsearch.action.search.persistent.ReducePartialPersistentSearchRequest;
 import org.elasticsearch.action.search.persistent.ReducePartialPersistentSearchResponse;
 import org.elasticsearch.action.search.persistent.SearchShardTargetResolver;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -43,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class AsyncPersistentSearchTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -138,7 +141,7 @@ public class AsyncPersistentSearchTests extends ESTestCase {
     }
 
     public void testRunSearch() throws Exception {
-        List<SearchShard> searchShards = createSearchShards(10);
+        List<PersistentSearchShard> searchShards = createSearchShards(10);
 
         FakeSearchTransportService searchTransportService = new FakeSearchTransportService(threadPool.executor(ThreadPool.Names.GENERIC));
         getAsyncPersistentSearch(5, 5, searchShards, searchTransportService).start();
@@ -165,7 +168,7 @@ public class AsyncPersistentSearchTests extends ESTestCase {
 
     public void testShardSearchesAreRetriedUntilSearchIsCancelled() throws Exception {
         int numOfShards = 2;
-        List<SearchShard> searchShards = createSearchShards(numOfShards);
+        List<PersistentSearchShard> searchShards = createSearchShards(numOfShards);
 
         FakeSearchTransportService searchTransportService = new FakeSearchTransportService(threadPool.executor(ThreadPool.Names.GENERIC));
         AsyncPersistentSearch asyncPersistentSearch =
@@ -191,7 +194,7 @@ public class AsyncPersistentSearchTests extends ESTestCase {
 
     public void testShardSearchesAreRetried() throws Exception {
         int numOfShards = 2;
-        List<SearchShard> searchShards = createSearchShards(numOfShards);
+        List<PersistentSearchShard> searchShards = createSearchShards(numOfShards);
 
         FakeSearchTransportService searchTransportService = new FakeSearchTransportService(threadPool.executor(ThreadPool.Names.GENERIC));
         getAsyncPersistentSearch(5, numOfShards, searchShards, searchTransportService).start();
@@ -215,7 +218,7 @@ public class AsyncPersistentSearchTests extends ESTestCase {
 
     private AsyncPersistentSearch getAsyncPersistentSearch(int maxConcurrentQueryRequests,
                                                            int maxShardsPerReduceRequest,
-                                                           List<SearchShard> searchShards,
+                                                           List<PersistentSearchShard> searchShards,
                                                            FakeSearchTransportService searchTransportService) {
         final SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         final String persistentSearchId = UUIDs.randomBase64UUID();
@@ -234,7 +237,6 @@ public class AsyncPersistentSearchTests extends ESTestCase {
             searchTask,
             searchShards,
             OriginalIndices.NONE,
-            Collections.emptyMap(),
             TimeValue.timeValueHours(1),
             maxConcurrentQueryRequests,
             maxShardsPerReduceRequest,
@@ -248,10 +250,11 @@ public class AsyncPersistentSearchTests extends ESTestCase {
             }));
     }
 
-    private List<SearchShard> createSearchShards(int numShards) {
-        List<SearchShard> searchShards = new ArrayList<>(numShards);
+    private List<PersistentSearchShard> createSearchShards(int numShards) {
+        List<PersistentSearchShard> searchShards = new ArrayList<>(numShards);
         for (int i = 0; i < numShards; i++) {
-            searchShards.add(new SearchShard(null, new ShardId("index", "_na_", i)));
+            final SearchShard searchShard = new SearchShard(null, new ShardId("index", "_na_", i));
+            searchShards.add(new PersistentSearchShard(searchShard, mock(ShardSearchRequest.class), false));
         }
         return searchShards;
     }

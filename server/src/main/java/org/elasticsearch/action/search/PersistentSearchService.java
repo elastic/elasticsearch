@@ -91,7 +91,7 @@ public class PersistentSearchService {
         storeListener.whenComplete(partialResultDocId ->
             listener.onResponse(new ExecutePersistentQueryFetchResponse(partialResultDocId)), listener::onFailure);
 
-        searchService.executeQueryPhase(shardSearchRequest, false, task, queryListener);
+        searchService.executeQueryAndFetch(shardSearchRequest, false, task, queryListener);
     }
 
     public void executePartialReduce(ReducePartialPersistentSearchRequest request,
@@ -156,7 +156,7 @@ public class PersistentSearchService {
         searchStorageService.deletePersistentSearchResults(docsToRemove, new ActionListener<>() {
             @Override
             public void onResponse(Collection<DeleteResponse> deleteResponses) {
-                logger.info("DELETED intermediate results");
+                logger.trace("DELETED intermediate results");
             }
 
             @Override
@@ -178,7 +178,7 @@ public class PersistentSearchService {
                 final PersistentSearchResponse partialResult = searchStorageService.getPersistentSearchResponse(searchShardId.getDocId());
                 searchResponseMerger.addResponse(partialResult);
             } catch (Exception e) {
-                logger.info("Error getting persistent search response", e);
+                logger.debug("Error getting persistent search response", e);
                 // Ignore if not exists for now...
             }
             reducedShards.add(searchShardId);

@@ -402,6 +402,69 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         });
     }
 
+    public void executeQueryAndFetch(ShardSearchRequest request, boolean keepStatesInContext,
+                                     SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
+        assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
+            : "empty responses require more than one shard";
+        final IndexShard shard = getShard(request);
+        rewriteAndFetchShardRequest(shard, request, new ActionListener<>() {
+            @Override
+            public void onResponse(ShardSearchRequest orig) {
+                // check if we can shortcut the query phase entirely.
+                if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                    assert orig.scroll() == null;
+                    final CanMatchResponse canMatchResp;
+                    try {
+                        ShardSearchRequest clone = new ShardSearchRequest(orig);
+                        canMatchResp = canMatch(clone, false);
+                    } catch (Exception exc) {
+                        listener.onFailure(exc);
+                        return;
+                    }
+                    if (canMatchResp.canMatch == false) {
+                        listener.onResponse(QuerySearchResult.nullInstance());
+                        return;
+                    }
+                }
+                // fork the execution in the search thread pool
+                runAsync(getExecutor(shard), () -> executeQueryAndFetch(orig, task, keepStatesInContext), listener);
+            }
+
+            @Override
+            public void onFailure(Exception exc) {
+                listener.onFailure(exc);
+            }
+        });
+    }
+
+    // TODO: Clean up this mess
+    private SearchPhaseResult executeQueryAndFetch(ShardSearchRequest request,
+                                                   SearchShardTask task,
+                                                   boolean keepStatesInContext) throws Exception {
+        final ReaderContext readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        try (Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
+             SearchContext context = createContext(readerContext, request, task, true)) {
+            final long afterQueryTime;
+            try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+                loadOrExecuteQueryPhase(request, context);
+                if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
+                    freeReaderContext(readerContext.id());
+                }
+                afterQueryTime = executor.success();
+            }
+            return executeFetchPhase(readerContext, context, afterQueryTime);
+        } catch (Exception e) {
+            // execution exception can happen while loading the cache, strip it
+            if (e instanceof ExecutionException) {
+                e = (e.getCause() == null || e.getCause() instanceof Exception) ?
+                    (Exception) e.getCause() : new ElasticsearchException(e.getCause());
+            }
+            logger.trace("Query phase failed", e);
+            processFailure(readerContext, e);
+            throw e;
+        }
+    }
+
     private IndexShard getShard(ShardSearchRequest request) {
         final ShardSearchContextId contextId = request.readerId();
         if (contextId != null) {

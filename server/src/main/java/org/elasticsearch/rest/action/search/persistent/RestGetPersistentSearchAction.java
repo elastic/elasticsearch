@@ -11,10 +11,15 @@ package org.elasticsearch.rest.action.search.persistent;
 import org.elasticsearch.action.search.persistent.GetPersistentSearchAction;
 import org.elasticsearch.action.search.persistent.GetPersistentSearchRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.search.persistent.PersistentSearchId;
 import org.elasticsearch.search.persistent.PersistentSearchResponse;
 
 import java.io.IOException;
@@ -33,11 +38,23 @@ public class RestGetPersistentSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final GetPersistentSearchRequest getPersistentSearchRequest = new GetPersistentSearchRequest(request.param("id"));
+        final PersistentSearchId persistentSearchId = PersistentSearchId.decode(request.param("id"));
+        final GetPersistentSearchRequest getPersistentSearchRequest = new GetPersistentSearchRequest(persistentSearchId.getSearchId());
         return channel -> {
-            RestToXContentListener<PersistentSearchResponse> listener = new RestToXContentListener<>(channel);
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(GetPersistentSearchAction.INSTANCE, getPersistentSearchRequest, listener);
+            RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableNodeClient.execute(GetPersistentSearchAction.INSTANCE, getPersistentSearchRequest,
+                new RestResponseListener<>(channel) {
+                    @Override
+                    public RestResponse buildResponse(PersistentSearchResponse persistentSearchResponse) throws Exception {
+                        if (persistentSearchResponse == null) {
+                            return new BytesRestResponse(RestStatus.NOT_FOUND, request.param("id"));
+                        } else {
+                            final XContentBuilder builder = channel.newBuilder();
+                            persistentSearchResponse.toXContent(builder, channel.request());
+                            return new BytesRestResponse(RestStatus.OK, builder);
+                        }
+                    }
+                });
         };
     }
 }

@@ -10,13 +10,16 @@ package org.elasticsearch.action.search.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShard;
+import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,10 +31,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.persistent.PersistentSearchId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -41,12 +47,15 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
@@ -101,24 +110,76 @@ public class TransportSubmitPersistentSearchAction extends HandledTransportActio
         final Index[] indices =
             indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.getAbsoluteStartMillis());
 
-        final List<SearchShard> searchShards = resolveShards(clusterState, indices);
+        final Map<String, AliasFilter> aliasFilterMap = buildPerIndexAliasFilter(request, clusterState, indices);
+
+
+        final List<SearchShard> resolvedShards = resolveShards(clusterState, indices);
+
+        final List<PersistentSearchShard> searchShards = resolvedShards.stream()
+            .map(searchShard -> {
+                ShardSearchRequest shardSearchRequest = buildShardSearchRequest(request, localIndices, timeProvider,
+                    aliasFilterMap, resolvedShards.size(), searchShard.getShardId());
+                return new PersistentSearchShard(searchShard, shardSearchRequest, false);
+            })
+            .collect(Collectors.toList());
 
         final String persistentSearchDocId = UUIDs.randomBase64UUID();
         final PersistentSearchId persistentSearchId =
             new PersistentSearchId(persistentSearchDocId, new TaskId(nodeClient.getLocalNodeId(), task.getId()));
 
-        final Map<String, AliasFilter> aliasFilterMap = buildPerIndexAliasFilter(request, clusterState, indices);
+        final boolean canRewriteToMatchNone = SearchService.canRewriteToMatchNone(request.source());
 
+        if (canRewriteToMatchNone) {
+            StepListener<Collection<SearchShardIterator>> shardsResolverListener = new StepListener<>();
+            StepListener<List<PersistentSearchShard>> canMatchPhaseListener = new StepListener<>();
+
+            shardsResolverListener.whenComplete(searchShardIterators -> {
+                new CanMatchPhase(searchTransportService,
+                    searchTask,
+                    searchShards,
+                    List.copyOf(searchShardIterators),
+                    connectionProvider(),
+                    canMatchPhaseListener).run();
+            }, listener::onFailure);
+
+            canMatchPhaseListener.whenComplete(persistentSearchShards -> {
+                runAsyncPersistentSearch(persistentSearchShards,
+                    request,
+                    persistentSearchDocId,
+                    searchTask,
+                    localIndices,
+                    timeProvider
+                );
+            }, listener::onFailure);
+
+            GroupedActionListener<SearchShardIterator> shardIteratorsListener =
+                new GroupedActionListener<>(shardsResolverListener, searchShards.size());
+
+            for (PersistentSearchShard searchShard : searchShards) {
+                searchShardTargetResolver.resolve(searchShard.getSearchShard(), localIndices, shardIteratorsListener);
+            }
+        } else {
+            runAsyncPersistentSearch(searchShards, request, persistentSearchDocId, searchTask, localIndices, timeProvider);
+        }
+
+        listener.onResponse(new SubmitPersistentSearchResponse(persistentSearchId));
+    }
+
+    private void runAsyncPersistentSearch(List<PersistentSearchShard> shardsToSearch,
+                                          SearchRequest request,
+                                          String persistentSearchDocId,
+                                          SearchTask searchTask,
+                                          OriginalIndices localIndices,
+                                          TransportSearchAction.SearchTimeProvider timeProvider) {
         final TimeValue expirationTime = TimeValue.timeValueMinutes(10);
         new AsyncPersistentSearch(request,
             persistentSearchDocId,
             searchTask,
-            searchShards,
+            shardsToSearch,
             localIndices,
-            aliasFilterMap,
             expirationTime,
-            4,
-            searchShards.size(),
+            Integer.MAX_VALUE, // Unbounded for now
+            shardsToSearch.size(),
             timeProvider,
             searchShardTargetResolver,
             searchTransportService,
@@ -137,9 +198,77 @@ public class TransportSubmitPersistentSearchAction extends HandledTransportActio
                 }
             }
         ).start();
+    }
 
+    private static class CanMatchPhase {
+        private final SearchTransportService searchTransportService;
+        private final SearchTask searchTask;
+        private final List<PersistentSearchShard> persistentSearchShards;
+        private final List<SearchShardIterator> shardIterators;
+        private final BiFunction<String, String, Transport.Connection> connectionProvider;
+        private final CountDown shardExecutions;
+        private final BitSet canMatchShard;
+        private final ActionListener<List<PersistentSearchShard>> listener;
 
-        listener.onResponse(new SubmitPersistentSearchResponse(persistentSearchId));
+        CanMatchPhase(SearchTransportService searchTransportService,
+                      SearchTask searchTask,
+                      List<PersistentSearchShard> persistentSearchShards,
+                      List<SearchShardIterator> shardIterators,
+                      BiFunction<String, String, Transport.Connection> connectionProvider,
+                      ActionListener<List<PersistentSearchShard>> listener) {
+            this.searchTransportService = searchTransportService;
+            this.searchTask = searchTask;
+            this.persistentSearchShards = persistentSearchShards;
+            this.shardIterators = shardIterators;
+            this.connectionProvider = connectionProvider;
+            this.shardExecutions = new CountDown(shardIterators.size());
+            this.canMatchShard = new BitSet(shardIterators.size());
+            this.listener = listener;
+        }
+
+        void run() {
+            for (int i = 0; i < shardIterators.size(); i++) {
+                executeCanMatchOnShard(shardIterators.get(i), i);
+            }
+        }
+
+        void executeCanMatchOnShard(SearchShardIterator searchShard, int shardIndex) {
+            final SearchShardTarget searchShardTarget = searchShard.nextOrNull();
+            if (searchShardTarget == null) {
+                onShardFailure();
+                return;
+            }
+
+            Transport.Connection connection = connectionProvider.apply(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+            searchTransportService.sendCanMatch(connection, persistentSearchShards.get(shardIndex).getRequest(), searchTask,
+                ActionListener.wrap(response -> {
+                    response.setShardIndex(shardIndex);
+                    onShardSuccess(response);
+                }, e -> executeCanMatchOnShard(searchShard, shardIndex)));
+        }
+
+        void onShardSuccess(SearchService.CanMatchResponse canMatchResponse) {
+            if (canMatchResponse.canMatch()) {
+                canMatchShard.set(canMatchResponse.getShardIndex());
+            }
+            onShardExecuted();
+        }
+
+        void onShardFailure() {
+            onShardExecuted();
+        }
+
+        void onShardExecuted() {
+            if (shardExecutions.countDown()) {
+                for (int i = 0; i < persistentSearchShards.size(); i++) {
+                    PersistentSearchShard persistentSearchShard = persistentSearchShards.get(i);
+                    if (canMatchShard.get(i) == false) {
+                        persistentSearchShard.setCanBeSkipped(true);
+                    }
+                }
+                listener.onResponse(Collections.unmodifiableList(persistentSearchShards));
+            }
+        }
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState, Index[] concreteIndices) {
@@ -172,5 +301,29 @@ public class TransportSubmitPersistentSearchAction extends HandledTransportActio
             }
         }
         return Collections.unmodifiableList(searchShards);
+    }
+
+    private ShardSearchRequest buildShardSearchRequest(SearchRequest searchRequest,
+                                                       OriginalIndices originalIndices,
+                                                       TransportSearchAction.SearchTimeProvider searchTimeProvider,
+                                                       Map<String, AliasFilter> aliasFiltersByIndex,
+                                                       int shardCount,
+                                                       ShardId shardId) {
+        AliasFilter filter = aliasFiltersByIndex.getOrDefault(shardId.getIndexName(), AliasFilter.EMPTY);
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            originalIndices,
+            searchRequest,
+            shardId,
+            0,
+            shardCount,
+            filter,
+            1.0f,
+            searchTimeProvider.getAbsoluteStartMillis(),
+            null,
+            null,
+            null
+        );
+        shardRequest.canReturnNullResponseIfMatchNoDocs(false);
+        return shardRequest;
     }
 }

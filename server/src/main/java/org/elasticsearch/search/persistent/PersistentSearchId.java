@@ -60,6 +60,15 @@ public class PersistentSearchId  {
         return Objects.hash(searchId, taskId);
     }
 
+    @Override
+    public String toString() {
+        return "PersistentSearchId{" +
+            "searchId='" + searchId + '\'' +
+            ", taskId=" + taskId +
+            ", encodedId='" + encodedId + '\'' +
+            '}';
+    }
+
     public static String encode(String docId, TaskId taskId) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeString(docId);

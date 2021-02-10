@@ -48,6 +48,21 @@ force-merge on these immutable indices will fail if the requested merge is not
 a no-op.
 ====
 
+[discrete]
+[[breaking_712_search_changes]]
+==== Search changes
+
+[[fields-api-nested-fields]]
+.The search APIs `fields` parameter returns fields inside `nested` fields grouped together.
+[%collapsible]
+====
+*Details* +
+In earlier versions, fields retrieved via `fields` in the search API were
+returned as a flat list. From 7.12 on, fields inside an object that is mapped
+using the `nested` field type are grouped together to maintain the independence of
+each object inside the original nested array.
+====
+
 ////
 [discrete]
 [[deprecated-7.11]]

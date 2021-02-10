@@ -22,20 +22,22 @@ Which returns:
 --------------------------------------------------
 {
   "size": 10,
-  "docvalue_fields": [
+  "_source": false,
+  "fields": [
+    {
+      "field": "author"
+    },
+    {
+      "field": "name"
+    },
+    {
+      "field": "page_count"
+    },
     {
       "field": "release_date",
       "format": "epoch_millis"
     }
   ],
-  "_source": {
-    "includes": [
-      "author",
-      "name",
-      "page_count"
-    ],
-    "excludes": []
-  },
   "sort": [
     {
       "page_count": {

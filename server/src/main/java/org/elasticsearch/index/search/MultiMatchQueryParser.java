@@ -34,11 +34,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 
-public class MultiMatchQuery extends MatchQuery {
+public class MultiMatchQueryParser extends MatchQueryParser {
 
     private Float groupTieBreaker = null;
 
-    public MultiMatchQuery(SearchExecutionContext context) {
+    public MultiMatchQueryParser(SearchExecutionContext context) {
         super(context);
     }
 

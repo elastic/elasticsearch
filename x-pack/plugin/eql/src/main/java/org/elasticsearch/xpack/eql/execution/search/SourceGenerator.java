@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.eql.execution.search;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
@@ -60,13 +58,8 @@ public abstract class SourceGenerator {
 
         sorting(container, source);
 
-        // disable the source if there are no includes
-        if (source.fetchSource() == null || CollectionUtils.isEmpty(source.fetchSource().includes())) {
-            source.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        } else {
-            // use true to fetch only the needed bits from the source
-            source.fetchSource(true);
-        }
+        // disable the source, as we rely on "fields" API
+        source.fetchSource(false);
 
         if (container.limit() != null) {
             // add size and from

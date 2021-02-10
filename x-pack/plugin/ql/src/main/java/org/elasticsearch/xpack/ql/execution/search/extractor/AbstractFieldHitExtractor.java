@@ -6,25 +6,19 @@
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
@@ -126,49 +120,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             return unwrapped;
         }
 
-        // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
-        // and BigDecimal (if Double is not enough)
-        if (values instanceof Number || values instanceof String || values instanceof Boolean) {
-            if (dataType == null) {
-                return values;
-            }
-            if (dataType.isNumeric() && isFromDocValuesOnly(dataType) == false) {
-                if (dataType == DataTypes.DOUBLE || dataType == DataTypes.FLOAT || dataType == DataTypes.HALF_FLOAT) {
-                    Number result = null;
-                    try {
-                        result = numberType(dataType).parse(values, true);
-                    } catch(IllegalArgumentException iae) {
-                        return null;
-                    }
-                    // docvalue_fields is always returning a Double value even if the underlying floating point data type is not Double
-                    // even if we don't extract from docvalue_fields anymore, the behavior should be consistent
-                    return result.doubleValue();
-                } else {
-                    Number result = null;
-                    try {
-                        result = numberType(dataType).parse(values, true);
-                    } catch(IllegalArgumentException iae) {
-                        return null;
-                    }
-                    return result;
-                }
-            } else if (DataTypes.isString(dataType) || dataType == DataTypes.IP) {
-                return values.toString();
-            } else {
-                return values;
-            }
-        }
-        throw new QlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
-    }
-
-    protected boolean isFromDocValuesOnly(DataType dataType) {
-        return dataType == KEYWORD // because of ignore_above.
-                    || dataType == DATETIME
-                    || dataType == SCALED_FLOAT; // because of scaling_factor
-    }
-
-    private static NumberType numberType(DataType dataType) {
-        return NumberType.valueOf(dataType.esType().toUpperCase(Locale.ROOT));
+        return values;
     }
 
     protected abstract Object unwrapCustomValue(Object values);

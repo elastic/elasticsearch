@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -32,12 +35,18 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         SqlTranslateResponse response = new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE)
                 .query("SELECT " + columns + " FROM test ORDER BY count").get();
         SearchSourceBuilder source = response.source();
-        FetchSourceContext fetch = source.fetchSource();
-        assertTrue(fetch.fetchSource());
-        assertArrayEquals(new String[] { "data", "count" }, fetch.includes());
-        assertEquals(
-                singletonList(new FieldAndFormat("date", "strict_date_optional_time_nanos")),
-                source.docValueFields());
+        List<FieldAndFormat> actualFields = source.fetchFields();
+        List<FieldAndFormat> expectedFields = new ArrayList<>(3);
+        if (columnOrder) {
+            expectedFields.add(new FieldAndFormat("data", null));
+                    expectedFields.add(new FieldAndFormat("count", null));
+                    expectedFields.add(new FieldAndFormat("date", "strict_date_optional_time_nanos"));
+        } else {
+            expectedFields.add(new FieldAndFormat("date", "strict_date_optional_time_nanos"));
+            expectedFields.add(new FieldAndFormat("data", null));
+            expectedFields.add(new FieldAndFormat("count", null));
+        }
+        assertEquals(expectedFields, actualFields);
         assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
     }
 }

@@ -125,14 +125,13 @@ the value to the right. Otherwise returns `false`.
 
 `==` (equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`. For strings, matching is case-sensitive. Wildcards
-are not supported.
+Otherwise returns `false`. Wildcards are not supported.
 
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
-Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings. Supports <<eql-syntax-wildcards,wildcards>> and
-<<eql-syntax-lookup-operators,list lookups>>.
+Otherwise returns `false`. Can only be used to compare strings. Supports
+<<eql-syntax-wildcards,wildcards>> and <<eql-syntax-lookup-operators,list
+lookups>>.
 
 [IMPORTANT]
 ====
@@ -149,8 +148,7 @@ DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
 
 `!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`. For strings, matching is case-sensitive.
-Wildcards are not supported.
+equal. Otherwise returns `false`. Wildcards are not supported.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
@@ -227,23 +225,19 @@ user.name : ("administrator", "system", "network service")
 ----
 
 `in` (case-sensitive)::
-Returns `true` if the value is contained in the provided list. For strings,
-matching is case-sensitive.
+Returns `true` if the value is contained in the provided list.
 
 `in~` (case-insensitive)::
-Returns `true` if the value is contained in the provided list. For strings,
-matching is case-insensitive.
+Returns `true` if the value is contained in the provided list.
 
 `not in` (case-sensitive)::
-Returns `true` if the value is not contained in the provided list. For strings,
-matching is case-sensitive.
+Returns `true` if the value is not contained in the provided list.
 
 `not in~` (case-insensitive)::
-Returns `true` if the value is not contained in the provided list. For strings,
-matching is case-insensitive.
+Returns `true` if the value is not contained in the provided list.
 
 `:` (case-insensitive)::
-Returns `true` if the value is contained in the provided list. Can only be used
+Returns `true` if the string is contained in the provided list. Can only be used
 to compare strings.
 
 [discrete]

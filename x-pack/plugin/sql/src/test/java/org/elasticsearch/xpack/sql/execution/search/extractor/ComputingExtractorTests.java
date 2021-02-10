@@ -74,7 +74,7 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-                new HitExtractorProcessor(new FieldHitExtractor(fieldName, DOUBLE, UTC, true, false)),
+                new HitExtractorProcessor(new FieldHitExtractor(fieldName, DOUBLE, UTC, false)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

@@ -48,7 +48,7 @@ public class RegexQuery extends LeafQuery {
 
     @Override
     public int hashCode() {
-        return Objects.hash(caseInsensitive, field, regex);
+        return Objects.hash(field, regex, caseInsensitive);
     }
 
     @Override
@@ -62,8 +62,7 @@ public class RegexQuery extends LeafQuery {
         }
 
         RegexQuery other = (RegexQuery) obj;
-        return caseInsensitive == other.caseInsensitive && Objects.equals(field, other.field)
-                && Objects.equals(regex, other.regex);
+        return Objects.equals(field, other.field) && Objects.equals(regex, other.regex) && caseInsensitive == other.caseInsensitive;
     }
 
     @Override

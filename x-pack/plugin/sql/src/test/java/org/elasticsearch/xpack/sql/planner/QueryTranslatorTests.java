@@ -712,7 +712,9 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation qt = translate(condition);
         assertTrue(qt.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) qt.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex("
+                +
                 "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
             sc.script().toString());
         assertEquals("[{v=keyword}, {v=^.*a.*$}]", sc.script().params().toString());
@@ -727,7 +729,9 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation qt = translate(condition);
         assertTrue(qt.query instanceof ScriptQuery);
         ScriptQuery sc = (ScriptQuery) qt.query;
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(" +
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex("
+                +
                 "InternalSqlScriptUtils.ltrim(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
             sc.script().toString());
         assertEquals("[{v=keyword}, {v=.*a.*}]", sc.script().params().toString());
@@ -800,8 +804,10 @@ public class QueryTranslatorTests extends ESTestCase {
         GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(((Aggregate) p).groupings());
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
-        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalQlScriptUtils.docValue(doc,params.v0)," +
-                "params.v1)) ? params.v2 : InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalQlScriptUtils." +
+        assertEquals(
+            "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalQlScriptUtils.docValue(doc,params.v0),"
+                + "params.v1)) ? params.v2 : InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalQlScriptUtils."
+                +
                 "docValue(doc,params.v3),params.v4)) ? params.v5 : params.v6",
                 scriptTemplate.toString());
         assertEquals("[{v=keyword}, {v=^.*foo.*$}, {v=1}, {v=keyword}, {v=.*bar.*}, {v=2}, {v=3}]",

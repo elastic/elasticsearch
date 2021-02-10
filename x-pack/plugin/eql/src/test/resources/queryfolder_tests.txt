@@ -734,9 +734,9 @@ likeMultiArgWithScript
 process where substring(command_line, 5) like ("net.e*", "net.e?e")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3,params.v4))",
-"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.*$","v4":false}}
-"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.e$","v4":false}}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.*$"}}
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.e$"}}
 ;
 
 likeMultiArgWithScriptInsensitive
@@ -800,8 +800,8 @@ regexMultiArgWithScript
 process where substring(command_line, 5) regex ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3,params.v4))",
-"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","v4":false}}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
 ;
 
 regexMultiArgWithScriptInsensitive

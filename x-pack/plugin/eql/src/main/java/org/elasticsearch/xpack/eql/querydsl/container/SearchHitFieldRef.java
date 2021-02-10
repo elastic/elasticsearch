@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 
 // NB: this class is taken from SQL - it hasn't been ported over to QL
 // since at this stage is unclear whether the whole FieldExtraction infrastructure
@@ -65,9 +64,8 @@ public class SearchHitFieldRef implements FieldExtraction {
     }
 
     private static String format(DataType dataType) {
-        if (dataType == DATETIME_NANOS) {
-            return "strict_date_optional_time_nanos";
-        }
+        // We need epoch_millis for the tiebreaker timestamp field, because parsing timestamp strings
+        // can have a negative performance impact
         return dataType == DATETIME ? "epoch_millis" : null;
     }
 }

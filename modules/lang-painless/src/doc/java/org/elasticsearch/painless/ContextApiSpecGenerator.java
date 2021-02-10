@@ -15,7 +15,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -28,9 +30,9 @@ public class ContextApiSpecGenerator {
         List<PainlessContextInfo> contexts = ContextGeneratorCommon.getContextInfos();
         Path rootDir = resetRootDir();
         ContextGeneratorCommon.PainlessInfos infos;
-        Path jdksrc = getJdkSrc();
+        JavaClassFilesystemResolver jdksrc = getJdkSrc();
         if (jdksrc != null) {
-            infos = new ContextGeneratorCommon.PainlessInfos(contexts, new StdlibJavadocExtractor(jdksrc));
+            infos = new ContextGeneratorCommon.PainlessInfos(contexts, new JavadocExtractor(jdksrc));
         } else {
             infos = new ContextGeneratorCommon.PainlessInfos(contexts);
         }
@@ -70,11 +72,40 @@ public class ContextApiSpecGenerator {
     }
 
     @SuppressForbidden(reason = "resolve jdk src directory with environment")
-    private static Path getJdkSrc() {
+    private static JavaClassFilesystemResolver getJdkSrc() {
         String jdksrc = System.getProperty("jdksrc");
         if (jdksrc == null || "".equals(jdksrc)) {
             return null;
         }
-        return PathUtils.get(jdksrc);
+        return new JavaClassFilesystemResolver(PathUtils.get(jdksrc));
+    }
+
+    public static class JavaClassFilesystemResolver implements JavaClassResolver {
+        private final Path root;
+
+        public JavaClassFilesystemResolver(Path root) {
+            this.root = root;
+        }
+
+        @SuppressForbidden(reason = "resolve class file from java src directory with environment")
+        public InputStream openClassFile(String className) throws IOException {
+            // TODO(stu): handle primitives & not stdlib
+            if (className.contains(".") && className.startsWith("java")) {
+                int dollarPosition = className.indexOf("$");
+                if (dollarPosition >= 0) {
+                    className = className.substring(0, dollarPosition);
+                }
+                String[] packages = className.split("\\.");
+                String path = String.join("/", packages);
+                Path classPath = root.resolve(path + ".java");
+                return new FileInputStream(classPath.toFile());
+            }
+            return new InputStream() {
+                @Override
+                public int read() throws IOException {
+                    return -1;
+                }
+            };
+        }
     }
 }

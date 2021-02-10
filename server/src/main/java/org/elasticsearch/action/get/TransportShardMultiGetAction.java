@@ -90,7 +90,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
 
-        if (request.refresh() && !request.realtime()) {
+        if (request.refresh() && request.realtime() == false) {
             indexShard.refresh("refresh_flag_mget");
         }
 

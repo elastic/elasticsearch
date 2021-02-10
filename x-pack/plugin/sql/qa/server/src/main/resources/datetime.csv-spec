@@ -153,6 +153,16 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 
 2              |1953-01-07T00:00:00.000Z
 ;
 
+minuteOfDayFilterEquality
+SELECT MINUTE_OF_DAY(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS min_of_day 
+FROM test_emp WHERE min_of_day = 866 LIMIT 2;
+
+  min_of_day:i 
+---------------
+866            
+866            
+;
+
 selectAddWithDateTime
 schema::dt_year:s|dt_quarter:s|dt_month:s|dt_week:s|dt_day:s|dt_hours:s|dt_min:s|dt_sec:s|dt_millis:s|dt_mcsec:s|dt_nsec:s
 SELECT DATE_ADD('year', 10, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_year, DATE_ADD('quarter', -10, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_quarter, DATE_ADD('month', 20, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_month,

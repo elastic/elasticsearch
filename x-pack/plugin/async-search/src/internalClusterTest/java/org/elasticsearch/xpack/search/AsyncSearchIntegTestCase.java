@@ -24,7 +24,6 @@ import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -59,15 +58,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -99,44 +94,6 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static class ExpirationTimeScriptPlugin extends MockScriptPlugin {
-        @Override
-        public String pluginScriptLang() {
-            return "painless";
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            final String fieldName = "expiration_time";
-            final String script =
-                " if (ctx._source.expiration_time < params.expiration_time) { " +
-                "     ctx._source.expiration_time = params.expiration_time; " +
-                " } else { " +
-                "     ctx.op = \"noop\"; " +
-                " }";
-            return Map.of(
-                script, vars -> {
-                    Map<String, Object> params = (Map<String, Object>) vars.get("params");
-                    assertNotNull(params);
-                    assertThat(params.keySet(), contains(fieldName));
-                    long updatingValue = (long) params.get(fieldName);
-
-                    Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                    assertNotNull(ctx);
-                    Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                    long currentValue = (long) source.get(fieldName);
-                    if (currentValue < updatingValue) {
-                        source.put(fieldName, updatingValue);
-                    } else {
-                        ctx.put("op", "noop");
-                    }
-                    return ctx;
-                }
-            );
-        }
-    }
-
     @Before
     public void startMaintenanceService() {
         for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
@@ -164,7 +121,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, AsyncResultsIndexPlugin.class, IndexLifecycle.class,
-            SearchTestPlugin.class, ReindexPlugin.class, ExpirationTimeScriptPlugin.class);
+            SearchTestPlugin.class, ReindexPlugin.class);
     }
 
     @Override
@@ -233,7 +190,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     throw exc;
                 }
             }
-        }, 30, TimeUnit.SECONDS);
+        });
     }
 
     /**
@@ -251,7 +208,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     throw exc;
                 }
             }
-        }, 30, TimeUnit.SECONDS);
+        });
     }
 
     /**

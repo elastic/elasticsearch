@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.SortBuilders;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -32,12 +34,19 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         SqlTranslateResponse response = new SqlTranslateRequestBuilder(client(), SqlTranslateAction.INSTANCE)
                 .query("SELECT " + columns + " FROM test ORDER BY count").get();
         SearchSourceBuilder source = response.source();
-        FetchSourceContext fetch = source.fetchSource();
-        assertTrue(fetch.fetchSource());
-        assertArrayEquals(new String[] { "data", "count" }, fetch.includes());
-        assertEquals(
-                singletonList(new FieldAndFormat("date", "epoch_millis")),
-                source.docValueFields());
+        List<FieldAndFormat> actualFields = source.fetchFields();
+        List<FieldAndFormat> expectedFields = new ArrayList<>(3);
+        if (columnOrder) {
+            expectedFields.add(new FieldAndFormat("data", null));
+            expectedFields.add(new FieldAndFormat("count", null));
+            expectedFields.add(new FieldAndFormat("date", "epoch_millis"));
+        } else {
+            expectedFields.add(new FieldAndFormat("date", "epoch_millis"));
+            expectedFields.add(new FieldAndFormat("data", null));
+            expectedFields.add(new FieldAndFormat("count", null));
+        }
+        
+        assertEquals(expectedFields, actualFields);
         assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
     }
 }

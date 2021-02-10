@@ -434,7 +434,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        mapper.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        mapper.mapping().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
         builder.endObject();
 
         String mappingString = Strings.toString(builder);

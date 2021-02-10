@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Optional;
 
 /**
  * A transformation to replace the value of a match. For example, change from "match":{"_type": "foo"} to "match":{"_type": "bar"}
@@ -55,4 +57,19 @@ public class ReplaceMatch implements RestTestTransformByParentObject {
         matchNode.set(replaceKey, replacementNode);
     }
 
+    @Input
+    public String getReplaceKey() {
+        return replaceKey;
+    }
+
+    @Input
+    public JsonNode getReplacementNode() {
+        return replacementNode;
+    }
+
+    @Input
+    @Optional
+    public String getTestName() {
+        return testName;
+    }
 }

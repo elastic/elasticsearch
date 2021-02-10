@@ -17,6 +17,7 @@ import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalSetup;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalTeardown;
+import org.gradle.api.tasks.Input;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
@@ -150,5 +151,10 @@ public class InjectHeaders implements RestTestTransformByParentObject, RestTestT
             featuresNode.set("features", TextNode.valueOf("headers"));
             skipNode.set("skip", featuresNode);
         }
+    }
+
+    @Input
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 }

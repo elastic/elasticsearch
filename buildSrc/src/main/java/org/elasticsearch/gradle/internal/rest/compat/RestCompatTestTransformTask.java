@@ -25,8 +25,8 @@ import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
 
@@ -164,9 +163,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
         }
     }
 
-    @Input
-    public List<String> getTransformations() {
-        return transformations.stream().map(t -> t.getClass().getName()).collect(Collectors.toList());
+    @Nested
+    public List<RestTestTransform<?>> getTransformations() {
+        return transformations;
     }
 
     public void setInput(FileCollection input) {

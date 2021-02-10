@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentArray;
+import org.gradle.api.tasks.Input;
 
 import java.util.Objects;
 
@@ -51,5 +52,20 @@ public class AddMatch implements RestTestTransformByParentArray {
         // match objects are always in the array that is the direct child of the test name, i.e.
         // "my test name" : [ {"do" : ... }, { "match" : .... }]
         return testName;
+    }
+
+    @Input
+    public String getMatchKey() {
+        return matchKey;
+    }
+
+    @Input
+    public String getTestName() {
+        return testName;
+    }
+
+    @Input
+    public JsonNode getMatchValue() {
+        return matchValue;
     }
 }

@@ -300,6 +300,13 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         then:
         result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
+
+        when:
+        buildFile.write(buildFile.text.replace("blah", "baz"))
+        result = gradleRunner(transformTask).build()
+
+        then:
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
     }
 
 }

@@ -14,6 +14,32 @@ Machine learning::
 suboptimal modeling after a job was closed and reopened or failed over to a
 different node {ml-pull}1668[#1668]
 
+CCR::
+* Stop renew retention leases when follow task fails {es-pull}65168[#65168]
+
+Engine::
+* Fix the version and term field initialization error of `NoOpResult` {es-pull}66269[#66269] (issue: {es-issue}66267[#66267])
+
+Features/Monitoring::
+* Do not report negative values for swap sizes {es-pull}57317[#57317] (issues: {es-issue}42725[#42725], {es-issue}56435[#56435], {es-issue}57312[#57312])
+
+Infra/Core::
+* Fix missing `QuotaPath.unwrap()` instances {es-pull}67165[#67165] (issue: {es-issue}67164[#67164])
+
+Network::
+* Ensure notify when proxy connections disconnect {es-pull}65697[#65697] (issue: {es-issue}65443[#65443])
+
+Search::
+* Do not wrap `can_match` searchers {es-pull}64742[#64742]
+
+[[upgrade-6.8.14]]
+[float]
+=== Upgrades
+
+Packaging::
+* Upgrade bundled jdk to 15.0.1 and switch back to `AdoptOpenJDK` {es-pull}64253[#64253] (issue: {es-issue}64026[#64026])
+
+
 
 [[release-notes-6.8.13]]
 == {es} version 6.8.13

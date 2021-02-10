@@ -8,8 +8,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -17,9 +18,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Tests for testing {@link RollupMetadata}, the Rollup V2 cluster metadata
+ * Tests for testing {@link RollupMetadata}, the data stream metadata for Rollup V2.
  */
-public class RollupMetadataTests extends AbstractNamedWriteableTestCase<RollupMetadata> {
+public class RollupMetadataTests extends AbstractSerializingTestCase<RollupMetadata> {
 
     @Override
     protected RollupMetadata createTestInstance() {
@@ -34,18 +35,12 @@ public class RollupMetadataTests extends AbstractNamedWriteableTestCase<RollupMe
     }
 
     @Override
-    protected RollupMetadata mutateInstance(RollupMetadata instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+    protected RollupMetadata doParseInstance(XContentParser parser) throws IOException {
+        return RollupMetadata.fromXContent(parser);
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.singletonList(new NamedWriteableRegistry.Entry(RollupMetadata.class,
-            RollupMetadata.TYPE, RollupMetadata::new)));
-    }
-
-    @Override
-    protected Class<RollupMetadata> categoryClass() {
-        return RollupMetadata.class;
+    protected Writeable.Reader<RollupMetadata> instanceReader() {
+        return RollupMetadata::new;
     }
 }

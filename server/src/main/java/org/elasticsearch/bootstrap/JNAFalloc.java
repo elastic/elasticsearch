@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import com.sun.jna.Native;
+import com.sun.jna.Platform;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
@@ -32,8 +33,7 @@ abstract class JNAFalloc {
                 return Linux.INSTANCE;
             }
         } catch (Throwable t) {
-            // just debug, already logged in the specific classes
-            logger.debug("failed to load JNA native falloc implementation", t);
+            logger.warn("unable to link C library. native (falloc) will be disabled.", t);
         }
         return null;
     }
@@ -43,11 +43,7 @@ abstract class JNAFalloc {
         static final Linux INSTANCE = new Linux();
 
         static {
-            try {
-                Native.register("c");
-            } catch (UnsatisfiedLinkError e) {
-                logger.warn("unable to link C library. native (falloc) will be disabled.", e);
-            }
+            Native.register(Platform.C_LIBRARY_NAME);
         }
 
         @Override
@@ -56,7 +52,6 @@ abstract class JNAFalloc {
             return res == 0 ? 0 : Native.getLastError();
         }
 
-        // TODO: Bind POSIX fallocate as well to support non-Linux? (this would only apply to OSX in practice?)
         private static native int fallocate(int fd, int mode, long offset, long length);
     }
 
@@ -65,12 +60,9 @@ abstract class JNAFalloc {
         static final OSX INSTANCE = new OSX();
 
         static {
-            try {
-                Native.register("c");
-            } catch (UnsatisfiedLinkError e) {
-                logger.warn("unable to link C library. native (falloc) will be disabled.", e);
-            }
+            Native.register("c");
         }
+
         @Override
         public int fallocate(int fd, long offset, long length) {
             return posix_fallocate(fd, offset, length);

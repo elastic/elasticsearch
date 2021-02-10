@@ -505,7 +505,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         SourceConfig sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            new HashMap<>() {
+            new HashMap<String, Object>() {
                 {
                     put("field-A", singletonMap("script", "some script"));
                     put("field-B", emptyMap());
@@ -551,7 +551,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         SourceConfig sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            new HashMap<>() {
+            new HashMap<String, Object>() {
                 {
                     put("field-A", singletonMap("script", "some script"));
                     put("field-B", singletonMap("script", "some script"));

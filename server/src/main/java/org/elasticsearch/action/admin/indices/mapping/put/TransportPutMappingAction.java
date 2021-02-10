@@ -170,10 +170,14 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         }
 
         if (violations.isEmpty() == false) {
+            logger.debug(() -> new ParameterizedMessage("Updating mappings in {}"
+                + ": system indices can only use mappings from their descriptors,"
+                + " but the mappings in the request [{}] did not match those in the descriptor(s)."
+                + " This will not work in the next major version", violations, requestMappings));
             return "Updating mappings in "
                 + violations
                 + ": system indices can only use mappings from their descriptors,"
-                + " but the mappings in the request [" + requestMappings + "] did not match those in the descriptor(s)."
+                + " but the mappings in the request did not match those in the descriptor(s)."
                 + " This will not work in the next major version";
         }
 

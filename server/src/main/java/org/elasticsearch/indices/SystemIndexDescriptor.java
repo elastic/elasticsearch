@@ -17,8 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -66,6 +69,9 @@ public class SystemIndexDescriptor {
 
     /** The minimum cluster node version required for this descriptor, or null if there is no restriction */
     private final Version minimumNodeVersion;
+
+    /** Whether there are dynamic fields in this descriptor's mappings */
+    private final boolean hasDynamicMappings;
 
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
@@ -162,7 +168,11 @@ public class SystemIndexDescriptor {
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
         this.minimumNodeVersion = minimumNodeVersion;
+
+        this.hasDynamicMappings = this.mappings != null
+            && findDynamicMapping(XContentHelper.convertToMap(JsonXContent.jsonXContent, mappings, false));
     }
+
 
     /**
      * @return The pattern of index names that this descriptor will be used for.
@@ -226,6 +236,10 @@ public class SystemIndexDescriptor {
 
     public String getOrigin() {
         return this.origin;
+    }
+
+    public boolean hasDynamicMappings() {
+        return this.hasDynamicMappings;
     }
 
     /**
@@ -385,5 +399,33 @@ public class SystemIndexDescriptor {
         output = output.replaceAll("\\.", "\\.");
         output = output.replaceAll("\\*", ".*");
         return output;
+    }
+
+    /**
+     * Recursively searches for <code>dynamic: true</code> in the supplies mappings
+     * @param map a parsed fragment of an index's mappings
+     * @return whether the fragment contains a dynamic mapping
+     */
+    @SuppressWarnings("unchecked")
+    static boolean findDynamicMapping(Map<String, Object> map) {
+        if (map == null) {
+            return false;
+        }
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            final String key = entry.getKey();
+            final Object value = entry.getValue();
+            if (key.equals("dynamic") && (value instanceof Boolean) && ((Boolean) value)) {
+                return true;
+            }
+
+            if (value instanceof Map) {
+                if (findDynamicMapping((Map<String, Object>) value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

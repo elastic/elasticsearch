@@ -25,8 +25,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
  * sure to passes an empty multi-fields list to help prevent conflicting sub-keys from being
  * registered.
  *
- * Note: we anticipate that 'flattened' fields will be the only implementation of this
- * interface. Flattened object fields live in the 'mapper-flattened' module.
+ * Note: currently 'flattened' fields are the only implementation of this interface.
  */
 public abstract class DynamicKeyFieldMapper extends FieldMapper {
 

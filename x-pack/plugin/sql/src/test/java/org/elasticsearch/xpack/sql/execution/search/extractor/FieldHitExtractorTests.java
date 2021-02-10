@@ -26,12 +26,15 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
@@ -40,6 +43,8 @@ import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFiel
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IF_MULTIVALUE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -155,7 +160,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
+            "use ARRAY(" + fieldName + ") instead"));
     }
 
     public void testExtractSourcePath() throws IOException {
@@ -172,7 +178,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         DocumentField field = new DocumentField("a", asList(value, value));
         SearchHit hit = new SearchHit(1, null, null, singletonMap("a", field), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a]; use ARRAY(a) instead"));
     }
 
     public void testMultiValuedSourceAllowed() {
@@ -182,6 +188,31 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         DocumentField field = new DocumentField("a", asList(valueA, valueB));
         SearchHit hit = new SearchHit(1, null, null, singletonMap("a", field), null);
         assertEquals(valueA, fe.extract(hit));
+    }
+
+    // "a": null
+    public void testMultiValueNull() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
+        assertEquals(singletonList(null), fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, singletonList(null))), null)));
+    }
+
+    // "a": [] / missing
+    public void testMultiValueEmpty() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
+        assertEquals(singletonList(null), fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, emptyList())), null)));
+    }
+
+    // "a": [int1, int2, ..]
+    public void testMultiValueImmediateFromMap() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
+        List<Integer> list = randomList(2, 10, ESTestCase::randomInt);
+        assertEquals(list, fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, list.stream().map(x -> (Object) x).collect(Collectors.toList()))), null)));
     }
 
     public void testGeoShapeExtraction() {
@@ -211,11 +242,16 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
 
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
+            "use ARRAY(" + fieldName + ") instead"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, EXTRACT_ONE);
         assertEquals(new GeoShape(3, 4), lenientFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
             new DocumentField(fieldName, singletonList(map2))), null)));
+
+        FieldHitExtractor arrayFe = getArrayFieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE);
+        assertEquals(asList(new GeoShape(1, 2), new GeoShape(3, 4)), arrayFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, asList(map1, map2))), null)));
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName) {

@@ -141,7 +141,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             SQLException.class,
             () -> doWithQuery(() -> esWithLeniency(false), "SELECT int, keyword FROM test", results -> {})
         );
-        assertTrue(expected.getMessage().contains("Arrays (returned by [int]) are not supported"));
+        assertTrue(expected.getMessage().contains("Cannot return multiple values for field [int]; use ARRAY(int) instead"));
 
         // default has multi value disabled
         expectThrows(SQLException.class, () -> doWithQuery(this::esJdbc, "SELECT int, keyword FROM test", results -> {}));
@@ -177,7 +177,8 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 results -> {}
             )
         );
-        assertTrue(expected.getMessage().contains("Arrays (returned by [object.intsubfield]) are not supported"));
+        assertTrue(expected.getMessage().contains("Cannot return multiple values for field [object.intsubfield]; " +
+            "use ARRAY(object.intsubfield) instead"));
 
         // default has multi value disabled
         expectThrows(

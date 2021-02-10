@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -136,18 +137,10 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     @Override
     public Object extract(SearchHit hit) {
-        Object value = null;
-        DocumentField field = null;
-        if (hitName != null) {
-            // a nested field value is grouped under the nested parent name (ie dep.dep_name lives under "dep":[{dep_name:value}])
-            field = hit.field(hitName);
-        } else {
-            field = hit.field(fieldName);
-        }
-        if (field != null) {
-            value = unwrapFieldsMultiValue(field.getValues());
-        }
-        return value;
+        // hitName: a nested field value is grouped under the nested parent name (ie dep.dep_name lives under "dep":[{dep_name:value}])
+        String lookupName = hitName != null ? hitName : fieldName;
+        DocumentField field = hit.field(lookupName);
+        return field != null ? multiValueHandling.handle(unwrapFieldsMultiValue(field.getValues()), lookupName) : null;
     }
 
     protected Object unwrapFieldsMultiValue(Object values) {
@@ -164,11 +157,16 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                 return null;
             } else {
                 if (isPrimitive(list) == false) {
-                    if (list.size() == 1 || multiValueHandling == MultiValueHandling.EXTRACT_ONE) {
-                        return unwrapFieldsMultiValue(list.get(0));
-                    } else {
-                        throw new QlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                    List<Object> unwrappedList = new ArrayList<>();
+                    for (Object o : list) {
+                        Object unwrapped = unwrapFieldsMultiValue(o);
+                        if (unwrapped instanceof List) {
+                            unwrappedList.addAll((List<?>) unwrapped);
+                        } else {
+                            unwrappedList.add(unwrapped);
+                        }
                     }
+                    return unwrappedList;
                 }
             }
         }

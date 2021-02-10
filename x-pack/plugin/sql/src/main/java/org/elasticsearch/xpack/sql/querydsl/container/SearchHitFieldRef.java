@@ -60,11 +60,7 @@ public class SearchHitFieldRef extends FieldReference {
         if (hitName != null) {
             return;
         }
-        if (docValue) {
-            sourceBuilder.addDocField(name, SqlDataTypes.format(dataType));
-        } else {
-            sourceBuilder.addSourceField(name);
-        }
+        sourceBuilder.addFetchField(name, SqlDataTypes.format(dataType));
     }
 
     @Override

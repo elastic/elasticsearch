@@ -8,16 +8,14 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
-import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BinaryOperator;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -68,7 +66,7 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * @param onFailure  is called when this step is completed with a failure
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
-        delegate.addListener(ActionListener.wrap(onResponse, onFailure), EsExecutors.newDirectExecutorService(), null);
+        addListener(ActionListener.wrap(onResponse, onFailure));
     }
 
     /**
@@ -78,16 +76,11 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * @param fn    the function that combines the results
      * @return the combined listener
      */
-    public StepListener<Response> thenCombine(StepListener<Response> other, BinaryOperator<Response> fn) {
-        final StepListener<Response> combined = new StepListener<>();
-        final GroupedActionListener<Response> groupedActionListener =
-            new GroupedActionListener<>(combined.map(results -> {
-                final Optional<Response> response = results.stream().reduce(fn);
-                assert response.isPresent();
-                return response.get();
-            }), 2);
-        delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
-        other.delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
+    public <OtherResponse, OuterResponse> StepListener<OuterResponse> thenCombine(
+            StepListener<OtherResponse> other,
+            BiFunction<Response, OtherResponse, OuterResponse> fn) {
+        final StepListener<OuterResponse> combined = new StepListener<>();
+        whenComplete(r1 -> other.whenComplete(r2 -> combined.onResponse(fn.apply(r1, r2)), combined::onFailure), combined::onFailure);
         return combined;
     }
 
@@ -107,4 +100,12 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
         }
         return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.
     }
+
+    /**
+     * Registers the given listener to be notified with the result of this step.
+     */
+    public void addListener(ActionListener<Response> listener) {
+        delegate.addListener(listener, EsExecutors.newDirectExecutorService());
+    }
+
 }

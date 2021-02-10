@@ -23,11 +23,6 @@ public class RLikePattern extends AbstractStringPattern {
     }
 
     @Override
-    public String asString() {
-        return regexpPattern;
-    }
-
-    @Override
     public String asJavaRegex() {
         return regexpPattern;
     }

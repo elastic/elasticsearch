@@ -71,7 +71,7 @@ public class CountDownTests extends ESTestCase {
     public void testSingleThreaded() {
         int atLeast = scaledRandomIntBetween(10, 1000);
         final CountDown countDown = new CountDown(atLeast);
-        while(!countDown.isCountedDown()) {
+        while (countDown.isCountedDown() == false) {
             atLeast--;
             if (countDown.countDown()) {
                 assertThat(atLeast, equalTo(0));

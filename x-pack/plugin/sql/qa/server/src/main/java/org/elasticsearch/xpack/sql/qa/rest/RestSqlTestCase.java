@@ -418,6 +418,50 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
+    public void testCountAndCountDistinct() throws IOException {
+        String mode = randomMode();
+        index(
+            "test",
+            "{\"gender\":\"m\", \"langs\": 1}",
+            "{\"gender\":\"m\", \"langs\": 1}",
+            "{\"gender\":\"m\", \"langs\": 2}",
+            "{\"gender\":\"m\", \"langs\": 3}",
+            "{\"gender\":\"m\", \"langs\": 3}",
+            "{\"gender\":\"f\", \"langs\": 1}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 3}",
+            "{\"gender\":\"f\", \"langs\": 3}"
+        );
+
+        Map<String, Object> expected = new HashMap<>();
+        boolean columnar = randomBoolean();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "gender", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo(mode, "cnt", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "cnt_dist", "long", JDBCType.BIGINT, 20)
+            )
+        );
+        if (columnar) {
+            expected.put("values", Arrays.asList(Arrays.asList("f", "m"), Arrays.asList(6, 5), Arrays.asList(3, 3)));
+        } else {
+            expected.put("rows", Arrays.asList(Arrays.asList("f", 6, 3), Arrays.asList("m", 5, 3)));
+        }
+
+        Map<String, Object> response = runSql(
+            mode,
+            "SELECT gender, COUNT(langs) AS cnt, COUNT(DISTINCT langs) AS cnt_dist " + "FROM test GROUP BY gender ORDER BY gender",
+            columnar
+        );
+
+        String cursor = (String) response.remove("cursor");
+        assertNotNull(cursor);
+        assertResponse(expected, response);
+    }
+
     @Override
     public void testSelectScoreSubField() throws Exception {
         index("{\"foo\":1}");
@@ -628,11 +672,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").toString());
         assertEquals(1000, response.get("size"));
+        assertFalse((Boolean) response.get("_source"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> source = (Map<String, Object>) response.get("_source");
-        assertNotNull(source);
-        assertEquals(emptyList(), source.get("excludes"));
-        assertEquals(singletonList("test"), source.get("includes"));
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(singletonList(singletonMap("field", "test")), source);
     }
 
     public void testBasicQueryWithFilter() throws IOException {
@@ -699,11 +742,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").filter("{\"match\": {\"test\": \"foo\"}}").toString());
 
         assertEquals(response.get("size"), 1000);
+        assertFalse((Boolean) response.get("_source"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> source = (Map<String, Object>) response.get("_source");
-        assertNotNull(source);
-        assertEquals(emptyList(), source.get("excludes"));
-        assertEquals(singletonList("test"), source.get("includes"));
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(singletonList(singletonMap("field", "test")), source);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> query = (Map<String, Object>) response.get("query");
@@ -740,7 +782,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         assertEquals(response.get("size"), 0);
         assertEquals(false, response.get("_source"));
-        assertEquals("_none_", response.get("stored_fields"));
+        assertNull(response.get("stored_fields"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> aggregations = (Map<String, Object>) response.get("aggregations");

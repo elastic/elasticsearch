@@ -16,12 +16,12 @@ ext {
 archivesBaseName = 'x-pack-eql'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   compileOnly(project(':modules:lang-painless')) {
     exclude group: "org.ow2.asm"
   }
   api "org.antlr:antlr4-runtime:${antlrVersion}"
-  compileOnly project(path: xpackModule('ql'), configuration: 'default')
+  compileOnly project(path: xpackModule('ql'))
 
   testImplementation project(':test:framework')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')

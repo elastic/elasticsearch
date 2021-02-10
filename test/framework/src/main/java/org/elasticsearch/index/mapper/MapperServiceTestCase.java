@@ -102,6 +102,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return createIndexAnalyzers();
+    }
+
+    protected static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.of(),
@@ -171,16 +175,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
-        settings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", 1)
-            .put(settings)
-            .put("index.version.created", version)
-            .build();
-        IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
+        IndexSettings indexSettings = createIndexSettings(version, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
@@ -200,6 +195,19 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             idFieldDataEnabled,
             scriptService
         );
+    }
+
+    protected static IndexSettings createIndexSettings(Version version, Settings settings) {
+        settings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", 1)
+            .put(settings)
+            .put("index.version.created", version)
+            .build();
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(settings)
+            .build();
+        return new IndexSettings(meta, settings);
     }
 
     protected final void withLuceneIndex(

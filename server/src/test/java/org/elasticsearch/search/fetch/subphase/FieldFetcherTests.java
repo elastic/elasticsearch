@@ -119,6 +119,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "_routing");
         assertTrue(fields.isEmpty());
+
+        // The _type field was deprecated in 7.x and is not supported in 8.0. So the behavior
+        // should be the same as if the field didn't exist.
+        fields = fetchFields(mapperService, source, "_type");
+        assertTrue(fields.isEmpty());
     }
 
     public void testFetchAllFields() throws IOException {

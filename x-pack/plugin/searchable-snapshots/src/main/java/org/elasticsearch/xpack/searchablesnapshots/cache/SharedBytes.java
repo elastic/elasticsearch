@@ -15,8 +15,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.snapshots.SnapshotUtils;
-import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,6 +33,8 @@ public class SharedBytes extends AbstractRefCounted {
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE };
 
+    private static final String CACHE_FILE_NAME = "snap_cache";
+
     final int numRegions;
     final long regionSize;
 
@@ -51,21 +51,29 @@ public class SharedBytes extends AbstractRefCounted {
         final long fileSize = numRegions * regionSize;
         Path cacheFile = null;
         if (fileSize > 0) {
-            cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
+            for (Path path : environment.dataFiles()) {
+                // TODO: be resilient to this check failing and try next path?
+                long usableSpace = getUsableSpace(path);
+                Path p = path.resolve(CACHE_FILE_NAME);
+                if (Files.exists(p)) {
+                    usableSpace += Files.size(p);
+                }
+                // TODO: leave some margin for error here
+                if (usableSpace > fileSize) {
+                    cacheFile = p;
+                    break;
+                }
+            }
             if (cacheFile == null) {
                 throw new IOException("Could not find a directory with adequate free space for cache file");
             }
             // TODO: maybe make this faster by allocating a larger direct buffer if this is too slow for very large files
             // We fill either the full file or the bytes between its current size and the desired size once with zeros to fully allocate
             // the file up front
+            logger.info("creating shared snapshot cache file [size={}, path={}]", fileSize, cacheFile);
             final ByteBuffer fillBytes = ByteBuffer.allocate(Channels.WRITE_CHUNK_SIZE);
             this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
             long written = fileChannel.size();
-            if (fileSize < written) {
-                logger.info("creating shared snapshot cache file [size={}, path={}]", fileSize, cacheFile);
-            } else if (fileSize == written) {
-                logger.debug("reusing existing shared snapshot cache file [size={}, path={}]", fileSize, cacheFile);
-            }
             fileChannel.position(written);
             while (written < fileSize) {
                 final int toWrite = Math.toIntExact(Math.min(fileSize - written, Channels.WRITE_CHUNK_SIZE));
@@ -79,10 +87,21 @@ public class SharedBytes extends AbstractRefCounted {
         } else {
             this.fileChannel = null;
             for (Path path : environment.dataFiles()) {
-                Files.deleteIfExists(path.resolve(SnapshotsService.CACHE_FILE_NAME));
+                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
             }
         }
         this.path = cacheFile;
+    }
+
+    // TODO: dry up against MLs usage of the same method
+    private static long getUsableSpace(Path path) throws IOException {
+        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
+
+        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+        if (freeSpaceInBytes < 0) {
+            freeSpaceInBytes = Long.MAX_VALUE;
+        }
+        return freeSpaceInBytes;
     }
 
     @Override

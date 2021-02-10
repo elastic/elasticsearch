@@ -23,7 +23,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
@@ -73,7 +72,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
             rarely()
                 ? randomBoolean()
                     ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
@@ -81,14 +80,14 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
         );
         builder.put(
-            SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
                 ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
                 : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
         );
         if (randomBoolean()) {
             builder.put(
-                SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(),
+                FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB)
                     : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)

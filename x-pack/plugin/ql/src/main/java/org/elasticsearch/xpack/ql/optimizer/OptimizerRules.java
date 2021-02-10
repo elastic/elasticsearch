@@ -1471,9 +1471,12 @@ public final class OptimizerRules {
                 StringPattern pattern = regexMatch.pattern();
                 if (pattern.matchesAll()) {
                     e = new IsNotNull(e.source(), regexMatch.field());
-                } else if (pattern.isExactMatch()) {
-                    Literal literal = new Literal(regexMatch.source(), regexMatch.pattern().asString(), DataTypes.KEYWORD);
-                    e = new Equals(e.source(), regexMatch.field(), literal);
+                } else {
+                    String match = pattern.exactMatch();
+                    if (match != null) {
+                        Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                        e = new Equals(e.source(), regexMatch.field(), literal);
+                    }
                 }
             }
             return e;

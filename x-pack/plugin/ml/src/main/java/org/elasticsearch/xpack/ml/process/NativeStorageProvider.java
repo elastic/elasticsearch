@@ -134,13 +134,8 @@ public class NativeStorageProvider {
         return minLocalStorageAvailable;
     }
 
+    // non-static indirection to enable mocking in tests
     long getUsableSpace(Path path) throws IOException {
-        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
-
-        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
-        if (freeSpaceInBytes < 0) {
-            freeSpaceInBytes = Long.MAX_VALUE;
-        }
-        return freeSpaceInBytes;
+        return Environment.getUsableSpace(path);
     }
 }

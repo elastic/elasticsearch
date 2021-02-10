@@ -365,10 +365,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
-            if (parseField.getVersions().contains(RestApiCompatibleVersion.minimumSupported())) {
+            if (parseField.getRestApiCompatibleVersions().contains(RestApiCompatibleVersion.minimumSupported())) {
                 compatibleFieldParserMap.putIfAbsent(fieldValue, fieldParser);
             }
-            if (parseField.getVersions().contains(RestApiCompatibleVersion.currentVersion())) {
+            if (parseField.getRestApiCompatibleVersions().contains(RestApiCompatibleVersion.currentVersion())) {
                 fieldParserMap.putIfAbsent(fieldValue, fieldParser);
             }
         }

@@ -1291,7 +1291,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(XContent xContent, String data) throws IOException {
+    protected XContentParser createParser(XContent xContent, String data) throws IOException {
         return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 

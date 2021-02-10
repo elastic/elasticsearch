@@ -1295,17 +1295,20 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final IllegalArgumentException remountException = expectThrows(IllegalArgumentException.class, () -> {
             try {
                 mountSnapshot(
-                        restoreRepositoryName,
-                        snapshotTwo.getName(),
-                        restoredIndexName,
-                        randomAlphaOfLength(10).toLowerCase(Locale.ROOT),
-                        Settings.EMPTY);
+                    restoreRepositoryName,
+                    snapshotTwo.getName(),
+                    restoredIndexName,
+                    randomAlphaOfLength(10).toLowerCase(Locale.ROOT),
+                    Settings.EMPTY
+                );
             } catch (Exception e) {
                 final Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
                 throw cause == null ? e : cause;
             }
         });
-        assertThat(remountException.getMessage(), allOf(
+        assertThat(
+            remountException.getMessage(),
+            allOf(
                 containsString("is a snapshot of a searchable snapshot index backed by index"),
                 containsString(repositoryName),
                 containsString(snapshotOne.getName()),
@@ -1314,7 +1317,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 containsString(snapshotTwo.getName()),
                 containsString(restoredIndexName),
                 containsString("cannot be mounted; did you mean to restore it instead?")
-        ));
+            )
+        );
     }
 
     private void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {

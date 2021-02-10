@@ -183,9 +183,11 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
 
             final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
             if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                        "index [%s] in snapshot [%s/%s:%s] is a snapshot of a searchable snapshot index " +
-                                "backed by index [%s] in snapshot [%s/%s:%s] and cannot be mounted; did you mean to restore it instead?",
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "index [%s] in snapshot [%s/%s:%s] is a snapshot of a searchable snapshot index "
+                            + "backed by index [%s] in snapshot [%s/%s:%s] and cannot be mounted; did you mean to restore it instead?",
                         indexName,
                         repoName,
                         repository.getMetadata().uuid(),
@@ -193,7 +195,9 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING.get(indexMetadata.getSettings()),
                         SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexMetadata.getSettings()),
                         SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexMetadata.getSettings()),
-                        SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())));
+                        SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexMetadata.getSettings())
+                    )
+                );
             }
 
             client.admin()

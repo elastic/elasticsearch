@@ -36,8 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -69,13 +67,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
-    public static final String EXPIRATION_TIME_SCRIPT =
-        " if (ctx._source.expiration_time < params.expiration_time) { " +
-        "     ctx._source.expiration_time = params.expiration_time; " +
-        " } else { " +
-        "     ctx.op = \"noop\"; " +
-        " }";
-
     public static final String RESULT_FIELD = "result";
 
     static Settings settings() {
@@ -235,15 +226,16 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
-     * Extends the expiration time of the provided <code>docId</code> if the place-holder document is still present (update).
+     * Updates the expiration time of the provided <code>docId</code> if the place-holder
+     * document is still present (update).
      */
-    public void extendExpirationTime(String docId, long expirationTimeMillis, ActionListener<UpdateResponse> listener) {
-        Script script = new Script(ScriptType.INLINE, "painless", EXPIRATION_TIME_SCRIPT,
-            Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis));
-        UpdateRequest request = new UpdateRequest()
-            .index(index)
+    public void updateExpirationTime(String docId,
+                              long expirationTimeMillis,
+                              ActionListener<UpdateResponse> listener) {
+        Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
+        UpdateRequest request = new UpdateRequest().index(index)
             .id(docId)
-            .script(script)
+            .doc(source, XContentType.JSON)
             .retryOnConflict(5);
         // updates create the index automatically if it doesn't exist so we force the creation
         // preemptively.

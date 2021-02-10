@@ -38,8 +38,8 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         List<FieldAndFormat> expectedFields = new ArrayList<>(3);
         if (columnOrder) {
             expectedFields.add(new FieldAndFormat("data", null));
-                    expectedFields.add(new FieldAndFormat("count", null));
-                    expectedFields.add(new FieldAndFormat("date", "strict_date_optional_time_nanos"));
+            expectedFields.add(new FieldAndFormat("count", null));
+            expectedFields.add(new FieldAndFormat("date", "strict_date_optional_time_nanos"));
         } else {
             expectedFields.add(new FieldAndFormat("date", "strict_date_optional_time_nanos"));
             expectedFields.add(new FieldAndFormat("data", null));

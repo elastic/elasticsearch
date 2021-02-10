@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentArray;
 
 import java.util.Objects;
@@ -32,8 +33,8 @@ public class AddMatch implements RestTestTransformByParentArray {
     }
 
     @Override
-    public String getTestName() {
-        return testName;
+    public boolean shouldApply(RestTestContext testContext) {
+        return testContext.getTestName().equals(testName);
     }
 
     @Override

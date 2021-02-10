@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 
 /**
@@ -40,8 +41,8 @@ public class RemoveMatch implements RestTestTransformByParentObject {
     }
 
     @Override
-    public String getTestName() {
-        return testName;
+    public boolean shouldApply(RestTestContext testContext) {
+        return testName == null || testContext.getTestName().equals(testName);
     }
 
     @Override

@@ -24,9 +24,9 @@ public interface RestTestTransform<T extends JsonNode> {
     void transformTest(T parent);
 
     /**
-     * @return The test name to to apply this transformation to. if {@code null} will apply to any test irregardless of the name.
+     * @return true if the transformation should be applied, false otherwise.
      */
-    default String getTestName() {
-        return null;
+    default boolean shouldApply(RestTestContext testContext) {
+        return true;
     }
 }

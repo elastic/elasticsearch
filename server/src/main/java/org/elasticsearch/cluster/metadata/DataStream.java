@@ -25,6 +25,7 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -169,6 +170,44 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream promoteDataStream() {
         return new DataStream(name, timeStampField, indices, getGeneration(), metadata, hidden, false);
+    }
+
+    /**
+     * Reconciles this data stream with its state at the end of the snapshot.
+     *
+     * @param afterSnapshot The post-snapshot data stream
+     * @return Reconciled {@link DataStream} instance
+     */
+    public DataStream reconcile(DataStream afterSnapshot) {
+        if (name.equals(afterSnapshot.name) == false ||
+            timeStampField.equals(afterSnapshot.timeStampField) == false ||
+            hidden != afterSnapshot.hidden ||
+            replicated != afterSnapshot.replicated) {
+            throw new IllegalArgumentException(
+                "cannot reconcile data streams with differing names, timestamp fields, hidden statuses, or replicated statuses"
+            );
+        }
+
+        // starting from the pre-snapshot state ensures that any indices added during snapshot are excluded
+        List<Index> reconciledIndices = new ArrayList<>(this.indices);
+        // do not include indices deleted during snapshot
+        reconciledIndices.removeIf(x -> afterSnapshot.indices.contains(x) == false);
+
+        if (reconciledIndices.size() == 0) {
+            throw new IllegalArgumentException("cannot reconcile data streams in which all pre-snapshot backing indices were deleted");
+        }
+
+        // take metadata from later data stream
+        // generation must come from the pre-snapshot DS
+        return new DataStream(
+            name,
+            timeStampField,
+            reconciledIndices,
+            generation,
+            new HashMap<>(afterSnapshot.metadata),
+            hidden,
+            replicated
+        );
     }
 
     /**

@@ -93,14 +93,14 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     }
 
     public void testGetRuntimeMappings_NonEmptyRuntimeMappings() {
-        Map<String, Object> runtimeMappings = new HashMap<>() {
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {
             {
                 put("field-A", singletonMap("type", "keyword"));
                 put("field-B", singletonMap("script", "some script"));
                 put("field-C", singletonMap("script", "some other script"));
             }
         };
-        Map<String, Object> scriptBasedRuntimeMappings = new HashMap<>() {
+        Map<String, Object> scriptBasedRuntimeMappings = new HashMap<String, Object>() {
             {
                 put("field-B", singletonMap("script", "some script"));
                 put("field-C", singletonMap("script", "some other script"));

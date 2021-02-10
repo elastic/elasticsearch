@@ -32,7 +32,8 @@ abstract class JNAFalloc {
                 return Linux.INSTANCE;
             }
         } catch (Throwable t) {
-            logger.info("Failed to load JNA native falloc implementation", t);
+            // just debug, already logged in the specific classes
+            logger.debug("failed to load JNA native falloc implementation", t);
         }
         return null;
     }

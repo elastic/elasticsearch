@@ -56,7 +56,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
     Request extends AbstractGetResourcesRequest, Response extends AbstractGetResourcesResponse<Resource>>
     extends HandledTransportAction<Request, Response> {
 
-    private static final String ALL = "_all";
+    public static final String ALL = "_all";
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;

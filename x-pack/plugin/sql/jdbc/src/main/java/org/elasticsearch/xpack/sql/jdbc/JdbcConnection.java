@@ -88,7 +88,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
         checkOpen();
-        if (!autoCommit) {
+        if (autoCommit == false) {
             new SQLFeatureNotSupportedException("Non auto-commit is not supported");
         }
     }
@@ -119,7 +119,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
-        if (!isClosed()) {
+        if (isClosed() == false) {
             closed = true;
             Debug.release(cfg);
         }
@@ -137,7 +137,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
 
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
-        if (!readOnly) {
+        if (readOnly == false) {
             throw new SQLFeatureNotSupportedException("Only read-only mode is supported");
         }
     }
@@ -325,7 +325,7 @@ class JdbcConnection implements Connection, JdbcWrapper {
         if (timeout < 0) {
             throw new SQLException("Negative timeout");
         }
-        return !isClosed() && client.ping(TimeUnit.SECONDS.toMillis(timeout));
+        return isClosed() == false && client.ping(TimeUnit.SECONDS.toMillis(timeout));
     }
 
     private void checkOpenClientInfo() throws SQLClientInfoException {

@@ -165,7 +165,10 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerHits.getAt(0).getHighlightFields().get("comments.message").getFragments()[0].string(),
                 equalTo("<em>fox</em> eat quick"));
         assertThat(innerHits.getAt(0).getExplanation().toString(), containsString("weight(comments.message:fox in"));
-        assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("fox eat quick"));
+        assertThat(
+            innerHits.getAt(0).getFields().get("comments").getValue(),
+            equalTo(Collections.singletonMap("message", Collections.singletonList("fox eat quick")))
+        );
         assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
 
         response = client().prepareSearch("articles")

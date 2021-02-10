@@ -48,7 +48,7 @@ public class With extends UnaryPlan {
 
     @Override
     public boolean equals(Object obj) {
-        if (!super.equals(obj)) {
+        if (super.equals(obj) == false) {
             return false;
         }
 

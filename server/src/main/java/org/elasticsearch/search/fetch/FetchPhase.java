@@ -355,7 +355,7 @@ public class FetchPhase {
 
         Map<String, DocumentField> docFields = emptyMap();
         Map<String, DocumentField> metaFields = emptyMap();
-        if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
+        if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
             loadStoredFields(searchExecutionContext::getFieldType, storedFieldReader, nestedFieldsVisitor, nestedInfo.doc());
             if (nestedFieldsVisitor.fields().isEmpty() == false) {
@@ -380,18 +380,7 @@ public class FetchPhase {
             for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
-                Object extractedValue = XContentMapValues.extractValue(nestedPath, rootSourceAsMap);
-                List<?> nestedParsedSource;
-                if (extractedValue instanceof List) {
-                    // nested field has an array value in the _source
-                    nestedParsedSource = (List<?>) extractedValue;
-                } else if (extractedValue instanceof Map) {
-                    // nested field has an object value in the _source. This just means the nested field has just one inner object,
-                    // which is valid, but uncommon.
-                    nestedParsedSource = Collections.singletonList(extractedValue);
-                } else {
-                    throw new IllegalStateException("extracted source isn't an object or an array");
-                }
+                List<?> nestedParsedSource = XContentMapValues.extractNestedValue(nestedPath, rootSourceAsMap);
                 if ((nestedParsedSource.get(0) instanceof Map) == false && hasNonNestedParent.test(nestedPath)) {
                     // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
                     // from two or more layers resulting in a list of list being returned. This is because nestedPath

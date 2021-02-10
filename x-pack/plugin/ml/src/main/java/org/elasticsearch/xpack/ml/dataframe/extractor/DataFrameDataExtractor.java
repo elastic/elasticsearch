@@ -105,7 +105,7 @@ public class DataFrameDataExtractor {
     }
 
     public Optional<List<Row>> next() throws IOException {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 

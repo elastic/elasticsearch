@@ -41,18 +41,21 @@ public abstract class AbstractFieldScript {
             name + "_script_field",
             factoryClass,
             /*
-             * In an ideal world we wouldn't need the script cache at all
-             * because we have a hard reference to the script. The trouble
-             * is that we compile the scripts a few times when performing
-             * a mapping update. This is unfortunate, but we rely on the
-             * cache to speed this up.
+             * We rely on the script cache in two ways:
+             * 1. It caches the "heavy" part of mappings generated at runtime.
+             * 2. Mapping updates tend to try to compile the script twice. Not
+             *    for any good reason. They just do.
+             * Thus we use the default 100.
              */
             100,
             timeValueMillis(0),
             /*
-             * Disable compilation rate limits for scripted fields so we
+             * Disable compilation rate limits for runtime fields so we
              * don't prevent mapping updates because we've performed too
-             * many recently. That'd just be lame.
+             * many recently. That'd just be lame. We also compile these
+             * scripts during search requests so this could totally be a
+             * source of runaway script compilations. We think folks will
+             * mostly reuse scripts though.
              */
             ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple()
         );

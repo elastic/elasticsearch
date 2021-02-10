@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -325,7 +324,7 @@ public class CacheService extends AbstractLifecycleComponent {
         final long fileLength,
         final Path cacheDir,
         final String cacheFileUuid,
-        final SortedSet<Tuple<Long, Long>> cacheFileRanges
+        final SortedSet<ByteRange> cacheFileRanges
     ) throws Exception {
 
         ensureLifecycleInitializing();
@@ -575,7 +574,7 @@ public class CacheService extends AbstractLifecycleComponent {
                             break;
 
                         case NEEDS_FSYNC:
-                            final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
+                            final SortedSet<ByteRange> ranges = cacheFile.fsync();
                             logger.trace(
                                 "cache file [{}] synchronized with [{}] completed range(s)",
                                 cacheFile.getFile().getFileName(),

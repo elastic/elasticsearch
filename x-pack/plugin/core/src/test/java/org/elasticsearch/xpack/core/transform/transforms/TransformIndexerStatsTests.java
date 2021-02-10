@@ -34,6 +34,8 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
             randomDouble(),
             randomDouble(),
             randomDouble()
@@ -99,6 +101,7 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_PAGES.getPreferredName(), stats.getNumPages());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(), stats.getOutputDocuments());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_DELETED_DOCUMENTS.getPreferredName(), stats.getNumDeletedDocuments());
         xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(), stats.getNumInvocations());
         xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
         xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
@@ -108,6 +111,7 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
         xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
         xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName(), stats.getDeleteTime());
         xContentFieldIfNotZero(
             builder,
             TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),

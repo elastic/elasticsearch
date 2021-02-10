@@ -139,7 +139,7 @@ public abstract class Graphviz {
 
         for (Object v : props) {
             // skip null values, children and location
-            if (v != null && !n.children().contains(v)) {
+            if (v != null && n.children().contains(v) == false) {
                 if (v instanceof Collection) {
                     Collection<?> c = (Collection<?>) v;
                         StringBuilder colS = new StringBuilder();

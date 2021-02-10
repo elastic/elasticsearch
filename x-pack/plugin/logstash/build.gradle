@@ -8,7 +8,7 @@ esplugin {
 archivesBaseName = 'x-pack-logstash'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 

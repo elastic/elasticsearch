@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.FROZEN_PHASE;
+
 /**
  * A {@link LifecycleAction} which enables or disables the automatic migration of data between
  * {@link org.elasticsearch.xpack.core.DataTier}s.
@@ -33,6 +36,7 @@ public class MigrateAction implements LifecycleAction {
     public static final String NAME = "migrate";
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
+    static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-existing-routing";
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
     private static final List<String> FROZEN_TO_HOT_TIERS =
         List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
@@ -92,20 +96,31 @@ public class MigrateAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         if (enabled) {
+            StepKey preMigrateBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_MIGRATE_STEP);
             StepKey migrationKey = new StepKey(phase, NAME, NAME);
             StepKey migrationRoutedKey = new StepKey(phase, NAME, DataTierMigrationRoutedStep.NAME);
 
             Settings.Builder migrationSettings = Settings.builder();
-            String dataTierName = "data_" + phase;
-            assert DataTier.validTierName(dataTierName) : "invalid data tier name:" + dataTierName;
-            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(dataTierName));
+            String targetTier = "data_" + phase;
+            assert DataTier.validTierName(targetTier) : "invalid data tier name:" + targetTier;
+
+            BranchingStep conditionalSkipActionStep = new BranchingStep(preMigrateBranchingKey, migrationKey, nextStepKey,
+                (index, clusterState) -> skipMigrateAction(phase, clusterState.metadata().index(index)));
+            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(targetTier));
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
                 migrationSettings.build());
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
-            return Arrays.asList(updateMigrationSettingStep, migrationRoutedStep);
+            return Arrays.asList(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {
             return List.of();
         }
+    }
+
+    static boolean skipMigrateAction(String phase, IndexMetadata indexMetadata) {
+        // if the index is a searchable snapshot we skip the migrate action (as mounting an index as searchable snapshot
+        // configures the tier allocation preference), unless we're in the frozen phase
+        return (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null)
+            && (phase.equals(FROZEN_PHASE) == false);
     }
 
     /**

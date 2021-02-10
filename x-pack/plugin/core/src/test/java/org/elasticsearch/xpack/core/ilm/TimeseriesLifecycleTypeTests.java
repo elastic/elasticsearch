@@ -590,6 +590,14 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
+
+        {
+            // test phase defines a `searchable_snapshot` action
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(TEST_SEARCHABLE_SNAPSHOT_ACTION.getWriteableName(), TEST_SEARCHABLE_SNAPSHOT_ACTION);
+            Phase phase = new Phase(COLD_PHASE, TimeValue.ZERO, actions);
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
     }
 
     private void assertNextActionName(String phaseName, String currentAction, String expectedNextAction, String... availableActionNames) {

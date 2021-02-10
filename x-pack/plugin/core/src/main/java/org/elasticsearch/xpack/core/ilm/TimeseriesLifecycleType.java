@@ -47,8 +47,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS;
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
-        AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
+    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME,
+        ReadOnlyAction.NAME, SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS;
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
@@ -67,13 +67,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         if (RollupV2.isEnabled()) {
             ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
                 ReadOnlyAction.NAME, RollupILMAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
-            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-                MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
+            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, SearchableSnapshotAction.NAME,
+                AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME);
         } else {
             ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
                 ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
-            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-                MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
+            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, SearchableSnapshotAction.NAME,
+                AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME);
         }
         VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
         VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
@@ -131,6 +131,11 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 // we won't automatically migrate the data if an allocate action that defines any allocation rule is present
                 return false;
             }
+        }
+
+        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
+            // the `searchable_snapshot` action defines migration rules itself, so no need to inject a migrate action
+            return false;
         }
 
         MigrateAction migrateAction = (MigrateAction) phase.getActions().get(MigrateAction.NAME);

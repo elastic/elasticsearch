@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.index.mapper;
@@ -39,7 +40,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
         String fieldName = "object1.object2.field";
         FlattenedFieldMapper mapper = createFlattenedMapper(fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup("_doc", singletonList(mapper), emptyList(), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), emptyList(), emptyList());
         assertEquals(mapper.fieldType(), lookup.get(fieldName));
 
         String objectKey = "key1.key2";
@@ -60,7 +61,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
         String aliasName = "alias";
         FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
 
-        FieldTypeLookup lookup = new FieldTypeLookup("_doc", singletonList(mapper), singletonList(alias), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), singletonList(alias), emptyList());
         assertEquals(mapper.fieldType(), lookup.get(aliasName));
 
         String objectKey = "key1.key2";
@@ -83,11 +84,11 @@ public class FlattenedFieldLookupTests extends ESTestCase {
         FlattenedFieldMapper mapper2 = createFlattenedMapper(field2);
         FlattenedFieldMapper mapper3 = createFlattenedMapper(field3);
 
-        FieldTypeLookup lookup = new FieldTypeLookup("_doc", Arrays.asList(mapper1, mapper2), emptyList(), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2), emptyList(), emptyList());
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
 
-        lookup = new FieldTypeLookup("_doc", Arrays.asList(mapper1, mapper2, mapper3), emptyList(), emptyList());
+        lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2, mapper3), emptyList(), emptyList());
         assertNotNull(lookup.get(field1 + ".some.key"));
         assertNotNull(lookup.get(field2 + ".some.key"));
         assertNotNull(lookup.get(field3 + ".some.key"));
@@ -124,7 +125,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
         MockFieldMapper mapper = new MockFieldMapper("foo");
         FlattenedFieldMapper flattenedMapper = createFlattenedMapper("object1.object2.field");
 
-        FieldTypeLookup lookup = new FieldTypeLookup("_doc", Arrays.asList(mapper, flattenedMapper), emptyList(), emptyList());
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper, flattenedMapper), emptyList(), emptyList());
 
         Set<String> fieldNames = new HashSet<>();
         lookup.filter(ft -> true).forEach(ft -> fieldNames.add(ft.name()));
@@ -163,7 +164,7 @@ public class FlattenedFieldLookupTests extends ESTestCase {
             }
             return null;
         }, fieldDataSupplier);
-        LeafDocLookup docLookup = searchLookup.doc().getLeafDocLookup(null);
+        LeafDocLookup docLookup = searchLookup.getLeafSearchLookup(null).doc();
 
         assertEquals(docValues1, docLookup.get("json.key1"));
         assertEquals(docValues2, docLookup.get("json.key2"));

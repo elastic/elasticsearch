@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.apache.lucene.analysis.miscellaneous;
@@ -34,14 +23,14 @@ import java.util.ArrayList;
  * have a minimum length - 6 is a good heuristic as it avoids filtering common
  * idioms/phrases but detects longer sections that are typical of cut+paste
  * copies of text.
- * 
+ *
  * <p>
  * Internally each token is hashed/moduloed into a single byte (so 256 possible
  * values for each token) and then recorded in a trie of seen byte sequences
  * using a {@link DuplicateByteSequenceSpotter}. This trie is passed into the
  * TokenFilter constructor so a single object can be reused across multiple
  * documents.
- * 
+ *
  * <p>
  * The emitDuplicates setting controls if duplicate tokens are filtered from
  * results or are output (the {@link DuplicateSequenceAttribute} attribute can
@@ -57,7 +46,7 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
     }
 
     /**
-     * 
+     *
      * @param in
      *            The input token stream
      * @param byteStreamDuplicateSpotter
@@ -110,9 +99,9 @@ public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
         }
 
         public void loadAllTokens() throws IOException {
-            // TODO consider changing this implementation to emit tokens as-we-go 
-            // rather than buffering all. However this array is perhaps not the 
-            // bulk of memory usage (in practice the dupSequenceSpotter requires 
+            // TODO consider changing this implementation to emit tokens as-we-go
+            // rather than buffering all. However this array is perhaps not the
+            // bulk of memory usage (in practice the dupSequenceSpotter requires
             // ~5x the original content size in its internal tree ).
             allTokens = new ArrayList<State>(256);
 

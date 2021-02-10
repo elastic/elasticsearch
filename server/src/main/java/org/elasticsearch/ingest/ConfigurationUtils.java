@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -49,7 +38,7 @@ public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
     public static final String DESCRIPTION_KEY = "description";
-    public static final String[] VALID_MIME_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
+    public static final String[] VALID_MEDIA_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
 
     private ConfigurationUtils() {
     }
@@ -306,16 +295,16 @@ public final class ConfigurationUtils {
         return value;
     }
 
-    public static String readMimeTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
+    public static String readMediaTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
         String propertyName, String defaultValue) {
-        String mimeType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
+        String mediaType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
 
-        if (Arrays.asList(VALID_MIME_TYPES).contains(mimeType) == false) {
+        if (Arrays.asList(VALID_MEDIA_TYPES).contains(mediaType) == false) {
             throw newConfigurationException(processorType, processorTag, propertyName,
-                "property does not contain a supported MIME type [" + mimeType + "]");
+                "property does not contain a supported media type [" + mediaType + "]");
         }
 
-        return mimeType;
+        return mediaType;
     }
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,

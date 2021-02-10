@@ -326,3 +326,32 @@ query = '''
 file where wildcard(file_name, "winini?.exe", "lsass.e?e") and opcode == 2
 '''
 expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "insensitiveInSingleArg"
+query = 'process where string(serial_event_id) in~ ("1")'
+expected_event_ids  = [1]
+
+[[queries]]
+name = "insensitiveInSingleArgPatternVerbatimMatch"
+query = 'process where string(serial_event_id) in~ ("1*")'
+expected_event_ids  = []
+
+[[queries]]
+name = "insensitiveInSingleArgPatternQuestionMarkVerbatimMatch"
+query = 'process where string(serial_event_id) in~ ("1?")'
+expected_event_ids  = []
+
+[[queries]]
+name = "insensitiveInMultipleArgs"
+query = '''
+file where file_name in~ ("wininit.exe", "lsass.exe") and opcode == 2
+'''
+expected_event_ids  = [65, 86]
+
+[[queries]]
+name = "insensitiveMultipleArgsWildcardPatternVerbatimMatch"
+query = '''
+file where file_name in~ ("winini*.exe", "lsass.e?e") and opcode == 2
+'''
+expected_event_ids  = []

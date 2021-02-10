@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -27,7 +29,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,6 +39,15 @@ public class CacheFile {
     @FunctionalInterface
     public interface EvictionListener {
         void onEviction(CacheFile evictedCacheFile);
+    }
+
+    /**
+     * {@link ModificationListener} can be used to be notified when a {@link CacheFile} needs to be fsynced or is deleted.
+     */
+    public interface ModificationListener {
+        void onCacheFileNeedsFsync(CacheFile cacheFile);
+
+        void onCacheFileDelete(CacheFile cacheFile);
     }
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
@@ -60,6 +70,8 @@ public class CacheFile {
                 Files.deleteIfExists(file);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } finally {
+                listener.onCacheFileDelete(CacheFile.this);
             }
         }
     };
@@ -78,10 +90,9 @@ public class CacheFile {
     private final AtomicBoolean needsFsync = new AtomicBoolean();
 
     /**
-     * A runnable that is executed every time the {@link #needsFsync} flag is toggled to {@code true}, which indicates that the cache file
-     * has been updated. See {@link #markAsNeedsFSync()} method.
+     * A {@link ModificationListener} that can be used to be notified when the cache file is updated or deleted.
      */
-    private final Runnable needsFsyncRunnable;
+    private final ModificationListener listener;
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -123,19 +134,19 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(CacheKey cacheKey, long length, Path file, Runnable onNeedFSync) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length), file, onNeedFSync);
+    public CacheFile(CacheKey cacheKey, long length, Path file, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener);
     }
 
-    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, Runnable onNeedFSync) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, onNeedFSync);
+    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<ByteRange> ranges, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener);
     }
 
-    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, Runnable onNeedFSync) {
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener) {
         this.cacheKey = Objects.requireNonNull(cacheKey);
         this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
-        this.needsFsyncRunnable = Objects.requireNonNull(onNeedFSync);
+        this.listener = Objects.requireNonNull(listener);
         assert invariant();
     }
 
@@ -159,7 +170,7 @@ public class CacheFile {
     }
 
     // Only used in tests
-    SortedSet<Tuple<Long, Long>> getCompletedRanges() {
+    SortedSet<ByteRange> getCompletedRanges() {
         return tracker.getCompletedRanges();
     }
 
@@ -332,13 +343,13 @@ public class CacheFile {
      * @return a future which returns the result of the {@link RangeAvailableHandler} once it has completed.
      */
     Future<Integer> populateAndRead(
-        final Tuple<Long, Long> rangeToWrite,
-        final Tuple<Long, Long> rangeToRead,
+        final ByteRange rangeToWrite,
+        final ByteRange rangeToRead,
         final RangeAvailableHandler reader,
         final RangeMissingHandler writer,
         final Executor executor
     ) {
-        final CompletableFuture<Integer> future = new CompletableFuture<>();
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -361,11 +372,11 @@ public class CacheFile {
                         try {
                             ensureOpen();
                             writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                            gap.onCompletion();
+                            markAsNeedsFSync();
                         } finally {
                             reference.decRef();
                         }
-                        gap.onCompletion();
-                        markAsNeedsFSync();
                     }
 
                     @Override
@@ -390,8 +401,8 @@ public class CacheFile {
      *         target range is neither available nor pending.
      */
     @Nullable
-    Future<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
-        final CompletableFuture<Integer> future = new CompletableFuture<>();
+    Future<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
+        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -408,33 +419,33 @@ public class CacheFile {
         }
     }
 
-    private static void releaseAndFail(CompletableFuture<Integer> future, Releasable decrementRef, Exception e) {
+    private static void releaseAndFail(PlainActionFuture<Integer> future, Releasable decrementRef, Exception e) {
         try {
             Releasables.close(decrementRef);
         } catch (Exception ex) {
             e.addSuppressed(ex);
         }
-        future.completeExceptionally(e);
+        future.onFailure(e);
     }
 
     private static ActionListener<Void> rangeListener(
-        Tuple<Long, Long> rangeToRead,
+        ByteRange rangeToRead,
         RangeAvailableHandler reader,
-        CompletableFuture<Integer> future,
+        PlainActionFuture<Integer> future,
         FileChannelReference reference,
         Releasable releasable
     ) {
         return ActionListener.runAfter(ActionListener.wrap(success -> {
             final int read = reader.onRangeAvailable(reference.fileChannel);
-            assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
+            assert read == rangeToRead.length() : "partial read ["
                 + read
                 + "] does not match the range to read ["
-                + rangeToRead.v2()
+                + rangeToRead.end()
                 + '-'
-                + rangeToRead.v1()
+                + rangeToRead.start()
                 + ']';
-            future.complete(read);
-        }, future::completeExceptionally), releasable::close);
+            future.onResponse(read);
+        }, future::onFailure), releasable::close);
     }
 
     /**
@@ -455,9 +466,9 @@ public class CacheFile {
         return reference;
     }
 
-    public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
+    public ByteRange getAbsentRangeWithin(ByteRange range) {
         ensureOpen();
-        return tracker.getAbsentRangeWithin(start, end);
+        return tracker.getAbsentRangeWithin(range);
     }
 
     // used in tests
@@ -469,8 +480,9 @@ public class CacheFile {
      * Marks the current cache file as "fsync needed" and notifies the corresponding listener.
      */
     private void markAsNeedsFSync() {
+        assert refCounter.refCount() > 0 : "file should not be fully released";
         if (needsFsync.getAndSet(true) == false) {
-            needsFsyncRunnable.run();
+            listener.onCacheFileNeedsFsync(this);
         }
     }
 
@@ -485,7 +497,7 @@ public class CacheFile {
      * @throws IOException                       if the cache file failed to be fsync
      * @throws java.nio.file.NoSuchFileException if the cache file does not exist
      */
-    public SortedSet<Tuple<Long, Long>> fsync() throws IOException {
+    public SortedSet<ByteRange> fsync() throws IOException {
         if (refCounter.tryIncRef()) {
             try {
                 if (needsFsync.compareAndSet(true, false)) {
@@ -494,7 +506,7 @@ public class CacheFile {
                         // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
                         // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
                         // fsync is effectively executed
-                        final SortedSet<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
+                        final SortedSet<ByteRange> completedRanges = tracker.getCompletedRanges();
                         assert completedRanges != null;
                         assert completedRanges.isEmpty() == false;
 

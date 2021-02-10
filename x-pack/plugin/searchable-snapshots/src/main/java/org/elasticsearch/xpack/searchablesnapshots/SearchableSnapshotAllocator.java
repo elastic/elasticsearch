@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
@@ -55,7 +56,8 @@ import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 
@@ -114,7 +116,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
                 SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
             );
-            final String repository = SNAPSHOT_REPOSITORY_SETTING.get(indexSettings);
+            final String repository = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
             final Snapshot snapshot = new Snapshot(repository, snapshotId);
 
             shardRouting = unassignedAllocationHandler.updateUnassigned(
@@ -261,6 +263,12 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     private AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
         final ShardId shardId = shard.shardId();
         final Settings indexSettings = allocation.metadata().index(shard.index()).getSettings();
+
+        if (SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+            // cached data for partial indices is not persistent, no need to fetch it
+            return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), Collections.emptySet());
+        }
+
         final SnapshotId snapshotId = new SnapshotId(
             SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)

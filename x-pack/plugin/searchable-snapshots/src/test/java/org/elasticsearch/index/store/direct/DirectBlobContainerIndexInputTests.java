@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store.direct;
 
@@ -112,7 +113,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             blobContainer,
             fileInfo,
             newIOContext(random()),
-            new IndexInputStats(0L, () -> 0L),
+            new IndexInputStats(1, 0L, () -> 0L),
             minimumReadSize,
             randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
         );

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -363,7 +365,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
+        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY) &&
+            SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings()) == false) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
         }
 
@@ -390,7 +393,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             DataTier.DATA_CONTENT_NODE_ROLE,
             DataTier.DATA_HOT_NODE_ROLE,
             DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE));
+            DataTier.DATA_COLD_NODE_ROLE,
+            DataTier.DATA_FROZEN_NODE_ROLE));
     }
 
     @Override

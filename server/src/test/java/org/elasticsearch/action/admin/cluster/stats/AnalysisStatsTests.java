@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -24,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -186,7 +176,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
         IndexFeatureStats expectedStats = new IndexFeatureStats("german");
         expectedStats.count = 1;
         expectedStats.indexCount = 1;
@@ -209,7 +199,23 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder()
                 .put(indexMetadata)
                 .build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
         assertEquals(Collections.emptySet(), analysisStats.getUsedBuiltInAnalyzers());
+    }
+
+    public void testChecksForCancellation() {
+        Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
+                .settings(settings);
+        Metadata metadata = new Metadata.Builder()
+                .put(indexMetadata)
+                .build();
+        expectThrows(TaskCancelledException.class, () -> AnalysisStats.of(metadata, () -> {
+            throw new TaskCancelledException("task cancelled");
+        }));
     }
 }

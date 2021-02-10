@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
@@ -383,7 +384,7 @@ public final class TimestampFormatFinder {
             char curChar = overrideFormat.charAt(pos);
 
             if (curChar == '\'') {
-                notQuoted = !notQuoted;
+                notQuoted = notQuoted == false;
             } else if (notQuoted && Character.isLetter(curChar)) {
                 int startPos = pos;
                 int endPos = startPos + 1;
@@ -1144,7 +1145,7 @@ public final class TimestampFormatFinder {
      * so we just need to know if it has nanosecond resolution or not.
      */
     public Map<String, String> getEsDateMappingTypeWithoutFormat() {
-        return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
+        return Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
     }
 
     /**
@@ -1156,10 +1157,10 @@ public final class TimestampFormatFinder {
         List<String> javaTimestampFormats = getJavaTimestampFormats();
         if (javaTimestampFormats.contains("TAI64N")) {
             // There's no format for TAI64N in the timestamp formats used in mappings
-            return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+            return Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword");
         }
         Map<String, String> mapping = new LinkedHashMap<>();
-        mapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
+        mapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
         String formats = javaTimestampFormats.stream().map(format -> {
             switch (format) {
                 case "ISO8601":
@@ -1173,7 +1174,7 @@ public final class TimestampFormatFinder {
             }
         }).collect(Collectors.joining("||"));
         if (formats.isEmpty() == false) {
-            mapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, formats);
+            mapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, formats);
         }
         return mapping;
     }
@@ -1507,7 +1508,7 @@ public final class TimestampFormatFinder {
                     for (int pos = 0; pos < format.length(); ++pos) {
                         char curChar = format.charAt(pos);
                         if (curChar == '\'') {
-                            notQuoted = !notQuoted;
+                            notQuoted = notQuoted == false;
                         } else if (notQuoted && (curChar == 'X' || curChar == 'z')) {
                             return false;
                         }
@@ -1537,7 +1538,7 @@ public final class TimestampFormatFinder {
                             // from off to on or on to off and then back. However, since by definition there
                             // is nothing in between the consecutive single quotes in this case, the net
                             // effect is correct and good enough for what this method is doing.
-                            notQuoted = !notQuoted;
+                            notQuoted = notQuoted == false;
                             consecutiveSs = 0;
                         } else if (notQuoted) {
                             if (curChar == 'S') {

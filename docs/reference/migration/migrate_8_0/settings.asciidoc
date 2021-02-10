@@ -144,3 +144,25 @@ may be set to false.
 Discontinue use of the removed settings. Specifying these settings in
 `elasticsearch.yml` will result in an error on startup.
 ====
+
+.Settings used to defer cluster recovery pending a certain number of master nodes have been removed.
+[%collapsible]
+====
+*Details* +
+The following settings were deprecated in {es} 7.8.0 and have been removed in
+{es} 8.0.0:
+
+* `gateway.expected_nodes`
+* `gateway.expected_master_nodes`
+* `gateway.recover_after_nodes`
+* `gateway.recover_after_master_nodes`
+
+It is safe to recover the cluster as soon as a majority of master-eligible
+nodes have joined so there is no benefit in waiting for any additional
+master-eligible nodes to start.
+
+*Impact* +
+Discontinue use of the removed settings. If needed, use
+`gateway.expected_data_nodes` or `gateway.recover_after_data_nodes` to defer
+cluster recovery pending a certain number of data nodes.
+====

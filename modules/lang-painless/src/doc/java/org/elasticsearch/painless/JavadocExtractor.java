@@ -229,7 +229,7 @@ public class JavadocExtractor {
                 if (tag.getName().isPresent() == false) {
                     throw new IllegalStateException("Missing tag " + tag.toText());
                 }
-                parsed.thrws.add(List.of(tag.getName().get(), cleaned(stripInlineTags(tag.getContent()))));
+                parsed.thrws.add(org.elasticsearch.common.collect.List.of(tag.getName().get(), cleaned(stripInlineTags(tag.getContent()))));
             }
         }
         return parsed;

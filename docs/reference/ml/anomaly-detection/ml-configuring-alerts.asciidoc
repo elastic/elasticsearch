@@ -2,18 +2,40 @@
 [[ml-configuring-alerts]]
 = Configuring {anomaly-detect} alerts
 
-You can optionally create alerts to receive notifications when an anomaly that 
-meets the conditions you defined is detected. This page helps you to configure 
-an {anomaly-detect} alert. To learn more about alerts in the {stack}, refer to 
+{anomaly-detect-cap} alerts run scheduled checks on an {anomaly-job} or a group 
+of jobs to detect anomalies with certain conditions. If an {anomaly} meets the 
+conditions, the alert triggers the defined action. For example, you can create 
+an alert that checks an {anomaly-job} in every fifteen minutes for critical 
+anomalies and notify you in an email if it finds one. This page helps you to 
+configure an {anomaly-detect} alert. To learn more about alerts in the {stack}, 
+refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
 
-{anomaly-detect-cap} alerts can be created either in the {anomaly-job} wizard or 
-under **Stack management > Alerts and Actions**. On the *Create alert* template, 
+{anomaly-detect-cap} alerts can be created in the {anomaly-job} wizard or under 
+**Stack management > Alerts and Actions**. On the *Create alert* template, 
 select *{anomaly-detect-cap} alert* under the {ml-cap} section, then give a name 
 to the alert and optionally provide tags.
 
 // SCREENSHOT
 
-You can specify the time interval for the alert to check for detected anomalies. 
-It is recommended to select an interval that is similar to the bucket span of 
-the job that is associated with the alert.
+Specify the time interval for the alert to check detected anomalies. It is 
+recommended to select an interval that is similar to the bucket span of the 
+associated job. You can also select a notification method by using the _Notify_ 
+selector. There are three notification options:
+
+* Notify only on status change: actions are triggered when the alert status 
+  changes.
+* Notify every time alert is active: actions are triggered every time when the 
+  alert checks changes.
+* Notify on a custom action interval: actions run by using an interval that you 
+  configured.
+  
+Select the {anomaly-job} or the group of {anomaly-jobs} that is checked by the 
+alert. In case you select a group, the {anomaly-detect} alert handles possible 
+duplications in the results, hence they don't trigger the configured actions 
+unnecessarily. Furthermore, if you assign additional jobs to this group, the 
+alert automatically check the new jobs the next time when it runs.
+
+
+[ml-configuring-alerts-conditions]
+== Conditions

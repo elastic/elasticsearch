@@ -63,6 +63,16 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
         }
+
+        @Override
+        public String getFeatureName() {
+            return this.getClass().getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return this.getClass().getCanonicalName();
+        }
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {

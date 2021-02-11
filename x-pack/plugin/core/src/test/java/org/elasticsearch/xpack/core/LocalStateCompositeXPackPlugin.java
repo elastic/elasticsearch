@@ -564,4 +564,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
             .flatMap (map -> map.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
+
+    @Override
+    public String getFeatureName() {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return this.getClass().getCanonicalName();
+    }
 }

@@ -133,8 +133,10 @@ public class TimeseriesLifecycleType implements LifecycleType {
             }
         }
 
-        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
-            // the `searchable_snapshot` action defines migration rules itself, so no need to inject a migrate action
+        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null && phase.getName().equals(FROZEN_PHASE) == false) {
+            // the `searchable_snapshot` action defines migration rules itself, so no need to inject a migrate action, unless we're in the
+            // frozen phase (as the migrate action would also include the `data_frozen` role which is not guaranteed to be included by all
+            // types of searchable snapshots)
             return false;
         }
 

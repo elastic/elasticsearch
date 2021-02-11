@@ -89,7 +89,7 @@ The following example shows how to update an existing model alias for a trained 
 --------------------------------------------------
 POST _ml/trained_models/model_aliases/flight_delay_model/_update
 {
-  "old_model_id": "flight-delay-prediction-1574775339910"
+  "old_model_id": "flight-delay-prediction-1574775339910",
   "new_model_id": "flight-delay-prediction-1580004349800"
 }
 --------------------------------------------------

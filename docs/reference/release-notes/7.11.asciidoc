@@ -1,6 +1,9 @@
 [[release-notes-7.11.1]]
 == {es} version 7.11.1
 
+coming::[7.11.1]
+
+
 Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
 
 [[enhancement-7.11.1]]
@@ -14,7 +17,7 @@ Features/Stats::
 * Add index creation version stats to cluster stats {es-pull}68141[#68141]
 
 Snapshot/Restore::
-* Improve shards evictions in searchable snapshot cache service {es-pull}67160[#67160] (issues: {es-issue}66730[#66730], {es-issue}66958[#66958])
+* Improve shard evictions in searchable snapshot cache service {es-pull}67160[#67160] (issues: {es-issue}66730[#66730], {es-issue}66958[#66958])
 * Make blob cache have async durability {es-pull}66687[#66687]
 
 
@@ -41,7 +44,7 @@ Features/Indices APIs::
 * Fix exception when validating composable template with no template {es-pull}67310[#67310] (issue: {es-issue}66949[#66949])
 
 Features/Ingest::
-* Fix parsing empty value with brackets failed in Dissect ingest processor {es-pull}65524[#65524] (issue: {es-issue}65080[#65080])
+* Fix parsing empty value with brackets failed in dissect ingest processor {es-pull}65524[#65524] (issue: {es-issue}65080[#65080])
 
 Features/Stats::
 * Allow reading of `/proc/meminfo` for JDK bug workaround {es-pull}68742[#68742]
@@ -76,6 +79,8 @@ Snapshot/Restore::
 
 [[release-notes-7.11.0]]
 == {es} version 7.11.0
+
+Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
 
 [[known-issues-7.11.0]]
 [discrete]

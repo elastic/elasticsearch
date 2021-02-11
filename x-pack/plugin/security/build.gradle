@@ -12,7 +12,7 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   compileOnly project(path: ':modules:transport-netty4')
   compileOnly project(path: ':plugins:transport-nio')
 

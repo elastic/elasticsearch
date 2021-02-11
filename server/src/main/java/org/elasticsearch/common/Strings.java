@@ -178,7 +178,7 @@ public class Strings {
      * @return <code>true</code> if the CharSequence is either null or has a zero length
      */
     public static boolean isEmpty(CharSequence str) {
-        return !hasLength(str);
+        return hasLength(str) == false;
     }
 
 

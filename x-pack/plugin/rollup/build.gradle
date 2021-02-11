@@ -12,9 +12,9 @@ archivesBaseName = 'x-pack-rollup'
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly project(path: xpackModule('analytics'), configuration: 'default')
-  compileOnly project(path: xpackModule('mapper-aggregate-metric'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('analytics'))
+  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 

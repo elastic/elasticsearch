@@ -29,23 +29,16 @@ public abstract class MetricsAggregator extends AggregatorBase {
     }
 
     /**
-     * Called once before any calls to {@link #buildAggregation(long)} so the
-     * Aggregator can finish up any work it has to do.
-     */
-    protected void beforeBuildingResults(long[] ordsToCollect) throws IOException {}
-
-    /**
      * Build an aggregation for data that has been collected into
      * {@code owningBucketOrd}.
      */
-    public abstract InternalAggregation buildAggregation(long ordToCollect) throws IOException;
+    public abstract InternalAggregation buildAggregation(long owningBucketOrd) throws IOException;
 
     @Override
-    public final InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
-        beforeBuildingResults(ordsToCollect);
-        InternalAggregation[] results = new InternalAggregation[ordsToCollect.length];
-        for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            results[ordIdx] = buildAggregation(ordsToCollect[ordIdx]);
+    public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            results[ordIdx] = buildAggregation(owningBucketOrds[ordIdx]);
         }
         return results;
     }

@@ -179,19 +179,14 @@ public class Connection {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
+            if (this == o) {
                 return true;
-            if (o == null || getClass() != o.getClass())
+            }
+            if (o == null || getClass() != o.getClass()) {
                 return false;
-
-            ConnectionId vertexId = (ConnectionId) o;
-
-            if (source != null ? !source.equals(vertexId.source) : vertexId.source != null)
-                return false;
-            if (target != null ? !target.equals(vertexId.target) : vertexId.target != null)
-                return false;
-
-            return true;
+            }
+            ConnectionId that = (ConnectionId) o;
+            return Objects.equals(source, that.source) && Objects.equals(target, that.target);
         }
 
         @Override

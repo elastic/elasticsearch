@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,11 +33,13 @@ import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
@@ -141,13 +142,13 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected FrozenCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+            cacheSettings.put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
@@ -174,8 +175,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new FrozenCacheService(
             newEnvironment(
                 Settings.builder()
-                    .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-                    .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
+                    .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                    .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                     .build()
             ),
             threadPool
@@ -284,7 +285,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                         final CacheFile.EvictionListener listener = evictedCacheFile -> {};
                         cacheFile.acquire(listener);
                         try {
-                            SortedSet<Tuple<Long, Long>> ranges = Collections.emptySortedSet();
+                            SortedSet<ByteRange> ranges = Collections.emptySortedSet();
                             while (ranges.isEmpty()) {
                                 ranges = randomPopulateAndReads(cacheFile, (channel, from, to) -> {
                                     try {

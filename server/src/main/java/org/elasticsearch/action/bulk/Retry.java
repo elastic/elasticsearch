@@ -97,7 +97,7 @@ public class Retry {
                 finishHim();
             } else {
                 if (canRetry(bulkItemResponses)) {
-                    addResponses(bulkItemResponses, (r -> !r.isFailed()));
+                    addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses));
                 } else {
                     addResponses(bulkItemResponses, (r -> true));

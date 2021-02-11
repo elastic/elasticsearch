@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+apply plugin: 'elasticsearch.publish'
+
 tasks.named("test").configure { enabled = false }
 
 // test depend on ES core...

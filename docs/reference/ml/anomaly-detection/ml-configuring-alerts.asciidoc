@@ -1,0 +1,19 @@
+[role="xpack"]
+[[ml-configuring-alerts]]
+= Configuring {anomaly-detect} alerts
+
+You can optionally create alerts to receive notifications when an anomaly that 
+meets the conditions you defined is detected. This page helps you to configure 
+an {anomaly-detect} alert. To learn more about alerts in the {stack}, refer to 
+{kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
+
+{anomaly-detect-cap} alerts can be created either in the {anomaly-job} wizard or 
+under **Stack management > Alerts and Actions**. On the *Create alert* template, 
+select *{anomaly-detect-cap} alert* under the {ml-cap} section, then give a name 
+to the alert and optionally provide tags.
+
+// SCREENSHOT
+
+You can specify the time interval for the alert to check for detected anomalies. 
+It is recommended to select an interval that is similar to the bucket span of 
+the job that is associated with the alert.

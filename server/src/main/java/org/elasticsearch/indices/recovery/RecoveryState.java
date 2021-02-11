@@ -91,6 +91,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     private Stage stage;
+    private Stage displayStage;
 
     private final Index index;
     private final Translog translog;
@@ -124,6 +125,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
+        displayStage = Stage.INIT;
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
@@ -134,6 +136,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
+        displayStage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
@@ -147,8 +150,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
-        // We need to serialize the display stage so the correct
-        // stage is shown on the information APIs.
+        out.writeByte(getStage().id());
         out.writeByte(getDisplayStage().id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
@@ -174,7 +176,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
      * recovery type.
      */
     public synchronized Stage getDisplayStage() {
-        return this.stage;
+        return this.displayStage;
     }
 
     protected void validateAndSetStage(Stage expected, Stage next) {
@@ -184,6 +186,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                     + stage + "] (expected [" + expected + "])");
         }
         stage = next;
+        displayStage = next;
     }
 
     public synchronized void validateCurrentStage(Stage expected) {
@@ -199,6 +202,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             case INIT:
                 // reinitializing stop remove all state except for start time
                 this.stage = Stage.INIT;
+                this.displayStage = Stage.INIT;
                 getIndex().reset();
                 getVerifyIndex().reset();
                 getTranslog().reset();

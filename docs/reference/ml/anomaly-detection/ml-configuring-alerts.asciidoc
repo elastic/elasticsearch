@@ -6,10 +6,13 @@
 of jobs to detect anomalies with certain conditions. If an {anomaly} meets the 
 conditions, the alert triggers the defined action. For example, you can create 
 an alert that checks an {anomaly-job} in every fifteen minutes for critical 
-anomalies and notify you in an email if it finds one. This page helps you to 
-configure an {anomaly-detect} alert. To learn more about alerts in the {stack}, 
-refer to 
+anomalies and notify you in an email. This page helps you to configure an 
+{anomaly-detect} alert. To learn more about alerts in the {stack}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
+
+
+[[creating-anomaly-alerts]]
+== Creating an alert
 
 {anomaly-detect-cap} alerts can be created in the {anomaly-job} wizard or under 
 **Stack management > Alerts and Actions**. On the *Create alert* template, 
@@ -33,9 +36,37 @@ selector. There are three notification options:
 Select the {anomaly-job} or the group of {anomaly-jobs} that is checked by the 
 alert. In case you select a group, the {anomaly-detect} alert handles possible 
 duplications in the results, hence they don't trigger the configured actions 
-unnecessarily. Furthermore, if you assign additional jobs to this group, the 
-alert automatically check the new jobs the next time when it runs.
+unnecessarily. If you assign additional jobs to the group, the alert 
+automatically check the new jobs the next time when it runs.
+
+You can select the result type of the {anomaly-job} that the alert checks. 
+{anomaly-detect-cap} produces three types of results: bucket, record, and 
+influencer. Bucket result type is selected by default.
+
+// SCREENSHOT
+
+For each alert, you can configure which severity level triggers it. The severity 
+threshold is based on the `anomaly_score` which indicates the significance of a 
+given anomaly compared to previous anomalies. The default severity level is 
+critical (anomalies with an `anomaly_score` 75 or higher).
+
+You can also test the configured conditions and check the sample results by 
+providing a valid interval in the respective field.
 
 
-[ml-configuring-alerts-conditions]
-== Conditions
+
+[[defining-actions]]
+== Defining actions
+
+As a next step, connect your alert to actions that use supported built-in 
+integrations. Actions are {kib} services or third-party integrations that run 
+when the alert conditions are met.
+
+// SCREENSHOT
+
+For example, you can choose _Slack_ as an action type and configure it to send a 
+message to a channel you selected. It's also possible to customize the 
+notification messages. A list of variables is available to include in the 
+message, like job ID, anomaly score, time, or top influencers.
+
+// SCREENSHOT

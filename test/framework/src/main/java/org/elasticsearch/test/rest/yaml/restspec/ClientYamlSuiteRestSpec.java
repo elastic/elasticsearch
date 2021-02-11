@@ -69,7 +69,7 @@ public class ClientYamlSuiteRestSpec {
      * Parses the complete set of REST spec available under the provided directories
      */
     public static ClientYamlSuiteRestSpec load(String classpathPrefix) throws Exception {
-        Path[] dirs = ClasspathUtils.findPaths(ClientYamlSuiteRestSpec.class.getClassLoader(), classpathPrefix);
+        Path[] dirs = ClasspathUtils.findFilePaths(ClientYamlSuiteRestSpec.class.getClassLoader(), classpathPrefix);
         ClientYamlSuiteRestSpec restSpec = new ClientYamlSuiteRestSpec();
         ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
         for (Path dir : dirs) {

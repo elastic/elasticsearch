@@ -240,7 +240,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
         Map<String, Set<Path>> files = new HashMap<>();
-        Path[] roots = ClasspathUtils.findPaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
+        Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
         for (Path root : roots) {
             for (String strPath : paths) {
                 Path path = root.resolve(strPath);

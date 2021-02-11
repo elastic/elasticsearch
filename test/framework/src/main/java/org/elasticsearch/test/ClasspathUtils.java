@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.io.PathUtils;
 
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -18,12 +19,15 @@ import java.util.List;
 
 public class ClasspathUtils {
 
-    public static Path[] findPaths(ClassLoader classLoader, String path) throws Exception {
+    public static Path[] findFilePaths(ClassLoader classLoader, String path) throws Exception {
         Enumeration<URL> resources = classLoader.getResources(path);
         List<Path> paths = new ArrayList<>();
 
         while (resources.hasMoreElements()) {
-            paths.add(PathUtils.get(resources.nextElement().toURI()));
+            URI uri = resources.nextElement().toURI();
+            if (uri.getScheme().equalsIgnoreCase("file")) {
+                paths.add(PathUtils.get(uri));
+            }
         }
 
         return paths.toArray(new Path[]{});

@@ -106,7 +106,7 @@ GET /_search
 <2> Sorts hits for the search with an implicit tiebreak on `_shard_doc` ascending.
 
 The search response includes an array of `sort` values for each hit. If you used
-a PIT, a tiebreakeris included as the last `sort` values for each hit.
+a PIT, a tiebreaker is included as the last `sort` values for each hit.
 This tiebreaker called `_shard_doc` is added automically on every search requests that use a PIT.
 The `_shard_doc` value is the combination of the shard index within the PIT and the Lucene's internal doc ID,
 it is unique per document and constant within a PIT.

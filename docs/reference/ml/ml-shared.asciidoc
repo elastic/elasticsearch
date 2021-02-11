@@ -541,10 +541,8 @@ Advanced configuration option. {ml-cap} uses loss guided tree growing, which
 means that the decision trees grow where the regularized loss decreases most
 quickly. This parameter affects loss calculations by acting as a multiplier of 
 the tree depth. Higher alpha values result in shallower trees and faster 
-training times.
-//TBD: but potentially reduce accuracy?
-By default, this value is calculated during hyperparameter optimization. It 
-must be greater than or equal to zero. 
+training times. By default, this value is calculated during hyperparameter 
+optimization. It must be greater than or equal to zero. 
 end::dfas-alpha[]
 
 tag::dfas-downsample-factor[]

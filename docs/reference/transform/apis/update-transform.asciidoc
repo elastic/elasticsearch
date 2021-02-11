@@ -40,8 +40,8 @@ When the {transform} is updated, a series of validations occur to ensure its
 success. You can use the `defer_validation` parameter to skip these checks.
 
 All updated properties except description do not take effect until after the
-{transform} starts the next checkpoint. This is so there is consistency with the
-pivoted data in each checkpoint.
+{transform} starts the next checkpoint. This is so there is data consistency in
+each checkpoint.
 
 [IMPORTANT]
 ====
@@ -101,6 +101,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 `frequency`::
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
 
 //Begin settings
 `settings`::

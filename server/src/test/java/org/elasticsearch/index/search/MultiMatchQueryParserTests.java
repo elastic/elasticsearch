@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.MultiMatchQuery.FieldAndBoost;
+import org.elasticsearch.index.search.MultiMatchQueryParser.FieldAndBoost;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockKeywordPlugin;
@@ -51,7 +51,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiMatchQueryTests extends ESSingleNodeTestCase {
+public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
 
     private IndexService indexService;
 
@@ -121,7 +121,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         Term[] terms = new Term[] { new Term("foo", "baz"), new Term("bar", "baz") };
         float[] boosts = new float[] {2, 3};
         Query expected = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
-        Query actual = MultiMatchQuery.blendTerm(
+        Query actual = MultiMatchQueryParser.blendTerm(
             indexService.newSearchExecutionContext(
                 randomInt(20),
                 0,
@@ -152,7 +152,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             Queries.newMatchNoDocsQuery("failed [" + ft2.name() + "] query, caused by illegal_argument_exception:[null]"),
             BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f)
         ), 1f);
-        Query actual = MultiMatchQuery.blendTerm(
+        Query actual = MultiMatchQueryParser.blendTerm(
             indexService.newSearchExecutionContext(
                 randomInt(20),
                 0,
@@ -176,7 +176,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 throw new IllegalArgumentException();
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> MultiMatchQuery.blendTerm(
+        expectThrows(IllegalArgumentException.class, () -> MultiMatchQueryParser.blendTerm(
             indexService.newSearchExecutionContext(
                 randomInt(20),
                 0,
@@ -205,7 +205,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 expectedDisjunct2,
                 expectedDisjunct1
             ), 1.0f);
-        Query actual = MultiMatchQuery.blendTerm(
+        Query actual = MultiMatchQueryParser.blendTerm(
             indexService.newSearchExecutionContext(
                 randomInt(20),
                 0,
@@ -232,7 +232,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             emptyMap()
         );
 
-        MultiMatchQuery parser = new MultiMatchQuery(searchExecutionContext);
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
         parser.setAnalyzer(new MockSynonymAnalyzer());
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("name.first", 1.0f);
@@ -269,7 +269,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             null,
             emptyMap()
         );
-        MultiMatchQuery parser = new MultiMatchQuery(searchExecutionContext);
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
         parser.setAnalyzer(new MockSynonymAnalyzer());
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("name.first", 1.0f);
@@ -341,7 +341,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             null,
             emptyMap()
         );
-        MultiMatchQuery parser = new MultiMatchQuery(searchExecutionContext);
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext);
         Map<String, Float> fieldNames = new HashMap<>();
         fieldNames.put("field", 1.0f);
         fieldNames.put("field_split", 1.0f);

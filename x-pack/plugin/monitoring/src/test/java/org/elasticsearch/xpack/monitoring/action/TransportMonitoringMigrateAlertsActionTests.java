@@ -109,7 +109,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         ));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     @TestLogging(
         value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
         reason = "to ensure we log local exporter on trace level")
@@ -147,7 +146,6 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     @TestLogging(
         value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
         reason = "to ensure we log local exporter on trace level")

@@ -1365,7 +1365,9 @@ setups['seats'] = '''
             {"index":{"_id": "9"}}
             {"theatre": "Skyline", "play": "Sunnyside Down", "actors": ["Krissy Smith", "Joe Muir", "Ryan Earns", "Nora Blue", "Mike Candlestick", "Jacey Bell"], "date": "2018-6-12", "time": "4:00PM", "cost": 21.25, "row": 8, "number": 15, "sold": true}
             {"index":{"_id": "10"}}
-            {"theatre": "Graye", "play": "Line and Single", "actors": ["Nora Blue", "Mike Candlestick"], "date": "2018-6-5", "time": "2:00PM", "cost": 30.0, "row": 1, "number": 2, "sold": false }
+            {"theatre": "Graye", "play": "Line and Single", "actors": ["Nora Blue", "Mike Candlestick"], "date": "2018-6-5", "time": "2:00PM", "cost": 30.0, "row": 1, "number": 2, "sold": false}
+            {"index":{"_id":"11"}}
+            {"theatre": "Graye", "play": "Hamilton", "actors": ["Lin-Manuel Miranda", "Leslie Odom Jr."] ,"date":"2018-6-5", "time": "2:00PM", "cost": 5000.0, "row":1, "number": 20, "sold": true}
             '''
 setups['kibana_sample_data_ecommerce'] = '''
   - do:

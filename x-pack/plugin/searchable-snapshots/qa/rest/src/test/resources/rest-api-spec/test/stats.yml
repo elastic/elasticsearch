@@ -131,11 +131,160 @@ teardown:
   - do:
       searchable_snapshots.stats:
         index: "d*"
+        level: "shards"
 
   - match:  { _shards.total: 1 }
   - match:  { _shards.failed: 0 }
 
+  - is_true: total
+  - is_true: total.0.file_ext
+  - gt:      { total.0.num_files: 0 }
+  - gt:      { total.0.total_size: 0 }
+  - gt:      { total.0.open_count: 0 }
+  - gt:      { total.0.close_count: 0 }
+
+  - gte:     { total.0.contiguous_bytes_read.count: 0 }
+  - gte:     { total.0.contiguous_bytes_read.sum: 0 }
+  - gte:     { total.0.contiguous_bytes_read.min: 0 }
+  - gte:     { total.0.contiguous_bytes_read.max: 0 }
+
+  - gte:     { total.0.non_contiguous_bytes_read.count: 0 }
+  - gte:     { total.0.non_contiguous_bytes_read.sum: 0 }
+  - gte:     { total.0.non_contiguous_bytes_read.min: 0 }
+  - gte:     { total.0.non_contiguous_bytes_read.max: 0 }
+
+  - gte:     { total.0.cached_bytes_read.count: 0 }
+  - gte:     { total.0.cached_bytes_read.sum: 0 }
+  - gte:     { total.0.cached_bytes_read.min: 0 }
+  - gte:     { total.0.cached_bytes_read.max: 0 }
+
+  - gte:     { total.0.index_cache_bytes_read.count: 0 }
+  - gte:     { total.0.index_cache_bytes_read.sum: 0 }
+  - gte:     { total.0.index_cache_bytes_read.min: 0 }
+  - gte:     { total.0.index_cache_bytes_read.max: 0 }
+
+  - gte:     { total.0.cached_bytes_written.count: 0 }
+  - gte:     { total.0.cached_bytes_written.sum: 0 }
+  - gte:     { total.0.cached_bytes_written.min: 0 }
+  - gte:     { total.0.cached_bytes_written.max: 0 }
+  - gte:     { total.0.cached_bytes_written.time_in_nanos: 0 }
+  - is_false:  total.0.cached_bytes_written.time
+
+  - gte:     { total.0.direct_bytes_read.count: 0 }
+  - gte:     { total.0.direct_bytes_read.sum: 0 }
+  - gte:     { total.0.direct_bytes_read.min: 0 }
+  - gte:     { total.0.direct_bytes_read.max: 0 }
+  - gte:     { total.0.direct_bytes_read.time_in_nanos: 0 }
+  - is_false:  total.0.direct_bytes_read.time
+
+  - gte:     { total.0.optimized_bytes_read.count: 0 }
+  - gte:     { total.0.optimized_bytes_read.sum: 0 }
+  - gte:     { total.0.optimized_bytes_read.min: 0 }
+  - gte:     { total.0.optimized_bytes_read.max: 0 }
+  - gte:     { total.0.optimized_bytes_read.time_in_nanos: 0 }
+  - is_false:  total.0.optimized_bytes_read.time
+
+  - gte:     { total.0.forward_seeks.small.count: 0 }
+  - gte:     { total.0.forward_seeks.small.sum: 0 }
+  - gte:     { total.0.forward_seeks.small.min: 0 }
+  - gte:     { total.0.forward_seeks.small.max: 0 }
+  - gte:     { total.0.forward_seeks.large.count: 0 }
+  - gte:     { total.0.forward_seeks.large.sum: 0 }
+  - gte:     { total.0.forward_seeks.large.min: 0 }
+  - gte:     { total.0.forward_seeks.large.max: 0 }
+
+  - gte:     { total.0.backward_seeks.small.count: 0 }
+  - gte:     { total.0.backward_seeks.small.sum: 0 }
+  - gte:     { total.0.backward_seeks.small.min: 0 }
+  - gte:     { total.0.backward_seeks.small.max: 0 }
+  - gte:     { total.0.backward_seeks.large.count: 0 }
+  - gte:     { total.0.backward_seeks.large.sum: 0 }
+  - gte:     { total.0.backward_seeks.large.min: 0 }
+  - gte:     { total.0.backward_seeks.large.max: 0 }
+
+  - gte:     { total.0.blob_store_bytes_requested.count: 0 }
+  - gte:     { total.0.blob_store_bytes_requested.sum: 0 }
+  - gte:     { total.0.blob_store_bytes_requested.min: 0 }
+  - gte:     { total.0.blob_store_bytes_requested.max: 0 }
+
+  - gte:     { total.0.current_index_cache_fills: 0 }
+
   - length:  { indices: 1 }
+  - is_true: indices.docs
+  - is_true: indices.docs.total
+
+  - is_true: indices.docs.total.0.file_ext
+  - gt:      { indices.docs.total.0.num_files: 0 }
+  - gt:      { indices.docs.total.0.total_size: 0 }
+  - gt:      { indices.docs.total.0.open_count: 0 }
+  - gt:      { indices.docs.total.0.close_count: 0 }
+
+  - gte:     { indices.docs.total.0.contiguous_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.contiguous_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.contiguous_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.contiguous_bytes_read.max: 0 }
+
+  - gte:     { indices.docs.total.0.non_contiguous_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.non_contiguous_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.non_contiguous_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.non_contiguous_bytes_read.max: 0 }
+
+  - gte:     { indices.docs.total.0.cached_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.cached_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.cached_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.cached_bytes_read.max: 0 }
+
+  - gte:     { indices.docs.total.0.index_cache_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.index_cache_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.index_cache_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.index_cache_bytes_read.max: 0 }
+
+  - gte:     { indices.docs.total.0.cached_bytes_written.count: 0 }
+  - gte:     { indices.docs.total.0.cached_bytes_written.sum: 0 }
+  - gte:     { indices.docs.total.0.cached_bytes_written.min: 0 }
+  - gte:     { indices.docs.total.0.cached_bytes_written.max: 0 }
+  - gte:     { indices.docs.total.0.cached_bytes_written.time_in_nanos: 0 }
+  - is_false:  indices.docs.total.0.cached_bytes_written.time
+
+  - gte:     { indices.docs.total.0.direct_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.direct_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.direct_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.direct_bytes_read.max: 0 }
+  - gte:     { indices.docs.total.0.direct_bytes_read.time_in_nanos: 0 }
+  - is_false:  indices.docs.total.0.direct_bytes_read.time
+
+  - gte:     { indices.docs.total.0.optimized_bytes_read.count: 0 }
+  - gte:     { indices.docs.total.0.optimized_bytes_read.sum: 0 }
+  - gte:     { indices.docs.total.0.optimized_bytes_read.min: 0 }
+  - gte:     { indices.docs.total.0.optimized_bytes_read.max: 0 }
+  - gte:     { indices.docs.total.0.optimized_bytes_read.time_in_nanos: 0 }
+  - is_false:  indices.docs.total.0.optimized_bytes_read.time
+
+  - gte:     { indices.docs.total.0.forward_seeks.small.count: 0 }
+  - gte:     { indices.docs.total.0.forward_seeks.small.sum: 0 }
+  - gte:     { indices.docs.total.0.forward_seeks.small.min: 0 }
+  - gte:     { indices.docs.total.0.forward_seeks.small.max: 0 }
+  - gte:     { indices.docs.total.0.forward_seeks.large.count: 0 }
+  - gte:     { indices.docs.total.0.forward_seeks.large.sum: 0 }
+  - gte:     { indices.docs.total.0.forward_seeks.large.min: 0 }
+  - gte:     { indices.docs.total.0.forward_seeks.large.max: 0 }
+
+  - gte:     { indices.docs.total.0.backward_seeks.small.count: 0 }
+  - gte:     { indices.docs.total.0.backward_seeks.small.sum: 0 }
+  - gte:     { indices.docs.total.0.backward_seeks.small.min: 0 }
+  - gte:     { indices.docs.total.0.backward_seeks.small.max: 0 }
+  - gte:     { indices.docs.total.0.backward_seeks.large.count: 0 }
+  - gte:     { indices.docs.total.0.backward_seeks.large.sum: 0 }
+  - gte:     { indices.docs.total.0.backward_seeks.large.min: 0 }
+  - gte:     { indices.docs.total.0.backward_seeks.large.max: 0 }
+
+  - gte:     { indices.docs.total.0.blob_store_bytes_requested.count: 0 }
+  - gte:     { indices.docs.total.0.blob_store_bytes_requested.sum: 0 }
+  - gte:     { indices.docs.total.0.blob_store_bytes_requested.min: 0 }
+  - gte:     { indices.docs.total.0.blob_store_bytes_requested.max: 0 }
+
+  - gte:     { indices.docs.total.0.current_index_cache_fills: 0 }
+
   - length:  { indices.docs.shards: 1 }
   - length:  { indices.docs.shards.0: 1 }
   - is_true: indices.docs.shards.0.0.snapshot_uuid
@@ -144,8 +293,9 @@ teardown:
   - match:   { indices.docs.shards.0.0.shard.primary: true }
   - match:   { indices.docs.shards.0.0.shard.node: $node_id }
 
-  - is_true: indices.docs.shards.0.0.files.0.name
-  - gt:      { indices.docs.shards.0.0.files.0.length: 0 }
+  - is_true: indices.docs.shards.0.0.files.0.file_ext
+  - gt:      { indices.docs.shards.0.0.files.0.num_files: 0 }
+  - gt:      { indices.docs.shards.0.0.files.0.total_size: 0 }
   - gt:      { indices.docs.shards.0.0.files.0.open_count: 0 }
   - gt:      { indices.docs.shards.0.0.files.0.close_count: 0 }
 
@@ -218,7 +368,25 @@ teardown:
   - do:
       searchable_snapshots.stats:
         index: "d*"
+        level: "shards"
         human: true
 
   - is_true:   indices.docs.shards.0.0.files.0.cached_bytes_written.time
   - is_true:   indices.docs.shards.0.0.files.0.direct_bytes_read.time
+
+  - do:
+      searchable_snapshots.stats:
+        index: "d*"
+        level: "cluster"
+
+  - is_true: total.0.file_ext
+  - is_false: indices.docs.total.0.file_ext
+  - is_false: indices.docs.shards.0.0.files.0.file_ext
+
+  - do:
+      searchable_snapshots.stats:
+        index: "d*"
+
+  - is_true: total.0.file_ext
+  - is_true: indices.docs.total.0.file_ext
+  - is_false: indices.docs.shards.0.0.files.0.file_ext

@@ -41,7 +41,6 @@ public final class DataTypes {
     public static final DataType TEXT             = new DataType("text",              Integer.MAX_VALUE, false, false, false);
     // date
     public static final DataType DATETIME         = new DataType("DATETIME", "date",        Long.BYTES,  false, false, true);
-    public static final DataType DATETIME_NANOS   = new DataType("DATETIME", "date_nanos",  Long.BYTES,  false, false, true);
     // ip
     public static final DataType IP               = new DataType("ip",                45,                false, false, true);
     // binary
@@ -77,11 +76,11 @@ public final class DataTypes {
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
             .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
-    private static final Map<String, DataType> ES_TO_TYPE;
+    private static Map<String, DataType> ES_TO_TYPE;
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
-        map.put(DATETIME_NANOS.esType(), DATETIME_NANOS);
+        map.put("date_nanos", DATETIME);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -160,7 +159,7 @@ public final class DataTypes {
     }
 
     public static boolean isDateTime(DataType type) {
-        return type == DATETIME || type == DATETIME_NANOS;
+        return type == DATETIME;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {

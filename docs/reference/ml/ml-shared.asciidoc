@@ -537,7 +537,7 @@ the detectors in the `analysis_config`, starting at zero.
 end::detector-index[]
 
 tag::dfas-alpha[]
-Advanced configuration option. {ml} uses loss guided tree growing.
+Advanced configuration option. {ml-cap} uses loss guided tree growing.
 This means that trees will grow where the regularized loss reduces
 the most. This parameter multiplies a term based on tree depth in
 the regularized loss. Higher values result in shallower trees
@@ -700,20 +700,19 @@ decision tree when the tree is trained.
 end::dfas-num-splits[]
 
 tag::dfas-soft-limit[]
-Advanced configuration option. {ml} uses loss guided tree growing.
-This means that trees will grow where the regularized loss reduces
-the most. The regularized loss increases quickly where the tree depth
-exceeds this parameter. This is a soft limit, it can be exceeded.
-Values must be greater than or equal to 0.
-By default, this value is calculated during hyperparameter optimization.
+Advanced configuration option. {ml-cap} uses loss guided tree growing, which 
+means that the decision trees grow where the regularized loss decreases most quickly. This
+soft limit combines with the `soft_tree_depth_tolerance` to penalize trees that 
+exceed the specified depth; the regularized loss increases quickly beyond this 
+depth. Values must be greater than or equal to 0. By default, this value is 
+calculated during hyperparameter optimization.
 end::dfas-soft-limit[]
 
 tag::dfas-soft-tolerance[]
-Advanced configuration option.
-This controls how quickly the regularized loss increases when the tree
-depth exceeds `soft_tree_depth_limit`.
-Values must be greater than or equal to 0.01.
-By default, this value is calculated during hyperparameter optimization.
+Advanced configuration option. This option controls how quickly the regularized 
+loss increases when the tree depth exceeds `soft_tree_depth_limit`. Values must 
+be greater than or equal to 0.01. By default, this value is calculated during 
+hyperparameter optimization.
 end::dfas-soft-tolerance[]
 
 tag::dfas-timestamp[]

@@ -60,6 +60,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests.randomPivotConfig;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 
 public class TransformIndexerTests extends ESTestCase {
@@ -285,7 +286,7 @@ public class TransformIndexerTests extends ESTestCase {
 
             indexer.start();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertEquals(indexer.getState(), IndexerState.INDEXING);
+            assertThat(indexer.getState(), oneOf(IndexerState.INDEXING, IndexerState.STARTED));
 
             assertBusy(() -> assertEquals(1L, indexer.getLastCheckpoint().getCheckpoint()), 5, TimeUnit.HOURS);
 

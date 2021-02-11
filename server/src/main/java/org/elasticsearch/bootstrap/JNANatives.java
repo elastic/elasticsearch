@@ -271,10 +271,12 @@ class JNANatives {
 
     @SuppressForbidden(reason = "need access to fd on FileOutputStream")
     static void fallocateSnapshotCacheFile(Environment environment, long fileSize) throws IOException {
-        if (Constants.LINUX == false) {
-            logger.debug("not trying to create a shared cache file using fallocate on non-Linux platform");
+        final JNAFalloc falloc = JNAFalloc.falloc();
+        if (falloc == null) {
+            logger.debug("not trying to create a shared cache file using fallocate because native fallocate library could not be loaded.");
             return;
         }
+
         Path cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
         if (cacheFile == null) {
             throw new IOException("could not find a directory with adequate free space for cache file");
@@ -285,13 +287,12 @@ class JNANatives {
             if (currentSize < fileSize) {
                 final Field field = fileChannel.getFD().getClass().getDeclaredField("fd");
                 field.setAccessible(true);
-                final int result = JNACLibrary.fallocate((int) field.get(fileChannel.getFD()), 0, currentSize, fileSize - currentSize);
-                final int errno = result == 0 ? 0 : Native.getLastError();
-                if (errno == 0) {
+                final int result = falloc.fallocate((int) field.get(fileChannel.getFD()), currentSize, fileSize - currentSize);
+                if (result == 0) {
                     success = true;
                     logger.info("allocated cache file [{}] using fallocate", cacheFile);
                 } else {
-                    logger.warn("failed to initialize cache file [{}] using fallocate errno [{}]", cacheFile, errno);
+                    logger.warn("failed to initialize cache file [{}] using fallocate errno [{}]", cacheFile, result);
                 }
             }
         } catch (Exception e) {

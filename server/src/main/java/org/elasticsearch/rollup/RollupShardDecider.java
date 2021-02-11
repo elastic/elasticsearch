@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.RollupGroup;
+import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -52,45 +53,41 @@ public class RollupShardDecider {
      */
     public static boolean canMatch(ShardSearchRequest request,
                                    SearchExecutionContext context,
-                                   IndexMetadata requestIndexMetadata, RollupMetadata rollupMetadata,
+                                   IndexMetadata requestIndexMetadata,
                                    String[] indices,
-                                   SortedMap<String, IndexAbstraction> indexLookup) {
+                                   SortedMap<String, IndexAbstraction> indexLookup) throws IOException {
         IndexAbstraction originalIndex = indexLookup.get(requestIndexMetadata.getIndex().getName());
-        // Index must be member of a datastream
+        // Index must be member of a data stream
         if (originalIndex.getParentDataStream() == null) {
             return true;
         }
-
         // Rollup metadata must exist
-        if (rollupMetadata == null) {
+        Map<String, String> indexRollupMetadata = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
+        if (indexRollupMetadata == null) {
             return true;
         }
+        // A rollup index is being searched
+        if (checkRollupConditions(request) == false) {
+            return false;
+        }
 
-        final String requestIndexName = requestIndexMetadata.getIndex().getName();
         final AggregatorFactories.Builder aggregations = request.source() != null ? request.source().aggregations() : null;
+        final String rollupConfigSource = indexRollupMetadata.get(RollupIndexMetadata.ROLLUP_META_FIELD);
+        RollupIndexMetadata rollupIndexMetadata = RollupIndexMetadata.parseMetadataXContent(rollupConfigSource);
 
-        if (isRollupIndex(requestIndexMetadata)) { // A rollup index is being searched
-            if (checkRollupConditions(request) == false) {
-                return false;
-            }
-
-            Map<String, String> indexRollupMetadata = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
-            final String originalIndexName = indexRollupMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD);
-            final RollupGroup rollupGroup = rollupMetadata.rollupGroups().get(originalIndexName);
-
-            String optimalIndex = findOptimalIndex(originalIndexName, rollupGroup, aggregations);
-            logger.info("Requested index: " + requestIndexName + " - Optimal index: " + optimalIndex);
-
-            return requestIndexName.equals(optimalIndex);
-        } else if (rollupMetadata.contains(requestIndexName) && checkRollupConditions(request)) { // There are rollup indices for this index
-            final RollupGroup rollupGroup = rollupMetadata.rollupGroups().get(requestIndexName);
-            String optimalIndex = findOptimalIndex(requestIndexName, rollupGroup, aggregations);
-            logger.info("Requested index: " + requestIndexName + " - Optimal index: " + optimalIndex);
-            return requestIndexName.equals(optimalIndex);
-        } else {
-            // Not part of a rollup group or rollups cannot serve the query, search away!
-            return true;
+        DateHistogramAggregationBuilder source = getDateHistogramAggregationBuilder(aggregations);
+        ZoneId sourceTimeZone = ZoneOffset.UTC; // Default timezone is UTC
+        if (source != null && source.timeZone() != null) {
+            sourceTimeZone = ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
         }
+        DateHistogramInterval sourceInterval = source != null ? source.getCalendarInterval() : null;
+        // Incompatible timezone => skip this rollup group
+        if (canMatchTimezone(sourceTimeZone, rollupIndexMetadata.getDateTimezone().zoneId()) == false
+            || canMatchCalendarInterval(sourceInterval, rollupIndexMetadata.getDateInterval()) == false) {
+            return false;
+        }
+
+        return true;
     }
 
     private static boolean checkRollupConditions(ShardSearchRequest request) {
@@ -132,13 +129,9 @@ public class RollupShardDecider {
         return true;
     }
 
-    public static boolean isRollupIndex(IndexMetadata requestIndexMetadata) {
-        return requestIndexMetadata.getCustomData(RollupMetadata.TYPE) != null;
-    }
-
-    static String findOptimalIndex(String originalIndexName, RollupGroup rollupGroup, AggregatorFactories.Builder aggFactoryBuilders) {
+    public static String findOptimalIndex(Map<String, RollupIndexMetadata> rollupGroup, AggregatorFactories.Builder aggFactoryBuilders) {
         DateHistogramAggregationBuilder dateHistogramBuilder = getDateHistogramAggregationBuilder(aggFactoryBuilders);
-        return findOptimalIntervalIndex(originalIndexName, rollupGroup, dateHistogramBuilder);
+        return findOptimalIntervalIndex(rollupGroup, dateHistogramBuilder);
     }
 
     private static DateHistogramAggregationBuilder getDateHistogramAggregationBuilder(AggregatorFactories.Builder aggFactoryBuilders) {
@@ -158,13 +151,12 @@ public class RollupShardDecider {
      * interval that matches the aggregation. If no rollup index matches the interval, we return the
      * original index.
      *
-     * @param originalIndex The original index with raw data
      * @param rollupGroup The group of rollup indices that are candidates
      * @param source The source of the aggregation in the request
      * @return the name of the optimal (maximum interval) index that matches the query
      */
-    static String findOptimalIntervalIndex(String originalIndex, RollupGroup rollupGroup, DateHistogramAggregationBuilder source) {
-        String optimalIndex = originalIndex;
+    static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramAggregationBuilder source) {
+        String optimalIndex = null;
         ZoneId sourceTimeZone = ZoneOffset.UTC;
         if (source != null && source.timeZone() != null) {
             sourceTimeZone = ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
@@ -172,14 +164,16 @@ public class RollupShardDecider {
         DateHistogramInterval sourceInterval = source != null ? source.getCalendarInterval() : null;
 
         DateHistogramInterval maxInterval = null;
-        for (String rollupIndex : rollupGroup.getIndices()) {
-            ZoneId thisTimezone = rollupGroup.getDateTimezone(rollupIndex).zoneId();
+        for (Map.Entry<String, RollupIndexMetadata> entry : rollupGroup.entrySet()) {
+            String rollupIndex = entry.getKey();
+            RollupIndexMetadata metadata = entry.getValue();
+            ZoneId thisTimezone = metadata.getDateTimezone().zoneId();
             if (sourceTimeZone.getRules().equals(thisTimezone.getRules()) == false) {
                 // Incompatible timezone => skip this rollup group
                 continue;
             }
 
-            DateHistogramInterval thisInterval = rollupGroup.getDateInterval(rollupIndex);
+            DateHistogramInterval thisInterval = metadata.getDateInterval();
             if (canMatchCalendarInterval(sourceInterval, thisInterval)) {
                 if (maxInterval == null || canMatchCalendarInterval(thisInterval, maxInterval)) {
                     optimalIndex = rollupIndex;
@@ -226,5 +220,9 @@ public class RollupShardDecider {
 
         // All calendar units are multiples naturally, so we just care about gte
         return requiredIntervalOrder >= candidateIntervalOrder;
+    }
+
+    static boolean canMatchTimezone(ZoneId tz1, ZoneId tz2) {
+        return tz1.getRules().equals(tz2.getRules());
     }
 }

@@ -273,6 +273,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         String oldIndexName = rollover(dataStreamName).getOldIndex();
         String rollupIndexName = ".rollup-" + oldIndexName;
         rollup(oldIndexName, rollupIndexName, config);
+        rollup(oldIndexName, rollupIndexName + "-2", config);
 //        assertRollupIndex(config);
     }
 

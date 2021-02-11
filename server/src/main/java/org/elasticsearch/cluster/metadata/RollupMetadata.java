@@ -28,7 +28,6 @@ import java.util.Objects;
  */
 public class RollupMetadata extends AbstractDiffable<RollupMetadata> implements ToXContentObject {
     public static final String TYPE = "rollup";
-    public static final String SOURCE_INDEX_NAME_META_FIELD = "source_index";
     private static final ParseField ROLLUP = new ParseField("rollup");
 
     @SuppressWarnings("unchecked")

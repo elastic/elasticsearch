@@ -47,7 +47,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.rollup.RollupShardDecider;
 import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -735,12 +734,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(index);
             DataStream datastream = originalIndex.getParentDataStream() != null
                 ? originalIndex.getParentDataStream().getDataStream() : null;
-            //TODO(csoulios): Rollup metadata should be moved to datastream metadata
-            // RollupMetadata rollupMetadata = datastream != null ? datastream.getMetadata().get(RollupMetadata.TYPE);
-            RollupMetadata rollupMetadata = clusterState.getMetadata().custom(RollupMetadata.TYPE);
             IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-            if (datastream != null && rollupMetadata != null
-                && (RollupShardDecider.isRollupIndex(indexMetadata) || rollupMetadata.contains(index))) {
+            if (datastream != null && indexMetadata.getCustomData(RollupMetadata.TYPE) != null) {
                 return true;
             }
         }

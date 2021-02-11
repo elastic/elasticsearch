@@ -14,10 +14,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.WriteableZoneId;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
@@ -40,6 +44,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * will be chosen.
  */
 public class RollupIndexMetadata extends AbstractDiffable<RollupIndexMetadata> implements ToXContentObject {
+
+    public static final String SOURCE_INDEX_NAME_META_FIELD = "source_index";
+    public static final String ROLLUP_META_FIELD = "rollup_meta";
 
     private static final ParseField DATE_INTERVAL_FIELD = new ParseField("interval");
     private static final ParseField DATE_TIMEZONE_FIELD = new ParseField("timezone");
@@ -106,6 +113,12 @@ public class RollupIndexMetadata extends AbstractDiffable<RollupIndexMetadata> i
 
     static RollupIndexMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    public static RollupIndexMetadata parseMetadataXContent(String content) throws IOException{
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE, content);
+        return PARSER.apply(parser, null);
     }
 
     public DateHistogramInterval getDateInterval() {

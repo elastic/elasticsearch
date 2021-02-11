@@ -27,13 +27,14 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RollupGroup;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.WriteableZoneId;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -59,9 +60,9 @@ import java.util.Map;
 
 /**
  * The master rollup action that coordinates
- *  -  creating rollup temporary index
- *  -  calling {@link TransportRollupIndexerAction} to index rolluped up documents
- *  -  cleaning up state
+ * -  creating rollup temporary index
+ * -  calling {@link TransportRollupIndexerAction} to index rolluped up documents
+ * -  cleaning up state
  */
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
 
@@ -154,14 +155,14 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     private static XContentBuilder getDynamicTemplates(XContentBuilder builder) throws IOException {
         return builder.startArray("dynamic_templates")
-                .startObject()
-                    .startObject("strings")
-                        .field("match_mapping_type", "string")
-                        .startObject("mapping")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject()
+            .startObject("strings")
+            .field("match_mapping_type", "string")
+            .startObject("mapping")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
             .endArray();
     }
 
@@ -209,7 +210,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState) throws IOException {
                 String rollupIndexName = request.getRollupIndex();
                 // TODO(talevy): find better spot to get the original index name
                 // extract created rollup index original index name to be used as metadata key
@@ -218,52 +219,42 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
 
-                // Add metadata to rollup index metadata. In the rollup index metadata we only add the name
-                // of the source index.
+                // Add the source index name to the rollup index metadata. If the original index is a rollup index itself
+                // we will add the name of the raw index that we initially rolled up.
                 Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName).getCustomData(RollupMetadata.TYPE);
-                String rollupGroupKeyName = idxMetadata != null ?
-                    idxMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
+                String rollupSourceIndexName = idxMetadata != null ?
+                    idxMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
                 Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
-                rollupIndexRollupMetadata.put(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupGroupKeyName);
+                rollupIndexRollupMetadata.put(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD, rollupSourceIndexName);
+
+                // Add metadata about the rollup configuration
+                RollupActionConfig rollupConfig = request.getRollupConfig();
+                RollupActionDateHistogramGroupConfig dateConfig = rollupConfig.getGroupConfig().getDateHistogram();
+                WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
+                Map<String, List<String>> metricsConfig = new HashMap<>();
+                for (MetricConfig mconfig : rollupConfig.getMetricsConfig()) {
+                    metricsConfig.put(mconfig.getField(), mconfig.getMetrics());
+                }
+                RollupIndexMetadata rollupInfo = new RollupIndexMetadata(dateConfig.getInterval(), rollupDateZoneId, metricsConfig);
+                // Serialize the metadata as JSON string and store it
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    rollupInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    rollupIndexRollupMetadata.put(RollupIndexMetadata.ROLLUP_META_FIELD, Strings.toString(builder));
+                }
 
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
                     .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata));
 
                 if (originalIndex.getParentDataStream() != null) {
-                    // If rolling up a backing index of a datastream, add rolled up index to backing datastream
+                    // If rolling up a backing index of a data stream, add rolled up index to backing data stream
                     DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
-
-                    Map<String, Object> dsMetadata = originalDataStream.getMetadata() != null
-                        ? originalDataStream.getMetadata() : new HashMap<>();
-                    final RollupMetadata rollupMetadata = dsMetadata.containsKey(RollupMetadata.TYPE) ?
-                        (RollupMetadata) dsMetadata.get(RollupMetadata.TYPE) : null;
-                    final Map<String, RollupGroup> rollupGroups = rollupMetadata != null ?
-                        new HashMap<>(rollupMetadata.rollupGroups()) : new HashMap<>();
-
-                    RollupActionConfig rollupConfig = request.getRollupConfig();
-                    RollupActionDateHistogramGroupConfig dateConfig = rollupConfig.getGroupConfig().getDateHistogram();
-                    WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
-                    Map<String, List<String>> metricsConfig = new HashMap<>();
-                    for (MetricConfig mconfig: rollupConfig.getMetricsConfig()) {
-                        metricsConfig.put(mconfig.getField(), mconfig.getMetrics());
-                    }
-                    RollupIndexMetadata rollupInfo = new RollupIndexMetadata(dateConfig.getInterval(), rollupDateZoneId, metricsConfig);
-
-                    if (rollupGroups.containsKey(rollupGroupKeyName)) {
-                        RollupGroup group = rollupGroups.get(rollupGroupKeyName);
-                        group.add(rollupIndexName, rollupInfo);
-                    } else {
-                        RollupGroup group = new RollupGroup();
-                        group.add(rollupIndexName, rollupInfo);
-                        rollupGroups.put(rollupGroupKeyName, group);
-                    }
-                    dsMetadata.put(RollupMetadata.TYPE, new RollupMetadata(rollupGroups));
-
-                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());
+                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size() + 1);
+                    // Adding rollup indices to the beginning of the list will prevent rollup indices from ever being
+                    // considered a write index
                     backingIndices.add(rollupIndex);
-
+                    backingIndices.addAll(originalDataStream.getIndices());
                     DataStream dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
-                        backingIndices, originalDataStream.getGeneration(), dsMetadata);
+                        backingIndices, originalDataStream.getGeneration(), originalDataStream.getMetadata());
                     metadataBuilder.put(dataStream);
                 }
                 return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
@@ -290,7 +281,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(Exception deleteException) {
-                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex  + "]", e));
+                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex + "]", e));
             }
         });
     }

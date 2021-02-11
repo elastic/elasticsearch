@@ -72,7 +72,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     protected final SearchPhaseResults<Result> results;
-    private final ClusterState clusterState;
+    protected final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();

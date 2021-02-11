@@ -188,8 +188,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         } else {
             assertEquals(0, result.get().get(0).shardId().id());
             assertEquals(1, result.get().get(1).shardId().id());
-            assertEquals(shard1, !result.get().get(0).skip());
-            assertEquals(shard2, !result.get().get(1).skip());
+            assertEquals(shard1, result.get().get(0).skip() == false);
+            assertEquals(shard2, result.get().get(1).skip() == false);
         }
 
     }

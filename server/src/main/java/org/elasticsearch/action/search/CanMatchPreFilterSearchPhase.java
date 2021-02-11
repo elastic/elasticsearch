@@ -11,10 +11,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
+import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.rollup.RollupShardDecider;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchService.CanMatchResponse;
 import org.elasticsearch.search.SearchShardTarget;
@@ -26,7 +32,9 @@ import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.transport.Transport;
 
+import java.io.IOException;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -108,6 +116,58 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             possibleMatches.set(shardIndexToQuery);
         }
         SearchSourceBuilder source = getRequest().source();
+
+        if (RollupV2.isEnabled()) {
+            Map<String, Tuple<String, RollupIndexMetadata>> preferRollup = new HashMap<>(shardsIts.size());
+
+            int i = 0;
+            for (SearchShardIterator iter : shardsIts) {
+                if (possibleMatches.get(i++)) {
+                    String indexName = iter.shardId().getIndexName();
+                    Map<String, String> idxMetadata = clusterState.getMetadata().index(indexName).getCustomData(RollupMetadata.TYPE);
+                    if (idxMetadata == null) {
+                        continue;
+                    }
+
+                    IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(indexName);
+                    if (originalIndex.getParentDataStream() == null) {
+                        continue;
+                    }
+
+                    String sourceIndex = idxMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD);
+                    try {
+                        RollupIndexMetadata rollupIndexMetadata = RollupIndexMetadata.parseMetadataXContent(
+                            idxMetadata.get(RollupIndexMetadata.ROLLUP_META_FIELD));
+
+                        if (preferRollup.containsKey(sourceIndex)) {
+                            Tuple<String, RollupIndexMetadata> previousOptimalIndex = preferRollup.get(sourceIndex);
+                            Map<String, RollupIndexMetadata> rollupGroup = Map.of(
+                                indexName, rollupIndexMetadata,
+                                previousOptimalIndex.v1(), previousOptimalIndex.v2());
+                            String newOptimalIndex = RollupShardDecider.findOptimalIndex(rollupGroup, source.aggregations());
+                            Tuple<String, RollupIndexMetadata> optimalTuple = Tuple.tuple(newOptimalIndex,rollupGroup.get(newOptimalIndex));
+                            preferRollup.put(sourceIndex, optimalTuple);
+
+                            String suboptimalIndex = indexName.equals(newOptimalIndex) ? indexName : previousOptimalIndex.v1();
+                            preferRollup.put(suboptimalIndex, optimalTuple);
+                        } else {
+                            preferRollup.put(sourceIndex, new Tuple<>(indexName, rollupIndexMetadata));
+                        }
+                    } catch (IOException e) {
+                        getLogger().error("Cannot parse rollup metadata for index [" + indexName + "].", e);
+                    }
+                }
+            }
+
+            i = 0;
+            for (SearchShardIterator iter : shardsIts) {
+                if (possibleMatches.get(i) && preferRollup.containsKey(iter.shardId().getIndexName())) {
+                    possibleMatches.clear(i);
+                }
+                i++;
+            }
+        }
+
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
             if (possibleMatches.get(i++)) {

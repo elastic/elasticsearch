@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -56,8 +55,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -1233,18 +1232,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
 
                     if (RollupV2.isEnabled()) {
-                        //TODO(csoulios): Rollup metadata should be moved to datastream metadata
-                        RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
-//                        IndexAbstraction originalIndex = clusterService.state().getMetadata().getIndicesLookup()
-//                            .get(request.shardId().getIndexName());
-//                        DataStream datastream = originalIndex.getParentDataStream() != null
-//                            ? originalIndex.getParentDataStream().getDataStream() : null;
-//                        RollupMetadata rollupMetadata = datastream != null ? datastream.getMetadata().get(RollupMetadata.TYPE);
-
                         IndexMetadata requestIndexMetadata = clusterService.state().getMetadata()
                                 .index(request.shardId().getIndexName());
 
-                        if (RollupShardDecider.canMatch(request, context, requestIndexMetadata, rollupMetadata,
+                        if (RollupShardDecider.canMatch(request, context, requestIndexMetadata,
                             request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
                             return new CanMatchResponse(false, minMax);
                         }

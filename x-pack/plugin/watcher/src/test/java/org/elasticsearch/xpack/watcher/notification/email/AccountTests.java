@@ -190,7 +190,7 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, null, Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
@@ -232,7 +232,7 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, null, Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
@@ -256,7 +256,7 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, new Authentication(EmailServer.USERNAME, new Secret(EmailServer.PASSWORD.toCharArray())), Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }

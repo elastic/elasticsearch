@@ -66,8 +66,8 @@ teardown:
 ---
 "Tests searchable snapshots usage stats":
   - skip:
-      version: " - 7.8.99"
-      reason:  searchable snapshots usage stats introduced in 7.9.0
+      version: " - 7.99.99"
+      reason:  storage flag introduced in 8.0.0
 
   - do:
       xpack.usage: {}
@@ -81,6 +81,7 @@ teardown:
         repository: repository-fs
         snapshot: snapshot
         wait_for_completion: true
+        storage: full_copy
         body:
           index: docs
 

@@ -105,7 +105,7 @@ public final class AggregationTestUtils {
                 for (Map.Entry<String, Double> keyValue : term.values.entrySet()) {
                     numericAggs.add(createSingleValue(keyValue.getKey(), keyValue.getValue()));
                 }
-                if (!numericAggs.isEmpty()) {
+                if (numericAggs.isEmpty() == false) {
                     Aggregations aggs = createAggs(numericAggs);
                     when(bucket.getAggregations()).thenReturn(aggs);
                 }

@@ -454,8 +454,7 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedXContent().stream()),
                 ClusterModule.getNamedXWriteables().stream())
                 .flatMap(Function.identity()).collect(toList()),
-                pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList())
+                getCompatibleNamedXContents()
                 );
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final PersistedClusterStateService lucenePersistedStateFactory
@@ -597,8 +596,7 @@ public class Node implements Closeable {
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, repositoryService,
                 transportService, indicesService);
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
-                metadataCreateIndexService, indexMetadataVerifier, clusterService.getClusterSettings(), shardLimitValidator);
-
+                    metadataCreateIndexService, indexMetadataVerifier, shardLimitValidator);
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(settings, clusterService::state,
                 clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis, rerouteService);
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
@@ -729,6 +727,12 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    // package scope for testing
+    List<NamedXContentRegistry.Entry> getCompatibleNamedXContents() {
+        return pluginsService.filterPlugins(Plugin.class).stream()
+            .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList());
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

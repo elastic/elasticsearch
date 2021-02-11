@@ -9,47 +9,59 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedValueFetcher;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldFetcher {
+
     public static FieldFetcher create(SearchExecutionContext context,
-                                      SearchLookup searchLookup,
-                                      Collection<FieldAndFormat> fieldAndFormats) {
+        Collection<FieldAndFormat> fieldAndFormats) {
+        Set<String> nestedMappingPaths = context.hasNested()
+            ? context.nestedMappings().stream().map(ObjectMapper::name).collect(Collectors.toSet())
+            : Collections.emptySet();
+        return create(context, fieldAndFormats, nestedMappingPaths, "");
+    }
+
+    private static FieldFetcher create(SearchExecutionContext context,
+        Collection<FieldAndFormat> fieldAndFormats, Set<String> nestedMappingsInScope, String nestedScopePath) {
+        // here we only need the nested paths that are closes to the root, e.g. only "foo" if also "foo.bar" is present.
+        // the remaining nested field paths are handled recursively
+        Set<String> nestedParentPaths = getParentPaths(nestedMappingsInScope, context);
 
         // Using a LinkedHashMap so fields are returned in the order requested.
         // We won't formally guarantee this but but its good for readability of the response
         Map<String, FieldContext> fieldContexts = new LinkedHashMap<>();
         List<String> unmappedFetchPattern = new ArrayList<>();
-        boolean includeUnmapped = false;
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
             if (fieldAndFormat.includeUnmapped != null && fieldAndFormat.includeUnmapped) {
                 unmappedFetchPattern.add(fieldAndFormat.field);
-                includeUnmapped = true;
             }
-            String format = fieldAndFormat.format;
 
             Collection<String> concreteFields = context.simpleMatchToIndexNames(fieldPattern);
             for (String field : concreteFields) {
@@ -57,49 +69,84 @@ public class FieldFetcher {
                 if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
-                ValueFetcher valueFetcher = ft.valueFetcher(context, format);
-                fieldContexts.put(field, new FieldContext(field, valueFetcher));
+                if (field.startsWith(nestedScopePath) == false) {
+                    // this field is out of scope for this FieldFetcher (its likely nested) so ignore
+                    continue;
+                }
+                String nestedParentPath = null;
+                if (nestedParentPaths.isEmpty() == false) {
+                    // try to find the shortest nested parent path for this field
+                    for (String nestedFieldPath : nestedParentPaths) {
+                        if (field.startsWith(nestedFieldPath)) {
+                            nestedParentPath = nestedFieldPath;
+                            break;
+                        }
+                    }
+                }
+                // only add concrete fields if they are not beneath a known nested field
+                if (nestedParentPath == null) {
+                    ValueFetcher valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
+                    fieldContexts.put(field, new FieldContext(field, valueFetcher));
+                }
             }
         }
-        CharacterRunAutomaton unmappedFetchAutomaton = new CharacterRunAutomaton(Automata.makeEmpty());
+
+        // create a new nested value fetcher for patterns under nested field
+        for (String nestedFieldPath : nestedParentPaths) {
+            // We construct a field fetcher that narrows the allowed lookup scope to everything beneath its nested field path.
+            // We also need to remove this nested field path and everything beneath it from the list of available nested fields before
+            // creating this internal field fetcher to avoid infinite loops on this recursion
+            Set<String> narrowedScopeNestedMappings = nestedMappingsInScope.stream()
+                .filter(s -> nestedParentPaths.contains(s) == false)
+                .collect(Collectors.toSet());
+
+            FieldFetcher nestedSubFieldFetcher = FieldFetcher.create(
+                context,
+                fieldAndFormats,
+                narrowedScopeNestedMappings,
+                nestedFieldPath
+            );
+
+            // add a special ValueFetcher that filters source and collects its subfields
+            fieldContexts.put(
+                nestedFieldPath,
+                new FieldContext(nestedFieldPath, new NestedValueFetcher(nestedFieldPath, nestedSubFieldFetcher))
+            );
+        }
+
+        CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
         if (unmappedFetchPattern.isEmpty() == false) {
-            unmappedFetchAutomaton = new CharacterRunAutomaton(
+            unmappedFieldsFetchAutomaton = new CharacterRunAutomaton(
                 Regex.simpleMatchToAutomaton(unmappedFetchPattern.toArray(new String[unmappedFetchPattern.size()]))
             );
         }
-        return new FieldFetcher(fieldContexts, unmappedFetchAutomaton, includeUnmapped);
+        return new FieldFetcher(fieldContexts, unmappedFieldsFetchAutomaton);
     }
 
     private final Map<String, FieldContext> fieldContexts;
-    private final CharacterRunAutomaton unmappedFetchAutomaton;
-    private final boolean includeUnmapped;
+    private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
 
     private FieldFetcher(
         Map<String, FieldContext> fieldContexts,
-        CharacterRunAutomaton unmappedFetchAutomaton,
-        boolean includeUnmapped
+        @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton
     ) {
         this.fieldContexts = fieldContexts;
-        this.unmappedFetchAutomaton = unmappedFetchAutomaton;
-        this.includeUnmapped = includeUnmapped;
+        this.unmappedFieldsFetchAutomaton = unmappedFieldsFetchAutomaton;
     }
 
     public Map<String, DocumentField> fetch(SourceLookup sourceLookup, Set<String> ignoredFields) throws IOException {
+        assert ignoredFields != null;
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
-            if (ignoredFields.contains(field)) {
-                continue;
-            }
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
-
+            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredFields);
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }
         }
-        if (this.includeUnmapped) {
+        if (this.unmappedFieldsFetchAutomaton != null) {
             collectUnmapped(documentFields, sourceLookup.source(), "", 0);
         }
         return documentFields;
@@ -109,7 +156,10 @@ public class FieldFetcher {
         for (String key : source.keySet()) {
             Object value = source.get(key);
             String currentPath = parentPath + key;
-            int currentState = step(this.unmappedFetchAutomaton, key, lastState);
+            if (this.fieldContexts.containsKey(currentPath)) {
+                continue;
+            }
+            int currentState = step(this.unmappedFieldsFetchAutomaton, key, lastState);
             if (currentState == -1) {
                 // current path doesn't match any fields pattern
                 continue;
@@ -120,14 +170,14 @@ public class FieldFetcher {
                     documentFields,
                     (Map<String, Object>) value,
                     currentPath + ".",
-                    step(this.unmappedFetchAutomaton, ".", currentState)
+                    step(this.unmappedFieldsFetchAutomaton, ".", currentState)
                 );
             } else if (value instanceof List) {
                 // iterate through list values
                 collectUnmappedList(documentFields, (List<?>) value, currentPath, currentState);
             } else {
                 // we have a leaf value
-                if (this.unmappedFetchAutomaton.isAccept(currentState) && this.fieldContexts.containsKey(currentPath) == false) {
+                if (this.unmappedFieldsFetchAutomaton.isAccept(currentState)) {
                     if (value != null) {
                         DocumentField currentEntry = documentFields.get(currentPath);
                         if (currentEntry == null) {
@@ -151,12 +201,12 @@ public class FieldFetcher {
                     documentFields,
                     (Map<String, Object>) value,
                     parentPath + ".",
-                    step(this.unmappedFetchAutomaton, ".", lastState)
+                    step(this.unmappedFieldsFetchAutomaton, ".", lastState)
                 );
             } else if (value instanceof List) {
                 // weird case, but can happen for objects with "enabled" : "false"
                 collectUnmappedList(documentFields, (List<?>) value, parentPath, lastState);
-            } else if (this.unmappedFetchAutomaton.isAccept(lastState) && this.fieldContexts.containsKey(parentPath) == false) {
+            } else if (this.unmappedFieldsFetchAutomaton.isAccept(lastState) && this.fieldContexts.containsKey(parentPath) == false) {
                 list.add(value);
             }
         }
@@ -168,6 +218,19 @@ public class FieldFetcher {
                 currentEntry.getValues().addAll(list);
             }
         }
+    }
+
+    private static Set<String> getParentPaths(Set<String> nestedPathsInScope, SearchExecutionContext context) {
+        Set<String> parentPaths = new HashSet<>();
+        for (String candidate : nestedPathsInScope) {
+            String nestedParent = context.getNestedParent(candidate);
+            // if the candidate has no nested parent itself, its a minimal parent path
+            // if the candidate has a parent which is out of scope this means it minimal itself
+            if (nestedParent == null || nestedPathsInScope.contains(nestedParent) == false) {
+                parentPaths.add(candidate);
+            }
+        }
+        return parentPaths;
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

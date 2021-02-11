@@ -11,6 +11,7 @@ package org.elasticsearch.client.indices.rollover;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,12 +37,16 @@ public class RolloverRequestTests extends ESTestCase {
 
         // test assignment of conditions
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(10));
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(2000));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(10000L);
-        Condition<?>[] expectedConditions = new Condition<?>[] {maxAgeCondition, maxSizeCondition, maxDocsCondition};
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(2000));
+        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(new ByteSizeValue(3000));
+        Condition<?>[] expectedConditions = new Condition<?>[]{
+            maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition
+        };
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
-        rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
+        rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
+        rolloverRequest.addMaxSinglePrimarySizeCondition(maxSinglePrimarySizeCondition.value());
         List<Condition<?>> requestConditions = new ArrayList<>(rolloverRequest.getConditions().values());
         assertThat(requestConditions, containsInAnyOrder(expectedConditions));
     }

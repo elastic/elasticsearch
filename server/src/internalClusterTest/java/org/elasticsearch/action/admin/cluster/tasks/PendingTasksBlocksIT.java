@@ -62,12 +62,12 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         }
 
         // restart the cluster but prevent it from performing state recovery
-        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true", "master:true").get().getNodes().size();
+        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true").get().getNodes().size();
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 return Settings.builder()
-                    .put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), nodeCount + 1)
+                    .put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), nodeCount + 1)
                     .build();
             }
 

@@ -58,7 +58,7 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
             Request request = PARSER.apply(parser, null);
             if (request.filterId == null) {
                 request.filterId = filterId;
-            } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(request.filterId)) {
+            } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(request.filterId) == false) {
                 // If we have both URI and body filter ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
                         request.filterId, filterId));

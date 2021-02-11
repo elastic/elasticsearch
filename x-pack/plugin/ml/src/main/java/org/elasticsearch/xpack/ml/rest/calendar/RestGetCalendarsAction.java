@@ -52,7 +52,7 @@ public class RestGetCalendarsAction extends BaseRestHandler {
             }
         } else  {
             request = new GetCalendarsAction.Request();
-            if (!Strings.isNullOrEmpty(calendarId)) {
+            if (Strings.isNullOrEmpty(calendarId) == false) {
                 request.setCalendarId(calendarId);
             }
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

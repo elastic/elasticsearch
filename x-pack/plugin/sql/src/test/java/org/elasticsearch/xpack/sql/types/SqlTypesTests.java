@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -71,7 +70,7 @@ public class SqlTypesTests extends ESTestCase {
 
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("date_nanos");
-        assertThat(field.getDataType(), is(DATETIME_NANOS));
+        assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
         assertThat(SqlDataTypes.defaultPrecision(field.getDataType()), is(9));
     }

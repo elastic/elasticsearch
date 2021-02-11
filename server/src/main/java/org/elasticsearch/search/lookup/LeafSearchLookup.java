@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * Per-segment version of {@link SearchLookup}.
  */
-public class LeafSearchLookup {
+public class LeafSearchLookup implements ValuesLookup {
 
     private final LeafReaderContext ctx;
     private final LeafDocLookup docMap;

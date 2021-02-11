@@ -21,7 +21,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -782,12 +782,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         XContentBuilder source,
         List<FieldAndFormat> fields
     ) throws IOException {
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
-
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
-        return fieldFetcher.fetch(sourceLookup);
+        return fieldFetcher.fetch(ValuesLookup.sourceOnly(BytesReference.bytes(source)));
     }
 
     public MapperService createMapperService() throws IOException {

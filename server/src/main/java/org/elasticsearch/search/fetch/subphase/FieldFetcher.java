@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
@@ -18,7 +17,7 @@ import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -134,19 +133,19 @@ public class FieldFetcher {
         this.unmappedFieldsFetchAutomaton = unmappedFieldsFetchAutomaton;
     }
 
-    public Map<String, DocumentField> fetch(SourceLookup sourceLookup) throws IOException {
+    public Map<String, DocumentField> fetch(ValuesLookup valuesLookup) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
 
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup);
+            List<Object> parsedValues = valueFetcher.fetchValues(valuesLookup);
             if (parsedValues.isEmpty() == false) {
                 documentFields.put(field, new DocumentField(field, parsedValues));
             }
         }
         if (this.unmappedFieldsFetchAutomaton != null) {
-            collectUnmapped(documentFields, sourceLookup.source(), "", 0);
+            collectUnmapped(documentFields, valuesLookup.source().source(), "", 0);
         }
         return documentFields;
     }
@@ -237,12 +236,6 @@ public class FieldFetcher {
             state = automaton.step(state, key.charAt(i));
         }
         return state;
-    }
-
-    public void setNextReader(LeafReaderContext readerContext) {
-        for (FieldContext field : fieldContexts.values()) {
-            field.valueFetcher.setNextReader(readerContext);
-        }
     }
 
     private static class FieldContext {

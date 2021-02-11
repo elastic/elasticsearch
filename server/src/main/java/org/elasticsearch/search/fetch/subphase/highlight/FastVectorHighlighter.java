@@ -126,7 +126,7 @@ public class FastVectorHighlighter implements Highlighter {
         cache.fvh.setPhraseLimit(field.fieldOptions().phraseLimit());
 
         String[] fragments;
-        FragmentsBuilder fragmentsBuilder = entry.fragmentsBuilderSupplier.apply(hitContext.sourceLookup());
+        FragmentsBuilder fragmentsBuilder = entry.fragmentsBuilderSupplier.apply(hitContext.valuesLookup().source());
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ?

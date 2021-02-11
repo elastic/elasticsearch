@@ -47,7 +47,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().getForField(ft)
+                ft.name()
             );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
@@ -55,9 +55,6 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-                for (DocValueField f : fields) {
-                    f.fetcher.setNextReader(readerContext);
-                }
             }
 
             @Override
@@ -70,7 +67,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(f.field, hitField);
                     }
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup()));
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.valuesLookup()));
                 }
             }
         };

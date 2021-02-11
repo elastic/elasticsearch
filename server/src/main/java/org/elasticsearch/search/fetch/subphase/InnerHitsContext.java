@@ -71,7 +71,7 @@ public final class InnerHitsContext {
         private Weight innerHitQueryWeight;
 
         private String rootId;
-        private SourceLookup rootLookup;
+        private final SourceLookup rootLookup = new SourceLookup();
 
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
@@ -130,7 +130,9 @@ public final class InnerHitsContext {
         }
 
         public void setRootLookup(SourceLookup rootLookup) {
-            this.rootLookup = rootLookup;
+            System.out.println("Setting root source lookup " + rootLookup.source());
+            this.rootLookup.setSource(rootLookup.source());
+            this.rootLookup.setSourceContentType(rootLookup.sourceContentType());
         }
     }
 

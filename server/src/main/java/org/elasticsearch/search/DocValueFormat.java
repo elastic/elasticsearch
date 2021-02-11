@@ -247,6 +247,22 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DateTime dateTime = (DateTime) o;
+            return Objects.equals(formatter, dateTime.formatter)
+                && Objects.equals(timeZone, dateTime.timeZone)
+                && Objects.equals(parser, dateTime.parser)
+                && resolution == dateTime.resolution;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(formatter, timeZone, parser, resolution);
+        }
+
+        @Override
         public String toString() {
             return "DocValueFormat.DateTime(" + formatter + ", " + timeZone + ", " + resolution + ")";
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.security.AccessController;
@@ -19,6 +20,7 @@ import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -27,6 +29,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
+    private final Map<FormatKey, ScriptDocValues<?>> localCacheFormattedData = new HashMap<>();
 
     private final LeafReaderContext reader;
 
@@ -41,6 +44,55 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     public void setDocument(int docId) {
         this.docId = docId;
+    }
+
+    private static class FormatKey {
+        final String field;
+        final DocValueFormat format;
+
+        private FormatKey(String field, DocValueFormat format) {
+            this.field = field;
+            this.format = format;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FormatKey formatKey = (FormatKey) o;
+            return Objects.equals(field, formatKey.field) && Objects.equals(format, formatKey.format);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field, format);
+        }
+    }
+
+    public ScriptDocValues<?> get(String field, DocValueFormat format) {
+        FormatKey key = new FormatKey(field, format);
+        ScriptDocValues<?> scriptValues = localCacheFormattedData.get(key);
+        if (scriptValues == null) {
+            final MappedFieldType fieldType = fieldTypeLookup.apply(field);
+            if (fieldType == null) {
+                throw new IllegalArgumentException("No field found for [" + field + "] in mapping");
+            }
+            // load fielddata on behalf of the script: otherwise it would need additional permissions
+            // to deal with pagedbytes/ramusagestimator/etc
+            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
+                @Override
+                public ScriptDocValues<?> run() {
+                    return ScriptDocValues.wrap(fieldDataLookup.apply(fieldType).load(reader).getFormattedValues(format));
+                }
+            });
+            localCacheFormattedData.put(key, scriptValues);
+        }
+        try {
+            scriptValues.setNextDocId(docId);
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        }
+        return scriptValues;
     }
 
     @Override

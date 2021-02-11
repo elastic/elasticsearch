@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ public class NestedValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
+    public List<Object> fetchValues(ValuesLookup lookup) throws IOException {
         List<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
@@ -49,10 +49,9 @@ public class NestedValueFetcher implements ValueFetcher {
         for (Object entry : nestedValues) {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
-            SourceLookup nestedSourceLookup = new SourceLookup();
-            nestedSourceLookup.setSource(filteredSource);
 
-            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup);
+            Map<String, DocumentField> fetchResult
+                = nestedFieldFetcher.fetch(ValuesLookup.sourceOnly(filteredSource));
 
             Map<String, Object> nestedEntry = new HashMap<>();
             for (DocumentField field : fetchResult.values()) {

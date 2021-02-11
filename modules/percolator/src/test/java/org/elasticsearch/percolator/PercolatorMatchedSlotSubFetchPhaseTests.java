@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.lookup.ValuesLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -37,6 +38,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
+
+    private static ValuesLookup EMPTY_LOOKUP = ValuesLookup.sourceOnly(Collections.emptyMap());
 
     public void testHitsExecute() throws Exception {
         try (Directory directory = newDirectory()) {
@@ -52,7 +55,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 // A match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0);
+                    HitContext hit = new HitContext(new SearchHit(0), EMPTY_LOOKUP, context, 0);
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
@@ -73,7 +76,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No match:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0);
+                    HitContext hit = new HitContext(new SearchHit(0), EMPTY_LOOKUP, context, 0);
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
@@ -93,7 +96,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
                 // No query:
                 {
-                    HitContext hit = new HitContext(new SearchHit(0), context, 0);
+                    HitContext hit = new HitContext(new SearchHit(0), EMPTY_LOOKUP, context, 0);
                     PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
                     MemoryIndex memoryIndex = new MemoryIndex();
                     memoryIndex.addField("field", "value", new WhitespaceAnalyzer());

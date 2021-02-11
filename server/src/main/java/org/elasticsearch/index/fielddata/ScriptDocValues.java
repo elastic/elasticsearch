@@ -67,6 +67,38 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
+    public static ScriptDocValues<?> wrap(FormattedDocValues in) {
+        return new ScriptDocValues<>() {
+
+            Object[] values = new Object[2];
+            int count;
+
+            @Override
+            public void setNextDocId(int docId) throws IOException {
+                count = 0;
+                if (in.advanceExact(docId)) {
+                    count = in.docValueCount();
+                    if (count > values.length) {
+                        values = ArrayUtil.grow(values, count);
+                    }
+                    for (int i = 0; i < count; i++) {
+                        values[i] = in.nextValue();
+                    }
+                }
+            }
+
+            @Override
+            public Object get(int index) {
+                return values[index];
+            }
+
+            @Override
+            public int size() {
+                return count;
+            }
+        };
+    }
+
     public static final class Longs extends ScriptDocValues<Long> {
         private final SortedNumericDocValues in;
         private long[] values = new long[0];

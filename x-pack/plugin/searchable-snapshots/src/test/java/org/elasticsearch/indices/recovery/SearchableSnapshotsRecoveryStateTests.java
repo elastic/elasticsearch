@@ -128,6 +128,18 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
         assertThat(recoveryState.getIndex().getFileDetails("non_pre_warmed_file"), is(nullValue()));
     }
 
+    public void testDisplayStage() {
+        SearchableSnapshotRecoveryState recoveryState = createRecoveryState();
+        recoveryState.getIndex().setFileDetailsComplete();
+        for (RecoveryState.Stage stage : RecoveryState.Stage.values()) {
+            recoveryState.setStage(stage);
+            // Stage FINALIZE is displayed while pre-warming is running
+            assertThat(recoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.FINALIZE));
+        }
+        recoveryState.setPreWarmComplete();
+        assertThat(recoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.DONE));
+    }
+
     private SearchableSnapshotRecoveryState createRecoveryState() {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             randomAlphaOfLength(10),

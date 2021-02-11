@@ -113,6 +113,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             assertThat(recoveryStates, hasSize(1));
             final RecoveryState recoveryState = recoveryStates.get(0);
             assertThat(recoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.FINALIZE));
+            assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.FINALIZE));
         });
 
         logger.info("--> release busy worker threads from pre-warm thread pool on node {}", firstDataNode);
@@ -153,6 +154,9 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             assertEquals(firstDataNode, shardRecoveryState.getSourceNode().getName());
             assertEquals(secondDataNode, shardRecoveryState.getTargetNode().getName());
             assertThat(shardRecoveryState.getDisplayStage(), equalTo(RecoveryState.Stage.FINALIZE));
+            // During searchable snapshots peer recovery, we block the cleanFiles step until
+            // pre-warming has finished, this means that the real stage at that point is TRANSLOG
+            assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.TRANSLOG));
         });
 
         logger.info("--> release busy worker threads from pre-warm thread pool on node {}", secondDataNode);

@@ -117,6 +117,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return storageType;
     }
 
+    public String getSnapshotRepository() {
+        return snapshotRepository;
+    }
+
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey preActionBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_ACTION_STEP);

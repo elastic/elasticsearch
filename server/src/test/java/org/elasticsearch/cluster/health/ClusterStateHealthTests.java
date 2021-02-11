@@ -37,8 +37,8 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -69,13 +70,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterStateHealthTests extends ESTestCase {
-    private final IndexNameExpressionResolver indexNameExpressionResolver =
-        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
-
     private static ThreadPool threadPool;
 
     private ClusterService clusterService;
     private TransportService transportService;
+    private IndexNameExpressionResolver indexNameExpressionResolver;
 
     @BeforeClass
     public static void setupThreadPool() {
@@ -92,6 +91,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
+        indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), new SystemIndices(Map.of()));
     }
 
     @After

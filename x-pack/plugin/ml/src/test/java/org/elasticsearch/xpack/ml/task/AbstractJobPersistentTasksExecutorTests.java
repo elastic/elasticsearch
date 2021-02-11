@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -34,13 +35,15 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive;
 
 public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        final IndexNameExpressionResolver resolver =
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of()));
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);
@@ -57,8 +60,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
 
         metadata = new Metadata.Builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
-        String indexToRemove = randomFrom(indexNameExpressionResolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
+        String indexToRemove = randomFrom(resolver.concreteIndexNames(cs, IndicesOptions.lenientExpandOpen(),
             ".ml-anomalies-shared",
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             MlMetaIndex.indexName(),

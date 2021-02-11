@@ -21,6 +21,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -40,7 +42,10 @@ import static org.mockito.Mockito.when;
 
 public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
-    private final IndexNameExpressionResolver iner = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+    private final IndexNameExpressionResolver iner = new IndexNameExpressionResolver(
+        new ThreadContext(Settings.EMPTY),
+        new SystemIndices(Map.of())
+    );
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";

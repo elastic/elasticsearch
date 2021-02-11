@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -43,6 +44,7 @@ import org.junit.Before;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
 
@@ -53,7 +55,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
         client = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(client(), clusterService().state(),
-            new IndexNameExpressionResolver(client.threadPool().getThreadContext()), future);
+            new IndexNameExpressionResolver(client.threadPool().getThreadContext(), new SystemIndices(Map.of())), future);
         future.actionGet();
     }
 

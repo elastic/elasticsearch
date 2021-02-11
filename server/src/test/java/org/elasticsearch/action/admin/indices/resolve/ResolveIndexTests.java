@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -66,8 +67,8 @@ public class ResolveIndexTests extends ESTestCase {
     };
 
     private Metadata metadata;
-    private IndexAbstractionResolver resolver = new IndexAbstractionResolver(
-        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+    private final IndexAbstractionResolver resolver = new IndexAbstractionResolver(
+        new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of())));
 
     private long epochMillis;
     private String dateString;

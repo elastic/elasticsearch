@@ -108,11 +108,12 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         final ExecutorService direct = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(direct);
 
-        final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)) {
-            @Override
-            public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
-                return shouldAutoCreate.apply(indexAbstraction) == false;
-            }
+        final IndexNameExpressionResolver indexNameExpressionResolver =
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of())) {
+                @Override
+                public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
+                    return shouldAutoCreate.apply(indexAbstraction) == false;
+                }
         };
 
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,

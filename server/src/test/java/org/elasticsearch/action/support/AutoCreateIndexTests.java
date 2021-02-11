@@ -185,9 +185,10 @@ public class AutoCreateIndexTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SystemIndices systemIndices = new SystemIndices(Map.of());
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, clusterSettings,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            new SystemIndices(Map.of()));
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), systemIndices),
+            systemIndices);
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
         Settings newSettings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), value == false).build();
@@ -301,8 +302,8 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))));
-        return new AutoCreateIndex(settings, new ClusterSettings(settings,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), systemIndices);
+        return new AutoCreateIndex(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), systemIndices), systemIndices);
     }
 
     private void expectNotMatch(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index) {

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SystemIndexAccessLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -32,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
@@ -63,10 +65,12 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         }
-        final boolean systemIndexAccessAllowed = indexNameExpressionResolver.isSystemIndexAccessAllowed();
+        final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
+        final String elasticProduct =
+            threadPool.getThreadContext().getHeader(IndexNameExpressionResolver.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,
-            systemIndexAccessAllowed, systemIndices)));
+            systemIndexAccessLevel, elasticProduct, systemIndices)));
     }
 
     /**
@@ -74,8 +78,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
      */
     static ImmutableOpenMap<String, List<AliasMetadata>> postProcess(GetAliasesRequest request, String[] concreteIndices,
                                                                      ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-                                                                     ClusterState state, boolean systemIndexAccessAllowed,
-                                                                     SystemIndices systemIndices) {
+                                                                     ClusterState state, SystemIndexAccessLevel systemIndexAccessLevel,
+                                                                     String elasticProduct, SystemIndices systemIndices) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
         for (String index : concreteIndices) {
@@ -85,20 +89,32 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         }
         final ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = mapBuilder.build();
-        if (systemIndexAccessAllowed == false) {
-            checkSystemIndexAccess(request, systemIndices, state, finalResponse);
+        if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
+            checkSystemIndexAccess(request, systemIndices, state, finalResponse, systemIndexAccessLevel, elasticProduct);
         }
         return finalResponse;
     }
 
     private static void checkSystemIndexAccess(GetAliasesRequest request, SystemIndices systemIndices, ClusterState state,
-                                               ImmutableOpenMap<String, List<AliasMetadata>> aliasesMap) {
+                                               ImmutableOpenMap<String, List<AliasMetadata>> aliasesMap,
+                                               SystemIndexAccessLevel systemIndexAccessLevel, String elasticProduct) {
+        final Predicate<IndexMetadata> systemIndexAccessAllowPredicate;
+        if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
+            systemIndexAccessAllowPredicate = indexMetadata -> false;
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
+            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexMetadataPredicate(elasticProduct);
+        } else {
+            throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
+        }
+
         List<String> systemIndicesNames = new ArrayList<>();
         for (Iterator<String> it = aliasesMap.keysIt(); it.hasNext(); ) {
             String indexName = it.next();
             IndexMetadata index = state.metadata().index(indexName);
             if (index != null && index.isSystem()) {
-                systemIndicesNames.add(indexName);
+                if (systemIndexAccessAllowPredicate.test(index) == false) {
+                    systemIndicesNames.add(indexName);
+                }
             }
         }
         if (systemIndicesNames.isEmpty() == false) {
@@ -106,13 +122,24 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", systemIndicesNames);
         } else {
-            checkSystemAliasAccess(request, systemIndices);
+            checkSystemAliasAccess(request, systemIndices, systemIndexAccessLevel, elasticProduct);
         }
     }
 
-    private static void checkSystemAliasAccess(GetAliasesRequest request, SystemIndices systemIndices) {
+    private static void checkSystemAliasAccess(GetAliasesRequest request, SystemIndices systemIndices,
+                                               SystemIndexAccessLevel systemIndexAccessLevel, String elasticProduct) {
+        final Predicate<String> systemIndexAccessAllowPredicate;
+        if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
+            systemIndexAccessAllowPredicate = name -> true;
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
+            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(elasticProduct).negate();
+        } else {
+            throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
+        }
+
         final List<String> systemAliases = Arrays.stream(request.aliases())
-            .filter(alias -> systemIndices.isSystemIndex(alias))
+            .filter(systemIndices::isSystemIndex)
+            .filter(systemIndexAccessAllowPredicate)
             .collect(Collectors.toList());
         if (systemAliases.isEmpty() == false) {
             deprecationLogger.deprecate(DeprecationCategory.API, "open_system_alias_access",

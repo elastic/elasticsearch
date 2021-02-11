@@ -25,12 +25,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -42,6 +43,7 @@ import org.junit.Assert;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import static java.util.Collections.singletonList;
@@ -73,7 +75,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsFalseIfNotMaster() {
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of())));
 
         assertThat(collector.shouldCollect(false), is(false));
     }
@@ -81,7 +83,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
     public void testShouldCollectReturnsTrue() {
         final ClusterStatsCollector collector =
                 new ClusterStatsCollector(Settings.EMPTY, clusterService, licenseState, client, licenseService,
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of())));
 
         assertThat(collector.shouldCollect(true), is(true));
     }

@@ -1442,7 +1442,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService = mockTransport.createTransportService(settings, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                         a -> node, null, emptySet());
                 final IndexNameExpressionResolver indexNameExpressionResolver =
-                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+                    new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of()));
                 repositoriesService = new RepositoriesService(
                     settings, clusterService, transportService,
                     Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool

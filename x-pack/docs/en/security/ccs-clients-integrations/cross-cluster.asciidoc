@@ -28,7 +28,7 @@ For more information about the `xpack.security.enabled` setting, see
 <<security-settings>>.
 
 * Enable encryption globally. To encrypt communications, you must enable
-  <<ssl-tls,enable SSL/TLS>> on every node.
+  <<encrypt-internode-communication,enable SSL/TLS>> on every node.
 
 * Enable a trust relationship between the cluster used for performing cross
   cluster search (the local cluster) and all remote clusters.  This can be done

@@ -1,5 +1,8 @@
 [[security-minimal-setup]]
 === Set up minimal security for {es}
+++++
+<titleabbrev>Set up minimal security</titleabbrev>
+++++
 
 You enable the Elasticsearch security features and then create
 passwords for built-in users. You can add more users later, but using the

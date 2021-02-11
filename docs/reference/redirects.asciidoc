@@ -3,6 +3,31 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="ssl-tls"]
+=== Set up TLS on a cluster
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+[role="exclude",id="configuring-tls"]
+=== Configure TLS
+
+See <<encrypt-internode-communication,Encrypt internode communication>>.
+
+[role="exclude",id="encrypting-communications"]
+=== Encrypting communications
+
+See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+[role="exclude",id="tls-http"]
+=== Encrypt HTTP client communications
+
+See <<encrypt-http-communication,Encrypt HTTP client communications>>.
+
+[role="exclude",id="tls-transport"]
+=== Encrypt internode communication
+
+See <<encrypt-internode-communication,Encrypt internode communications>>.
+
 [role="exclude",id="node.name"]
 === Node name setting
 

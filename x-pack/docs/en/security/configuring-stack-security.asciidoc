@@ -1,5 +1,5 @@
 [[configuring-stack-security]]
-== Configuring security for the Elastic Stack
+== Configure security for the Elastic Stack
 ++++
 <titleabbrev>Configuring security</titleabbrev>
 ++++
@@ -28,7 +28,7 @@ WARNING: Do not deploy this security configuration in production environments.
 All communications are sent as plain text, which is unsafe for production
 environments.
 
-<<security-minimal-setup,Set up minimal security for the Elastic Stack>>
+<<security-minimal-setup,Set up minimal security>>
 
 [discrete]
 [[security-basic-overview]]
@@ -40,7 +40,7 @@ requirements by adding Transport Layer Security (TLS) for communication
 between nodes. Your external HTTP traffic in and out of the cluster won't be
 encrypted, but internode communication will be secured.
 
-<<security-minimal-setup,Set up basic security for the Elastic Stack>>
+<<security-minimal-setup,Set up basic security>>
 
 [discrete]
 [[security-basic-https-overview]]
@@ -60,6 +60,8 @@ You then configure {kib}, {ls}, and Beats to communicate with
 of security is strong, and ensures that any communications in and out of your
 cluster are secure.
 
+<<security-basic-setup-https,Set up basic security plus HTTPS traffic>>
+
 [discrete]
 [[security-mutual-tls-overview]]
 === Mutual authenticated encryption
@@ -75,5 +77,10 @@ with client certificates.
 
 include::securing-communications/security-minimal-setup.asciidoc[]
 include::securing-communications/security-basic-setup.asciidoc[]
+include::securing-communications/security-basic-setup-https.asciidoc[]
+include::securing-communications/tls-ad.asciidoc[]
+include::securing-communications/tls-ldap.asciidoc[]
+include::securing-communications/configuring-tls-docker.asciidoc[]
+include::securing-communications/enabling-cipher-suites.asciidoc[]
 include::reference/files.asciidoc[]
 include::fips-140-compliance.asciidoc[]

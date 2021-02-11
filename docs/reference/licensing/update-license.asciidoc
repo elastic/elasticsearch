@@ -23,7 +23,7 @@ install the license.
 
 If {es} {security-features} are enabled and you are installing a gold or higher
 license, you must enable TLS on the transport networking layer before you
-install the license. See <<configuring-tls>>.
+install the license. See <<encrypt-internode-communication>>.
 
 [[update-license-api-desc]]
 ==== {api-description-title}

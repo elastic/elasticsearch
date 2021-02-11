@@ -1,5 +1,8 @@
 [[security-basic-setup]]
 === Set up basic security for the Elastic Stack
+++++
+<titleabbrev>Set up basic security</titleabbrev>
+++++
 
 Let's say you want to set up the Elastic Stack with some security, but don't
 need to encrypt all traffic flowing in and out of your cluster. You'll need to
@@ -206,7 +209,7 @@ For example, if you installed {es} with an archive distribution
 WARNING: You must perform a full cluster restart. Nodes that are configured to
 use TLS cannot communicate with nodes that are using unencrypted (and vice-versa).
 
-*Next*: <<add-built-in-user,Add the built-in users to {kib}>>
+*Next*: <<add-built-in-users,Add the built-in users to {kib}>>
 
 [[add-built-in-users]]
 ==== Add the built-in users to {kib}

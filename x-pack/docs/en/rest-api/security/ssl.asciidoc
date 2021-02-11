@@ -26,7 +26,7 @@ privileges to use this API. For more information, see
 
 For more information about how certificates are configured in conjunction with
 Transport Layer Security (TLS), see
-<<ssl-tls>>.
+<<encrypt-internode-communication>>.
 
 The API returns a list that includes certificates from all TLS contexts
 including:

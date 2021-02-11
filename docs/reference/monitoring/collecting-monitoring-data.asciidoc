@@ -155,7 +155,7 @@ xpack.monitoring.exporters:
 --
 
 .. If you configured the monitoring cluster to use
-<<configuring-tls,encrypted communications>>, you must use the HTTPS protocol in
+<<encrypt-internode-communication,encrypted communications>>, you must use the HTTPS protocol in
 the `host` setting. You must also specify the trusted CA certificates that will
 be used to verify the identity of the nodes in the monitoring cluster.
 

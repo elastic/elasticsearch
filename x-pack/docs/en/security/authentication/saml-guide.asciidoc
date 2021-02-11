@@ -91,7 +91,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-<<tls-http>>.
+<<encrypt-http-communication>>.
 
 [[saml-enable-token]]
 ==== Enable the token service
@@ -626,9 +626,9 @@ The {stack} supports generating such a metadata file using the
 <<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
 <<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
-You can generate the SAML metadata by issuing the API request to {es} and store 
-it as an XML file using tools like `jq`. For example, the following command 
-generates the metadata for the SAML realm `realm1` and saves it to a 
+You can generate the SAML metadata by issuing the API request to {es} and store
+it as an XML file using tools like `jq`. For example, the following command
+generates the metadata for the SAML realm `realm1` and saves it to a
 `metadata.xml` file:
 
 ["source","console"]

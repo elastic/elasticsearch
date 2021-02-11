@@ -25,14 +25,14 @@ For more information, see <<security-settings>>.
 . If you plan to run {es} in a Federal Information Processing Standard (FIPS)
 140-2 enabled JVM, see <<fips-140-compliance>>.
 
-. <<configuring-tls,Configure Transport Layer Security (TLS/SSL) for internode-communication>>.
+. <<encrypt-internode-communication,Configure Transport Layer Security (TLS/SSL) for internode-communication>>.
 +
 --
 NOTE: This requirement applies to clusters with more than one node and to
 clusters with a single node that listens on an external interface. Single-node
 clusters that use a loopback interface do not have this requirement.  For more
 information, see
-<<encrypting-communications>>.
+<<configuring-stack-security>>.
 
 --
 

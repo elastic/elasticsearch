@@ -20,6 +20,8 @@ import java.util.Arrays;
  */
 public class NetUtils {
 
+    public static int MAX_REASONABLE_KEEPALIVE_INTERVAL = 325;
+
     /**
      * Returns the extended TCP_KEEPIDLE socket option, if available on this JDK
      */
@@ -69,7 +71,7 @@ public class NetUtils {
                     for (SocketOption<Integer> option : Arrays.asList(
                         NetUtils.getTcpKeepIdleSocketOptionOrNull(),
                         NetUtils.getTcpKeepIntervalSocketOptionOrNull())) {
-                        setMinValueForSocketOption(socketChannel, option, 300);
+                        setMinValueForSocketOption(socketChannel, option, MAX_REASONABLE_KEEPALIVE_INTERVAL);
                     }
                 }
             }

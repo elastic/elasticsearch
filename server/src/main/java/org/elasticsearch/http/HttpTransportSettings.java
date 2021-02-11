@@ -24,6 +24,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.core.internal.net.NetUtils.MAX_REASONABLE_KEEPALIVE_INTERVAL;
 
 public final class HttpTransportSettings {
 
@@ -93,9 +94,11 @@ public final class HttpTransportSettings {
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
         boolSetting("http.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_IDLE =
-        intSetting("http.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, 300, Setting.Property.NodeScope);
+        intSetting("http.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, -1, MAX_REASONABLE_KEEPALIVE_INTERVAL,
+                Setting.Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_INTERVAL =
-        intSetting("http.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, 300, Setting.Property.NodeScope);
+        intSetting("http.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, -1, MAX_REASONABLE_KEEPALIVE_INTERVAL,
+                Setting.Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_TCP_KEEP_COUNT =
         intSetting("http.tcp.keep_count", NetworkService.TCP_KEEP_COUNT, -1, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =

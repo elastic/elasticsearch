@@ -85,6 +85,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.internal.net.NetUtils.MAX_REASONABLE_KEEPALIVE_INTERVAL;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -140,10 +141,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_ALIVE.getKey(), randomBoolean());
         if (randomBoolean()) {
-            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_IDLE.getKey(), randomIntBetween(1, 300));
+            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_IDLE.getKey(), between(1, MAX_REASONABLE_KEEPALIVE_INTERVAL));
         }
         if (randomBoolean()) {
-            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_INTERVAL.getKey(), randomIntBetween(1, 300));
+            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_INTERVAL.getKey(), between(1, MAX_REASONABLE_KEEPALIVE_INTERVAL));
         }
         if (randomBoolean()) {
             connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_COUNT.getKey(), randomIntBetween(1, 10));

@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.internal.net.NetUtils.MAX_REASONABLE_KEEPALIVE_INTERVAL;
+
 public final class NetworkService {
 
     /** By default, we bind to loopback interfaces */
@@ -40,9 +42,9 @@ public final class NetworkService {
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_IDLE =
-        Setting.intSetting("network.tcp.keep_idle", -1, -1, 300, Property.NodeScope);
+        Setting.intSetting("network.tcp.keep_idle", -1, -1, MAX_REASONABLE_KEEPALIVE_INTERVAL, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_INTERVAL =
-        Setting.intSetting("network.tcp.keep_interval", -1, -1, 300, Property.NodeScope);
+        Setting.intSetting("network.tcp.keep_interval", -1, -1, MAX_REASONABLE_KEEPALIVE_INTERVAL, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_COUNT =
         Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =

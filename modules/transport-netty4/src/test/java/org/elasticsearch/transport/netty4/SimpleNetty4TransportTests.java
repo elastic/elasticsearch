@@ -41,6 +41,7 @@ import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.internal.net.NetUtils.MAX_REASONABLE_KEEPALIVE_INTERVAL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -117,10 +118,10 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOptionOrNull()));
         Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOptionOrNull());
         assertNotNull(keepIdle);
-        assertThat(keepIdle, lessThanOrEqualTo(500));
+        assertThat(keepIdle, lessThanOrEqualTo(MAX_REASONABLE_KEEPALIVE_INTERVAL));
         assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOptionOrNull()));
         Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOptionOrNull());
         assertNotNull(keepInterval);
-        assertThat(keepInterval, lessThanOrEqualTo(500));
+        assertThat(keepInterval, lessThanOrEqualTo(MAX_REASONABLE_KEEPALIVE_INTERVAL));
     }
 }

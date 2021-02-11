@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_PHASES;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -589,6 +590,40 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+    }
+
+    public void testValidatingSearchableSnapshotRepos() {
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        Map<String, LifecycleAction> frozenActions = new HashMap<>();
+
+        {
+            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
+            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
+
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.ZERO, hotActions);
+            Phase coldPhase = new Phase(HOT_PHASE, TimeValue.ZERO, coldActions);
+            Phase frozenPhase = new Phase(HOT_PHASE, TimeValue.ZERO, frozenActions);
+
+            validateAllSearchableSnapshotActionsUseSameRepository(Arrays.asList(hotPhase, coldPhase, frozenPhase));
+        }
+
+        {
+            hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
+            coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo2", randomBoolean(), null));
+            frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean(), null));
+
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.ZERO, hotActions);
+            Phase coldPhase = new Phase(HOT_PHASE, TimeValue.ZERO, coldActions);
+            Phase frozenPhase = new Phase(HOT_PHASE, TimeValue.ZERO, frozenActions);
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> validateAllSearchableSnapshotActionsUseSameRepository(Arrays.asList(hotPhase, coldPhase, frozenPhase)));
+            assertThat(e.getMessage(), containsString("policy specifies [searchable_snapshot]" +
+                " action multiple times with differing repositories [repo2, repo1]," +
+                " the same repository must be used for all searchable snapshot actions"));
         }
     }
 

@@ -922,5 +922,5 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     /**
      * Predicate used for {@link #acceptedGlobalOrdinals} if there is no filter.
      */
-    private static final LongPredicate ALWAYS_TRUE = l -> true;
+    static final LongPredicate ALWAYS_TRUE = l -> true;
 }

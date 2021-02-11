@@ -66,6 +66,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         SortedSetDocValues values
     ) throws IOException {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
+            // NOCOMMIT the whole thing will fall apart if there is a normalizer
             return null;
         }
         List<String> keys = new ArrayList<>();

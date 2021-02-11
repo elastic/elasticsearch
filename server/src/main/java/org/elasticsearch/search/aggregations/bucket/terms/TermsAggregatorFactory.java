@@ -509,7 +509,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
 
         if (includeExclude == null) {
-            return l -> true;
+            return GlobalOrdinalsStringTermsAggregator.ALWAYS_TRUE;
         }
         return includeExclude.convertToOrdinalsFilter(format).acceptedGlobalOrdinals(values)::get;
     }

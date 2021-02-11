@@ -312,7 +312,10 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     }
 
     int getNumberOfFields() {
-        return this.constructorArgInfos.size();
+        assert this.constructorArgInfos.get(RestApiCompatibleVersion.currentVersion()).size()
+            == this.constructorArgInfos.get(RestApiCompatibleVersion.minimumSupported()).size() :
+            "Constructors must have same number of arguments per all compatible versions";
+        return this.constructorArgInfos.get(RestApiCompatibleVersion.currentVersion()).size();
     }
 
     /**
@@ -337,6 +340,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             constructorArgInfos.get(restApiCompatibleVersion)
                 .add(new ConstructorArgInfo(parseField, required));
         }
+        //calculate the positions for the arguments
         return constructorArgInfos.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
     }
 

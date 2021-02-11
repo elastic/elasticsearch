@@ -189,8 +189,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             final IndexRoutingTable routingTable = event.state().getRoutingTable().index(indexMetadata.getIndex());
             indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
         }
+        final String indexUUID = indexMetadata != null ? indexMetadata.getIndexUUID() : null;
         final State newState = new State(creationTime, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion,
-                concreteIndexName, indexHealth, indexState, event.state().nodes().getMinNodeVersion());
+                concreteIndexName, indexHealth, indexState, event.state().nodes().getMinNodeVersion(), indexUUID);
         this.indexState = newState;
 
         if (newState.equals(previousState) == false) {
@@ -414,7 +415,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
-        public static final State UNRECOVERED_STATE = new State(null, false, false, false, null, null, null, null, null);
+        public static final State UNRECOVERED_STATE = new State(null, false, false, false, null, null, null, null, null, null);
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailable;
@@ -424,10 +425,11 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final ClusterHealthStatus indexHealth;
         public final IndexMetadata.State indexState;
         public final Version minimumNodeVersion;
+        public final String indexUUID;
 
         public State(Instant creationTime, boolean isIndexUpToDate, boolean indexAvailable,
                      boolean mappingUpToDate, Version mappingVersion, String concreteIndexName, ClusterHealthStatus indexHealth,
-                     IndexMetadata.State indexState, Version minimumNodeVersion) {
+                     IndexMetadata.State indexState, Version minimumNodeVersion, String indexUUID) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
             this.indexAvailable = indexAvailable;
@@ -437,6 +439,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexHealth = indexHealth;
             this.indexState = indexState;
             this.minimumNodeVersion = minimumNodeVersion;
+            this.indexUUID = indexUUID;
         }
 
         @Override

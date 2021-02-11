@@ -125,6 +125,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Date/Time functions
 #
   Integer dateTimeChrono(Object, String, String)
+  Integer dateTimeExtract(Object, String, String)
   String  dayName(Object, String)
   Integer dayOfWeek(Object, String)
   String  monthName(Object, String)

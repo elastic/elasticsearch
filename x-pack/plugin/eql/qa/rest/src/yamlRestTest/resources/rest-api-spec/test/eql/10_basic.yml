@@ -172,18 +172,16 @@ setup:
   - is_true: id
   - set: { id: id }
 
-  # status for not completed eql search
+  # status for eql search that may be completed or not
   - do:
       eql.get_status:
         id: $id
   - match: { id: $id }
-  - match: { is_running: true }
-  - match: { is_partial: true }
-  - is_true: start_time_in_millis
+  - set: { is_running: run_status }
+  - match: { is_partial: $run_status }
   - is_true: expiration_time_in_millis
-  - is_false: completion_status
 
-  # wait for completion
+  # wait for the certain completion
   - do:
       eql.get:
         id: $id

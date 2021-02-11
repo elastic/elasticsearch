@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
@@ -36,6 +38,7 @@ public class MigrateAction implements LifecycleAction {
     public static final String NAME = "migrate";
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
+    private static final Logger logger = LogManager.getLogger(MigrateAction.class);
     static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-existing-routing";
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
     private static final List<String> FROZEN_TO_HOT_TIERS =
@@ -105,7 +108,18 @@ public class MigrateAction implements LifecycleAction {
             assert DataTier.validTierName(targetTier) : "invalid data tier name:" + targetTier;
 
             BranchingStep conditionalSkipActionStep = new BranchingStep(preMigrateBranchingKey, migrationKey, nextStepKey,
-                (index, clusterState) -> skipMigrateAction(phase, clusterState.metadata().index(index)));
+                (index, clusterState) -> {
+                    if (skipMigrateAction(phase, clusterState.metadata().index(index))) {
+                        String policyName =
+                            LifecycleSettings.LIFECYCLE_NAME_SETTING.get(clusterState.metadata().index(index).getSettings());
+                        logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable " +
+                            "snapshot. skipping this action", MigrateAction.NAME, index.getName(), policyName);
+                        return true;
+                    }
+
+                    // don't skip the migrate action as the index is not mounted as searchable snapshot or we're in the frozen phase
+                    return false;
+                });
             migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(targetTier));
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
                 migrationSettings.build());

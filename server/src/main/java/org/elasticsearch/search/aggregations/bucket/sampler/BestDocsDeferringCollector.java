@@ -114,8 +114,14 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     @Override
+    public void postCollection() throws IOException {
+        runDeferredAggs();
+    }
+
+
+    @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
-        runDeferredAggs();  // TODO should we only prepare the selected buckets?!
+        // no-op - deferred aggs processed in postCollection call
     }
 
     private void runDeferredAggs() throws IOException {
@@ -149,6 +155,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             // done with allDocs now, reclaim some memory
             circuitBreakerConsumer.accept(-12L * shardSize);
         }
+        deferred.postCollection();
     }
 
     class PerParentBucketSamples {

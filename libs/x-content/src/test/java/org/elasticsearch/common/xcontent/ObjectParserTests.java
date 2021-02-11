@@ -64,10 +64,6 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals(s.test, "foo");
         assertEquals(s.testNumber, 2);
         assertEquals(s.ints, Arrays.asList(1, 2, 3, 4));
-        assertEquals(objectParser.toString(), "ObjectParser{name='foo', fields=["
-                + "FieldParser{preferred_name=test, supportedTokens=[VALUE_STRING], type=STRING}, "
-                + "FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, "
-                + "FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}]}");
     }
 
     public void testNullDeclares() {

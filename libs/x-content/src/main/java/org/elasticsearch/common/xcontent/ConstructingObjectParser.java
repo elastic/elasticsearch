@@ -68,7 +68,7 @@ import java.util.stream.Collectors;
  * </p>
  */
 public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> implements
-    BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
+    BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
 
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
@@ -99,13 +99,13 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * Build the parser.
      *
-     * @param name    The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
-     *                ObjectParser.
+     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
+     *        ObjectParser.
      * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
-     *                of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
-     *                that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
-     *                the XContent then parsing will throw an error. We use an array here rather than a {@code Map<String, Object>} to save on
-     *                allocations.
+     *        of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
+     *        that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
+     *        the XContent then parsing will throw an error. We use an array here rather than a {@code Map<String, Object>} to save on
+     *        allocations.
      */
     public ConstructingObjectParser(String name, Function<Object[], Value> builder) {
         this(name, false, builder);
@@ -114,15 +114,15 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * Build the parser.
      *
-     * @param name                The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
-     *                            ObjectParser.
+     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
+     *        ObjectParser.
      * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
-     *                            from external systems, never when parsing requests from users.
-     * @param builder             A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
-     *                            of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
-     *                            that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
-     *                            the XContent then parsing will throw an error. We use an array here rather than a {@code Map<String, Object>} to save on
-     *                            allocations.
+     *        from external systems, never when parsing requests from users.
+     * @param builder A function that builds the object from an array of Objects. Declare this inline with the parser, casting the elements
+     *        of the array to the arguments so they work with your favorite constructor. The objects in the array will be in the same order
+     *        that you declared the {@link #constructorArg()}s and none will be null. If any of the constructor arguments aren't defined in
+     *        the XContent then parsing will throw an error. We use an array here rather than a {@code Map<String, Object>} to save on
+     *        allocations.
      */
     public ConstructingObjectParser(String name, boolean ignoreUnknownFields, Function<Object[], Value> builder) {
         this(name, ignoreUnknownFields, (args, context) -> builder.apply(args));
@@ -131,20 +131,21 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * Build the parser.
      *
-     * @param name                The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
-     *                            ObjectParser.
+     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
+     *        ObjectParser.
      * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
-     *                            from external systems, never when parsing requests from users.
-     * @param builder             A binary function that builds the object from an array of Objects and the parser context.  Declare this inline with
-     *                            the parser, casting the elements of the array to the arguments so they work with your favorite constructor. The objects in
-     *                            the array will be in the same order that you declared the {@link #constructorArg()}s and none will be null. The second
-     *                            argument is the value of the context provided to the {@link #parse(XContentParser, Object) parse function}. If any of the
-     *                            constructor arguments aren't defined in the XContent then parsing will throw an error. We use an array here rather than a
-     *                            {@code Map<String, Object>} to save on allocations.
+     *        from external systems, never when parsing requests from users.
+     * @param builder A binary function that builds the object from an array of Objects and the parser context.  Declare this inline with
+     *        the parser, casting the elements of the array to the arguments so they work with your favorite constructor. The objects in
+     *        the array will be in the same order that you declared the {@link #constructorArg()}s and none will be null. The second
+     *        argument is the value of the context provided to the {@link #parse(XContentParser, Object) parse function}. If any of the
+     *        constructor arguments aren't defined in the XContent then parsing will throw an error. We use an array here rather than a
+     *        {@code Map<String, Object>} to save on allocations.
      */
     public ConstructingObjectParser(String name, boolean ignoreUnknownFields, BiFunction<Object[], Context, Value> builder) {
         objectParser = new ObjectParser<>(name, ignoreUnknownFields, null);
         this.builder = builder;
+
     }
 
     /**
@@ -155,7 +156,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         try {
             return parse(parser, context);
         } catch (IOException e) {
-            throw new XContentParseException(parser.getTokenLocation(), "[" + objectParser.getName() + "] failed to parse object", e);
+            throw new XContentParseException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
         }
     }
 
@@ -219,7 +220,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
     @Override
     public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
-                                       ParseField parseField) {
+                                                ParseField parseField) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -248,7 +249,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
     @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-                                        ParseField parseField) {
+            ParseField parseField) {
 
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
@@ -278,7 +279,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
     @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-                                        Consumer<Value> orderedModeCallback, ParseField parseField) {
+            Consumer<Value> orderedModeCallback, ParseField parseField) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -324,8 +325,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
     /**
      * Add a constructor argument
-     *
-     * @param consumer   Either {@link #REQUIRED_CONSTRUCTOR_ARG_MARKER} or {@link #REQUIRED_CONSTRUCTOR_ARG_MARKER}
+     * @param consumer Either {@link #REQUIRED_CONSTRUCTOR_ARG_MARKER} or {@link #REQUIRED_CONSTRUCTOR_ARG_MARKER}
      * @param parseField Parse field
      * @return The argument position
      */
@@ -392,7 +392,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                     consumer.accept(targetObject, v);
                 } catch (Exception e) {
                     throw new XContentParseException(location,
-                        "[" + objectParser.getName() + "] failed to parse field [" + parseField.getPreferredName() + "]", e);
+                            "[" + objectParser.getName() + "] failed to parse field [" + parseField.getPreferredName() + "]", e);
                 }
             });
         };
@@ -467,7 +467,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
          * should have just applied the consumer immediately.
          */
         private void queue(Consumer<Value> queueMe) {
-            assert targetObject == null : "Don't queue after the targetObject has been built! Just apply the consumer directly.";
+            assert targetObject == null: "Don't queue after the targetObject has been built! Just apply the consumer directly.";
             if (queuedFields == null) {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Consumer<Value>[] queuedFields = new Consumer[numberOfFields];
@@ -510,8 +510,8 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
              * parser ought to still work we just assert this.
              */
             assert false == constructorArgInfos.isEmpty() : "[" + objectParser.getName() + "] must configure at least one constructor "
-                + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
-                + "in the parser declaration.";
+                        + "argument. If it doesn't have any it should use ObjectParser instead of ConstructingObjectParser. This is a bug "
+                        + "in the parser declaration.";
             // All missing constructor arguments were optional. Just build the target and return it.
             buildTarget();
             return targetObject;
@@ -532,7 +532,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                     "failed to build [" + objectParser.getName() + "] after last required field arrived", e);
             } catch (Exception e) {
                 throw new XContentParseException(null,
-                    "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+                        "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
             }
         }
     }

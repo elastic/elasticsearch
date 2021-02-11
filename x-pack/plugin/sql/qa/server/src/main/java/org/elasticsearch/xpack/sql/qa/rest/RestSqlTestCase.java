@@ -1178,6 +1178,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
+    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testMultiValueQueryText() throws IOException {
         index(
             "{"

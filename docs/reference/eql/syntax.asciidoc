@@ -434,7 +434,7 @@ characters:
 
 [source,eql]
 ----
-my_field : "doc*"     // Matches "doc", "docs", or "document" but not "dos"
+my_field : "doc*"     // Matches "doc", "docs", or "document" but not "DOS"
 my_field : "*doc"     // Matches "adoc" or "asciidoc"
 my_field : "d*c"      // Matches "doc" or "disc"
 

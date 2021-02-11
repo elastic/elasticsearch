@@ -268,7 +268,7 @@ in {transforms}:
 
 [discrete]
 [[transform-runtime-field-limitation]]
-=== {transforms-cap} performs better on indexed fields
+=== {transforms-cap} perform better on indexed fields
 
 {transforms-cap} sort data by a user-defined time field, which is frequently 
 accessed. If the time field is a {ref}/runtime.html[runtime field], the 

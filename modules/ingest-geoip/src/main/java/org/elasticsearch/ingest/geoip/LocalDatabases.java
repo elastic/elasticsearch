@@ -23,8 +23,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -87,10 +89,18 @@ final class LocalDatabases implements Closeable {
         }
     }
 
-    Map<String, DatabaseReaderLazyLoader> getAllDatabases() {
-        Map<String, DatabaseReaderLazyLoader> all = new HashMap<>(defaultDatabases);
-        all.putAll(configDatabases);
+    List<DatabaseReaderLazyLoader> getAllDatabases() {
+        List<DatabaseReaderLazyLoader> all = new ArrayList<>(defaultDatabases.values());
+        all.addAll(configDatabases.values());
         return all;
+    }
+
+    Map<String, DatabaseReaderLazyLoader> getDefaultDatabases() {
+        return defaultDatabases;
+    }
+
+    Map<String, DatabaseReaderLazyLoader> getConfigDatabases() {
+        return configDatabases;
     }
 
     void updateDatabase(Path file, boolean update) {
@@ -103,12 +113,16 @@ final class LocalDatabases implements Closeable {
                 DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.close();
+                    int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(file);
+                    LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, file);
                 }
             } else {
                 LOGGER.info("database file removed [{}], close database...", file);
                 DatabaseReaderLazyLoader existing = databases.remove(databaseFileName);
                 assert existing != null;
                 existing.close();
+                int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(file);
+                LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, file);
             }
             this.configDatabases = Map.copyOf(databases);
         } catch (Exception e) {

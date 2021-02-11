@@ -242,7 +242,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         // test will take roughly 4 times more time)
         LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, new GeoIpCache(1000));
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(localDatabases);
-        for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases().values()) {
+        for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
             assertNull(lazyLoader.databaseReader.get());
         }
 
@@ -302,7 +302,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, new GeoIpCache(1000));
         localDatabases.initialize(resourceWatcherService);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(localDatabases);
-        for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases().values()) {
+        for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
             assertNull(lazyLoader.databaseReader.get());
         }
 

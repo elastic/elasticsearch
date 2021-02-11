@@ -339,7 +339,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         private final LocalDatabases localDatabases;
 
-        Map<String, DatabaseReaderLazyLoader> databaseReaders() {
+        List<DatabaseReaderLazyLoader> getAllDatabases() {
             return localDatabases.getAllDatabases();
         }
 

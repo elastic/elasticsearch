@@ -387,7 +387,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncId)
             .id(asyncExecutionId.getDocId());
-        client.get(internalGet, ActionListener.wrap(
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {
                     listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));

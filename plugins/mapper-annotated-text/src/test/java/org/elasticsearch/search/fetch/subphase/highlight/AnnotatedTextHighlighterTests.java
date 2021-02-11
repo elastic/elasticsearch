@@ -54,13 +54,13 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                                        int noMatchSize, String[] expectedPassages) throws Exception {
 
         assertHighlightOneDoc(fieldName, markedUpInputs, query, locale, breakIterator, noMatchSize, expectedPassages,
-                Integer.MAX_VALUE, false);
+                Integer.MAX_VALUE, null);
     }
 
     private void assertHighlightOneDoc(String fieldName, String []markedUpInputs,
             Query query, Locale locale, BreakIterator breakIterator,
             int noMatchSize, String[] expectedPassages,
-            int maxAnalyzedOffset, boolean limitToMaxAnalyzedOffset) throws Exception {
+            int maxAnalyzedOffset, Integer queryMaxAnalyzedOffset) throws Exception {
 
         try (Directory dir = newDirectory()) {
             // Annotated fields wrap the usual analyzer with one that injects extra tokens
@@ -117,7 +117,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                         expectedPassages.length,
                         name -> "text".equals(name),
                         maxAnalyzedOffset,
-                        limitToMaxAnalyzedOffset
+                        queryMaxAnalyzedOffset
                 );
                 highlighter.setFieldMatcher((name) -> "text".equals(name));
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
@@ -204,7 +204,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
         TermQuery query = new TermQuery(new Term("text", "exceeds"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", new String[] { "[Short Text](Short+Text)" }, query, Locale.ROOT, breakIterator, 0, new String[] {},
-                10, false);
+                10, null);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -216,14 +216,35 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 breakIterator,
                 0,
                 new String[] {},
-                15,
-                false
+                20,
+                null
             )
         );
         assertEquals(
-            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [15]. To "
-                + "ignore text beyond this limit when highlighting, set the query parameter [limit_to_max_analyzed_offset] to [true].",
+            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. To "
+                + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
             e.getMessage()
+        );
+
+        final Integer queryMaxOffset = randomIntBetween(21, 1000);
+        e = expectThrows(
+                IllegalArgumentException.class,
+                () -> assertHighlightOneDoc(
+                        "text",
+                        new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset)" },
+                        query,
+                        Locale.ROOT,
+                        breakIterator,
+                        0,
+                        new String[] {},
+                        20,
+                        queryMaxOffset
+                )
+        );
+        assertEquals(
+                "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. To "
+                        + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
+                e.getMessage()
         );
 
         assertHighlightOneDoc(
@@ -234,8 +255,8 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             breakIterator,
             0,
             new String[] { "Long Text [Exceeds](_hit_term=exceeds) MAX analyzed offset [Long Text Exceeds](Long+Text+Exceeds)" },
-            15,
-            true
+            20,
+            15
         );
     }
 }

@@ -57,7 +57,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
-    private final boolean limitToMaxAnalyzedOffset;
+    private final Integer queryMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -90,8 +90,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     int maxPassages,
                                     Predicate<String> fieldMatcher,
                                     int maxAnalyzedOffset,
-                                    boolean limitToMaxAnalyzedOffset) throws IOException {
-        super(searcher, wrapAnalyzer(analyzer, limitToMaxAnalyzedOffset, maxAnalyzedOffset));
+                                    Integer queryMaxAnalyzedOffset) throws IOException {
+        super(searcher, wrapAnalyzer(analyzer, queryMaxAnalyzedOffset));
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
@@ -101,13 +101,13 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.noMatchSize = noMatchSize;
         this.setFieldMatcher(fieldMatcher);
         this.maxAnalyzedOffset = maxAnalyzedOffset;
-        this.limitToMaxAnalyzedOffset = limitToMaxAnalyzedOffset;
+        this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
     }
 
-    protected static Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
-        if (limitToMaxAnalyzedOffset) {
-            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxOffset);
+    protected static Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null) {
+            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
         }
         return analyzer;
     }
@@ -125,12 +125,13 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if (((limitToMaxAnalyzedOffset == false) && (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
+        if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) &&
+                (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
                 "The length [" + fieldValueLength + "] of field [" + field +"] in doc[" + docId + "]/index[" + index +"] exceeds the ["
                     + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. To ignore text beyond "
                     + "this limit when highlighting, set the query parameter [" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString()
-                    + "] to [true]."
+                    + "] to the desired value."
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);

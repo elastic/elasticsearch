@@ -91,11 +91,10 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
-        boolean limitToMaxAnalyzedOffset = fieldContext.field.fieldOptions().limitToMaxAnalyzedOffset();
+        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
         Analyzer analyzer = wrapAnalyzer(
             context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
-            limitToMaxAnalyzedOffset,
-            maxAnalyzedOffset
+            queryMaxAnalyzedOffset
         );
 
         textsToHighlight
@@ -104,12 +103,12 @@ public class PlainHighlighter implements Highlighter {
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if ((limitToMaxAnalyzedOffset == false) && (textLength > maxAnalyzedOffset)) {
+            if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length [" + textLength + "] of field [" + field +"] in doc[" + hitContext.hit().getId() + "]/index["
                         + context.getIndexName() +"] exceeds the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] "
                         + "limit [" + maxAnalyzedOffset + "]. To ignore text beyond this limit when highlighting, set the query "
-                        + "parameter [" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString() + "] to [true]."
+                        + "parameter [" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString() + "] to the desired value."
                 );
             }
 
@@ -201,9 +200,9 @@ public class PlainHighlighter implements Highlighter {
         }
     }
 
-    private Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
-        if (limitToMaxAnalyzedOffset) {
-            return new LimitTokenOffsetAnalyzer(analyzer, maxOffset);
+    private Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null) {
+            return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
         }
         return analyzer;
     }

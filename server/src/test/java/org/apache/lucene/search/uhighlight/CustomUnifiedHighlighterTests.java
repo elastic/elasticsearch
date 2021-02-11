@@ -50,13 +50,13 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                                        int noMatchSize, String[] expectedPassages) throws Exception {
 
         assertHighlightOneDoc(fieldName, inputs, analyzer, query, locale, breakIterator, noMatchSize, expectedPassages,
-                Integer.MAX_VALUE, false);
+                Integer.MAX_VALUE, null);
     }
 
     private void assertHighlightOneDoc(String fieldName, String[] inputs, Analyzer analyzer, Query query,
                                        Locale locale, BreakIterator breakIterator,
                                        int noMatchSize, String[] expectedPassages,
-                                       int maxAnalyzedOffset, boolean limitToMaxAnalyzedOffset) throws Exception {
+                                       int maxAnalyzedOffset, Integer queryMaxAnalyzedOffset) throws Exception {
         try (Directory dir = newDirectory()){
             IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
             iwc.setMergePolicy(newTieredMergePolicy(random()));
@@ -91,7 +91,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                         expectedPassages.length,
                         name -> "text".equals(name),
                         maxAnalyzedOffset,
-                        limitToMaxAnalyzedOffset
+                        queryMaxAnalyzedOffset
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
                 assertEquals(snippets.length, expectedPassages.length);
@@ -273,19 +273,40 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 .build();
 
         assertHighlightOneDoc("text", new String[] {"short text"},
-                analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, false);
+                analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, null);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             assertHighlightOneDoc("text", new String[] {"exceeds max analyzed offset"},
-                    analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, false);
+                    analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, null);
+        });
+        assertEquals(
+                "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. To "
+                        + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
+                e.getMessage()
+        );
+
+        final Integer queryMaxAnalyzedOffset = randomIntBetween(11, 1000);
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            assertHighlightOneDoc(
+                "text",
+                new String[] { "exceeds max analyzed offset" },
+                analyzer,
+                query,
+                Locale.ROOT,
+                BreakIterator.getSentenceInstance(Locale.ROOT),
+                0,
+                new String[] {},
+                10,
+                queryMaxAnalyzedOffset
+            );
         });
         assertEquals(
             "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. To "
-                + "ignore text beyond this limit when highlighting, set the query parameter [limit_to_max_analyzed_offset] to [true].",
+                + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
             e.getMessage()
         );
 
         assertHighlightOneDoc("text", new String[] {"exceeds max analyzed offset"},
-                analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 1, new String[] {"exceeds"}, 10, true);
+                analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 1, new String[] {"exceeds"}, 10, 10);
     }
 }

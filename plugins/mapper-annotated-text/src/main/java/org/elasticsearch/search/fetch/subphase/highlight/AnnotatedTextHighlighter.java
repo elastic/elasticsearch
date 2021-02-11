@@ -50,8 +50,8 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
-        return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer, limitToMaxAnalyzedOffset, maxOffset));
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer, maxAnalyzedOffset));
     }
 
     @Override

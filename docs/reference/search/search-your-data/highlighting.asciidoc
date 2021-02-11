@@ -242,13 +242,16 @@ require_field_match:: By default, only fields that contains a query match are
 highlighted. Set `require_field_match` to `false` to highlight all fields.
 Defaults to `true`.
 
-limit_to_max_analyzed_offset:: By default, the maximum number of characters
+[[max-analyzed-offset]]
+max_analyzed_offset:: By default, the maximum number of characters
 analyzed for a highlight request is bounded by the value defined in the
 <<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>> setting,
 and when the number of characters exceeds this limit an error is returned. If
-this setting is set to `true`, the analysis for the highlighting stops at this
-defined maximum limit, and the rest of the text is not processed, thus not
-highlighted and no error is returned.
+this setting is set to a non-negative value, the highlighting stops at this defined
+maximum limit, and the rest of the text is not processed, thus not highlighted and
+no error is returned. The <<max-analyzed-offset, `max_analyzed_offset`>> query setting
+does *not* override the <<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>>
+which prevails when it's set to lower value than the query setting.
 
 tags_schema:: Set to `styled` to use the built-in tag schema. The `styled`
 schema defines the following `pre_tags` and defines `post_tags` as

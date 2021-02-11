@@ -50,7 +50,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /** default for whether a field should be highlighted only if a query matches that field */
     public static final boolean DEFAULT_REQUIRE_FIELD_MATCH = true;
     /** default for whether to stop highlighting at max_analyzed_offset to avoid exceptions for longer values */
-    public static final boolean DEFAULT_LIMIT_TO_MAX_ANALYZED_OFFSET = false;
+    public static final Integer DEFAULT_LIMIT_TO_MAX_ANALYZED_OFFSET = null;
     /** default for whether {@code fvh} should provide highlighting on filter clauses */
     public static final boolean DEFAULT_HIGHLIGHT_FILTER = false;
     /** default for highlight fragments being ordered by score */
@@ -86,7 +86,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     static final FieldOptions defaultOptions = new SearchHighlightContext.FieldOptions.Builder()
             .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED)
             .highlightFilter(DEFAULT_HIGHLIGHT_FILTER).requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
-            .limitToMaxAnalyzedOffset(DEFAULT_LIMIT_TO_MAX_ANALYZED_OFFSET)
+            .maxAnalyzedOffset(DEFAULT_LIMIT_TO_MAX_ANALYZED_OFFSET)
             .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
             .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER)
             .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN).boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
@@ -324,8 +324,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.requireFieldMatch != null) {
             targetOptionsBuilder.requireFieldMatch(highlighterBuilder.requireFieldMatch);
         }
-        if (highlighterBuilder.limitToMaxAnalyzedOffset != null) {
-            targetOptionsBuilder.limitToMaxAnalyzedOffset(highlighterBuilder.limitToMaxAnalyzedOffset);
+        if (highlighterBuilder.maxAnalyzedOffset != null) {
+            targetOptionsBuilder.maxAnalyzedOffset(highlighterBuilder.maxAnalyzedOffset);
         }
         if (highlighterBuilder.boundaryScannerType != null) {
             targetOptionsBuilder.boundaryScannerType(highlighterBuilder.boundaryScannerType);

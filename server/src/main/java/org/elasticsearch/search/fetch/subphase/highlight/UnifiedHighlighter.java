@@ -103,9 +103,9 @@ public class UnifiedHighlighter implements Highlighter {
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        boolean limitToMaxAnalyzedOffset = fieldContext.field.fieldOptions().limitToMaxAnalyzedOffset();
+        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
         Analyzer analyzer = wrapAnalyzer(fieldContext.context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
-                limitToMaxAnalyzedOffset, maxAnalyzedOffset);
+                queryMaxAnalyzedOffset);
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -141,7 +141,7 @@ public class UnifiedHighlighter implements Highlighter {
             higlighterNumberOfFragments,
             fieldMatcher(fieldContext),
             maxAnalyzedOffset,
-            fieldContext.field.fieldOptions().limitToMaxAnalyzedOffset()
+            fieldContext.field.fieldOptions().maxAnalyzedOffset()
         );
     }
 
@@ -150,9 +150,9 @@ public class UnifiedHighlighter implements Highlighter {
             field.fieldOptions().postTags()[0], encoder);
     }
 
-    protected Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
-        if (limitToMaxAnalyzedOffset) {
-            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxOffset);
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null) {
+            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
         }
         return analyzer;
     }

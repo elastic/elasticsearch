@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
@@ -107,14 +108,21 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {
         final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().putUser(PutUserRequest.withPassword(new User(username, roles), password.getChars(), true,
-            RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
+        client.security().putUser(
+            PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
+            RequestOptions.DEFAULT);
+    }
+
+    protected void changePassword(String username, SecureString password) throws IOException {
+        final RestHighLevelClient client = getHighLevelAdminClient();
+        client.security().changePassword(new ChangePasswordRequest(username, password.getChars(), RefreshPolicy.WAIT_UNTIL),
+            RequestOptions.DEFAULT);
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
         final RestHighLevelClient client = getHighLevelAdminClient();
         final Role role = Role.builder().name(name).clusterPrivileges(clusterPrivileges).build();
-        client.security().putRole(new PutRoleRequest(role, null), RequestOptions.DEFAULT);
+        client.security().putRole(new PutRoleRequest(role, RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
     }
 
     protected void deleteUser(String username) throws IOException {

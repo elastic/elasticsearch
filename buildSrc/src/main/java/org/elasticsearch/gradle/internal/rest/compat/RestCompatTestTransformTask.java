@@ -23,9 +23,10 @@ import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -62,8 +63,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
         "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION
     );
 
-    private FileCollection input;
-    private File output;
+    private final DirectoryProperty sourceDirectory = getProject().getObjects().directoryProperty();
+    private final DirectoryProperty outputDirectory = getProject().getObjects().directoryProperty();
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
 
@@ -131,14 +132,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     @OutputDirectory
-    public File getOutputDir() {
-        return output;
+    public DirectoryProperty getOutputDirectory() {
+        return outputDirectory;
     }
 
     @SkipWhenEmpty
     @InputFiles
     public FileTree getTestFiles() {
-        return input.getAsFileTree().matching(testPatternSet);
+        return sourceDirectory.getAsFileTree().matching(testPatternSet);
     }
 
     @TaskAction
@@ -153,7 +154,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
             if (testFileParts.length != 2) {
                 throw new IllegalArgumentException("could not split " + file + " into expected parts");
             }
-            File output = new File(getOutputDir(), testFileParts[1]);
+            File output = new File(outputDirectory.get().getAsFile(), testFileParts[1]);
             output.getParentFile().mkdirs();
             try (SequenceWriter sequenceWriter = WRITER.writeValues(output)) {
                 for (ObjectNode transformedTest : transformRestTests) {
@@ -163,16 +164,13 @@ public class RestCompatTestTransformTask extends DefaultTask {
         }
     }
 
+    @Internal
+    public DirectoryProperty getSourceDirectory() {
+        return sourceDirectory;
+    }
+
     @Nested
     public List<RestTestTransform<?>> getTransformations() {
         return transformations;
-    }
-
-    public void setInput(FileCollection input) {
-        this.input = input;
-    }
-
-    public void setOutput(File output) {
-        this.output = output;
     }
 }

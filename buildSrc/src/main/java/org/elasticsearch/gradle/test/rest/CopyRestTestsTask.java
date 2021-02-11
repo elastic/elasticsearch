@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
@@ -28,7 +29,6 @@ import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
 import java.io.File;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -45,8 +45,8 @@ public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
+    private final DirectoryProperty outputResourceDir = getProject().getObjects().directoryProperty();
 
-    private File outputResourceDir;
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
     private FileCollection additionalConfig;
@@ -112,20 +112,25 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     @OutputDirectory
-    public File getOutputDir() {
-        return new File(outputResourceDir, REST_TEST_PREFIX);
+    public DirectoryProperty getOutputResourceDir() {
+        return outputResourceDir;
     }
 
     @TaskAction
     void copy() {
+        // clean the output directory to ensure no stale files persist
+        fileSystemOperations.delete(d -> d.delete(outputResourceDir));
+
         String projectPath = getProjectPathFromTask(getPath());
+        File restTestOutputDir = new File(outputResourceDir.get().getAsFile(), REST_TEST_PREFIX);
+
         // only copy core tests if explicitly instructed
         if (includeCore.get().isEmpty() == false) {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
                 fileSystemOperations.copy(c -> {
                     c.from(coreConfigToFileTree.apply(coreConfig));
-                    c.into(getOutputDir());
+                    c.into(restTestOutputDir);
                     c.include(corePatternSet.getIncludes());
                 });
             } else {
@@ -136,7 +141,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 );
                 fileSystemOperations.copy(c -> {
                     c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
-                    c.into(Objects.requireNonNull(outputResourceDir));
+                    c.into(outputResourceDir);
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
@@ -148,7 +153,7 @@ public class CopyRestTestsTask extends DefaultTask {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", projectPath);
             fileSystemOperations.copy(c -> {
                 c.from(xpackConfigToFileTree.apply(xpackConfig));
-                c.into(getOutputDir());
+                c.into(restTestOutputDir);
                 c.include(xpackPatternSet.getIncludes());
             });
         }
@@ -156,13 +161,9 @@ public class CopyRestTestsTask extends DefaultTask {
         if (additionalConfig != null) {
             fileSystemOperations.copy(c -> {
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
-                c.into(getOutputDir());
+                c.into(restTestOutputDir);
             });
         }
-    }
-
-    public void setOutputResourceDir(File outputResourceDir) {
-        this.outputResourceDir = outputResourceDir;
     }
 
     public void setCoreConfig(FileCollection coreConfig) {

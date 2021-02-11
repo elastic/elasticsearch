@@ -9,6 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -806,6 +807,68 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO_NAME).get(0);
             assertNotNull(snapshotInfo);
             assertThat(snapshotInfo.failedShards(), lessThan(snapshotInfo.totalShards()));
+            List<String> statesInSnapshot = snapshotInfo.featureStates().stream()
+                .map(SnapshotFeatureInfo::getPluginName)
+                .collect(Collectors.toList());
+            assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
+            assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
+        });
+    }
+
+    public void testParallelIndexDeleteRemovesFeatureState() throws Exception {
+        final String indexToBeDeleted = SystemIndexTestPlugin.SYSTEM_INDEX_NAME;
+        final String fullIndexName = AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME;
+
+        createRepositoryNoVerify(REPO_NAME, "mock");
+
+        // Creating the index that we'll get a partial snapshot of with a bunch of shards
+        assertAcked(prepareCreate(indexToBeDeleted, 0, indexSettingsNoReplicas(6)));
+        indexDoc(indexToBeDeleted, "1", "purpose", "pre-snapshot doc");
+        // And another one with the default
+        indexDoc(fullIndexName, "1", "purpose", "pre-snapshot doc");
+        refresh();
+        ensureGreen();
+
+        logger.info("--> Created indices, blocking repo...");
+        blockNodeOnAnyFiles(REPO_NAME, internalCluster().getMasterName());
+//        blockAllDataNodes(REPO_NAME);
+
+        // Start a snapshot - need to do this async because some blocks will block this call
+        logger.info("--> Blocked repo, starting snapshot...");
+        final String partialSnapName = "test-partial-snap";
+        ActionFuture<CreateSnapshotResponse> createSnapshotFuture = clusterAdmin().prepareCreateSnapshot(REPO_NAME, partialSnapName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(false)
+            .setPartial(true)
+            .execute();
+
+        logger.info("--> Started snapshot, waiting for block...");
+        waitForBlock(internalCluster().getMasterName(), REPO_NAME);
+//        waitForBlockOnAnyDataNode(REPO_NAME);
+
+        logger.info("--> Repo hit block, deleting the index...");
+        assertAcked(cluster().client().admin().indices().prepareDelete(indexToBeDeleted));
+
+        logger.info("--> Index deleted, unblocking repo...");
+        unblockNode(REPO_NAME, internalCluster().getMasterName());
+//        unblockAllDataNodes(REPO_NAME);
+
+        logger.info("--> Repo unblocked, checking that snapshot started...");
+        CreateSnapshotResponse createSnapshotResponse = createSnapshotFuture.actionGet();
+        logger.info(createSnapshotResponse.toString());
+        assertThat(createSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+
+        logger.info("--> Snapshot was started sucessfully, waiting for all operations to complete...");
+        awaitNoMoreRunningOperations();
+
+        logger.info("--> All operations complete, running assertions");
+        // Now get the snapshot and do our checks
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                .prepareGetSnapshots(REPO_NAME).setSnapshots(partialSnapName).get();
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO_NAME).get(0);
+            assertNotNull(snapshotInfo);
+            assertThat(snapshotInfo.indices(), not(hasItem(indexToBeDeleted)));
             List<String> statesInSnapshot = snapshotInfo.featureStates().stream()
                 .map(SnapshotFeatureInfo::getPluginName)
                 .collect(Collectors.toList());

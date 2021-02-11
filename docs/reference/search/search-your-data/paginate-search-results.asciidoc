@@ -71,12 +71,14 @@ To get the first page of results, submit a search request with a `sort`
 argument. If using a PIT, specify the PIT ID in the `pit.id` parameter and omit
 the target data stream or index from the request path.
 
-IMPORTANT: If you cannot use a PIT, we recommend that you include a tiebreaker field
+IMPORTANT: All PIT search requests add an implicit sort tiebreaker field called `_shard_doc`,
+which can also be provided explicitly.
+If you cannot use a PIT, we recommend that you include a tiebreaker field
 in your `sort`. This tiebreaker field should contain a unique value for each document.
 If you don't include a tiebreaker field, your paged results could miss or duplicate hits.
 
 NOTE: Search after requests have optimizations that make them faster when the sort
-order is `_doc` and total hits are not tracked. If you want to iterate over all documents regardless of the
+order is `_shard_doc` and total hits are not tracked. If you want to iterate over all documents regardless of the
 order, this is the most efficient option.
 
 [source,console]
@@ -108,7 +110,7 @@ a PIT, a tiebreakeris included as the last `sort` values for each hit.
 This tiebreaker called `_shard_doc` is added automically on every search requests that use a PIT.
 The `_shard_doc` value is the combination of the shard index within the PIT and the Lucene's internal doc ID,
 it is unique per document and constant within a PIT.
-You can also add the tiebreaker explicitely in the search request to customize the order:
+You can also add the tiebreaker explicitly in the search request to customize the order:
 
 [source,console]
 ----
@@ -125,7 +127,7 @@ GET /_search
 	    "keep_alive": "1m"
   },
   "sort": [ <2>
-    {"@timestamp": "asc"}
+    {"@timestamp": "asc"},
     {"_shard_doc": "desc"}
   ]
 }

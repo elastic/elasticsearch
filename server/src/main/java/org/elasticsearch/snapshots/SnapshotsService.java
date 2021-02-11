@@ -928,6 +928,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final Version version =
                         minCompatibleVersion(clusterState.nodes().getMinNodeVersion(), repositoryData, null);
 
+                    if (indices.isEmpty()) {
+                        // No indices in this snapshot - we are done
+                        userCreateSnapshotListener.onResponse(snapshot.snapshot());
+                        endSnapshot(SnapshotsInProgress.startedEntry(
+                            snapshot.snapshot(), snapshot.includeGlobalState(), snapshot.partial(), Collections.emptyList(),
+                            Collections.emptyList(), threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
+                            ImmutableOpenMap.of(), snapshot.userMetadata(), version, Collections.emptyList()), clusterState.metadata(),
+                            repositoryData);
+                        return;
+                    }
+
                     clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshot() + "]", new ClusterStateUpdateTask() {
 
                         @Override

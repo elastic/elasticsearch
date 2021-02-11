@@ -65,6 +65,9 @@ Machine Learning::
 Network::
 * Fix `AbstractClient#execute` Listener Leak {es-pull}65415[#65415] (issue: {es-issue}65405[#65405])
 
+Packaging::
+* Fix installation using Windows MSI (issue: {es-issue}68914[#68914])
+
 Recovery::
 * Check graveyard on dangling index import {es-pull}67687[#67687]
 

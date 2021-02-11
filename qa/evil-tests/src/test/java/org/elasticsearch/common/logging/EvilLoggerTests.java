@@ -308,7 +308,7 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
-        assert !Environment.PATH_HOME_SETTING.exists(settings);
+        assert Environment.PATH_HOME_SETTING.exists(settings) == false;
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()
             .put(settings)

@@ -74,7 +74,7 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
                 }
                 runtimeFieldTypeConsumer.accept(typeParser.parse(fieldName, propNode, parserContext));
                 propNode.remove("type");
-                DocumentMapperParser.checkNoRemainingFields(fieldName, propNode);
+                MappingParser.checkNoRemainingFields(fieldName, propNode);
                 iterator.remove();
             } else {
                 throw new MapperParsingException("Expected map for runtime field [" + fieldName + "] definition but got a "

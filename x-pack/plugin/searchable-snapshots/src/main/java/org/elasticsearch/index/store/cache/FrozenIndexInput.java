@@ -21,7 +21,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
 
@@ -125,11 +125,11 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             : fileInfo.partSize().getBytes();
     }
 
-    private Tuple<Long, Long> computeRange(long position) {
+    private ByteRange computeRange(long position) {
         final long rangeSize = getDefaultRangeSize();
         long start = (position / rangeSize) * rangeSize;
         long end = Math.min(start + rangeSize, fileInfo.length());
-        return Tuple.tuple(start, end);
+        return ByteRange.of(start, end);
     }
 
     @Override
@@ -169,7 +169,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
             final StepListener<Integer> waitingForRead = frozenCacheFile.readIfAvailableOrPending(
-                Tuple.tuple(position, position + length),
+                ByteRange.of(position, position + length),
                 (channel, pos, relativePos, len) -> {
                     final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
                     assert read <= length : read + " vs " + length;
@@ -189,7 +189,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
             // Requested data is not on disk, so try the cache index next.
 
-            final Tuple<Long, Long> indexCacheMiss; // null if not a miss
+            final ByteRange indexCacheMiss; // null if not a miss
 
             // We try to use the cache index if:
             // - the file is small enough to be fully cached
@@ -207,10 +207,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
                     if (canBeFullyCached) {
                         // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
-                        indexCacheMiss = Tuple.tuple(0L, fileInfo.length());
+                        indexCacheMiss = ByteRange.of(0L, fileInfo.length());
                     } else {
                         // the index input is too large to fully cache, so just cache the initial range
-                        indexCacheMiss = Tuple.tuple(0L, (long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
+                        indexCacheMiss = ByteRange.of(0L, (long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
                     }
 
                     // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
@@ -236,7 +236,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
 
                     try {
-                        final Tuple<Long, Long> cachedRange = Tuple.tuple(cachedBlob.from(), cachedBlob.to());
+                        final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
                         frozenCacheFile.populateAndRead(
                             cachedRange,
                             cachedRange,
@@ -297,21 +297,18 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             // Requested data is also not in the cache index, so we must visit the blob store to satisfy both the target range and any
             // miss in the cache index.
 
-            final Tuple<Long, Long> startRangeToWrite = computeRange(position);
-            final Tuple<Long, Long> endRangeToWrite = computeRange(position + length - 1);
-            assert startRangeToWrite.v2() <= endRangeToWrite.v2() : startRangeToWrite + " vs " + endRangeToWrite;
-            final Tuple<Long, Long> rangeToWrite = Tuple.tuple(
-                Math.min(startRangeToWrite.v1(), indexCacheMiss == null ? Long.MAX_VALUE : indexCacheMiss.v1()),
-                Math.max(endRangeToWrite.v2(), indexCacheMiss == null ? Long.MIN_VALUE : indexCacheMiss.v2())
-            );
+            final ByteRange startRangeToWrite = computeRange(position);
+            final ByteRange endRangeToWrite = computeRange(position + length - 1);
+            assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
+            final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite).minEnvelope(indexCacheMiss);
 
-            assert rangeToWrite.v1() <= position && position + length <= rangeToWrite.v2() : "["
+            assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end() : "["
                 + position
                 + "-"
                 + (position + length)
                 + "] vs "
                 + rangeToWrite;
-            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
+            final ByteRange rangeToRead = ByteRange.of(position, position + length);
 
             final StepListener<Integer> populateCacheFuture = frozenCacheFile.populateAndRead(
                 rangeToWrite,
@@ -322,7 +319,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     relativePos,
                     len,
                     b,
-                    rangeToRead.v1(),
+                    rangeToRead.start(),
                     false,
                     luceneByteBufLock,
                     stopAsyncReads
@@ -332,7 +329,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                     channelPos,
                     relativePos,
                     len,
-                    rangeToWrite.v1(),
+                    rangeToWrite.start(),
                     progressUpdater
                 ),
                 directory.cacheFetchAsyncExecutor()
@@ -340,7 +337,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                final int indexCacheMissLength = toIntBytes(indexCacheMiss.v2() - indexCacheMiss.v1());
+                final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
                 // We assume that we only cache small portions of blobs so that we do not need to:
                 // - use a BigArrays for allocation
                 // - use an intermediate copy buffer to read the file in sensibly-sized chunks
@@ -387,7 +384,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                         byteBuffer.position(read); // mark all bytes as accounted for
                         byteBuffer.flip();
                         final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-                        directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.v1(), content, new ActionListener<>() {
+                        directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.start(), content, new ActionListener<>() {
                             @Override
                             public void onResponse(Void response) {
                                 onCacheFillComplete.close();

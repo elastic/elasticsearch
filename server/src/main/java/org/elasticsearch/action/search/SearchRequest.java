@@ -32,6 +32,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -656,15 +657,17 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
         // add a sort tiebreaker for PIT search requests if not explicitly set
         Object[] searchAfter = source.searchAfter();
-        List<SortBuilder<?>> sorts = source.sorts();
         if (source.pointInTimeBuilder() != null
-                && sorts != null
-                && sorts.isEmpty() == false
-                && (searchAfter == null || searchAfter.length == sorts.size()+1)) {
-            SortBuilder<?> lastSort = sorts.get(sorts.size() - 1);
+                && source.sorts() != null
+                && source.sorts().isEmpty() == false
+                // skip the tiebreaker if it is not provided in the search after values
+                && (searchAfter == null || searchAfter.length == source.sorts().size()+1)) {
+            SortBuilder<?> lastSort = source.sorts().get(source.sorts().size() - 1);
             if (lastSort instanceof FieldSortBuilder == false
                     || FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(((FieldSortBuilder) lastSort).getFieldName()) == false) {
-                source.sort(SortBuilders.fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME).unmappedType("long"));
+                List<SortBuilder<?>> newSorts = new ArrayList<>(source.sorts());
+                newSorts.add(SortBuilders.pitTiebreaker().unmappedType("long"));
+                source = source.shallowCopy().sort(newSorts);
                 hasChanged = true;
             }
         }

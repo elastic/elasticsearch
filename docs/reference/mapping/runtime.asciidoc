@@ -120,6 +120,27 @@ The `runtime` section can be any of these data types:
 Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
 
+[[runtime-fields-scriptless]]
+==== Define runtime fields without a script
+You can define a runtime field in the mapping definition without a
+script. At query time, {es} looks in `_source` for a field with the same name
+and returns a value if one exists. If a field with the same name doesn’t
+exist, the response doesn't include any values for that runtime field.
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "runtime": {
+      "model_number": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+
 If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
 `dynamic` parameter is set to `runtime`, new fields are automatically added to
 the index mapping as runtime fields:
@@ -200,27 +221,6 @@ a runtime field in the index mapping. That consistency means you can promote a
 runtime field from a search request to the index mapping by moving the field
 definition from `runtime_mappings` in the search request to the `runtime`
 section of the index mapping.
-
-[[runtime-fields-scriptless]]
-==== Define runtime fields without a script
-You can define a runtime field in the mapping definition without a
-script. At query time, {es} looks in `_source` for a field with the same name
-and returns a value if one exists. If a field with the same name doesn’t
-exist, the response doesn't include any values for that runtime field.
-
-[source,console]
-----
-PUT my-index/
-{
-  "mappings": {
-    "runtime": {
-      "model_number": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-----
 
 [[runtime-override-values]]
 === Override field values at query time

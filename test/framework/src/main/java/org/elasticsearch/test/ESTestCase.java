@@ -1299,7 +1299,8 @@ public abstract class ESTestCase extends LuceneTestCase {
             return createParserWithCompatibilityFor(xContent, data, RestApiCompatibleVersion.minimumSupported());
         } else {
             return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
-        }    }
+        }
+    }
 
     /**
      * Create a new {@link XContentParser}.

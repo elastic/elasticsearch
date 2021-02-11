@@ -153,7 +153,6 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private final Map<RestApiCompatibleVersion, Map<String, FieldParser>> fieldParserMap = new HashMap<>();
-//    private final Map<String, FieldParser> compatibleFieldParserMap = new HashMap<>();
     private final String name;
     private final Function<Context, Value> valueBuilder;
     private final UnknownFieldParser<Value, Context> unknownFieldParser;

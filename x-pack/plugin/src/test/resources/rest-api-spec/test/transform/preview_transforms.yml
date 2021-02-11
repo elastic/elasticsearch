@@ -390,8 +390,8 @@ setup:
   - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
   - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
-  - is_false: generated_dest_index.mappings.properties.time\.max.type
-  - is_false: generated_dest_index.mappings.properties.time\.min.type
+  - match: { generated_dest_index.mappings.properties.time\.max.type: "date" }
+  - match: { generated_dest_index.mappings.properties.time\.min.type: "date" }
 
 ---
 "Test preview transform latest with search runtime fields":

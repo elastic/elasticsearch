@@ -1111,7 +1111,7 @@ setup:
 ---
 "order by sub agg containing nested":
   - skip:
-        version: "7.99.99 - "
+        version: " - 7.99.99"
         reason: "https://github.com/elastic/elasticsearch/issues/66876"
   - do:
       indices.put_mapping:

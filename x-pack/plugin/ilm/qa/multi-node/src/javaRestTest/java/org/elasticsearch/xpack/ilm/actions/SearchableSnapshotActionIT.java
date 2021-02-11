@@ -197,9 +197,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                }
-               List<Object> responses = (List<Object>) responseMap.get("responses");
-               Object snapshots = ((Map<String, Object>) responses.get(0)).get("snapshots");
-               return ((List<Map<String, Object>>) snapshots).size() == 0;
+               List<Map<String, Object>> snapshots = (List<Map<String, Object>>) responseMap.get("snapshots");
+               return snapshots.size() == 0;
            } catch (Exception e) {
                logger.error(e.getMessage(), e);
                return false;

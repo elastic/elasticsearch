@@ -16,6 +16,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -67,10 +68,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
@@ -105,7 +108,13 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+
     public static final String CERTIFICATE_AUTHORITIES = "certificate_authorities";
+
+    public static final String CLIENT_CERT_PATH = "client.cert.path";
+    public static final String CLIENT_KEY_PATH = "client.key.path";
+    public static final String CLIENT_KEY_PASSWORD = "client.key.password";
+
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
@@ -116,8 +125,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
         try (XContentParser parser = xContentType.xContent().createParser(
-                NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                response.getEntity().getContent())) {
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            response.getEntity().getContent())) {
             return parser.map();
         }
     }
@@ -189,7 +198,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
                 nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
-                for (Object module: (List<?>) nodeInfo.get("modules")) {
+                for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
                         hasXPack = true;
@@ -229,6 +238,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         /**
          * Adds to the set of warnings that are all required in responses if the cluster
          * is formed from nodes all running the exact same version as the client.
+         *
          * @param requiredWarnings a set of required warnings
          */
         public void current(String... requiredWarnings) {
@@ -238,6 +248,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         /**
          * Adds to the set of warnings that are permissible (but not required) when running
          * in mixed-version clusters or those that differ in version from the test client.
+         *
          * @param allowedWarnings optional warnings that will be ignored if received
          */
         public void compatible(String... allowedWarnings) {
@@ -265,7 +276,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         private boolean isExclusivelyTargetingCurrentVersionCluster() {
             assertFalse("Node versions running in the cluster are missing", testNodeVersions.isEmpty());
             return testNodeVersions.size() == 1 &&
-                    testNodeVersions.iterator().next().equals(Version.CURRENT);
+                testNodeVersions.iterator().next().equals(Version.CURRENT);
         }
 
     }
@@ -368,7 +379,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                  */
                 if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                     try (BufferedReader responseReader = new BufferedReader(
-                            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+                        new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
                         int activeTasks = 0;
                         String line;
                         final StringBuilder tasksListString = new StringBuilder();
@@ -507,7 +518,9 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
      */
-    protected boolean waitForAllSnapshotsWiped() { return false; }
+    protected boolean waitForAllSnapshotsWiped() {
+        return false;
+    }
 
     private void wipeCluster() throws Exception {
 
@@ -524,9 +537,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             deleteAllSLMPolicies();
         }
 
-        SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
+        SetOnce<Map<String, List<Map<?, ?>>>> inProgressSnapshots = new SetOnce<>();
         if (waitForAllSnapshotsWiped()) {
-            AtomicReference<Map<String, List<Map<?,?>>>> snapshots = new AtomicReference<>();
+            AtomicReference<Map<String, List<Map<?, ?>>>> snapshots = new AtomicReference<>();
             try {
                 // Repeatedly delete the snapshots until there aren't any
                 assertBusy(() -> {
@@ -600,7 +613,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                             }
                             adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                         } catch (ResponseException e) {
-                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                            logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
                         }
                     }
                 } catch (Exception e) {
@@ -693,6 +706,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Wipe fs snapshots we created one by one and all repositories so that the next test can create the repositories fresh and they'll
      * start empty. There isn't an API to delete all snapshots. There is an API to delete all snapshot repositories but that leaves all of
      * the snapshots intact in the repository.
+     *
      * @return Map of repository name to list of snapshots found in unfinished state
      */
     protected Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
@@ -709,7 +723,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 Map<?, ?> response = entityAsMap(adminClient.performRequest(listRequest));
                 Map<?, ?> oneRepoResponse;
                 if (response.containsKey("responses")) {
-                    oneRepoResponse = ((Map<?,?>)((List<?>) response.get("responses")).get(0));
+                    oneRepoResponse = ((Map<?, ?>) ((List<?>) response.get("responses")).get(0));
                 } else {
                     oneRepoResponse = response;
                 }
@@ -754,7 +768,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             mustClear = true;
             clearCommand.startObject(type);
-            for (Object key: settings.keySet()) {
+            for (Object key : settings.keySet()) {
                 clearCommand.field(key + ".*").nullValue();
             }
             clearCommand.endObject();
@@ -782,7 +796,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
+            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
 
         if (jobConfigs == null) {
             return;
@@ -942,7 +956,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
                 if (false == tasks.isEmpty()) {
                     StringBuilder message = new StringBuilder("there are still running tasks:");
-                    for (Object task: tasks) {
+                    for (Object task : tasks) {
                         message.append('\n').append(task.toString());
                     }
                     fail(message.toString());
@@ -993,29 +1007,30 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        String truststorePath = settings.get(TRUSTSTORE_PATH);
         String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
-        String keystorePath = settings.get(TRUSTSTORE_PATH);
+        String clientCertificatePath = settings.get(CLIENT_CERT_PATH);
 
-        if (certificateAuthorities != null && keystorePath != null) {
+        if (certificateAuthorities != null && truststorePath != null) {
             throw new IllegalStateException("Cannot set both " + CERTIFICATE_AUTHORITIES + " and " + TRUSTSTORE_PATH
                 + ". Please configure one of these.");
 
         }
-        if (keystorePath != null) {
+        if (truststorePath != null) {
             if (inFipsJvm()) {
-                throw new IllegalStateException("Keystore " + keystorePath + "cannot be used in FIPS 140 mode. Please configure "
+                throw new IllegalStateException("Keystore " + truststorePath + "cannot be used in FIPS 140 mode. Please configure "
                     + CERTIFICATE_AUTHORITIES + " with a PEM encoded trusted CA/certificate instead");
             }
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
             if (keystorePass == null) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
             }
-            Path path = PathUtils.get(keystorePath);
+            Path path = PathUtils.get(truststorePath);
             if (Files.exists(path) == false) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
+                final String keyStoreType = truststorePath.endsWith(".p12") ? "PKCS12" : "jks";
                 KeyStore keyStore = KeyStore.getInstance(keyStoreType);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
@@ -1028,21 +1043,34 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         }
         if (certificateAuthorities != null) {
-            Path path = PathUtils.get(certificateAuthorities);
-            if (Files.exists(path) == false) {
+            Path caPath = PathUtils.get(certificateAuthorities);
+            if (Files.exists(caPath) == false) {
                 throw new IllegalStateException(CERTIFICATE_AUTHORITIES + " is set but points to a non-existing file");
             }
             try {
                 KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keyStore.load(null, null);
-                Certificate cert = PemUtils.readCertificates(List.of(path)).get(0);
-                keyStore.setCertificateEntry(cert.toString(), cert);
-                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
+                Certificate caCert = PemUtils.readCertificates(List.of(caPath)).get(0);
+                keyStore.setCertificateEntry(caCert.toString(), caCert);
+                final SSLContextBuilder sslContextBuilder = SSLContexts.custom();
+                if (clientCertificatePath != null) {
+                    final Path certPath = PathUtils.get(clientCertificatePath);
+                    final Path keyPath = PathUtils.get(Objects.requireNonNull(settings.get(CLIENT_KEY_PATH), "No key provided"));
+                    final String password = settings.get(CLIENT_KEY_PASSWORD);
+                    final char[] passwordChars = password == null ? null : password.toCharArray();
+                    final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> passwordChars);
+                    final Certificate[] clientCertChain = PemUtils.readCertificates(List.of(certPath)).toArray(Certificate[]::new);
+                    keyStore.setKeyEntry("client", key, passwordChars, clientCertChain);
+                    sslContextBuilder.loadKeyMaterial(keyStore, passwordChars);
+                }
+                SSLContext sslcontext = sslContextBuilder.loadTrustMaterial(keyStore, null).build();
                 SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
                 builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
-            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
+            } catch (GeneralSecurityException e) {
                 throw new RuntimeException("Error setting up ssl", e);
             }
+        } else if (clientCertificatePath != null) {
+            throw new IllegalStateException("Client certificates are currently only support when using a custom CA");
         }
         Map<String, String> headers = ThreadContext.buildDefaultHeaders(settings);
         Header[] defaultHeaders = new Header[headers.size()];
@@ -1082,6 +1110,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * checks that the specific index is green. we force a selection of an index as the tests share a cluster and often leave indices
      * in an non green state
+     *
      * @param index index to test for
      **/
     public static void ensureGreen(String index) throws IOException {
@@ -1175,7 +1204,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void expectSoftDeletesWarning(Request request, String indexName) {
         final List<String> expectedWarnings = List.of(
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. " +
-            "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
+                "Please do not specify value for setting [index.soft_deletes.enabled] of index [" + indexName + "].");
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
             request.setOptions(RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false));
@@ -1197,7 +1226,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
         Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
+        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 
     protected static boolean indexExists(String index) throws IOException {
@@ -1211,8 +1240,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
      */
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards " +
-            "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' " +
-            "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
+        "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' " +
+        "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
 
     protected static void closeIndex(String index) throws IOException {
         final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");
@@ -1245,7 +1274,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             endpoint = endpoint + "/" + alias;
         }
         Map<String, Object> getAliasResponse = getAsMap(endpoint);
-        return (Map<String, Object>)XContentMapValues.extractValue(index + ".aliases." + alias, getAliasResponse);
+        return (Map<String, Object>) XContentMapValues.extractValue(index + ".aliases." + alias, getAliasResponse);
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
@@ -1256,7 +1285,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
-                response.getEntity().getContent(), false);
+            response.getEntity().getContent(), false);
         assertNotNull(responseEntity);
         return responseEntity;
     }
@@ -1538,8 +1567,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 final Map<String, ?> map = XContentHelper.convertToMap(xContentType.xContent(), is, true);
                 assertThat(map, notNullValue());
                 assertThat("License must exist", map.containsKey("license"), equalTo(true));
-                @SuppressWarnings("unchecked")
-                final Map<String, ?> license = (Map<String, ?>) map.get("license");
+                @SuppressWarnings("unchecked") final Map<String, ?> license = (Map<String, ?>) map.get("license");
                 assertThat("Expecting non-null license", license, notNullValue());
                 assertThat("License status must exist", license.containsKey("status"), equalTo(true));
                 final String status = (String) license.get("status");
@@ -1562,7 +1590,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (warnings.size() > 0) {
                 boolean matches = warnings.stream().anyMatch(
                     message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
-                    PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+                        PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
                 return matches == false;
             } else {
                 return false;

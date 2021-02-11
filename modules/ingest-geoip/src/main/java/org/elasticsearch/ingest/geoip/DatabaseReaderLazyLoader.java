@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
+import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
@@ -17,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -134,39 +136,24 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     CityResponse getCity(InetAddress ipAddress) {
-        SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
-            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
-                try {
-                    return get().city(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
+        return getResponse(ipAddress, DatabaseReader::city);
     }
 
     CountryResponse getCountry(InetAddress ipAddress) {
-        SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
-            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
-                try {
-                    return get().country(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
+        return getResponse(ipAddress, DatabaseReader::country);
     }
 
     AsnResponse getAsn(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::asn);
+    }
+
+    private <T extends AbstractResponse> T getResponse(InetAddress ipAddress,
+                                                       CheckedBiFunction<DatabaseReader, InetAddress, T, Exception> responseProvider) {
         SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
+        return AccessController.doPrivileged((PrivilegedAction<T>) () ->
             cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
                 try {
-                    return get().asn(ip);
+                    return responseProvider.apply(get(), ipAddress);
                 } catch (AddressNotFoundException e) {
                     throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
                 } catch (Exception e) {

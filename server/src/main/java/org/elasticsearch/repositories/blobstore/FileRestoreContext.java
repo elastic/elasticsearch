@@ -32,6 +32,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * This context will execute a file restore of the lucene files. It is primarily designed to be used to
@@ -164,11 +165,14 @@ public abstract class FileRestoreContext {
     }
 
     private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetadata restoredSegmentsFile) {
-        // read the snapshot data persisted
         try {
-            Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
+            final String indexStoreType = INDEX_STORE_TYPE_SETTING.get(store.indexSettings().getSettings());
+            if ("snapshot".equals(indexStoreType) == false) {
+                Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
+            }
         } catch (IOException e) {
-            throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
+            throw new IndexShardRestoreFailedException(shardId, "Failed to remove files not referenced in segment file ["
+                + restoredSegmentsFile.name() + "] after restore", e);
         }
 
         /// now, go over and clean files that are in the store, but were not in the snapshot

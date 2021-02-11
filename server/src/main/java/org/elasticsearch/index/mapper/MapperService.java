@@ -180,7 +180,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         final DocumentMapper updatedMapper;
         try {
-            updatedMapper = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
+            updatedMapper = merge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
@@ -222,7 +222,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private void assertMappingVersion(
             final IndexMetadata currentIndexMetadata,
             final IndexMetadata newIndexMetadata,
-            final DocumentMapper updatedMapper) throws IOException {
+            final DocumentMapper updatedMapper) {
         if (Assertions.ENABLED && currentIndexMetadata != null) {
             if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
@@ -261,63 +261,56 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
         CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
-        internalMerge(type, content, reason);
+        mergeAndApplyMappings(type, content, reason);
     }
 
-    public void merge(IndexMetadata indexMetadata, MergeReason reason) {
-        internalMerge(indexMetadata, reason);
-    }
-
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        return internalMerge(type, mappingSource, reason);
-    }
-
-    private synchronized DocumentMapper internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
+    public DocumentMapper merge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
-            return internalMerge(mappingMetadata.type(), mappingMetadata.source(), reason);
+            return mergeAndApplyMappings(mappingMetadata.type(), mappingMetadata.source(), reason);
         }
         return null;
     }
 
-    private synchronized DocumentMapper internalMerge(String type, CompressedXContent mappings, MergeReason reason) {
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
+        return mergeAndApplyMappings(type, mappingSource, reason);
+    }
 
-        DocumentMapper documentMapper;
+    private synchronized DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
+        Mapping mapping = mergeMappings(mappingType, mappingSource, reason);
+        DocumentMapper newMapper = newDocumentMapper(mapping, reason);
+        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+            return newMapper;
+        }
+        this.mapper = newMapper;
+        assert assertSerialization(newMapper);
+        return newMapper;
+    }
 
+    private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
+        DocumentMapper newMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
+        newMapper.root().fixRedundantIncludes();
+        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
+        return newMapper;
+    }
+
+    private Mapping mergeMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
+        Mapping incomingMapping;
         try {
-            documentMapper = parse(type, mappings);
+            incomingMapping = mappingParser.parse(mappingType, mappingSource);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
 
-        return internalMerge(documentMapper, reason);
-    }
-
-    private synchronized DocumentMapper internalMerge(DocumentMapper mapper, MergeReason reason) {
-
-        assert mapper != null;
-
-        // compute the merged DocumentMapper
-        DocumentMapper oldMapper = this.mapper;
-        DocumentMapper newMapper;
-        if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping(), reason);
+        Mapping newMapping;
+        DocumentMapper currentMapper = this.mapper;
+        if (currentMapper == null) {
+            newMapping = incomingMapping;
         } else {
-            newMapper = mapper;
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
         }
-        newMapper.root().fixRedundantIncludes();
-        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
-
-        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            return newMapper;
-        }
-
-        // commit the change
-        this.mapper = newMapper;
-        assert assertSerialization(newMapper);
-
-        return newMapper;
+        return newMapping;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {

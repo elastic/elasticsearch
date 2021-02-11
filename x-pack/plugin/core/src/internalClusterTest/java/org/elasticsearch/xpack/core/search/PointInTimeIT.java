@@ -396,9 +396,14 @@ public class PointInTimeIT extends ESIntegTestCase {
         try {
             for (int size = 1; size <= numIndex; size++) {
                 SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size);
+
                 assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
                     SortBuilders.pitTiebreaker().order(order));
+
+                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
+                    SortBuilders.scoreSort());
+                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
+                    SortBuilders.scoreSort(), SortBuilders.pitTiebreaker().order(order));
 
                 assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
                     SortBuilders.fieldSort("value"));

@@ -34,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -654,11 +655,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         boolean hasChanged = source != this.source;
 
         // add a sort tiebreaker for PIT search requests if not explicitly set
-        if (source.pointInTimeBuilder() != null) {
-            if (source.sorts() == null || source.sorts().isEmpty()) {
-                source.sort(SortBuilders.scoreSort());
-            }
-            SortBuilder<?> lastSort = source.sorts().get(source.sorts().size() - 1);
+        Object[] searchAfter = source.searchAfter();
+        List<SortBuilder<?>> sorts = source.sorts();
+        int numSort = sorts.size();
+        if (source.pointInTimeBuilder() != null
+                && sorts != null
+                && sorts.isEmpty() == false
+                && (searchAfter == null || searchAfter.length == numSort+1)) {
+            SortBuilder<?> lastSort = sorts.get(numSort - 1);
             if (lastSort instanceof FieldSortBuilder == false
                     || FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(((FieldSortBuilder) lastSort).getFieldName()) == false) {
                 source.sort(SortBuilders.fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME).unmappedType("long"));

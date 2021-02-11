@@ -129,7 +129,7 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         PreviewTransformResponse previewResponse = previewTransform(config, RequestOptions.DEFAULT);
         // Verify preview mappings
         Map<String, Object> expectedMappingProperties =
-            new HashMap<>() {{
+            new HashMap<String, Object>() {{
                 put("by-user", singletonMap("type", "keyword"));
                 put("review_score", singletonMap("type", "double"));
                 put("review_score_max", singletonMap("type", "long"));

@@ -152,7 +152,7 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     public void testGetSourceFieldMappingsWithRuntimeMappings() throws InterruptedException {
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {{
             put("field-2", singletonMap("type", "keyword"));
             put("field-3", singletonMap("type", "boolean"));
         }};

@@ -54,7 +54,6 @@ You can also test the configured conditions and check the sample results by
 providing a valid interval in the respective field.
 
 
-
 [[defining-actions]]
 == Defining actions
 

@@ -39,7 +39,7 @@ public class MigrateAction implements LifecycleAction {
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
     private static final Logger logger = LogManager.getLogger(MigrateAction.class);
-    static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-existing-routing";
+    static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
     private static final List<String> FROZEN_TO_HOT_TIERS =
         List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);

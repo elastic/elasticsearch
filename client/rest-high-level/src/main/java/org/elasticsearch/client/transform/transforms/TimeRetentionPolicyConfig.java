@@ -106,8 +106,8 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
         private TimeValue maxAge;
 
         /**
-         * The time field that defines the creation time of a document.
-         * @param field The field name
+         * The time field used to calculate the age of a document.
+         * @param field The field name to be used to execute the retention policy
          * @return The {@link Builder} with the field set.
          */
         public Builder setField(String field) {
@@ -117,7 +117,7 @@ public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
 
         /**
          * The max age, all documents that are older will be deleted.
-         * @param maxAge
+         * @param maxAge The maximum age of a document
          * @return The {@link Builder} with max age set.
          */
         public Builder setMaxAge(TimeValue maxAge) {

@@ -106,7 +106,7 @@ public class TimeSyncConfig implements SyncConfig {
 
         /**
          * The date field that is used to identify new documents in the source.
-         * @param field The field name
+         * @param field The field name of the timestamp field used for synchronizing
          * @return The {@link Builder} with the field set.
          */
         public Builder setField(String field) {
@@ -117,7 +117,7 @@ public class TimeSyncConfig implements SyncConfig {
         /**
          * The time delay between the current time and the latest input data time.
          * The default value is 60s.
-         * @param delay
+         * @param delay the delay to use when checking for changes
          * @return The {@link Builder} with delay set.
          */
         public Builder setDelay(TimeValue delay) {

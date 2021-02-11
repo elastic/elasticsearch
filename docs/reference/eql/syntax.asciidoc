@@ -163,6 +163,31 @@ the operator uses a case-sensitive lexicographic order.
 NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
 [discrete]
+[[eql-syntax-pattern-comparison-operators]]
+=== Pattern comparison operators
+
+[source,eql]
+----
+my_field like  "FOO*"       // case-sensitive wildcard matching
+my_field like~ "foo*"       // case-insensitive wildcard matching
+
+my_field regex  "BA[^Z].?"  // case-sensitive regex matching
+my_field regex~ "ba[^z].?"  // case-insensitive regex matching
+----
+
+`like` (case-sensitive)::
+Returns `true` if the string to the left of the operator matches a
+<<eql-syntax-wildcards,wildcard pattern>> to the right. Supports
+<<eql-syntax-lookup-operators,list lookups>>. Can only be used to compare
+strings. For case-insensitive matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string to the left of the operator matches a regular
+expression to the right. For supported regular expression syntax, see
+<<regexp-syntax>>. Supports <<eql-syntax-lookup-operators,list lookups>>. Can
+only be used to compare strings. For case-insensitive matching, use `regex~`.
+
+[discrete]
 [[limitations-for-comparisons]]
 === Limitations for comparisons
 
@@ -221,13 +246,19 @@ Returns `true` if the condition to the right is `false`.
 
 [source,eql]
 ----
-my_field in ("Foo", "BAR", "BAZ")       // case-sensitive
-my_field in~ ("foo", "bar", "baz")      // case-insensitive
+my_field in ("Foo", "BAR", "BAZ")             // case-sensitive
+my_field in~ ("foo", "bar", "baz")            // case-insensitive
 
-my_field not in ("Foo", "BAR", "BAZ")   // case-sensitive
-my_field not in~ ("foo", "bar", "baz")  // case-insensitive
+my_field not in ("Foo", "BAR", "BAZ")         // case-sensitive
+my_field not in~ ("foo", "bar", "baz")        // case-insensitive
 
-my_field : ("foo", "bar", "baz")        // case-insensitive
+my_field : ("foo", "bar", "baz")              // case-insensitive
+
+my_field like  ("F*O", "BA?", "QUX")          // case-sensitive
+my_field like~ ("f*o", "ba?", "qux")          // case-insensitive
+
+my_field regex  ("[fF]*o", "BA[^Z].?", "QUX") // case-sensitive
+my_field regex~ ("f*o?", "ba[^z].?", "qux")   // case-insensitive
 ----
 
 `in` (case-sensitive)::
@@ -241,6 +272,17 @@ case-insensitive matching, use `not in~`.
 `:` (case-insensitive)::
 Returns `true` if the string is contained in the provided list. Can only be used
 to compare strings.
+
+`like` (case-sensitive)::
+Returns `true` if the string matches a <<eql-syntax-wildcards,wildcard pattern>>
+in the provided list. Can only be used to compare strings. For case-insensitive
+matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string matches a regular expression pattern in the
+provided list. For supported regular expression syntax, see <<regexp-syntax>>.
+Can only be used to compare strings. For case-insensitive matching, use
+`regex~`.
 
 [discrete]
 [[eql-syntax-math-operators]]
@@ -386,32 +428,39 @@ use a regular string with the `\"` escape sequence.
 [[eql-syntax-wildcards]]
 === Wildcards
 
-For string comparisons using the `:` operator, you can use the `*` and `?`
-wildcards to match specific patterns. The `*` wildcard matches zero or more
+For string comparisons using the `:` or `like` operator, you can use the `*` and
+`?` wildcards to match specific patterns. The `*` wildcard matches zero or more
 characters:
 
 [source,eql]
 ----
-my_field : "doc*"  // Matches "doc", "docs", or "document" but not "dos"
-my_field : "*doc"  // Matches "adoc" or "asciidoc"
-my_field : "d*c"   // Matches "doc" or "disc"
+my_field : "doc*"     // Matches "doc", "docs", or "document" but not "dos"
+my_field : "*doc"     // Matches "adoc" or "asciidoc"
+my_field : "d*c"      // Matches "doc" or "disc"
+
+my_field like "DOC*"  // Matches "DOC", "DOCS", "DOCs", or "DOCUMENT" but not "DOS"
+my_field like "D*C"   // Matches "DOC", "DISC", or "DisC"
 ----
 
 The `?` wildcard matches exactly one character:
 
 [source,eql]
 ----
-my_field : "doc?"  // Matches "docs" but not "doc", "document", or "dos"
-my_field : "?doc"  // Matches "adoc" but not "asciidoc"
-my_field : "d?c"   // Matches "doc" but not "disc"
+my_field : "doc?"     // Matches "docs" but not "doc", "document", or "DOS"
+my_field : "?doc"     // Matches "adoc" but not "asciidoc"
+my_field : "d?c"      // Matches "doc" but not "disc"
+
+my_field like "DOC?"  // Matches "DOCS" or "DOCs" but not "DOC", "DOCUMENT", or "DOS"
+my_field like "D?c"   // Matches "DOC" but not "DISC"
 ----
 
-The `:` operator also supports wildcards in <<eql-syntax-lookup-operators,list
-lookups>>:
+The `:` and `like` operators also support wildcards in
+<<eql-syntax-lookup-operators,list lookups>>:
 
 [source,eql]
 ----
 my_field : ("doc*", "f*o", "ba?", "qux")
+my_field like ("F*O", "BA?", "QUX")
 ----
 
 [discrete]

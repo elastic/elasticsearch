@@ -25,19 +25,20 @@ Other versions:
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
-
-
-// Use the notable-highlights tag to mark entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
+[discrete]
+[[eql-like-regex-operators]]
+=== EQL: `like` and `regex` operators
 
-// Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete]
-// === Heading
-//
-// Description.
+In 7.12, we added the `like` and `regex` operators to EQL. You can use the
+`like` operator to match strings to
+{ref}/eql-syntax.html#eql-syntax-wildcards[wildcard patterns], such as `foo*` or
+`ba?`. You can use the `regex` operator to match strings to regular expressions.
+You can use both `like` and `regex` as lookup operators to match a string
+against a list of patterns.
+
+By default, both operators are case-sensitive. For case-insensitive matching,
+use `like~` or `regex~`. For more information, see the
+{ref}/eql-syntax.html#eql-syntax-pattern-comparison-operators[Pattern comparison
+operators] section of the {ref}/eql-syntax.html[EQL syntax documentation].
+// end::notable-highlights[]

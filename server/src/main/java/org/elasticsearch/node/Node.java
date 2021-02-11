@@ -453,8 +453,7 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedXContent().stream()),
                 ClusterModule.getNamedXWriteables().stream())
                 .flatMap(Function.identity()).collect(toList()),
-                pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList())
+                getCompatibleNamedXContents()
                 );
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final PersistedClusterStateService lucenePersistedStateFactory
@@ -735,6 +734,12 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    // package scope for testing
+    List<NamedXContentRegistry.Entry> getCompatibleNamedXContents() {
+        return pluginsService.filterPlugins(Plugin.class).stream()
+            .flatMap(p -> p.getNamedXContentForCompatibility().stream()).collect(toList());
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

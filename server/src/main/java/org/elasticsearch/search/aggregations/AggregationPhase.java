@@ -110,6 +110,7 @@ public class AggregationPhase {
         }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
+                aggregator.postCollection();
                 aggregations.add(aggregator.buildTopLevel());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);

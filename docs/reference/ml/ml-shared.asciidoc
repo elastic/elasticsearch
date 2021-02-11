@@ -537,12 +537,13 @@ the detectors in the `analysis_config`, starting at zero.
 end::detector-index[]
 
 tag::dfas-alpha[]
-Advanced configuration option. {ml-cap} uses loss guided tree growing.
-This means that trees will grow where the regularized loss reduces
-the most. This parameter multiplies a term based on tree depth in
-the regularized loss. Higher values result in shallower trees
-and faster training times. Values should be greater than or equal
-to zero. By default, this value is calculated during hyperparameter optimization.
+Advanced configuration option. {ml-cap} uses loss guided tree growing, which
+means that the decision trees grow where the regularized loss decreases most
+quickly. This parameter affects loss calculations by acting as a multiplier of 
+the tree depth. Higher alpha values result in shallower trees and faster 
+training times.
+//TBD: but potentially reduce accuracy?
+Values must be greater than or equal to zero. By default, this value is calculated during hyperparameter optimization.
 end::dfas-alpha[]
 
 tag::dfas-downsample-factor[]
@@ -758,8 +759,8 @@ end::empty-bucket-count[]
 tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
-However, the smaller the value the longer the training will take. For more
-information about shrinkage, refer to
+However, larger forests cause slower training. For more information about 
+shrinkage, refer to
 {wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]
@@ -848,10 +849,9 @@ end::function[]
 tag::gamma[]
 Advanced configuration option. Regularization parameter to prevent overfitting
 on the training data set. Multiplies a linear penalty associated with the size of
-individual trees in the forest. The higher the value the more training will
-prefer smaller trees. The smaller this parameter the larger individual trees
-will be and the longer training will take. By default, this value is calculated
-during hyperparameter optimization.
+individual trees in the forest. A high gamma value causes training to prefer 
+small trees. A small gamma value results in larger individual trees and slower 
+training. By default, this value is calculated during hyperparameter optimization.
 end::gamma[]
 
 tag::groups[]
@@ -1046,13 +1046,13 @@ end::job-id-datafeed[]
 
 tag::lambda[]
 Advanced configuration option. Regularization parameter to prevent overfitting
-on the training data set. Multiplies an L2 regularisation term which applies to
-leaf weights of the individual trees in the forest. The higher the value the
-more training will attempt to keep leaf weights small. This makes the prediction
+on the training data set. Multiplies an L2 regularization term which applies to
+leaf weights of the individual trees in the forest. A high lambda value causes 
+training to favor small leaf weights. This behavior makes the prediction 
 function smoother at the expense of potentially not being able to capture
-relevant relationships between the features and the {depvar}. The smaller this
-parameter the larger individual trees will be and the longer training will take.
-By default, this value is calculated during hyperparameter optimization.
+relevant relationships between the features and the {depvar}. A small lambda
+value results in large individual trees and slower training. By default, this 
+value is calculated during hyperparameter optimization.
 end::lambda[]
 
 tag::last-data-time[]
@@ -1095,9 +1095,9 @@ set.
 end::max-empty-searches[]
 
 tag::max-trees[]
-Advanced configuration option. Defines the maximum number of trees the forest is
-allowed to contain. The maximum value is 2000. By default, this value is
-calculated during hyperparameter optimization.
+Advanced configuration option. Defines the maximum number of decision trees in 
+the forest. The maximum value is 2000. By default, this value is calculated 
+during hyperparameter optimization.
 end::max-trees[]
 
 tag::method[]
@@ -1375,11 +1375,10 @@ number of {es} documents.
 end::processed-record-count[]
 
 tag::randomize-seed[]
-Defines the seed to the random generator that is used to pick which documents
-will be used for training. By default it is randomly generated. Set it to a
-specific value to ensure the same documents are used for training assuming other
-related parameters (for example, `source`, `analyzed_fields`, etc.) are the
-same.
+Defines the seed for the random generator that is used to pick training data. By 
+default, it is randomly generated. Set it to a specific value to use the same 
+training data each time you start a job (assuming other related parameters such 
+as `source` and `analyzed_fields` are the same).
 end::randomize-seed[]
 
 tag::query[]

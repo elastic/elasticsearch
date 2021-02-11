@@ -94,7 +94,8 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         return org.elasticsearch.common.collect.List.of(
             new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
             new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class)
+            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class),
+            new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class)
         );
     }
 
@@ -111,6 +112,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             new RestEqlSearchAction(),
             new RestEqlStatsAction(),
             new RestEqlGetAsyncResultAction(),
+            new RestEqlGetAsyncStatusAction(),
             new RestEqlDeleteAsyncResultAction()
         );
     }

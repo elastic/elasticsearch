@@ -1069,3 +1069,154 @@ setup:
   - match: { aggregations.str_terms.buckets.2.key: pig }
   - match: { aggregations.str_terms.buckets.2.doc_count: 0 }
   - match: { aggregations.str_terms.buckets.2.max_number.value: null }
+
+---
+"order by sub agg":
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 7 }
+          { "index": {} }
+          { "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 1
+                shard_size: 1
+                field: str
+                order:
+                  - max_number: desc
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: cow }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 7.0 }
+
+---
+"order by sub agg containing nested":
+  - skip:
+        version: "7.99.99 - "
+        reason: "https://github.com/elastic/elasticsearch/issues/66876"
+  - do:
+      indices.put_mapping:
+          index: test_1
+          body:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  tag:
+                    type: keyword
+                  number:
+                    type: long
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "nested": [{"tag": "danger", "number": 1}, {"tag": "fluffiness", "number": 10}] }
+          { "index": {} }
+          { "str": "cow", "nested": [{"tag": "danger", "number": 3}, {"tag": "fluffiness", "number": 1}] }
+          { "index": {} }
+          { "str": "pig", "nested": [{"tag": "danger", "number": 100}, {"tag": "fluffiness", "number": 1}] }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 1
+                shard_size: 1
+                field: str
+                order:
+                  - "nested>max_number": desc
+              aggs:
+                nested:
+                  nested:
+                    path: nested
+                  aggs:
+                    max_number:
+                      max:
+                        field: nested.number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: pig }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.nested.max_number.value: 100.0 }
+
+---
+"order by sub agg containing filter":
+  - do:
+      indices.put_mapping:
+          index: test_1
+          body:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  tag:
+                    type: keyword
+                  number:
+                    type: long
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 7 }
+          { "index": {} }
+          { "str": "pig", "number": 100 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                size: 1
+                shard_size: 1
+                field: str
+                order:
+                  - "filter>max_number": desc
+              aggs:
+                filter:
+                  filter:
+                    range:
+                      number:
+                        lt: 10
+                  aggs:
+                    max_number:
+                      max:
+                        field: number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: cow }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.filter.max_number.value: 7.0 }

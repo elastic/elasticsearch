@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Assertions;
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -187,7 +186,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assertRefreshIsNotNeeded(previousMapper, type, incomingMappingSource, incomingMapping);
+                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMappingSource, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY);
             }
             String op = previousMapper != null ? "updated" : "added";
@@ -202,23 +201,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private void assertRefreshIsNotNeeded(DocumentMapper currentMapper,
+    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper,
                                           String type,
                                           CompressedXContent incomingMappingSource,
                                           Mapping incomingMapping) {
-        if (Assertions.ENABLED) {
-            Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
-            CompressedXContent mergedMappingSource;
-            try {
-                mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
-            } catch (Exception e) {
-                throw new AssertionError("failed to serialize source for type [" + type + "]", e);
-            }
-            // we used to ask the master to refresh its mappings whenever the result of merging the incoming mappings with the
-            // current mappings differs from the incoming mappings. We now rather assert that this situation never happens.
-            assert mergedMappingSource.equals(incomingMappingSource) : "[" + index() + "] parsed mapping, and got different sources\n" +
-                "incoming:\n" + incomingMappingSource + "\nmerged:\n" + mergedMappingSource;
+        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
+        CompressedXContent mergedMappingSource;
+        try {
+            mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        } catch (Exception e) {
+            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
         }
+        // we used to ask the master to refresh its mappings whenever the result of merging the incoming mappings with the
+        // current mappings differs from the incoming mappings. We now rather assert that this situation never happens.
+        assert mergedMappingSource.equals(incomingMappingSource) : "[" + index() + "] parsed mapping, and got different sources\n" +
+            "incoming:\n" + incomingMappingSource + "\nmerged:\n" + mergedMappingSource;
+        return true;
     }
 
     private void assertMappingVersion(

@@ -212,7 +212,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             try {
                 mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
             } catch (Exception e) {
-                throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
+                throw new AssertionError("failed to serialize source for type [" + type + "]", e);
             }
             // we used to ask the master to refresh its mappings whenever the result of merging the incoming mappings with the
             // current mappings differs from the incoming mappings. We now rather assert that this situation never happens.

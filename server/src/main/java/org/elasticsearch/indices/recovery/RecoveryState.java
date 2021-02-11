@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -136,7 +137,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
-        displayStage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
@@ -145,13 +145,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         translog = new Translog(in);
         verifyIndex = new VerifyIndex(in);
         primary = in.readBoolean();
+        if (in.getVersion().after(Version.V_7_12_0)) {
+            displayStage = Stage.fromId(in.readByte());
+        } else {
+            displayStage = stage;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
         out.writeByte(getStage().id());
-        out.writeByte(getDisplayStage().id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         targetNode.writeTo(out);
@@ -160,6 +164,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         translog.writeTo(out);
         verifyIndex.writeTo(out);
         out.writeBoolean(primary);
+        if (out.getVersion().after(Version.V_7_12_0)) {
+            out.writeByte(getDisplayStage().id());
+        }
     }
 
     public ShardId getShardId() {

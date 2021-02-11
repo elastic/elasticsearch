@@ -406,7 +406,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             private final DocCountProvider docCount;
             private long count;
 
-            public Counter(DocCountProvider docCount) {
+            Counter(DocCountProvider docCount) {
                 this.docCount = docCount;
             }
 

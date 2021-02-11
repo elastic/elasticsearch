@@ -222,9 +222,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
-            Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
+                Map.of(FreezeAction.NAME, new FreezeAction()));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(warmPhase, coldPhase, frozenPhase)));
             assertThat(e.getMessage(), is(
@@ -233,10 +236,14 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
-            Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
+                Map.of(FreezeAction.NAME, new FreezeAction()));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase,
                     frozenPhase)));

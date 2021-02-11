@@ -20,6 +20,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 public class FieldCapabilitiesIndexRequest extends ActionRequest implements IndicesRequest {
@@ -31,6 +33,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
+    private Map<String, Object> runtimeFields;
 
     private ShardId shardId;
 
@@ -43,13 +46,15 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
         nowInMillis =  in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
+        runtimeFields = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readMap() : Collections.emptyMap();
     }
 
     FieldCapabilitiesIndexRequest(String[] fields,
                                   String index,
                                   OriginalIndices originalIndices,
                                   QueryBuilder indexFilter,
-                                  long nowInMillis) {
+                                  long nowInMillis,
+                                  Map<String, Object> runtimeFields) {
         if (fields == null || fields.length == 0) {
             throw new IllegalArgumentException("specified fields can't be null or empty");
         }
@@ -58,6 +63,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         this.originalIndices = originalIndices;
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
+        this.runtimeFields = runtimeFields;
     }
 
     public String[] fields() {
@@ -80,6 +86,10 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
 
     public QueryBuilder indexFilter() {
         return indexFilter;
+    }
+
+    public Map<String, Object> runtimeFields() {
+        return runtimeFields;
     }
 
     public ShardId shardId() {
@@ -105,6 +115,9 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalNamedWriteable(indexFilter);
             out.writeLong(nowInMillis);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(runtimeFields);
         }
     }
 

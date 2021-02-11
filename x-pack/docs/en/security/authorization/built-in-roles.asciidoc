@@ -183,7 +183,7 @@ However, this role does not grant permission to view the data in all indices.
 
 [[built-in-roles-watcher-admin]] `watcher_admin`::
 +
-Allows users to create and execute all watcher actions. Grants read access to
+Allows users to create and execute all {watcher} actions. Grants read access to
 the `.watches` index. Also grants read access to the watch history and the
 triggered watches index.
 

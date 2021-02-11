@@ -22,8 +22,8 @@ setup:
 "Field caps with runtime mappings section":
 
   - skip:
-      version: " - 7.99.99"
-      reason: Runtime mappings support was added in 8.0
+      version: " - 7.11.99"
+      reason: Runtime mappings support was added in 7.12
 
   - do:
       field_caps:

@@ -57,4 +57,14 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             APM_CUSTOM_LINK_INDEX_DESCRIPTOR
         );
     }
+
+    @Override
+    public String getFeatureName() {
+        return "kibana";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Kibana configuration and reports";
+    }
 }

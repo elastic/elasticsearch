@@ -121,6 +121,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             SnapshotsInProgress.State.SUCCESS,
             Collections.emptyList(),
             List.of(dataStreamName),
+            Collections.emptyList(),
             0,
             1,
             ImmutableOpenMap.of(),

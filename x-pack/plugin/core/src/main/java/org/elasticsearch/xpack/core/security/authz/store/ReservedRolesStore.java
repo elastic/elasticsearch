@@ -125,7 +125,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             // To facilitate using the file uploader functionality
                             "monitor_text_structure",
                             // To cancel tasks and delete async searches
-                            "cancel_tasks"
+                            "cancel_task"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()

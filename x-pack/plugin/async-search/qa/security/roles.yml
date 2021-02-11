@@ -58,4 +58,4 @@ user-dls:
 
 user-cancel:
   cluster:
-    - cancel_tasks
+    - cancel_task

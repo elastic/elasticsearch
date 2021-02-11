@@ -146,7 +146,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             Response delResp = deleteAsyncSearch(id, user);
             assertOK(delResp);
 
-            // check that users with the 'cancel_tasks' privilege can delete an async
+            // check that users with the 'cancel_task' privilege can delete an async
             // search submitted by a different user.
             for (String runAs : new String[] { "user-cancel", "test_kibana_user" }) {
                 Response newResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);

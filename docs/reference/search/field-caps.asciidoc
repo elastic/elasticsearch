@@ -91,7 +91,7 @@ query rewrites to `match_none` on every shard.
 `runtime_mappings`::
 (Optional, object)
 Defines ad-hoc <<runtime-search-request,runtime fields>> in the request similar
-to the way it is done in <<search-api-body-runtime, search requests>>. This fields
+to the way it is done in <<search-api-body-runtime, search requests>>. These fields
 exist only as part of the query and take precedence over fields defined with the
 same name in the index mappings.
 

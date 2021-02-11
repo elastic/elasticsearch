@@ -41,7 +41,7 @@ public class EqlStatusResponseTests extends AbstractWireSerializingTestCase<EqlS
     @Override
     protected EqlStatusResponse mutateInstance(EqlStatusResponse instance) {
         // return a response with the opposite running status
-        boolean isRunning = !instance.isRunning();
+        boolean isRunning = instance.isRunning() == false;
         boolean isPartial = isRunning ? randomBoolean() : false;
         RestStatus completionStatus = isRunning ? null : randomBoolean() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         return new EqlStatusResponse(

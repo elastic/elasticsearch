@@ -56,7 +56,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     @Override
     protected AsyncStatusResponse mutateInstance(AsyncStatusResponse instance) {
         // return a response with the opposite running status
-        boolean isRunning = !instance.isRunning();
+        boolean isRunning = instance.isRunning() == false;
         boolean isPartial = isRunning ? randomBoolean() : false;
         RestStatus completionStatus = isRunning ? null : randomBoolean() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         return new AsyncStatusResponse(

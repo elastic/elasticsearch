@@ -16,12 +16,10 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1079,19 +1077,5 @@ public class ObjectParserTests extends ESTestCase {
                 "Deprecated field [old_name] used, expected [new_name] instead");
 
         }
-    }
-
-    protected XContentParser createParser(XContent xContent, String data) throws IOException {
-        if (randomBoolean()) {
-            return createParserWithCompatibilityFor(xContent, data, RestApiCompatibleVersion.minimumSupported());
-        } else {
-            return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
-        }
-    }
-
-    private XContentParser createParserWithCompatibilityFor(XContent xContent, String data,
-                                                            RestApiCompatibleVersion restApiCompatibleVersion) throws IOException {
-        return xContent.createParserForCompatibility(xContentRegistry(), LoggingDeprecationHandler.INSTANCE,
-            new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)), restApiCompatibleVersion);
     }
 }

@@ -1189,7 +1189,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
-                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
+                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=null}]", scriptTemplate.params().toString());
@@ -1214,7 +1214,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNotNull(groupingContext);
         ScriptTemplate scriptTemplate = groupingContext.tail.script();
         assertEquals(
-                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0), "
+                "InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0), "
                 + "params.v1, params.v2),params.v3)",
             scriptTemplate.toString());
         assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=-2}]", scriptTemplate.params().toString());
@@ -1553,7 +1553,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""),
                 endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeSortNumeric("
                         +
-                        "InternalSqlScriptUtils.dateTimeChrono(InternalQlScriptUtils.docValue(doc,params.v0)," +
+                        "InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0)," +
                         "params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"Z\"," +
                         "\"v2\":\"YEAR\"}},\"type\":\"number\",\"order\":\"asc\"}}]}"));
     }
@@ -1701,7 +1701,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1718,7 +1718,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1735,7 +1735,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1754,7 +1754,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                             "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1770,7 +1770,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeExtract(" +
                             "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"HOUR_OF_DAY\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1789,7 +1789,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                             "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                     "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1804,7 +1804,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertThat(
                 ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                     .replaceAll("\\s+", ""),
-                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeChrono(" +
+                endsWith("{\"source\":\"InternalSqlScriptUtils.dateTimeExtract(" +
                             "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)\",\"lang\":\"painless\"," +
                     "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"MINUTE_OF_HOUR\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -1822,7 +1822,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ((EsQueryExec) p).queryContainer().aggs().asAggBuilder().toString()
                 .replaceAll("\\s+", ""),
-            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeChrono" +
+            endsWith("{\"source\":\"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract" +
                         "(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)\",\"lang\":\"painless\"," +
                 "\"params\":{\"v0\":\"date\",\"v1\":\"Z\",\"v2\":\"YEAR\",\"v3\":\"LONG\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
@@ -2124,11 +2124,11 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
-                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils.dateTimeChrono("
+                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils.dateTimeExtract("
                         + "InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
                         + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3,params.v4)\","
                 + "\"lang\":\"painless\",\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\","
-                + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.chronoField().name() + "\"}},\"missing_bucket\":true,"
+                + "\"v3\":\"Z\",\"v4\":\"" + randomFunction.name() + "\"}},\"missing_bucket\":true,"
                 + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}}"));
     }
 

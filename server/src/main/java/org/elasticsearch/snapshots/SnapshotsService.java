@@ -67,7 +67,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
@@ -77,7 +76,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1299,12 +1297,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             metadataListener.whenComplete(meta -> {
                         final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
+                        final List<String> finalIndices = shardGenerations.indices().stream()
+                            .map(IndexId::getName)
+                            .collect(Collectors.toList());
                         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
-                                shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                                finalIndices,
                                 entry.partial() ? entry.dataStreams().stream()
                                         .filter(metaForSnapshot.dataStreams()::containsKey)
                                         .collect(Collectors.toList()) : entry.dataStreams(),
-                                entry.partial() ? onlySuccessfulFeatureStates(entry) : entry.featureStates(),
+                                entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                                 failure, threadPool.absoluteTimeInMillis(),
                                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
                                 entry.includeGlobalState(), entry.userMetadata(), entry.startTime());
@@ -1332,13 +1333,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Removes all feature states which have missing or failed shards, as they are no longer safely restorable.
      * @param entry The "in progress" entry with a list of feature states and one or more failed shards.
+     * @param finalIndices The final list of indices in the snapshot, after any indices that were concurrently deleted are removed.
      * @return The list of feature states which were completed successfully in the given entry.
      */
-    private List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry) {
+    private List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry, List<String> finalIndices) {
         assert entry.partial() : "should not try to filter feature states from a non-partial entry";
-        final Set<String> indicesInSnapshot = entry.indices().stream()
-            .map(IndexId::getName)
-            .collect(Collectors.toUnmodifiableSet());
 
         // Figure out which indices have unsuccessful shards
         Set<String> indicesWithUnsuccessfulShards = new HashSet<>();
@@ -1351,7 +1350,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         // Now remove any feature states which contain any of those indices, as the feature state is not intact and not safely restorable
         return entry.featureStates().stream()
-            .filter(stateInfo -> indicesInSnapshot.containsAll(stateInfo.getIndices()))
+            .filter(stateInfo -> finalIndices.containsAll(stateInfo.getIndices()))
             .filter(stateInfo -> stateInfo.getIndices().stream().anyMatch(indicesWithUnsuccessfulShards::contains) == false)
             .collect(Collectors.toList());
     }

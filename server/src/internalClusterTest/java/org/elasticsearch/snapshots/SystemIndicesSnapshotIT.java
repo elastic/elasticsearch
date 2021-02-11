@@ -818,6 +818,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testParallelIndexDeleteRemovesFeatureState() throws Exception {
         final String indexToBeDeleted = SystemIndexTestPlugin.SYSTEM_INDEX_NAME;
         final String fullIndexName = AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME;
+        final String nonsystemIndex = "nonsystem-idx";
+
+        // Stop one data node so we only have one data node to start with
+        internalCluster().stopNode(dataNodes.get(1));
+        dataNodes.remove(1);
 
         createRepositoryNoVerify(REPO_NAME, "mock");
 
@@ -826,52 +831,52 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(indexToBeDeleted, "1", "purpose", "pre-snapshot doc");
         // And another one with the default
         indexDoc(fullIndexName, "1", "purpose", "pre-snapshot doc");
+
+        // Now start up a new node and create an index that should get allocated to it
+        dataNodes.add(internalCluster().startDataOnlyNode());
+        createIndexWithContent(
+            nonsystemIndex,
+            indexSettingsNoReplicas(2).put("index.routing.allocation.require._name", dataNodes.get(1)).build()
+        );
         refresh();
         ensureGreen();
 
-        logger.info("--> Created indices, blocking repo...");
-        blockNodeOnAnyFiles(REPO_NAME, internalCluster().getMasterName());
+        logger.info("--> Created indices, blocking repo on new data node...");
+        blockDataNode(REPO_NAME, dataNodes.get(1));
 
         // Start a snapshot - need to do this async because some blocks will block this call
         logger.info("--> Blocked repo, starting snapshot...");
         final String partialSnapName = "test-partial-snap";
         ActionFuture<CreateSnapshotResponse> createSnapshotFuture = clusterAdmin().prepareCreateSnapshot(REPO_NAME, partialSnapName)
+            .setIndices(nonsystemIndex)
             .setIncludeGlobalState(true)
-            .setWaitForCompletion(false)
+            .setWaitForCompletion(true)
             .setPartial(true)
             .execute();
 
         logger.info("--> Started snapshot, waiting for block...");
-        waitForBlock(internalCluster().getMasterName(), REPO_NAME);
+        waitForBlock(dataNodes.get(1), REPO_NAME);
 
         logger.info("--> Repo hit block, deleting the index...");
         assertAcked(cluster().client().admin().indices().prepareDelete(indexToBeDeleted));
 
         logger.info("--> Index deleted, unblocking repo...");
-        unblockNode(REPO_NAME, internalCluster().getMasterName());
+        unblockNode(REPO_NAME, dataNodes.get(1));
 
-        logger.info("--> Repo unblocked, checking that snapshot started...");
+        logger.info("--> Repo unblocked, checking that snapshot finished...");
         CreateSnapshotResponse createSnapshotResponse = createSnapshotFuture.actionGet();
         logger.info(createSnapshotResponse.toString());
-        assertThat(createSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-
-        logger.info("--> Snapshot was started sucessfully, waiting for all operations to complete...");
-        awaitNoMoreRunningOperations();
+        assertThat(createSnapshotResponse.status(), equalTo(RestStatus.OK));
 
         logger.info("--> All operations complete, running assertions");
-        // Now get the snapshot and do our checks
-        assertBusy(() -> {
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                .prepareGetSnapshots(REPO_NAME).setSnapshots(partialSnapName).get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO_NAME).get(0);
-            assertNotNull(snapshotInfo);
-            assertThat(snapshotInfo.indices(), not(hasItem(indexToBeDeleted)));
-            List<String> statesInSnapshot = snapshotInfo.featureStates().stream()
-                .map(SnapshotFeatureInfo::getPluginName)
-                .collect(Collectors.toList());
-            assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
-            assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
-        });
+        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertNotNull(snapshotInfo);
+        assertThat(snapshotInfo.indices(), not(hasItem(indexToBeDeleted)));
+        List<String> statesInSnapshot = snapshotInfo.featureStates().stream()
+            .map(SnapshotFeatureInfo::getPluginName)
+            .collect(Collectors.toList());
+        assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
+        assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {

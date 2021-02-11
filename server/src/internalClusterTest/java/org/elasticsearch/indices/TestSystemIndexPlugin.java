@@ -24,4 +24,14 @@ public class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return singletonList(new TestSystemIndexDescriptor());
     }
+
+    @Override
+    public String getFeatureName() {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return this.getClass().getCanonicalName();
+    }
 }

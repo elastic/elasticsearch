@@ -44,6 +44,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -110,7 +111,9 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         Map<String, SingleGroupSource> groups = singletonMap("by-user", TermsGroupSource.builder().setField("user-upper").build());
         AggregatorFactories.Builder aggs = AggregatorFactories.builder()
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
-            .addAggregator(AggregationBuilders.avg("review_score_rt").field("stars-x2"))
+            .addAggregator(AggregationBuilders.max("review_score_max").field("stars"))
+            .addAggregator(AggregationBuilders.avg("review_score_rt_avg").field("stars-x2"))
+            .addAggregator(AggregationBuilders.max("review_score_rt_max").field("stars-x2"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"))
             .addAggregator(AggregationBuilders.max("timestamp_rt").field("timestamp-5m"));
         TransformConfig config =
@@ -125,13 +128,24 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
 
         PreviewTransformResponse previewResponse = previewTransform(config, RequestOptions.DEFAULT);
         // Verify preview mappings
-        assertThat(previewResponse.getMappings(), allOf(hasKey("_meta"), hasKey("properties")));
+        Map<String, Object> expectedMappingProperties =
+            new HashMap<>() {{
+                put("by-user", singletonMap("type", "keyword"));
+                put("review_score", singletonMap("type", "double"));
+                put("review_score_max", singletonMap("type", "long"));
+                put("review_score_rt_avg", singletonMap("type", "double"));
+                put("review_score_rt_max", singletonMap("type", "long"));
+                put("timestamp", singletonMap("type", "date"));
+                put("timestamp_rt", singletonMap("type", "date"));
+            }};
+        assertThat(previewResponse.getMappings(), allOf(hasKey("_meta"), hasEntry("properties", expectedMappingProperties)));
         // Verify preview contents
         assertThat(previewResponse.getDocs(), hasSize(NUM_USERS));
         previewResponse.getDocs().forEach(
             doc -> {
                 assertThat((String) doc.get("by-user"), isUpperCase());
-                assertThat(doc.get("review_score_rt"), is(equalTo(2 * (double) doc.get("review_score"))));
+                assertThat(doc.get("review_score_rt_avg"), is(equalTo(2 * (double) doc.get("review_score"))));
+                assertThat(doc.get("review_score_rt_max"), is(equalTo(2 * (int) doc.get("review_score_max"))));
                 assertThat(
                     Instant.parse((String) doc.get("timestamp_rt")),
                     is(equalTo(Instant.parse((String) doc.get("timestamp")).minus(5, ChronoUnit.MINUTES))));

@@ -14,10 +14,14 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -186,6 +190,26 @@ public class SystemIndexDescriptor {
      */
     public boolean matchesIndexPattern(String index) {
         return indexPatternAutomaton.run(index);
+    }
+
+    /**
+     * Retrieves a list of all indices which match this descriptor's pattern.
+     *
+     * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
+     * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
+     *
+     * @param metadata The current metadata to get the list of matching indices from
+     * @return A list of index names that match this descriptor
+     */
+    public List<String> getMatchingIndices(Metadata metadata) {
+        ArrayList<String> matchingIndices = new ArrayList<>();
+        metadata.indices().keysIt().forEachRemaining(indexName -> {
+            if (matchesIndexPattern(indexName)) {
+                matchingIndices.add(indexName);
+            }
+        });
+
+        return Collections.unmodifiableList(matchingIndices);
     }
 
     /**

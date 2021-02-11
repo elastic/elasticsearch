@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.test.rest.transform;
+package org.elasticsearch.gradle.test.rest.transform.header;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +18,8 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
+import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.Test;
@@ -52,7 +54,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithoutSetupBlock() throws Exception {
-        String testName = "/rest/header_inject/no_setup.yml";
+        String testName = "/rest/transform/header/no_setup.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
@@ -86,7 +88,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithSetupBlock() throws Exception {
-        String testName = "/rest/header_inject/with_setup.yml";
+        String testName = "/rest/transform/header/with_setup.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
@@ -121,7 +123,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithSkipBlock() throws Exception {
-        String testName = "/rest/header_inject/with_skip.yml";
+        String testName = "/rest/transform/header/with_skip.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
@@ -168,7 +170,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithFeaturesBlock() throws Exception {
-        String testName = "/rest/header_inject/with_features.yml";
+        String testName = "/rest/transform/header/with_features.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
@@ -214,7 +216,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithHeadersBlock() throws Exception {
-        String testName = "/rest/header_inject/with_headers.yml";
+        String testName = "/rest/transform/header/with_headers.yml";
         File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();

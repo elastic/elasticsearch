@@ -657,12 +657,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         // add a sort tiebreaker for PIT search requests if not explicitly set
         Object[] searchAfter = source.searchAfter();
         List<SortBuilder<?>> sorts = source.sorts();
-        int numSort = sorts.size();
         if (source.pointInTimeBuilder() != null
                 && sorts != null
                 && sorts.isEmpty() == false
-                && (searchAfter == null || searchAfter.length == numSort+1)) {
-            SortBuilder<?> lastSort = sorts.get(numSort - 1);
+                && (searchAfter == null || searchAfter.length == sorts.size()+1)) {
+            SortBuilder<?> lastSort = sorts.get(sorts.size() - 1);
             if (lastSort instanceof FieldSortBuilder == false
                     || FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(((FieldSortBuilder) lastSort).getFieldName()) == false) {
                 source.sort(SortBuilders.fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME).unmappedType("long"));

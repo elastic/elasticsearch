@@ -82,19 +82,21 @@ public final class SchemaUtil {
     }
 
     /**
-     * Deduce the mappings for the destination index given the source index
+     * Deduce the mappings for the destination index given the source index and runtime mappings
      *
      * The Listener is alerted with a {@code Map<String, String>} that is a "field-name":"type" mapping
      *
      * @param client Client from which to make requests against the cluster
      * @param config The PivotConfig for which to deduce destination mapping
-     * @param source Source index that contains the data to pivot
+     * @param sourceIndex Source index that contains the data to pivot
+     * @param runtimeMappings Source runtime mappings
      * @param listener Listener to alert on success or failure.
      */
     public static void deduceMappings(
         final Client client,
         final PivotConfig config,
-        final String[] source,
+        final String[] sourceIndex,
+        final Map<String, Object> runtimeMappings,
         final ActionListener<Map<String, String>> listener
     ) {
         // collects the fieldnames used as source for aggregations
@@ -144,8 +146,9 @@ public final class SchemaUtil {
 
         getSourceFieldMappings(
             client,
-            source,
+            sourceIndex,
             allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
+            runtimeMappings,
             ActionListener.wrap(
                 sourceMappings -> listener.onResponse(
                     resolveMappings(
@@ -153,8 +156,7 @@ public final class SchemaUtil {
                         aggregationTypes,
                         fieldNamesForGrouping,
                         fieldTypesForGrouping,
-                        sourceMappings
-                    )
+                        sourceMappings)
                 ),
                 listener::onFailure
             )
@@ -252,7 +254,11 @@ public final class SchemaUtil {
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    static void getSourceFieldMappings(Client client, String[] index, String[] fields, ActionListener<Map<String, String>> listener) {
+    static void getSourceFieldMappings(Client client,
+                                       String[] index,
+                                       String[] fields,
+                                       Map<String, Object> runtimeMappings,
+                                       ActionListener<Map<String, String>> listener) {
         if (index == null || index.length == 0 || fields == null || fields.length == 0) {
             listener.onResponse(Collections.emptyMap());
             return;
@@ -263,8 +269,32 @@ public final class SchemaUtil {
         client.execute(
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
-            ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
+            ActionListener.wrap(
+                response -> listener.onResponse(mergeSourceMappingsWithRuntimeMappings(extractFieldMappings(response), runtimeMappings)),
+                listener::onFailure)
         );
+    }
+
+    /**
+     * TODO: Remove after {@link FieldCapabilitiesAction} handles search runtime mappings.
+     *       See https://github.com/elastic/elasticsearch/issues/68117
+     */
+    private static Map<String, String> mergeSourceMappingsWithRuntimeMappings(Map<String, String> sourceMappings,
+                                                                              Map<String, Object> runtimeMappings) {
+        Map<String, String> sourceMappingsWithRuntimeFields = new HashMap<>(sourceMappings);
+        for (Map.Entry<String, Object> runtimeMappingEntry : runtimeMappings.entrySet()) {
+            if (runtimeMappingEntry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> runtimeMappingValue = (Map<String, Object>) runtimeMappingEntry.getValue();
+                if (runtimeMappingValue.containsKey("type")) {
+                    String fieldName = runtimeMappingEntry.getKey();
+                    @SuppressWarnings("unchecked")
+                    String type = (String) runtimeMappingValue.get("type");
+                    sourceMappingsWithRuntimeFields.put(fieldName, type);
+                }
+            }
+        }
+        return sourceMappingsWithRuntimeFields;
     }
 
     /**

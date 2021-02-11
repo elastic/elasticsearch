@@ -122,7 +122,7 @@ public class TransformConfigUpdate implements Writeable {
         } else {
             settings = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
         } else {
             retentionPolicyConfig = null;
@@ -184,7 +184,7 @@ public class TransformConfigUpdate implements Writeable {
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeOptionalWriteable(settings);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
         }
     }

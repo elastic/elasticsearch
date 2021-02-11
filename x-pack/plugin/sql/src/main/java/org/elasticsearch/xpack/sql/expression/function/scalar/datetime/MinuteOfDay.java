@@ -34,6 +34,6 @@ public class MinuteOfDay extends TimeFunction {
 
     @Override
     public String dateTimeFormat() {
-        throw new UnsupportedOperationException("is there a format for it?");
+        return null;
     }
 }

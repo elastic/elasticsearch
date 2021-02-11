@@ -1268,6 +1268,19 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an optional enum with type E based on its ordinal value
+     */
+    public <E extends Enum<E>> void writeOptionalEnum(@Nullable E enumValue) throws IOException {
+        if (enumValue == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
+            writeVInt(enumValue.ordinal());
+        }
+    }
+
+    /**
      * Writes an EnumSet with type E that by serialized it based on it's ordinal value
      */
     public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {

@@ -10,18 +10,17 @@ package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 /**
  * Transport action for cleaning up feature index state.
@@ -53,25 +52,21 @@ public class TransportResetFeatureStateAction extends HandledTransportAction<Res
         ResetFeatureStateRequest request,
         ActionListener<ResetFeatureStateResponse> listener) {
 
-        final int features = systemIndices.getFeatures().size();
-        final CountDown completionCounter = new CountDown(features);
-        final List<ResetFeatureStateResponse.ResetFeatureStateStatus> resetStatusList = Collections.synchronizedList(new ArrayList<>());
-        final Runnable terminalHandler = () -> {
-            if (completionCounter.countDown()) {
-                listener.onResponse(new ResetFeatureStateResponse(resetStatusList));
-            }
-        };
-
-        for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
-            feature.getCleanUpFunction().apply(clusterService, client, ActionListener.wrap(
-                response -> {
-                    resetStatusList.add(new ResetFeatureStateResponse.ResetFeatureStateStatus(response.getFeatureName(),
-                        response.getStatus()));
-                    terminalHandler.run();
-                }, failure -> { terminalHandler.run(); }
-            ));
+        if (systemIndices.getFeatures().size() == 0) {
+            listener.onResponse(new ResetFeatureStateResponse(Collections.emptyList()));
         }
 
-        terminalHandler.run();
+        final int features = systemIndices.getFeatures().size();
+        GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> groupedActionListener = new GroupedActionListener<>(
+            listener.map(responses -> {
+                assert features == responses.size();
+                return new ResetFeatureStateResponse(new ArrayList<>(responses));
+            }),
+            systemIndices.getFeatures().size()
+        );
+
+        for (SystemIndices.Feature feature : systemIndices.getFeatures().values()) {
+            feature.getCleanUpFunction().apply(clusterService, client, groupedActionListener);
+        }
     }
 }

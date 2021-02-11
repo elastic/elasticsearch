@@ -221,7 +221,8 @@ public class SystemIndices {
         }
 
         public Feature(String description, Collection<SystemIndexDescriptor> indexDescriptors) {
-            this(description, indexDescriptors, Collections.emptyList(), (a, b, c) -> {});
+            this(description, indexDescriptors, Collections.emptyList(),
+                (clusterService, client, listener) -> listener.onResponse(new ResetFeatureStateStatus(TASKS_FEATURE_NAME, "SUCCESS")));
         }
 
         public String getDescription() {

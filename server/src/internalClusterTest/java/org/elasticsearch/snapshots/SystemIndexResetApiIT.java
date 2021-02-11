@@ -64,7 +64,8 @@ public class SystemIndexResetApiIT extends ESIntegTestCase {
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
         assertThat(apiResponse.getItemList(), containsInAnyOrder(
             new ResetFeatureStateResponse.ResetFeatureStateStatus("SystemIndexTestPlugin", "SUCCESS"),
-            new ResetFeatureStateResponse.ResetFeatureStateStatus("SecondSystemIndexTestPlugin", "SUCCESS")
+            new ResetFeatureStateResponse.ResetFeatureStateStatus("SecondSystemIndexTestPlugin", "SUCCESS"),
+            new ResetFeatureStateResponse.ResetFeatureStateStatus("tasks", "SUCCESS")
         ));
 
         // verify that both indices are gone

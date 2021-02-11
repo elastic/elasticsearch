@@ -46,9 +46,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.empty;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
@@ -153,7 +155,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                throw new AssertionError("Expecting no requests but received [" + action + "]");
+                throw new AssertionError("Expecting no requests but received [" + action.name() + "]");
             }
         };
 
@@ -167,15 +169,66 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
     }
 
+    public void testNoFetchesForPartialIndex() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final List<DiscoveryNode> nodes = randomList(1, 10, () -> newNode("node-" + UUIDs.randomBase64UUID(random())));
+        final DiscoveryNode localNode = randomFrom(nodes);
+        final Settings localNodeSettings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).build();
+
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(localNodeSettings, random());
+
+        final Metadata metadata = buildSingleShardIndexMetadata(shardId, builder -> builder.put(SNAPSHOT_PARTIAL_SETTING.getKey(), true));
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
+
+        final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
+        final RoutingAllocation allocation = buildAllocation(
+            deterministicTaskQueue,
+            state,
+            randomNonNegativeLong(),
+            yesAllocationDeciders()
+        );
+
+        final Client client = new NoOpNodeClient(deterministicTaskQueue.getThreadPool()) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                throw new AssertionError("Expecting no requests but received [" + action.name() + "]");
+            }
+        };
+
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
+            client,
+            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); }
+        );
+        allocateAllUnassigned(allocation, allocator);
+        assertFalse(allocation.routingNodesChanged());
+        assertThat(allocation.routingNodes().assignedShards(shardId), empty());
+        assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
+    }
+
     private static Metadata buildSingleShardIndexMetadata(ShardId shardId) {
+        return buildSingleShardIndexMetadata(shardId, UnaryOperator.identity());
+    }
+
+    private static Metadata buildSingleShardIndexMetadata(ShardId shardId, UnaryOperator<Settings.Builder> extraSettings) {
         return Metadata.builder()
             .put(
                 IndexMetadata.builder(shardId.getIndexName())
                     .settings(
-                        settings(Version.CURRENT).put(
-                            ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(),
-                            SearchableSnapshotAllocator.ALLOCATOR_NAME
-                        ).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY)
+                        extraSettings.apply(
+                            settings(Version.CURRENT).put(
+                                ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(),
+                                SearchableSnapshotAllocator.ALLOCATOR_NAME
+                            )
+                                .put(
+                                    IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
+                                    SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY
+                                )
+                        )
                     )
                     .numberOfShards(1)
                     .numberOfReplicas(0)

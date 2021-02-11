@@ -476,7 +476,7 @@ public class MoreTypes {
 
         @Override
         public boolean isFullySpecified() {
-            if (ownerType != null && !MoreTypes.isFullySpecified(ownerType)) {
+            if (ownerType != null && MoreTypes.isFullySpecified(ownerType) == false) {
                 return false;
             }
 

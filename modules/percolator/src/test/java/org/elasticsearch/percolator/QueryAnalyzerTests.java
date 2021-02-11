@@ -951,8 +951,8 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     public void testToParentBlockJoinQuery() {
         TermQuery termQuery = new TermQuery(new Term("field", "value"));
-        QueryBitSetProducer queryBitSetProducer = new QueryBitSetProducer(new TermQuery(new Term("_type", "child")));
-        ESToParentBlockJoinQuery query = new ESToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "child");
+        QueryBitSetProducer queryBitSetProducer = new QueryBitSetProducer(new TermQuery(new Term("_nested_path", "nested")));
+        ESToParentBlockJoinQuery query = new ESToParentBlockJoinQuery(termQuery, queryBitSetProducer, ScoreMode.None, "nested");
         Result result = analyze(query);
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(1));

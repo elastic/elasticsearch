@@ -43,43 +43,47 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertThat(steps, notNullValue());
-        assertThat(steps.size(), equalTo(7));
+        assertThat(steps.size(), equalTo(8));
 
-        StepKey expectedFirstStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexingCompleteStep.NAME);
-        StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
-        StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
-        StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
-        StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowerIndexStep.NAME);
-        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
-        StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexColorStep.NAME);
+        StepKey expectedFirstStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowAction.CONDITIONAL_UNFOLLOW_STEP);
+        StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexingCompleteStep.NAME);
+        StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
+        StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
+        StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
+        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowerIndexStep.NAME);
+        StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
+        StepKey expectedEighthStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexColorStep.NAME);
 
-        WaitForIndexingCompleteStep firstStep = (WaitForIndexingCompleteStep) steps.get(0);
+        BranchingStep firstStep = (BranchingStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
-        assertThat(firstStep.getNextStepKey(), equalTo(expectedSecondStepKey));
 
-        WaitForFollowShardTasksStep secondStep = (WaitForFollowShardTasksStep) steps.get(1);
+        WaitForIndexingCompleteStep secondStep = (WaitForIndexingCompleteStep) steps.get(1);
         assertThat(secondStep.getKey(), equalTo(expectedSecondStepKey));
         assertThat(secondStep.getNextStepKey(), equalTo(expectedThirdStepKey));
 
-        PauseFollowerIndexStep thirdStep = (PauseFollowerIndexStep) steps.get(2);
+        WaitForFollowShardTasksStep thirdStep = (WaitForFollowShardTasksStep) steps.get(2);
         assertThat(thirdStep.getKey(), equalTo(expectedThirdStepKey));
         assertThat(thirdStep.getNextStepKey(), equalTo(expectedFourthStepKey));
 
-        CloseFollowerIndexStep fourthStep = (CloseFollowerIndexStep) steps.get(3);
+        PauseFollowerIndexStep fourthStep = (PauseFollowerIndexStep) steps.get(3);
         assertThat(fourthStep.getKey(), equalTo(expectedFourthStepKey));
         assertThat(fourthStep.getNextStepKey(), equalTo(expectedFifthStepKey));
 
-        UnfollowFollowerIndexStep fifthStep = (UnfollowFollowerIndexStep) steps.get(4);
+        CloseFollowerIndexStep fifthStep = (CloseFollowerIndexStep) steps.get(4);
         assertThat(fifthStep.getKey(), equalTo(expectedFifthStepKey));
         assertThat(fifthStep.getNextStepKey(), equalTo(expectedSixthStepKey));
 
-        OpenIndexStep sixthStep = (OpenIndexStep) steps.get(5);
+        UnfollowFollowerIndexStep sixthStep = (UnfollowFollowerIndexStep) steps.get(5);
         assertThat(sixthStep.getKey(), equalTo(expectedSixthStepKey));
         assertThat(sixthStep.getNextStepKey(), equalTo(expectedSeventhStepKey));
 
-        WaitForIndexColorStep seventhStep = (WaitForIndexColorStep) steps.get(6);
-        assertThat(seventhStep.getColor(), is(ClusterHealthStatus.YELLOW));
+        OpenIndexStep seventhStep = (OpenIndexStep) steps.get(6);
         assertThat(seventhStep.getKey(), equalTo(expectedSeventhStepKey));
-        assertThat(seventhStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(seventhStep.getNextStepKey(), equalTo(expectedEighthStepKey));
+
+        WaitForIndexColorStep eighthStep = (WaitForIndexColorStep) steps.get(7);
+        assertThat(eighthStep.getColor(), is(ClusterHealthStatus.YELLOW));
+        assertThat(eighthStep.getKey(), equalTo(expectedEighthStepKey));
+        assertThat(eighthStep.getNextStepKey(), equalTo(nextStepKey));
     }
 }

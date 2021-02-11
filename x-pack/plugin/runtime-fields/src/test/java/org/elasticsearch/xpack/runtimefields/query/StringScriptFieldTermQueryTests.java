@@ -49,7 +49,7 @@ public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQu
                 term += "modified";
                 break;
             case 3:
-                caseInsensitive = !caseInsensitive;
+                caseInsensitive = caseInsensitive == false;
                 break;
             default:
                 fail();

@@ -1,0 +1,238 @@
+---
+"order by sub agg containing join":
+  - skip:
+        reason: "https://github.com/elastic/elasticsearch/issues/66876"
+        version: "7.11.1 - "
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                name:
+                  type: keyword
+                join:
+                  type: join
+                  relations:
+                    animal: feature
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {"_id": "sheep"} }
+          { "name": "sheep", "join": {"name": "animal"} }
+          { "index": {"_id": "cow"} }
+          { "name": "cow", "join": {"name": "animal"} }
+          { "index": {"_id": "pig"} }
+          { "name": "pig", "join": {"name": "animal"} }
+          { "index": {"routing": "sheep"} }
+          { "join": {"name": "feature", "parent": "sheep"}, "tag": "danger", "number": 1 }
+          { "index": {"routing": "sheep"} }
+          { "join": {"name": "feature", "parent": "sheep"}, "tag": "fluffiness", "number": 10 }
+          { "index": {"routing": "cow"} }
+          { "join": {"name": "feature", "parent": "cow"}, "tag": "danger", "number": 3 }
+          { "index": {"routing": "cow"} }
+          { "join": {"name": "feature", "parent": "cow"}, "tag": "fluffiness", "number": 1 }
+          { "index": {"routing": "pig"} }
+          { "join": {"name": "feature", "parent": "pig"}, "tag": "danger", "number": 100 }
+          { "index": {"routing": "pig"} }
+          { "join": {"name": "feature", "parent": "pig"}, "tag": "fluffiness", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                size: 1
+                shard_size: 1
+                field: name
+                order:
+                  - "children>max_number": desc
+              aggs:
+                children:
+                  children:
+                    type: feature
+                  aggs:
+                    max_number:
+                      max:
+                        field: number
+  - length: { aggregations.name.buckets: 1 }
+  - match: { aggregations.name.buckets.0.key: pig }
+  - match: { aggregations.name.buckets.0.doc_count: 1 }
+  - match: { aggregations.name.buckets.0.children.max_number.value: 100.0 }
+
+---
+"order by sub agg containing join and nested":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/66876"
+      version: "7.11.1 - "
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                name:
+                  type: keyword
+                join:
+                  type: join
+                  relations:
+                    animal: feature
+                nested:
+                  type: nested
+                  properties:
+                    number:
+                      type: long
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {"_id": "sheep"} }
+          { "name": "sheep", "join": {"name": "animal"} }
+          { "index": {"_id": "cow"} }
+          { "name": "cow", "join": {"name": "animal"} }
+          { "index": {"_id": "pig"} }
+          { "name": "pig", "join": {"name": "animal"} }
+          { "index": {"routing": "sheep"} }
+          { "join": {"name": "feature", "parent": "sheep"}, "tag": "danger", "nested": [{"number": 1}] }
+          { "index": {"routing": "sheep"} }
+          { "join": {"name": "feature", "parent": "sheep"}, "tag": "fluffiness", "nested": [{"number": 10}] }
+          { "index": {"routing": "cow"} }
+          { "join": {"name": "feature", "parent": "cow"}, "tag": "danger", "nested": [{"number": 3}] }
+          { "index": {"routing": "cow"} }
+          { "join": {"name": "feature", "parent": "cow"}, "tag": "fluffiness", "nested": [{"number": 1}] }
+          { "index": {"routing": "pig"} }
+          { "join": {"name": "feature", "parent": "pig"}, "tag": "danger", "nested": [{"number": 100}, {"number": 1}] }
+          { "index": {"routing": "pig"} }
+          { "join": {"name": "feature", "parent": "pig"}, "tag": "fluffiness", "nested": [{"number": 1}] }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                size: 1
+                shard_size: 1
+                field: name
+                order:
+                  - "children>nested>max_number": desc
+              aggs:
+                children:
+                  children:
+                    type: feature
+                  aggs:
+                    nested:
+                      nested:
+                        path: nested
+                      aggs:
+                        max_number:
+                          max:
+                            field: nested.number
+  - length: { aggregations.name.buckets: 1 }
+  - match: { aggregations.name.buckets.0.key: pig }
+  - match: { aggregations.name.buckets.0.doc_count: 1 }
+  - match: { aggregations.name.buckets.0.children.nested.max_number.value: 100.0 }
+
+---
+"order by sub agg containing join and nested and filter":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/66876"
+      version: "7.11.1 - "
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                name:
+                  type: keyword
+                join:
+                  type: join
+                  relations:
+                    animal: feature
+                nested:
+                  type: nested
+                  properties:
+                    code:
+                      type:
+                        keyword
+                    number:
+                      type: long
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {"_id": "sheep"} }
+          { "name": "sheep", "join": {"name": "animal"} }
+          { "index": {"_id": "cow"} }
+          { "name": "cow", "join": {"name": "animal"} }
+          { "index": {"_id": "pig"} }
+          { "name": "pig", "join": {"name": "animal"} }
+          { "index": {"routing": "sheep"} }
+          { "join": {"name": "feature", "parent": "sheep"}, "tag": "danger", "nested": [{"code": "mighty", "number": 1}, {"code": "meek", "number": 100}] }
+          { "index": {"routing": "sheep"} }
+          { "join": {"name": "feature", "parent": "sheep"}, "tag": "fluffiness", "nested": [{"code": "mighty", "number": 10}, {"code": "meek", "number": 10}] }
+          { "index": {"routing": "cow"} }
+          { "join": {"name": "feature", "parent": "cow"}, "tag": "danger", "nested": [{"code": "mighty", "number": 3}, {"code": "meek", "number": 3}] }
+          { "index": {"routing": "cow"} }
+          { "join": {"name": "feature", "parent": "cow"}, "tag": "fluffiness", "nested": [{"code": "mighty", "number": 1}, {"code": "meek", "number": 1}] }
+          { "index": {"routing": "pig"} }
+          { "join": {"name": "feature", "parent": "pig"}, "tag": "danger", "nested": [{"code": "mighty", "number": 100}, {"code": "meek", "number": 1}] }
+          { "index": {"routing": "pig"} }
+          { "join": {"name": "feature", "parent": "pig"}, "tag": "fluffiness", "nested": [{"code": "mighty", "number": 1}, {"code": "meek", "number": 1}] }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                size: 1
+                shard_size: 1
+                field: name
+                order:
+                  - "children>nested>filter>max_number": desc
+              aggs:
+                children:
+                  children:
+                    type: feature
+                  aggs:
+                    nested:
+                      nested:
+                        path: nested
+                      aggs:
+                        filter:
+                          filter:
+                            match:
+                              nested.code: mighty
+                          aggs:
+                            max_number:
+                              max:
+                                field: nested.number
+  - length: { aggregations.name.buckets: 1 }
+  - match: { aggregations.name.buckets.0.key: pig }
+  - match: { aggregations.name.buckets.0.doc_count: 1 }
+  - match: { aggregations.name.buckets.0.children.nested.filter.max_number.value: 100.0 }

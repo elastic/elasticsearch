@@ -49,9 +49,9 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
             request.setScriptParams(mutatedScriptParams);
         });
 
-        mutators.add(request -> request.setProfile(!request.isProfile()));
-        mutators.add(request -> request.setExplain(!request.isExplain()));
-        mutators.add(request -> request.setSimulate(!request.isSimulate()));
+        mutators.add(request -> request.setProfile(request.isProfile() == false));
+        mutators.add(request -> request.setExplain(request.isExplain() == false));
+        mutators.add(request -> request.setSimulate(request.isSimulate() == false));
 
         mutators.add(request -> request.setRequest(randomValueOtherThan(request.getRequest(),
                 () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource))));

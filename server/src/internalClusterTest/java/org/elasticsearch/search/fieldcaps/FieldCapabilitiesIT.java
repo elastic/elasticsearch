@@ -89,7 +89,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
         @Override
         public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> field -> !field.equals("playlist");
+            return index -> field -> field.equals("playlist") == false;
         }
     }
 

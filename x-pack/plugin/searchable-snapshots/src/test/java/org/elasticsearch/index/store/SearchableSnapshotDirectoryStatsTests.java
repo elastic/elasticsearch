@@ -509,20 +509,20 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
 
                 do {
                     long moveBackward = -1L * randomLongBetween(1L, input.getFilePointer());
+                    long moveBackwardAbs = Math.abs(moveBackward);
                     input.seek(input.getFilePointer() + moveBackward);
 
                     if (inputStats.isLargeSeek(moveBackward)) {
-                        minLargeSeeks = (moveBackward < minLargeSeeks) ? moveBackward : minLargeSeeks;
-                        maxLargeSeeks = (moveBackward > maxLargeSeeks) ? moveBackward : maxLargeSeeks;
-                        totalLargeSeeks += moveBackward;
+                        minLargeSeeks = (moveBackwardAbs < minLargeSeeks) ? moveBackwardAbs : minLargeSeeks;
+                        maxLargeSeeks = (moveBackwardAbs > maxLargeSeeks) ? moveBackwardAbs : maxLargeSeeks;
+                        totalLargeSeeks += moveBackwardAbs;
                         countLargeSeeks += 1;
 
                         assertCounter(backwardLargeSeeks, totalLargeSeeks, countLargeSeeks, minLargeSeeks, maxLargeSeeks);
-
                     } else {
-                        minSmallSeeks = (moveBackward < minSmallSeeks) ? moveBackward : minSmallSeeks;
-                        maxSmallSeeks = (moveBackward > maxSmallSeeks) ? moveBackward : maxSmallSeeks;
-                        totalSmallSeeks += moveBackward;
+                        minSmallSeeks = (moveBackwardAbs < minSmallSeeks) ? moveBackwardAbs : minSmallSeeks;
+                        maxSmallSeeks = (moveBackwardAbs > maxSmallSeeks) ? moveBackwardAbs : maxSmallSeeks;
+                        totalSmallSeeks += moveBackwardAbs;
                         countSmallSeeks += 1;
 
                         assertCounter(backwardSmallSeeks, totalSmallSeeks, countSmallSeeks, minSmallSeeks, maxSmallSeeks);
@@ -644,11 +644,11 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 frozenCacheService
             ) {
                 @Override
-                protected IndexInputStats createIndexInputStats(long fileLength) {
+                protected IndexInputStats createIndexInputStats(final int numFiles, final long totalSize) {
                     if (seekingThreshold == null) {
-                        return super.createIndexInputStats(fileLength);
+                        return super.createIndexInputStats(numFiles, totalSize);
                     }
-                    return new IndexInputStats(fileLength, seekingThreshold, statsCurrentTimeNanos);
+                    return new IndexInputStats(numFiles, totalSize, seekingThreshold, statsCurrentTimeNanos);
                 }
             }
         ) {

@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotActionTests.randomStorageType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -174,6 +175,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     return new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
                 case "cold":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
+                case "frozen":
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_FROZEN_ACTIONS);
                 case "delete":
                     return new HashSet<>(TimeseriesLifecycleType.VALID_DELETE_ACTIONS);
                 default:
@@ -205,7 +208,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     case UnfollowAction.NAME:
                         return new UnfollowAction();
                     case SearchableSnapshotAction.NAME:
-                        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
+                        return new SearchableSnapshotAction("repo", randomBoolean(), randomStorageType());
                     case MigrateAction.NAME:
                         return new MigrateAction(false);
                     case RollupILMAction.NAME:

@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD;
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
@@ -130,7 +130,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             throw new IllegalArgumentException(
                 "The length [" + fieldValueLength + "] of field [" + field +"] in doc[" + docId + "]/index[" + index +"] exceeds the ["
                     + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. To ignore text beyond "
-                    + "this limit when highlighting, set the query parameter [" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString()
+                    + "this limit when highlighting, set the query parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString()
                     + "] to the desired value."
             );
         }

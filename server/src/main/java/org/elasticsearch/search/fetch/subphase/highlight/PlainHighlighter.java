@@ -36,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD;
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
 
 public class PlainHighlighter implements Highlighter {
@@ -108,7 +108,7 @@ public class PlainHighlighter implements Highlighter {
                     "The length [" + textLength + "] of field [" + field +"] in doc[" + hitContext.hit().getId() + "]/index["
                         + context.getIndexName() +"] exceeds the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] "
                         + "limit [" + maxAnalyzedOffset + "]. To ignore text beyond this limit when highlighting, set the query "
-                        + "parameter [" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString() + "] to the desired value."
+                        + "parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to the desired value."
                 );
             }
 

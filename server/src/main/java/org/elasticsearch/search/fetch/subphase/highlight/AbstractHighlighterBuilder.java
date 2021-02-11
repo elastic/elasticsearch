@@ -64,7 +64,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
     public static final ParseField MATCHED_FIELDS_FIELD = new ParseField("matched_fields");
-    public static final ParseField LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD = new ParseField("max_analyzed_offset");
+    public static final ParseField MAX_ANALYZED_OFFSET_FIELD = new ParseField("max_analyzed_offset");
 
     protected String[] preTags;
 
@@ -548,7 +548,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     @SuppressWarnings("unchecked")
     public HB maxAnalyzedOffset(Integer maxAnalyzedOffset) {
         if (maxAnalyzedOffset != null && maxAnalyzedOffset <= 0) {
-            throw new IllegalArgumentException("[" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString() + "] must be a positive integer");
+            throw new IllegalArgumentException("[" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] must be a positive integer");
         }
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         return (HB) this;
@@ -627,7 +627,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
         if (maxAnalyzedOffset != null) {
-            builder.field(LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.getPreferredName(), maxAnalyzedOffset);
+            builder.field(MAX_ANALYZED_OFFSET_FIELD.getPreferredName(), maxAnalyzedOffset);
         }
     }
 
@@ -649,7 +649,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
-        parser.declareInt(HB::maxAnalyzedOffset, LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD);
+        parser.declareInt(HB::maxAnalyzedOffset, MAX_ANALYZED_OFFSET_FIELD);
         parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();

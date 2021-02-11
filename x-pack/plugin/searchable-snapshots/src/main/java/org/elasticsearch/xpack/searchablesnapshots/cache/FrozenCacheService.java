@@ -18,7 +18,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
@@ -46,57 +45,20 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.snapshots.SnapshotsService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING;
+import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING;
+import static org.elasticsearch.snapshots.SnapshotsService.SHARED_CACHE_SETTINGS_PREFIX;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenCacheService implements Releasable {
 
-    private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
-
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "size",
-        ByteSizeValue.ZERO,
-        Setting.Property.NodeScope
-    );
-
-    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
-    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
-
-    public static final Setting<ByteSizeValue> FROZEN_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "range_size",
-        ByteSizeValue.ofMb(16),                                 // default
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "region_size",
-        FROZEN_CACHE_RANGE_SIZE_SETTING,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<Float> SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE = Setting.floatSetting(
-        SETTINGS_PREFIX + "small_region_size_share",
-        0.2f,
-        0.0f,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "recovery_range_size",
-        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
-        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
-        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SMALL_REGION_SIZE = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "small_region_size_",
-        FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
-        Setting.Property.NodeScope
-    );
-
     public static final TimeValue MIN_SNAPSHOT_CACHE_DECAY_INTERVAL = TimeValue.timeValueSeconds(1L);
     public static final Setting<TimeValue> SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING = Setting.timeSetting(
-        SETTINGS_PREFIX + "decay.interval",
+        SHARED_CACHE_SETTINGS_PREFIX + "decay.interval",
         TimeValue.timeValueSeconds(60L),                        // default
         MIN_SNAPSHOT_CACHE_DECAY_INTERVAL,                      // min
         Setting.Property.NodeScope,
@@ -104,14 +66,14 @@ public class FrozenCacheService implements Releasable {
     );
 
     public static final Setting<Integer> SNAPSHOT_CACHE_MAX_FREQ_SETTING = Setting.intSetting(
-        SETTINGS_PREFIX + "max_freq",
+        SHARED_CACHE_SETTINGS_PREFIX + "max_freq",
         100,                       // default
         1,                            // min
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
-        SETTINGS_PREFIX + "min_time_delta",
+        SHARED_CACHE_SETTINGS_PREFIX + "min_time_delta",
         TimeValue.timeValueSeconds(60L),                        // default
         TimeValue.timeValueSeconds(0L),                         // min
         Setting.Property.NodeScope
@@ -182,7 +144,7 @@ public class FrozenCacheService implements Releasable {
         }
         decayTask = new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings));
         decayTask.rescheduleIfNecessary();
-        this.rangeSize = FROZEN_CACHE_RANGE_SIZE_SETTING.get(settings);
+        this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
     }
 

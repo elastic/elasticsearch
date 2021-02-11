@@ -37,6 +37,8 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
@@ -131,6 +133,50 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
+
+    public static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
+
+    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
+    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+
+    public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "range_size",
+        ByteSizeValue.ofMb(16),                                 // default
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "region_size",
+        SHARED_CACHE_RANGE_SIZE_SETTING,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "size",
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Float> SNAPSHOT_CACHE_SMALL_REGION_SIZE_SHARE = Setting.floatSetting(
+            SHARED_CACHE_SETTINGS_PREFIX + "small_region_size_share",
+            0.2f,
+            0.0f,
+            Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+            SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
+            new ByteSizeValue(128, ByteSizeUnit.KB),                // default
+            MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+            MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+            Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SMALL_REGION_SIZE = Setting.byteSizeSetting(
+            SHARED_CACHE_SETTINGS_PREFIX + "small_region_size_",
+            FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
+            Setting.Property.NodeScope
+    );
+
+    public static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     private final ClusterService clusterService;
 

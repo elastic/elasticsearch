@@ -22,14 +22,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.snapshots.SnapshotsService.SNAPSHOT_CACHE_SMALL_REGION_SIZE;
 
 public class FrozenCacheServiceTests extends ESTestCase {
 
     public void testBasicEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -83,8 +86,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testAutoEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -137,9 +140,9 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testAutoEvictionMixedSmallAndLargeRegions() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "20b")
+            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_SMALL_REGION_SIZE.getKey(), "20b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -216,8 +219,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testForceEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());
@@ -245,8 +248,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     public void testDecay() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
+            .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), "500b")
+            .put(SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), "100b")
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(settings, random());

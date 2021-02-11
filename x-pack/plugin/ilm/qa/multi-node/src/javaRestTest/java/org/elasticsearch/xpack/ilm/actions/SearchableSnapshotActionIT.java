@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -374,6 +375,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
             .build());
         ensureGreen(index);
+        indexDocument(client(), index, true);
 
         final String searchableSnapMountedIndexName = (storage == MountSearchableSnapshotRequest.Storage.FULL_COPY ?
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX : SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX) + index;
@@ -399,6 +401,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             ((List<Map<String, Object>>)
                 ((Map<String, Object>)
                     ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
+
+        Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
+        Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
+        assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
     }
 
     @SuppressWarnings("unchecked")
@@ -419,7 +425,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
             .build());
         ensureGreen(index);
-        indexDocument(client(), index);
+        indexDocument(client(), index, true);
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
@@ -445,6 +451,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             ((List<Map<String, Object>>)
                 ((Map<String, Object>)
                     ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
+
+        Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
+        Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
+        assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
     }
 
     @SuppressWarnings("unchecked")
@@ -465,7 +475,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, policy)
             .build());
         ensureGreen(index);
-        indexDocument(client(), index);
+        indexDocument(client(), index, true);
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + index;
@@ -491,71 +501,28 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             ((List<Map<String, Object>>)
                 ((Map<String, Object>)
                     ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
+
+        Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
+        Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
+        assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
     }
 
-    @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "functionality not yet implemented")
-    public void testSecondSearchableSnapshotChangesRepo() throws Exception {
-        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+    public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {
         String secondRepo = randomAlphaOfLengthBetween(10, 20);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSnapshotRepo(client(), secondRepo, randomBoolean());
-        createPolicy(client(), policy, null, null,
-            new Phase("cold", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.FULL_COPY))),
-            new Phase("frozen", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.SHARED_CACHE))),
-            null
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            createPolicy(client(), policy, null, null,
+                new Phase("cold", TimeValue.ZERO,
+                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
+                        MountSearchableSnapshotRequest.Storage.FULL_COPY))),
+                new Phase("frozen", TimeValue.ZERO,
+                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean(),
+                        MountSearchableSnapshotRequest.Storage.SHARED_CACHE))),
+                null
+            ));
 
-        createIndex(index, Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .build());
-        ensureGreen(index);
-        indexDocument(client(), index);
-
-        final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX +
-            SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
-
-        assertBusy(() -> {
-            logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
-            assertTrue(indexExists(searchableSnapMountedIndexName));
-        }, 30, TimeUnit.SECONDS);
-
-        assertBusy(() -> {
-            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("frozen"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
-        }, 30, TimeUnit.SECONDS);
-
-        // Check first repo has exactly 1 snapshot
-        {
-            Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
-            Response response = client().performRequest(getSnaps);
-            Map<String, Object> responseMap;
-            try (InputStream is = response.getEntity().getContent()) {
-                responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-            }
-            assertThat("expected to have only one snapshot, but got: " + responseMap,
-                ((List<Map<String, Object>>)
-                    ((Map<String, Object>)
-                        ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
-        }
-
-        // Check second repo has exactly 1 snapshot
-        {
-            Request getSnaps = new Request("GET", "/_snapshot/" + secondRepo + "/_all");
-            Response response = client().performRequest(getSnaps);
-            Map<String, Object> responseMap;
-            try (InputStream is = response.getEntity().getContent()) {
-                responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-            }
-            assertThat("expected to have only one snapshot, but got: " + responseMap,
-                ((List<Map<String, Object>>)
-                    ((Map<String, Object>)
-                        ((List<Object>) responseMap.get("responses")).get(0)).get("snapshots")).size(), equalTo(1));
-        }
+        assertThat(e.getMessage(),
+            containsString("policy specifies [searchable_snapshot] action multiple times with differing repositories"));
     }
 }

@@ -280,9 +280,9 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, null);
         });
         assertEquals(
-                "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. To "
-                        + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
-                e.getMessage()
+            "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. To "
+                + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
+            e.getMessage()
         );
 
         final Integer queryMaxAnalyzedOffset = randomIntBetween(11, 1000);

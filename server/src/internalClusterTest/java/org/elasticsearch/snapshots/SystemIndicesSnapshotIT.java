@@ -831,7 +831,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> Created indices, blocking repo...");
         blockNodeOnAnyFiles(REPO_NAME, internalCluster().getMasterName());
-//        blockAllDataNodes(REPO_NAME);
 
         // Start a snapshot - need to do this async because some blocks will block this call
         logger.info("--> Blocked repo, starting snapshot...");
@@ -844,14 +843,12 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> Started snapshot, waiting for block...");
         waitForBlock(internalCluster().getMasterName(), REPO_NAME);
-//        waitForBlockOnAnyDataNode(REPO_NAME);
 
         logger.info("--> Repo hit block, deleting the index...");
         assertAcked(cluster().client().admin().indices().prepareDelete(indexToBeDeleted));
 
         logger.info("--> Index deleted, unblocking repo...");
         unblockNode(REPO_NAME, internalCluster().getMasterName());
-//        unblockAllDataNodes(REPO_NAME);
 
         logger.info("--> Repo unblocked, checking that snapshot started...");
         CreateSnapshotResponse createSnapshotResponse = createSnapshotFuture.actionGet();

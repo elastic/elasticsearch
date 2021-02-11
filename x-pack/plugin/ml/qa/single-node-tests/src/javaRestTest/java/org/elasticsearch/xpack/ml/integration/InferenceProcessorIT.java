@@ -366,7 +366,6 @@ public class InferenceProcessorIT extends ESRestTestCase {
                 (List<Map<String, Object>>) XContentMapValues.extractValue("trained_model_stats.inference_stats", updatedStatsMap);
             assertNotNull(inferenceStats);
             assertThat(inferenceStats, hasSize(1));
-            assertThat((int)inferenceStats.get(0).get("cache_miss_count"), greaterThan(0));
         });
     }
 

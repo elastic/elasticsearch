@@ -889,7 +889,7 @@ setup:
           {
           }
 ---
-"Test update model alias  with new model id referring to missing model":
+"Test update model alias with new model id referring to missing model":
   - do:
       catch: /cannot find model matching new_model_id \[missing-model\]/
       ml.update_trained_model_alias:

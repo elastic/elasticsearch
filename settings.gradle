@@ -80,6 +80,7 @@ List projects = [
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
+  'test:fixtures:geoip-fixture',
   'test:logger-usage'
 ]
 

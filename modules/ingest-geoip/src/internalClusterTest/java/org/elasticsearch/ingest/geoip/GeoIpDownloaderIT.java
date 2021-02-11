@@ -56,7 +56,14 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(GeoIpDownloader.ENABLED_SETTING.getKey(), false).build();
+        Settings.Builder settings = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(GeoIpDownloader.ENABLED_SETTING.getKey(), false);
+        String endpoint = System.getProperty("geoip_endpoint");
+        if (endpoint != null) {
+            settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), endpoint);
+        }
+        return settings.build();
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
@@ -105,15 +112,15 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     stream.transferTo(os);
                 }
 
-                parseDatabase(id, tempFile);
+                parseDatabase(tempFile);
             });
         }
     }
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")
-    private void parseDatabase(String id, Path tempFile) throws IOException {
+    private void parseDatabase(Path tempFile) throws IOException {
         try (DatabaseReader databaseReader = new DatabaseReader.Builder(tempFile.toFile()).build()) {
-            assertEquals(id.replace(".mmdb", ""), databaseReader.getMetadata().getDatabaseType());
+            assertNotNull(databaseReader.getMetadata());
         }
     }
 

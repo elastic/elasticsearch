@@ -49,6 +49,7 @@ import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,9 +76,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = Arrays.asList(CACHE_SIZE,
+        List<Setting<?>> settings = new ArrayList<>(Arrays.asList(CACHE_SIZE,
             GeoIpDownloader.ENDPOINT_SETTING,
-            GeoIpDownloader.POLL_INTERVAL_SETTING);
+            GeoIpDownloader.POLL_INTERVAL_SETTING));
         if (GeoIpDownloader.GEOIP_V2_FEATURE_FLAG_ENABLED) {
             settings.add(GeoIpDownloader.ENABLED_SETTING);
         }
@@ -151,16 +152,16 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     private static DatabaseReaderLazyLoader createLoader(Path databasePath, boolean loadDatabaseOnHeap) {
         return new DatabaseReaderLazyLoader(
-                databasePath,
-                () -> {
-                    DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
-                    if (loadDatabaseOnHeap) {
-                        builder.fileMode(Reader.FileMode.MEMORY);
-                    } else {
-                        builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
-                    }
-                    return builder.build();
-                });
+            databasePath,
+            () -> {
+                DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
+                if (loadDatabaseOnHeap) {
+                    builder.fileMode(Reader.FileMode.MEMORY);
+                } else {
+                    builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
+                }
+                return builder.build();
+            });
     }
 
     private static void assertDatabaseExistence(final Path path, final boolean exists) throws IOException {
@@ -221,11 +222,12 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             return responseType.cast(cache.get(cacheKey));
         }
 
-         /**
+        /**
          * The key to use for the cache. Since this cache can span multiple geoip processors that all use different databases, the response
          * type is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
          * IP may be in both with different values and we need to cache both. The response type scopes the IP to the correct database
          * provides a means to safely cast the return objects.
+         *
          * @param <T> The AbstractResponse type used to scope the key and cast the result.
          */
         private static class CacheKey<T extends AbstractResponse> {
@@ -297,23 +299,23 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         try {
             return jsonBuilder()
                 .startObject()
-                    .startObject(SINGLE_MAPPING_NAME)
-                        .startObject("_meta")
-                            .field("version", Version.CURRENT)
-                        .endObject()
-                        .field("dynamic", "strict")
-                        .startObject("properties")
-                            .startObject("name")
-                                .field("type", "keyword")
-                            .endObject()
-                            .startObject("chunk")
-                                .field("type", "integer")
-                            .endObject()
-                            .startObject("data")
-                                .field("type", "binary")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field("version", Version.CURRENT)
+                .endObject()
+                .field("dynamic", "strict")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("chunk")
+                .field("type", "integer")
+                .endObject()
+                .startObject("data")
+                .field("type", "binary")
+                .endObject()
+                .endObject()
+                .endObject()
                 .endObject();
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build mappings for " + DATABASES_INDEX, e);

@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.bundling.Jar;
@@ -24,16 +23,12 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         Configuration testArtifactsConfiguration = project.getConfigurations().create("testArtifacts");
-        testArtifactsConfiguration.extendsFrom(project.getConfigurations().getByName("testImplementation"));
-
+        testArtifactsConfiguration.extendsFrom(project.getConfigurations().getByName("testRuntimeClasspath"));
         var testJar = project.getTasks().register("testJar", Jar.class, jar -> {
             jar.getArchiveAppendix().set("test");
             SourceSet testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
             jar.from(testSourceSet.getOutput());
         });
-
         project.getArtifacts().add("testArtifacts", testJar);
-        project.getPlugins()
-            .withType(JavaPlugin.class, javaPlugin -> project.getArtifacts().add("testArtifacts", project.getTasks().named("jar")));
     }
 }

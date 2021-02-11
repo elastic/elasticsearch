@@ -9,11 +9,13 @@
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.gradle.api.Named;
+import org.gradle.api.tasks.Input;
 
 /**
  * A single instruction to transforms a REST test.
  */
-public interface RestTestTransform<T extends JsonNode> {
+public interface RestTestTransform<T extends JsonNode> extends Named {
 
     /**
      * Transform the Json structure per the given {@link RestTestTransform}
@@ -28,5 +30,11 @@ public interface RestTestTransform<T extends JsonNode> {
      */
     default boolean shouldApply(RestTestContext testContext) {
         return true;
+    }
+
+    @Override
+    @Input
+    default String getName() {
+        return this.getClass().getCanonicalName();
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.NoCache;
+import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.AbstractResponse;
@@ -18,8 +20,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
@@ -39,6 +43,9 @@ import java.util.Objects;
  */
 class DatabaseReaderLazyLoader implements Closeable {
 
+    private static final boolean LOAD_DATABASE_ON_HEAP =
+        Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
+
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
     private final GeoIpCache cache;
@@ -48,6 +55,10 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
+
+    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath) {
+        this(cache, databasePath, createDatabaseLoader(databasePath));
+    }
 
     DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
         this.cache = cache;
@@ -177,6 +188,23 @@ class DatabaseReaderLazyLoader implements Closeable {
     @Override
     public synchronized void close() throws IOException {
         IOUtils.close(databaseReader.get());
+    }
+
+    private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {
+        return () -> {
+            DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
+            if (LOAD_DATABASE_ON_HEAP) {
+                builder.fileMode(Reader.FileMode.MEMORY);
+            } else {
+                builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
+            }
+            return builder.build();
+        };
+    }
+
+    @SuppressForbidden(reason = "Maxmind API requires java.io.File")
+    private static DatabaseReader.Builder createDatabaseBuilder(Path databasePath) {
+        return new DatabaseReader.Builder(databasePath.toFile());
     }
 
 }

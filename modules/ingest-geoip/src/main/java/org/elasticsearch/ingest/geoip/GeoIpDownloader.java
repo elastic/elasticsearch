@@ -92,7 +92,9 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
+        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
+        }
         enabled = ENABLED_SETTING.get(settings);
         if (enabled) {
             clusterService.addListener(this);

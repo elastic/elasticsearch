@@ -146,7 +146,7 @@ tasks.named("yamlRestTest").configure {
     'ml/inference_crud/Test put ensemble with tree where tree has out of bounds feature_names index',
     'ml/inference_crud/Test put model with empty input.field_names',
     'ml/inference_crud/Test PUT model where target type and inference config mismatch',
-    'ml/inference_crud/Test PUT update model alias with missing new model id',
+    'ml/inference_crud/Test update model alias with missing new model id',
     'ml/inference_crud/Test update model alias with new model id referring to missing model',
     'ml/inference_crud/Test update model alias with old model id referring to missing model',
     'ml/inference_crud/Test update model alias with bad alias',

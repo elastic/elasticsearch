@@ -36,7 +36,7 @@ public class UpdateTrainedModelAliasAction extends ActionType<AcknowledgedRespon
     private static final Pattern VALID_MODEL_ALIAS_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z])?");
 
     public static final UpdateTrainedModelAliasAction INSTANCE = new UpdateTrainedModelAliasAction();
-    public static final String NAME = "cluster:admin/ml/update_model_alias";
+    public static final String NAME = "cluster:admin/xpack/ml/update_model_alias";
 
     private UpdateTrainedModelAliasAction() {
         super(NAME, AcknowledgedResponse::readFrom);

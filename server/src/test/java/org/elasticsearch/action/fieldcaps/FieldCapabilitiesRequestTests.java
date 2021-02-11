@@ -10,10 +10,15 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -23,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static java.util.Collections.singletonMap;
 
 public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesRequest> {
 
@@ -97,6 +104,32 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         Consumer<FieldCapabilitiesRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
+    }
+
+    public void testToXContent() throws IOException {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indexFilter(QueryBuilders.termQuery("field", "value"));
+        request.runtimeFields(singletonMap("day_of_week", singletonMap("type", "keyword")));
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        String xContent = BytesReference.bytes(request.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
+        assertEquals(
+            ("{"
+                + "  \"index_filter\": {\n"
+                + "    \"term\": {\n"
+                + "      \"field\": {\n"
+                + "        \"value\": \"value\",\n"
+                + "        \"boost\": 1.0\n"
+                + "      }\n"
+                + "    }\n"
+                + "  },\n"
+                + "  \"runtime_mappings\": {\n"
+                + "    \"day_of_week\": {\n"
+                + "      \"type\": \"keyword\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}").replaceAll("\\s+", ""),
+            xContent
+        );
     }
 
     public void testValidation() {

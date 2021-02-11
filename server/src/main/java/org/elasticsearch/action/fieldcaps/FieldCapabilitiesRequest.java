@@ -55,7 +55,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
         indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
         nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
-        runtimeFields = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readMap() : Collections.emptyMap();
+        runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
     }
 
     public FieldCapabilitiesRequest() {
@@ -94,7 +94,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             out.writeOptionalNamedWriteable(indexFilter);
             out.writeOptionalLong(nowInMillis);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeMap(runtimeFields);
         }
     }

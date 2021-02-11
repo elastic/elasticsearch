@@ -96,6 +96,8 @@ public final class TransformInternalIndex {
             .setDescription("Contains Transform configuration data")
             .setMappings(mappings())
             .setSettings(settings())
+            // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
+            .setAliasName(".data-frame-internal-3")
             .setVersionMetaKey("version")
             .setOrigin(TRANSFORM_ORIGIN)
             .build();

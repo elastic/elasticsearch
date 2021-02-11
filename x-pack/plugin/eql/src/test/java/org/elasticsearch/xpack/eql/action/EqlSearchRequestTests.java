@@ -15,13 +15,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -56,6 +59,13 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     @Override
     protected EqlSearchRequest createTestInstance() {
         try {
+            List<FieldAndFormat> randomFetchFields = new ArrayList<>();
+            for (int j = 0; j < randomIntBetween(0, 5); j++) {
+                randomFetchFields.add(new FieldAndFormat(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            }
+            if (randomFetchFields.isEmpty()) {
+                randomFetchFields = null;
+            }
             QueryBuilder filter = parseFilter(defaultTestFilter);
             EqlSearchRequest request = new EqlSearchRequest()
                 .indices(new String[]{defaultTestIndex})
@@ -64,7 +74,8 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .eventCategoryField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .size(randomInt(50))
-                .query(randomAlphaOfLength(10));
+                .query(randomAlphaOfLength(10))
+                .fetchFields(randomFetchFields);
 
             return request;
         } catch (IOException ex) {

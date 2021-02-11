@@ -65,8 +65,9 @@ when the alert conditions are met.
 // SCREENSHOT
 
 For example, you can choose _Slack_ as an action type and configure it to send a 
-message to a channel you selected. It's also possible to customize the 
-notification messages. A list of variables is available to include in the 
-message, like job ID, anomaly score, time, or top influencers.
+message to a channel you selected or you can also create an index connector that 
+writes the JSON object you configure to a specific index. It's also possible to 
+customize the notification messages. A list of variables is available to include 
+in the message, like job ID, anomaly score, time, or top influencers.
 
 // SCREENSHOT

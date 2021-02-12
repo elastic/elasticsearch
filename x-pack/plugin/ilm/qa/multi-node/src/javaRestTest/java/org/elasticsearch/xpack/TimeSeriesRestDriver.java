@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -118,6 +119,11 @@ public final class TimeSeriesRestDriver {
         document.endObject();
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
+        assertThat(client.performRequest(request).getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    public static void refresh(RestClient client, String index) throws IOException {
+        final Request request = new Request("POST", "/" + index + "/_refresh");
         assertThat(client.performRequest(request).getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
@@ -302,6 +308,24 @@ public final class TimeSeriesRestDriver {
         responseEntity = (Map<String, Object>) responseEntity.get("shards");
         List<Map<String, Object>> shards = (List<Map<String, Object>>) responseEntity.get("0");
         return (Integer) shards.get(0).get("num_search_segments");
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<Integer> getPrimaryShardSizes(RestClient client, String index) throws IOException {
+        Response response = client.performRequest(new Request("GET", index + "/_stats?level=shards"));
+        XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
+            response.getEntity().getContent(), false);
+        responseEntity = (Map<String, Object>) responseEntity.get("indices");
+        responseEntity = (Map<String, Object>) responseEntity.get(index);
+        responseEntity = (Map<String, Object>) responseEntity.get("shards");
+
+        List<Integer> primaryShardSizes = new ArrayList<>();
+        for (int i = 0; i < responseEntity.size(); i++) {
+            List<Map<String, Object>> shard = (List<Map<String, Object>>) responseEntity.get(String.valueOf(i));
+            primaryShardSizes.add(((Map<String, Integer>) shard.get(0).get("store")).get("size_in_bytes"));
+        }
+        return primaryShardSizes;
     }
 
     public static void updatePolicy(RestClient client, String indexName, String policy) throws IOException {

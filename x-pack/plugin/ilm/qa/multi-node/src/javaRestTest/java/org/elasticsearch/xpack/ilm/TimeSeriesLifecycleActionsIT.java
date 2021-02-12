@@ -20,6 +20,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -52,7 +53,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -65,11 +68,13 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getPrimaryShardSizes;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getSnapshotState;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.refresh;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.containsString;
@@ -219,6 +224,40 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
         assertBusy(() -> assertTrue(indexExists(originalIndex)));
         assertBusy(() -> assertFalse(indexExists(secondIndex)));
+        assertBusy(() -> assertEquals("true",
+            getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
+    }
+
+    public void testRolloverActionWithMaxSinglePrimarySize() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(client(), originalIndex, alias, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
+
+        int totalDocs = randomIntBetween(16, 32);
+        for (int i = 0; i < totalDocs; i++) {
+            index(client(), originalIndex, String.valueOf(i), "foo", "bar_" + i);
+        }
+        refresh(client(), originalIndex);
+
+        List<Integer> primaryShardSizes = getPrimaryShardSizes(client(), originalIndex);
+        Integer largest = Collections.max(primaryShardSizes);
+
+        // create policy
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(
+            null,
+            // the largest size we have from above is index stats size, but that's larger
+            // than the docstats size that we actually evaluate against inside the guts
+            // of rollover, 2048 is a slop factor
+            ByteSizeValue.ofBytes(Long.max(1, largest - 2048)),
+            null, null));
+        // update policy on index
+        updatePolicy(client(), originalIndex, policy);
+
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        assertBusy(() -> assertTrue(indexExists(originalIndex)));
         assertBusy(() -> assertEquals("true",
             getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
     }

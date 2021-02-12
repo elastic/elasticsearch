@@ -15,7 +15,6 @@ restResources {
 
 dependencies {
   javaRestTestImplementation project(':test:framework')
-  javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation(project(xpackModule('core'))) {
     capabilities {
       requireCapability("org.elasticsearch.gradle:core-test-artifacts")

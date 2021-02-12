@@ -23,7 +23,8 @@ You configure IP filtering by specifying the `xpack.security.transport.filter.al
 `xpack.security.transport.filter.deny` settings in in `elasticsearch.yml`. Allow rules
 take precedence over the deny rules.
 
-NOTE: When applying `xpack.security.transport.filter.\*` settings they will be inherited to `xpack.security.http.filter.*` unless you explicitly set a http filter rule. 
+IMPORTANT: Unless explicitly specified, `xpack.security.http.filter.*` settings default to
+the corresponding `xpack.security.transport.filter.*` setting's value.
 
 [source,yaml]
 --------------------------------------------------

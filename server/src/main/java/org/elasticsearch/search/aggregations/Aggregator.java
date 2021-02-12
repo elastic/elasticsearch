@@ -125,7 +125,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Build the results of this aggregation.
-     * @param ordsToCollect the ordinals of the buckets that we want to
+      * @param ordsToCollect the ordinals of the buckets that we want to
      *        collect from this aggregation
      * @return the results for each ordinal, in the same order as the array
      *         of ordinals

@@ -452,6 +452,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         Global global = (Global) aggregator.buildTopLevel();
         assertNotNull(global);
@@ -497,6 +498,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
 
@@ -705,6 +707,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         Global global = (Global) aggregator.buildTopLevel();
         assertNotNull(global);
@@ -745,6 +748,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
         assertNotNull(terms);
@@ -798,6 +802,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator);
         bucketCollector.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+        bucketCollector.postCollection();
 
         InternalMax max = (InternalMax) maxAggregator.buildAggregation(0L);
         assertNotNull(max);
@@ -849,6 +854,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             BucketCollector bucketCollector = MultiBucketCollector.wrap(maxAggregator, countAggregator, termsAggregator);
             bucketCollector.preCollection();
             indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+            bucketCollector.postCollection();
 
             InternalMax max = (InternalMax) maxAggregator.buildTopLevel();
             assertNotNull(max);
@@ -906,6 +912,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
 
@@ -952,6 +959,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalMax max = (InternalMax) aggregator.buildAggregation(0L);
 
@@ -969,6 +977,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         max = (InternalMax) aggregator.buildAggregation(0L);
 

@@ -700,4 +700,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             new SystemIndexDescriptor(TriggeredWatchStoreField.INDEX_NAME, "Used to track current and queued Watch execution")
         );
     }
+
+    @Override
+    public String getFeatureName() {
+        return "watcher";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Watch definitions and state";
+    }
 }

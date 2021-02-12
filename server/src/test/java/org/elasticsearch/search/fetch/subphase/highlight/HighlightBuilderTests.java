@@ -640,7 +640,9 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.fragmenter(randomAlphaOfLengthBetween(11, 20));
                 break;
             case 7:
-                highlightBuilder.highlightQuery(new TermQueryBuilder(randomAlphaOfLengthBetween(11, 20), randomAlphaOfLengthBetween(11, 20)));
+                highlightBuilder.highlightQuery(
+                    new TermQueryBuilder(randomAlphaOfLengthBetween(11, 20), randomAlphaOfLengthBetween(11, 20))
+                );
                 break;
             case 8:
                 if (highlightBuilder.order() == Order.NONE) {

@@ -16,7 +16,7 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.List;
 
-public class InjectAllowedWarningsTests extends InjectFeatureTests {
+public class InjectWarningsTests extends InjectFeatureTests {
 
 List<String> addWarnings = List.of("added warning");
 
@@ -39,7 +39,7 @@ List<String> addWarnings = List.of("added warning");
      */
     @Test
     public void testInjectHeadersWithPreExisting() throws Exception {
-        String testName = "/rest/transform/warnings/with_existing_allowed_warnings.yml";
+        String testName = "/rest/transform/warnings/with_existing_warnings.yml";
         List<ObjectNode> tests = getTests(testName);
         validateSetupDoesNotExist(tests);
     //    validateBodyHasHeaders(tests, Map.of("foo", "bar"));
@@ -52,12 +52,12 @@ List<String> addWarnings = List.of("added warning");
 
     @Override
     protected List<String> getKnownFeatures() {
-        return Collections.singletonList("allowed_warnings");
+        return Collections.singletonList("warnings");
     }
 
     @Override
     protected List<RestTestTransform<?>> getTransformations() {
-        return Collections.singletonList(new InjectAllowedWarnings(addWarnings));
+        return Collections.singletonList(new InjectWarnings(addWarnings));
     }
 
     @Override

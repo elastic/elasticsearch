@@ -5,7 +5,7 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('core'))
   javaRestTestImplementation(project(xpackModule('core'))) {
     capabilities {
-      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
     }
   }
   javaRestTestImplementation project(path: xpackModule('transform'))

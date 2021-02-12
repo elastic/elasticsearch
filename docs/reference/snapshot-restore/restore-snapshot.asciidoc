@@ -32,6 +32,9 @@ By default, all data streams and indices in the snapshot are restored, but the c
 supports <<multi-index,multi-target syntax>>. To include the global cluster state, set
 `include_global_state` to `true` in the restore request body.
 
+Because all indices in the snapshot are restored by default, all system indices will be restored
+by default as well.
+
 [WARNING]
 ====
 Each data stream requires a matching
@@ -88,7 +91,7 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 // TEST[continued]
 
 <1> By default, `include_global_state` is `false`, meaning the snapshot's
-cluster state is not restored.
+cluster state and feature states are not restored.
 +
 If `true`, the snapshot's persistent settings, index templates, ingest
 pipelines, and {ilm-init} policies are restored into the current cluster. This

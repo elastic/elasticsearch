@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZoneId;
@@ -35,7 +33,6 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -115,16 +112,6 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         }
     }
 
-    public void testGetDate() {
-        ZoneId zoneId = randomZone();
-        long millis = randomNonNegativeLong();
-        List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
-        DocumentField field = new DocumentField("my_date_field", documentFieldValues);
-        SearchHit hit = new SearchHit(1, null, null, singletonMap("my_date_field", field), null);
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DATETIME, zoneId, true);
-        assertEquals(DateUtils.asDateTimeWithMillis(millis, zoneId), extractor.extract(hit));
-    }
-
     public void testGetDateNanos() {
         ZoneId zoneId = randomZone();
         long totalNanos = randomLongBetween(72000000000000L, Long.MAX_VALUE);
@@ -134,7 +121,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         List<Object> documentFieldValues = Collections.singletonList(StringUtils.toString(zdt));
         DocumentField field = new DocumentField("my_date_nanos_field", documentFieldValues);
         SearchHit hit = new SearchHit(1, null, null, singletonMap("my_date_nanos_field", field), null);
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_nanos_field", DATETIME_NANOS, zoneId, true);
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_nanos_field", DATETIME, zoneId, true);
         assertEquals(zdt, extractor.extract(hit));
     }
 
@@ -154,14 +141,14 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
-    public void testExtractSourcePath() throws IOException {
+    public void testExtractSourcePath() {
         FieldHitExtractor fe = getFieldHitExtractor("a.b.c");
         Object value = randomValue();
         DocumentField field = new DocumentField("a.b.c", singletonList(value));
         SearchHit hit = new SearchHit(1, null, null, singletonMap("a.b.c", field), null);
         assertThat(fe.extract(hit), is(value));
     }
-    
+
     public void testMultiValuedSource() {
         FieldHitExtractor fe = getFieldHitExtractor("a");
         Object value = randomValue();
@@ -170,7 +157,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
-    
+
     public void testMultiValuedSourceAllowed() {
         FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, true);
         Object valueA = randomValue();
@@ -192,11 +179,11 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
         assertEquals(new GeoShape(1, 2), fe.extract(hit));
     }
-    
+
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
-    
+
         Map<String, Object> map1 = new HashMap<>(2);
         map1.put("coordinates", asList(1d, 2d));
         map1.put("type", "Point");
@@ -208,7 +195,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
-    
+
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, true);
         assertEquals(new GeoShape(3, 4), lenientFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
             new DocumentField(fieldName, singletonList(map2))), null)));

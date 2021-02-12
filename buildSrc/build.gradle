@@ -56,6 +56,12 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
+allprojects {
+  apply plugin: 'java'
+  targetCompatibility = '11'
+  sourceCompatibility = '11'
+}
+
 sourceSets {
   integTest {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
@@ -141,10 +147,9 @@ if (project != rootProject) {
   apply plugin: 'elasticsearch.build'
   apply plugin: 'elasticsearch.publish'
 
-  allprojects {
-    targetCompatibility = 10
-    sourceCompatibility = 10
-  }
+  // We have to set this again down here since the elasticsearch.java plugin defaults to minimumRuntimeVersion
+  targetCompatibility = '11'
+  sourceCompatibility = '11'
 
   // groovydoc succeeds, but has some weird internal exception...
   tasks.named("groovydoc").configure {
@@ -278,7 +283,7 @@ class VersionPropertiesLoader {
           elasticsearch
       )
     }
-    String qualifier = systemProperties.getProperty("build.version_qualifier", "");
+    String qualifier = systemProperties.getProperty("build.version_qualifier", "")
     if (qualifier.isEmpty() == false) {
       if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
         throw new IllegalStateException("Invalid qualifier: " + qualifier)

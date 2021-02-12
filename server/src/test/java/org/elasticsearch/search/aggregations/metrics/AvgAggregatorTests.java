@@ -276,6 +276,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -520,6 +521,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
         assertNotNull(terms);
@@ -593,6 +595,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -639,6 +642,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -657,6 +661,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         avg = (InternalAvg) aggregator.buildAggregation(0L);
 

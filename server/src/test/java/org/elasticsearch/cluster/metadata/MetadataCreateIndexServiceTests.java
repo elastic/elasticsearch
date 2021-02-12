@@ -543,7 +543,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                new SystemIndices(Collections.singletonMap("foo", systemIndexDescriptors)),
+                new SystemIndices(Collections.singletonMap("foo", new SystemIndices.Feature("test feature", systemIndexDescriptors))),
                 false
             );
             // Check deprecations

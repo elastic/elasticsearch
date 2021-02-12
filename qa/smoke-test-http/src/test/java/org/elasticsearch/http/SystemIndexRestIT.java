@@ -130,6 +130,16 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
             return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "System indices for tests"));
         }
 
+        @Override
+        public String getFeatureName() {
+            return SystemIndexRestIT.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
+        }
+
         public static class AddDocRestHandler extends BaseRestHandler {
             @Override
             public boolean allowSystemIndexAccessByDefault() {

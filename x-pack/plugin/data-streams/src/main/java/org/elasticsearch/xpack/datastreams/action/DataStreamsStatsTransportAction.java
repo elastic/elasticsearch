@@ -133,7 +133,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
-    protected DataStreamsStatsAction.DataStreamShardStats shardOperation(DataStreamsStatsAction.Request request, ShardRouting shardRouting)
+    protected DataStreamsStatsAction.DataStreamShardStats shardOperation(DataStreamsStatsAction.Request request, ShardRouting shardRouting, Task task)
         throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());

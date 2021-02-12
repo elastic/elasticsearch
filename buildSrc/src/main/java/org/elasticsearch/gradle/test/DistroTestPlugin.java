@@ -82,7 +82,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
 
-        // TODO: it would be useful to also have the SYSTEM_JAVA_HOME setup in the root project, so that running from GCP only needs
+        // TODO: it would be useful to also have the SYSTEM_ES_JAVA_HOME setup in the root project, so that running from GCP only needs
         // a java for gradle to run, and the tests are self sufficient and consistent with the java they use
         NamedDomainObjectContainer<ElasticsearchDistribution> allDistributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> testDistributions = configureDistributions(project);

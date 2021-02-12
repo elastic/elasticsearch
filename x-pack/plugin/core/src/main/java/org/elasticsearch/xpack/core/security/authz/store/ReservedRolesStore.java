@@ -152,15 +152,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("apm-*")
                                     .privileges("read", "read_cross_cluster").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("logs-apm*")
-                                    .privileges("read", "read_cross_cluster").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("metrics-apm*")
-                                    .privileges("read", "read_cross_cluster").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("traces-apm*")
-                                    .privileges("read", "read_cross_cluster").build(),                            
+                                RoleDescriptor.IndicesPrivileges.builder()                 
                                 // Data telemetry reads mappings, metadata and stats of indices
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("*")

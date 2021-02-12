@@ -41,12 +41,15 @@ public class RolloverAction implements LifecycleAction {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));
+        a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));
+
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()), MAX_SIZE_FIELD, ValueType.VALUE);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()),
+            MAX_SIZE_FIELD, ValueType.VALUE);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()), MAX_AGE_FIELD, ValueType.VALUE);
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()),
+            MAX_AGE_FIELD, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
     }
 
@@ -162,8 +165,8 @@ public class RolloverAction implements LifecycleAction {
         }
         RolloverAction other = (RolloverAction) obj;
         return Objects.equals(maxSize, other.maxSize) &&
-                Objects.equals(maxAge, other.maxAge) &&
-                Objects.equals(maxDocs, other.maxDocs);
+            Objects.equals(maxAge, other.maxAge) &&
+            Objects.equals(maxDocs, other.maxDocs);
     }
 
     @Override

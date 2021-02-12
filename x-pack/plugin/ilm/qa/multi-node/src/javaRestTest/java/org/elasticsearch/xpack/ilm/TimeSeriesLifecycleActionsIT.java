@@ -260,7 +260,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
         updatePolicy(client(), index, policy);
-        assertBusy( () -> {
+        assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
             assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
@@ -270,7 +270,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSlmPolicy(slmPolicy, snapshotRepo);
 
-        assertBusy( () -> {
+        assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             //wait for step to notice that the slm policy is created and to get out of error
             assertThat(indexILMState.get("failed_step"), nullValue());
@@ -308,7 +308,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         updatePolicy(client(), index, policy);
 
-        assertBusy( () -> {
+        assertBusy(() -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
             assertThat(indexILMState.get("failed_step"), nullValue());
             assertThat(indexILMState.get("action"), is("wait_for_snapshot"));
@@ -417,7 +417,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testForceMergeActionWithCompressionCodec() throws Exception {
         forceMergeActionWithCodec("best_compression");
     }
-
 
     public void testFreezeAction() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -1131,7 +1130,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(client(), index);
-                if(explainIndex == null) {
+                if (explainIndex == null) {
                     // in case we missed the original index and it was deleted
                     explainIndex = explainIndex(client(), restoredIndexName);
                 }

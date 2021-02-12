@@ -341,9 +341,18 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
                 final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
 
                 final String blockId = params.get("blockid");
+
+                if (Strings.hasText(blockId)) {
+                    try {
+                        Base64.getDecoder().decode(blockId);
+                    } catch (Exception e) {
+                        throw new AssertionError("blockid [" + blockId + "] is not in base64");
+                    }
+                }
+
                 if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
                     blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);

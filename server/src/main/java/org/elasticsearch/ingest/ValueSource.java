@@ -38,7 +38,7 @@ public interface ValueSource {
     Object copyAndResolve(Map<String, Object> model);
 
     static ValueSource wrap(Object value, ScriptService scriptService) {
-        return wrap(value, scriptService, Map.of());
+        return wrap(value, scriptService, org.elasticsearch.common.collect.Map.of());
     }
 
     static ValueSource wrap(Object value, ScriptService scriptService, Map<String, String> scriptOptions) {
@@ -68,7 +68,9 @@ public interface ValueSource {
             // installed for use by REST tests. `value` will not be
             // modified if templating is not available
             if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && ((String) value).contains("{{")) {
-                Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, (String) value, scriptOptions, Map.of());
+                Script script = new Script(
+                    ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, (String) value, scriptOptions, org.elasticsearch.common.collect.Map.of()
+                );
                 return new TemplatedValue(scriptService.compile(script, TemplateScript.CONTEXT));
             } else {
                 return new ObjectValue(value);

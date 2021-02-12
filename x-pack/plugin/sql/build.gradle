@@ -38,9 +38,21 @@ dependencies {
   api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
+  testImplementation(project(xpackModule('security'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
+    }
+  }
+  testImplementation(project(xpackModule('ql'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:ql-test-artifacts")
+    }
+  }
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')

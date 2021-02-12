@@ -10,7 +10,11 @@ archivesBaseName = 'x-pack-graph'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
 }
 
 addQaCheckDependencies()

@@ -1,8 +1,11 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
+  yamlRestTestImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }}
 
 restResources {
   restApi {

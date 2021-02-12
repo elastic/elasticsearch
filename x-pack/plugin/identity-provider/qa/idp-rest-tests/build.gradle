@@ -2,7 +2,11 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
   //TODO: update javaRestTests to not rely on any code that it is testing
   javaRestTestImplementation project(path: xpackModule('identity-provider'))
   javaRestTestImplementation project(path: xpackModule('core'))

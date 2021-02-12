@@ -23,9 +23,16 @@ dependencies {
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
 
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-
+  testImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
+  internalClusterTestImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
   api 'com.unboundid:unboundid-ldapsdk:4.0.8'
 
   // the following are all SAML dependencies - might as well download the whole internet

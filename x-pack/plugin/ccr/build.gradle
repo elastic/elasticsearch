@@ -31,8 +31,17 @@ dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
+  testImplementation(project(xpackModule('monitoring')))
+  testImplementation(project(xpackModule('monitoring'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:monitoring-test-artifacts")
+    }
+  }
 }
 
 tasks.named("testingConventions").configure {

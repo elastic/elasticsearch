@@ -1,7 +1,11 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
   javaRestTestImplementation project(xpackModule('async-search'))
   javaRestTestImplementation project(':x-pack:plugin:async-search:qa')
 }

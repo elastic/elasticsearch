@@ -2,8 +2,16 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(path: xpackModule('core'))
-  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  yamlRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  yamlRestTestImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
+  yamlRestTestImplementation(project(xpackProject('plugin').path)) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:plugin-test-artifacts")
+    }
+  }
 }
 
 // bring in text structure rest test suite

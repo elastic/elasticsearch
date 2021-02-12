@@ -16,8 +16,11 @@ dependencies {
   }
   testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
+testImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'

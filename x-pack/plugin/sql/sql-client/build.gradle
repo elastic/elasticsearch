@@ -10,7 +10,11 @@ dependencies {
   api xpackProject('plugin:sql:sql-proto')
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation project(":test:framework")
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('core'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
+    }
+  }
 }
 
 tasks.named("dependencyLicenses").configure {

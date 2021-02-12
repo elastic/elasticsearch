@@ -11,24 +11,32 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.bundling.Jar;
 
 /**
- * Ideally, yhis plugin is intended to be temporary and in the long run we want to move
+ * Ideally, this plugin is intended to be temporary and in the long run we want to move
  * forward to port our test fixtures to use the gradle test fixtures plugin.
  * */
 public class InternalTestArtifactPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        Configuration testArtifactsConfiguration = project.getConfigurations().create("testArtifacts");
-        testArtifactsConfiguration.extendsFrom(project.getConfigurations().getByName("testRuntimeClasspath"));
-        var testJar = project.getTasks().register("testJar", Jar.class, jar -> {
-            jar.getArchiveAppendix().set("test");
-            SourceSet testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
-            jar.from(testSourceSet.getOutput());
+        JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+        javaPluginExtension.registerFeature("testArtifacts", featureSpec -> {
+            featureSpec.usingSourceSet(project.getExtensions().getByType(SourceSetContainer.class).getByName("test"));
+            featureSpec.capability("org.elasticsearch.gradle", project.getName() + "-test-artifacts", "1.0");
+            featureSpec.disablePublication();
         });
-        project.getArtifacts().add("testArtifacts", testJar);
+        Configuration testApiElements = project.getConfigurations().getByName("testApiElements");
+        testApiElements.extendsFrom(project.getConfigurations().getByName("testCompileClasspath"));
+        DependencyHandler dependencies = project.getDependencies();
+        project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
+            Dependency projectDependency = dependencies.create(project);
+            dependencies.add("testApiElements", projectDependency);
+            dependencies.add("testRuntimeElements", projectDependency);
+        });
     }
 }

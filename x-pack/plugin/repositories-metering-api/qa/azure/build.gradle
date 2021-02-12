@@ -16,7 +16,11 @@ final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testImplementation project(path: xpackModule('repositories-metering-api'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('repositories-metering-api'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:repositories-metering-api-test-artifacts")
+    }
+  }
   testImplementation repositoryPlugin
 }
 

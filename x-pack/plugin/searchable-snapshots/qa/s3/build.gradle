@@ -9,7 +9,11 @@ final Project fixture = project(':test:fixtures:s3-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
 
 dependencies {
-  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('searchable-snapshots'))) {
+    capabilities {
+      requireCapability("org.elasticsearch.gradle:searchable-snapshots-test-artifacts")
+    }
+  }
   testImplementation repositoryPlugin
 }
 

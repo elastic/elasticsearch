@@ -1,0 +1,7 @@
+---
+"Test without any warnings":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

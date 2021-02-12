@@ -102,7 +102,12 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    protected void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+    public void postCollection() throws IOException {
+        // Delaying until beforeBuildingBuckets
+    }
+
+    @Override
+    protected void prepareSubAggs(long[] ordsToCollect) throws IOException {
         IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
@@ -144,13 +149,14 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                  * structure that maps a primitive long to a list of primitive
                  * longs.
                  */
-                for (long o: bucketOrdsToCollect) {
-                    if (collectionStrategy.exists(o, globalOrdinal)) {
-                        collectBucket(sub, docId, o);
+                for (long owningBucketOrd: ordsToCollect) {
+                    if (collectionStrategy.exists(owningBucketOrd, globalOrdinal)) {
+                        collectBucket(sub, docId, owningBucketOrd);
                     }
                 }
             }
         }
+        super.postCollection(); // Run post collection after collecting the sub-aggs
     }
 
     @Override

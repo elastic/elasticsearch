@@ -1075,7 +1075,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                     final String password = settings.get(CLIENT_KEY_PASSWORD);
                     final char[] passwordChars = password == null ? null : password.toCharArray();
                     final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> passwordChars);
-                    final Certificate[] clientCertChain = PemUtils.readCertificates(Collections.singletonList(certPath)).toArray(new Certificate[1]);
+                    final Certificate[] clientCertChain
+                        = PemUtils.readCertificates(Collections.singletonList(certPath)).toArray(new Certificate[1]);
                     keyStore.setKeyEntry("client", key, passwordChars, clientCertChain);
                     sslContextBuilder.loadKeyMaterial(keyStore, passwordChars);
                 }

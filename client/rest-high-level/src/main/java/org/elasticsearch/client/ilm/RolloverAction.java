@@ -23,8 +23,8 @@ import java.util.Objects;
 public class RolloverAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "rollover";
     private static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
-    private static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     private static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
+    private static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
         a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));
@@ -40,8 +40,8 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
     }
 
     private final ByteSizeValue maxSize;
-    private final Long maxDocs;
     private final TimeValue maxAge;
+    private final Long maxDocs;
 
     public static RolloverAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);

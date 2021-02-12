@@ -32,11 +32,12 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
 
     static RolloverAction randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-        Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
+        ByteSizeValue maxSize = randomBoolean()
+            ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        TimeValue maxAge = randomBoolean()
+            ? null : TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        Long maxDocs = (maxSize == null && maxAge == null || randomBoolean())
+            ? randomNonNegativeLong() : null;
         return new RolloverAction(maxSize, maxAge, maxDocs);
     }
 

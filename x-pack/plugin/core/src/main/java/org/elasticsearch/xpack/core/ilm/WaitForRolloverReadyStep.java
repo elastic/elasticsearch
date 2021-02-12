@@ -139,11 +139,11 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (maxAge != null) {
-            rolloverRequest.addMaxIndexAgeCondition(maxAge);
-        }
         if (maxSize != null) {
             rolloverRequest.addMaxIndexSizeCondition(maxSize);
+        }
+        if (maxAge != null) {
+            rolloverRequest.addMaxIndexAgeCondition(maxAge);
         }
         if (maxDocs != null) {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);

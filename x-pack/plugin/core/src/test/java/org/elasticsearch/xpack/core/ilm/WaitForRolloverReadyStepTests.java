@@ -219,11 +219,11 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
@@ -388,11 +388,11 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
@@ -439,11 +439,11 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));

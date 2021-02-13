@@ -161,7 +161,7 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testTwoQueriesExecuted() {
         Metrics metrics = new Metrics();
-        Verifier verifier = new Verifier(metrics);
+        Verifier verifier = new Verifier(metrics, SqlTestUtils.TEST_CFG.version());
         sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages LIMIT 5", verifier);
         sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3 "
                       + "ORDER BY languages LIMIT 5", verifier);
@@ -179,7 +179,7 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testTwoCommandsExecuted() {
         String command1 = randomFrom(commands);
         Metrics metrics = new Metrics();
-        Verifier verifier = new Verifier(metrics);
+        Verifier verifier = new Verifier(metrics, SqlTestUtils.TEST_CFG.version());
         sqlWithVerifier(command1, verifier);
         sqlWithVerifier(randomValueOtherThan(command1, () -> randomFrom(commands)), verifier);
         Counters c = metrics.stats();
@@ -237,7 +237,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Metrics metrics = null;
         if (v == null) {
             metrics = new Metrics();
-            verifier = new Verifier(metrics);
+            verifier = new Verifier(metrics, SqlTestUtils.TEST_CFG.version());
         }
 
         Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), IndexResolution.valid(test), verifier);

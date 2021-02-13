@@ -271,7 +271,8 @@ public class SysColumnsTests extends ESTestCase {
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration config,
                                            Map<String, EsField> mapping) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(config, new FunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(config, new FunctionRegistry(), IndexResolution.valid(test),
+            new Verifier(new Metrics(), config.version()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
 
         IndexResolver resolver = mock(IndexResolver.class);

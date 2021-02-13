@@ -733,7 +733,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testBasicQueryWithMultiValues() throws IOException {
         List<Long> values = randomList(1, 5, ESTestCase::randomLong);
         String field = randomAlphaOfLength(5);
@@ -754,7 +753,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testBasicQueryWithMultiValuesAndMultiPathAndMultiDoc() throws IOException {
         // formatter will leave first argument as is, but fold the following on a line
         index(
@@ -795,9 +793,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo(mode, "ARRAY(a.b.c.d)", "long_array", JDBCType.ARRAY, 20)));
         if (columnar) {
-            expected.put("values", singletonList(asList(asList(2, 3, 4, 5), singletonList(6), asList(8, 7))));
+            expected.put("values", singletonList(asList(asList(5, 2, 3, 4), singletonList(6), asList(7, 8))));
         } else {
-            expected.put("rows", asList(singletonList(asList(2, 3, 4, 5)), singletonList(singletonList(6)), singletonList(asList(8, 7))));
+            expected.put("rows", asList(singletonList(asList(5, 2, 3, 4)), singletonList(singletonList(6)), singletonList(asList(7, 8))));
         }
 
         assertResponse(
@@ -813,7 +811,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testFilteringQueryWithMultiValuesAndWithout() throws IOException {
         index("{\"a\": [2, 3, 4, 5]}", "{\"a\": 6}", "{\"a\": [7, 8]}");
         String mode = randomMode();
@@ -1100,7 +1097,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testMultiValueQueryText() throws IOException {
         index(
             "{"
@@ -1118,7 +1114,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         String expected = "               t               |       n       \n"
             + "-------------------------------+---------------\n"
-            + "[\"one\",\"two, three\",\"\\\"four\\\"\"]|[1,2,3,4]      \n";
+            + "[\"one\",\"two, three\",\"\\\"four\\\"\"]|[1,4,2,3]      \n";
         Tuple<String, String> response = runSqlAsText("SELECT ARRAY(text) t, ARRAY(number) n FROM test", "text/plain");
         assertEquals(expected, response.v1());
     }

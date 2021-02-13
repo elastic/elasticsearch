@@ -144,7 +144,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
+            "use ARRAY(" + fieldName + ") instead"));
     }
 
     public void testExtractSourcePath() {
@@ -154,16 +155,16 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SearchHit hit = new SearchHit(1, null, null, singletonMap("a.b.c", field), null);
         assertThat(fe.extract(hit), is(value));
     }
-    
+
     public void testMultiValuedSource() {
         FieldHitExtractor fe = getFieldHitExtractor("a");
         Object value = randomValue();
         DocumentField field = new DocumentField("a", asList(value, value));
         SearchHit hit = new SearchHit(1, null, null, singletonMap("a", field), null);
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [a]; use ARRAY(a) instead"));
     }
-    
+
     public void testMultiValuedSourceAllowed() {
         FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, EXTRACT_ONE);
         Object valueA = randomValue();
@@ -173,8 +174,8 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         assertEquals(valueA, fe.extract(hit));
     }
 
-    // "a": null
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    // "a": null -> [null]
+    // note though that through fields API an empty list will be returned for missing field values, not null
     public void testMultiValueNull() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
@@ -182,17 +183,15 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             new DocumentField(fieldName, singletonList(null))), null)));
     }
 
-    // "a": [] / missing
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
+    // "a": [] / missing -> []
     public void testMultiValueEmpty() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
-        assertEquals(singletonList(null), fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+        assertEquals(emptyList(), fea.extract(new SearchHit(1, null, null, singletonMap(fieldName,
             new DocumentField(fieldName, emptyList())), null)));
     }
 
     // "a": [int1, int2, ..]
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testMultiValueImmediateFromMap() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fea = getArrayFieldHitExtractor(fieldName, INTEGER);
@@ -213,11 +212,11 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
         assertEquals(new GeoShape(1, 2), fe.extract(hit));
     }
-    
+
     public void testMultipleGeoShapeExtraction() {
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, FAIL_IF_MULTIVALUE);
-    
+
         Map<String, Object> map1 = new HashMap<>(2);
         map1.put("coordinates", asList(1d, 2d));
         map1.put("type", "Point");
@@ -228,11 +227,17 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
 
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
-        assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
-    
+        assertThat(ex.getMessage(), is("Cannot return multiple values for field [" + fieldName + "]; " +
+            "use ARRAY(" + fieldName + ") instead"));
+
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, EXTRACT_ONE);
         assertEquals(new GeoShape(3, 4), lenientFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
             new DocumentField(fieldName, singletonList(map2))), null)));
+
+        FieldHitExtractor arrayFe = getArrayFieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE);
+        assertEquals(asList(new GeoShape(1, 2), new GeoShape(3, 4)), arrayFe.extract(new SearchHit(1, null, null, singletonMap(fieldName,
+            new DocumentField(fieldName, asList(map1, map2))), null)));
+
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName) {

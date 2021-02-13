@@ -77,7 +77,8 @@ public class OptimizerRunTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult,
+            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version()));
         optimizer = new Optimizer();
     }
 

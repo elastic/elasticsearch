@@ -349,7 +349,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     try {
                         Base64.getDecoder().decode(blockId);
                     } catch (Exception e) {
-                        throw new AssertionError("blockid [" + blockId + "] is not in base64");
+                        throw new AssertionError("blockid [" + blockId + "] is not in base64", e);
                     }
                 }
 

@@ -10,6 +10,7 @@ package fixture.azure;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +27,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -67,6 +69,12 @@ public class AzureHttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
 
                 final String blockId = params.get("blockid");
+                assert Strings.hasText(blockId) : "blockId missing";
+                try {
+                    Base64.getDecoder().decode(blockId);
+                } catch (Exception e) {
+                    throw new AssertionError("blockid [" + blockId + "] is not in base64", e);
+                }
                 blobs.put(blockId, Streams.readFully(exchange.getRequestBody()));
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 

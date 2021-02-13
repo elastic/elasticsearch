@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.mockito.Mockito;
 
 import java.util.Collections;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,7 +32,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
             .build();
     }
 
-    public void testCloseFollowingIndex() throws ExecutionException, InterruptedException {
+    public void testCloseFollowingIndex() {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -80,11 +79,9 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
-        Boolean[] completed = new Boolean[1];
-        Exception[] failure = new Exception[1];
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        assertSame(error, expectThrows(Exception.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
     }

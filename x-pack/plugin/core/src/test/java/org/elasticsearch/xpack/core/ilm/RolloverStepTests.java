@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
@@ -145,7 +144,6 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         RolloverStep step = createRandomInstance();
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder().put(firstGenerationIndex, true)
@@ -183,7 +181,6 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
 
         RolloverStep step = createRandomInstance();
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -82,8 +81,6 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
                 listener.onResponse(null);
                 return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
-
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(

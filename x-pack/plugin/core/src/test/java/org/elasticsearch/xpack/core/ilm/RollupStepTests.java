@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -79,27 +79,13 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         mockClientRollupCall(index);
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
             )
             .build();
-        step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-
-            @Override
-            public void onResponse(Boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
     }
 
     public void testPerformActionOnDataStream() {
@@ -113,7 +99,6 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         mockClientRollupCall(backingIndexName);
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
@@ -122,20 +107,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-
-            @Override
-            public void onResponse(Boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
     }
 
     private void mockClientRollupCall(String sourceIndex) {

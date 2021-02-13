@@ -89,8 +89,8 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        expectThrows(RuntimeException.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, null, null, f)));
+        assertSame(error, expectThrows(RuntimeException.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, null, null, f))));
     }
 
     public void testFailureToReleaseRetentionLeases() {

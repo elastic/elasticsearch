@@ -100,8 +100,8 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        assertSame(error, expectThrows(Exception.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))));
 
         Mockito.verify(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(client);
@@ -143,10 +143,8 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-
         final ClusterState clusterState = ClusterState.builder(
-            setupClusterStateWithFollowingIndex(followerIndex)).metadata(Metadata.builder().put(managedIndex, false).build())
-            .build();
+            setupClusterStateWithFollowingIndex(followerIndex)).metadata(Metadata.builder().put(managedIndex, false).build()).build();
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
         assertTrue(PlainActionFuture.get(f -> step.performAction(managedIndex, clusterState, null, f)));

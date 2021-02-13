@@ -57,7 +57,7 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      ActionListener listener) {
+                                      ActionListener<Boolean> listener) {
             }
         };
 
@@ -69,7 +69,7 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      ActionListener listener) {
+                                      ActionListener<Boolean> listener) {
                 listener.onResponse(true);
             }
         };
@@ -84,7 +84,7 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      ActionListener listener) {
+                                      ActionListener<Boolean> listener) {
                 listener.onResponse(false);
             }
         };
@@ -102,7 +102,7 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
         AsyncActionStep stepToExecute = new AsyncActionStep(randomStepKey(), randomStepKey(), client) {
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      ActionListener listener) {
+                                      ActionListener<Boolean> listener) {
                 listener.onFailure(failException);
             }
         };

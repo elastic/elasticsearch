@@ -28,7 +28,8 @@ public class ReadOnlyStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         getClient().admin().indices().execute(AddIndexBlockAction.INSTANCE,
             new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(getMasterTimeout(currentState)),
             ActionListener.wrap(response -> {

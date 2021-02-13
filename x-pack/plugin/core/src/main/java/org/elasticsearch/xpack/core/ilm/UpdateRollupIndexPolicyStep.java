@@ -40,7 +40,8 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         String rollupIndex = RollupStep.getRollupIndexName(indexMetadata.getIndex().getName());
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndex)

@@ -86,10 +86,10 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
 
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 actionCompleted.set(complete);
             }
 
@@ -122,10 +122,10 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
 
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 actionCompleted.set(complete);
             }
 

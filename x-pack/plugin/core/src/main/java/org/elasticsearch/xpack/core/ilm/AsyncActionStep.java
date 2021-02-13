@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -40,13 +41,5 @@ public abstract class AsyncActionStep extends Step {
     }
 
     public abstract void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                                       ClusterStateObserver observer, Listener listener);
-
-    public interface Listener {
-
-        void onResponse(boolean complete);
-
-        void onFailure(Exception e);
-    }
-
+                                       ClusterStateObserver observer, ActionListener<Boolean> listener);
 }

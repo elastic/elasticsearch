@@ -40,7 +40,8 @@ public class RollupStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         String originalIndex = indexMetadata.getIndex().getName();
         RollupAction.Request request = new RollupAction.Request(originalIndex, getRollupIndexName(originalIndex), config);
         // currently RollupAction always acknowledges action was complete when no exceptions are thrown.

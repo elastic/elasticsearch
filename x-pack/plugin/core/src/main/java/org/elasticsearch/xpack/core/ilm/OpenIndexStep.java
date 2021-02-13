@@ -29,7 +29,7 @@ final class OpenIndexStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             OpenIndexRequest request = new OpenIndexRequest(indexMetadata.getIndex().getName());
             getClient().admin().indices()

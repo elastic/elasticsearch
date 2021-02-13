@@ -37,7 +37,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener) {
         final String indexName = indexMetadata.getIndex().getName();
 
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);

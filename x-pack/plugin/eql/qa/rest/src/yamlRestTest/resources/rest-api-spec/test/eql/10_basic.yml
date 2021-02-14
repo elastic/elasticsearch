@@ -1,6 +1,16 @@
 ---
 setup:
   - do:
+      indices.create:
+          index:  eql_test
+          body:
+            mappings:
+              runtime:
+                day_of_week:
+                  type: keyword
+                  script:
+                    source: "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+  - do:
       bulk:
         refresh: true
         body:
@@ -56,7 +66,7 @@ setup:
         index: eql_test
         body:
           query: 'process where user == "SYSTEM"'
-          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid"]
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
 
   - match: {timed_out: false}
   - match: {hits.total.value: 3}
@@ -66,14 +76,17 @@ setup:
   - match: {hits.events.0.fields.@timestamp: ["1580733296000"]}
   - match: {hits.events.0.fields.id: [123]}
   - match: {hits.events.0.fields.valid: [false]}
+  - match: {hits.events.0.fields.day_of_week: ["Monday"]}
   - match: {hits.events.1._id: "2"}
   - match: {hits.events.1.fields.@timestamp: ["1580819696000"]}
   - match: {hits.events.1.fields.id: [123]}
   - match: {hits.events.1.fields.valid: [true]}
+  - match: {hits.events.1.fields.day_of_week: ["Tuesday"]}
   - match: {hits.events.2._id: "3"}
   - match: {hits.events.2.fields.@timestamp: ["1580906096000"]}
   - match: {hits.events.2.fields.id: [123]}
   - match: {hits.events.2.fields.valid: [true]}
+  - match: {hits.events.2.fields.day_of_week: ["Wednesday"]}
 
 ---
 "Execute EQL events query with filter_path":
@@ -178,7 +191,7 @@ setup:
         index: eql_test
         body:
           query: 'sequence by user [process where user == "SYSTEM"] [process where true]'
-          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid"]
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
   - match: {timed_out: false}
   - match: {hits.total.value: 2}
   - match: {hits.total.relation: "eq"}
@@ -187,19 +200,23 @@ setup:
   - match: {hits.sequences.0.events.0.fields.@timestamp: ["1580733296000"]}
   - match: {hits.sequences.0.events.0.fields.id: [123]}
   - match: {hits.sequences.0.events.0.fields.valid: [false]}
+  - match: {hits.sequences.0.events.0.fields.day_of_week: ["Monday"]}
   - match: {hits.sequences.0.events.1._id: "2"}
   - match: {hits.sequences.0.events.1.fields.@timestamp: ["1580819696000"]}
   - match: {hits.sequences.0.events.1.fields.id: [123]}
   - match: {hits.sequences.0.events.1.fields.valid: [true]}
+  - match: {hits.sequences.0.events.1.fields.day_of_week: ["Tuesday"]}
   - match: {hits.sequences.1.join_keys.0: "SYSTEM"}
   - match: {hits.sequences.1.events.0._id: "2"}
   - match: {hits.sequences.1.events.0.fields.@timestamp: ["1580819696000"]}
   - match: {hits.sequences.1.events.0.fields.id: [123]}
   - match: {hits.sequences.1.events.0.fields.valid: [true]}
+  - match: {hits.sequences.1.events.0.fields.day_of_week: ["Tuesday"]}
   - match: {hits.sequences.1.events.1._id: "3"}
   - match: {hits.sequences.1.events.1.fields.@timestamp: ["1580906096000"]}
   - match: {hits.sequences.1.events.1.fields.id: [123]}
   - match: {hits.sequences.1.events.1.fields.valid: [true]}
+  - match: {hits.sequences.1.events.1.fields.day_of_week: ["Wednesday"]}
 
 ---
 "Execute EQL sequence with filter_path":

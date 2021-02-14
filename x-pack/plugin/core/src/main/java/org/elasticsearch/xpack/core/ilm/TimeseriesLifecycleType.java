@@ -290,6 +290,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         }
 
         validateActionsFollowingSearchableSnapshot(phases);
+        validateAllSearchableSnapshotActionsUseSameRepository(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -310,6 +311,22 @@ public class TimeseriesLifecycleType implements LifecycleType {
                     ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT + " actions which are not allowed after a " +
                     "managed index is mounted as a searchable snapshot");
             }
+        }
+    }
+
+    static void validateAllSearchableSnapshotActionsUseSameRepository(Collection<Phase> phases) {
+        Set<String> allRepos = phases.stream()
+            .flatMap(phase -> phase.getActions().entrySet().stream())
+            .filter(e -> e.getKey().equals(SearchableSnapshotAction.NAME))
+            .map(Map.Entry::getValue)
+            .map(action -> (SearchableSnapshotAction) action)
+            .map(SearchableSnapshotAction::getSnapshotRepository)
+            .collect(Collectors.toSet());
+
+        if (allRepos.size() > 1) {
+            throw new IllegalArgumentException("policy specifies [" + SearchableSnapshotAction.NAME +
+                "] action multiple times with differing repositories " + allRepos +
+                ", the same repository must be used for all searchable snapshot actions");
         }
     }
 

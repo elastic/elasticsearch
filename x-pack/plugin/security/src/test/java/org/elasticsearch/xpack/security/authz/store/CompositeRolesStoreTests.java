@@ -810,7 +810,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public SecurityIndexManager.State dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isIndexUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null);
+            Instant.now(), isIndexUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null,
+            "my_uuid");
     }
 
     public void testCacheClearOnIndexHealthChange() {

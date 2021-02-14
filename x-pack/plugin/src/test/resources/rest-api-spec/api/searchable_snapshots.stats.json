@@ -30,6 +30,18 @@
           }
         }
       ]
+    },
+    "params": {
+      "level":{
+        "type":"enum",
+        "description":"Return stats aggregated at cluster, index or shard level",
+        "options":[
+          "cluster",
+          "indices",
+          "shards"
+        ],
+        "default":"indices"
+      }
     }
   }
 }

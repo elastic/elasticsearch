@@ -1360,7 +1360,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 BytesRef ref = bytes.toBytesRef();
                 output.writeBytes(ref.bytes, ref.offset, ref.length);
                 CodecUtil.writeFooter(output);
-            } catch (IOException ex) {
+            } catch (IOException | ImmutableDirectoryException ex) {
                 logger.warn("Can't mark store as corrupted", ex);
             }
             directory().sync(Collections.singleton(corruptionMarkerName));

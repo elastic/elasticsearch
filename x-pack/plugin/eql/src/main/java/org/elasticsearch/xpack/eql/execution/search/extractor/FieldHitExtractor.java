@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
-
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -19,7 +18,6 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 
 public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
@@ -50,20 +48,17 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                return parseDateString(values);
-            }
-        }
-        if (dataType == DATETIME_NANOS) {
-            if (values instanceof String) {
-                return DateUtils.asDateTimeWithNanos(values.toString(), zoneId());
+                // We ask @timestamp (or the defined alternative field) to be returned as `epoch_millis`
+                // when matching sequence to avoid parsing into ZonedDateTime objects for performance reasons.
+                return parseEpochMillisAsString(values.toString());
             }
         }
 
         return null;
     }
 
-    protected Object parseDateString(Object values) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(values.toString())), zoneId());
+    protected Object parseEpochMillisAsString(String str) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(str)), zoneId());
     }
 
     @Override

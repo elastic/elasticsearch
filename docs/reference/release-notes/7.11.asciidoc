@@ -34,7 +34,7 @@ Cluster Coordination::
 
 Features/ILM+SLM::
 * Check if delete phase has actions {es-pull}66664[#66664] (issue: {es-issue}65847[#65847])
-* Fix handling of configurtions with a combination of both maximum and expire-after retention {es-pull}68352[#68352]
+* Fix handling of configurations with a combination of both maximum and expire-after retention {es-pull}68352[#68352]
 * Fix searchable snapshot action to wait for the restored index {es-pull}68309[#68309] (issue: {es-issue}67879[#67879])
 * Ignore `clusterChanged` events if state not recovered {es-pull}67507[#67507] (issue: {es-issue}67506[#67506])
 * `ShrinkStep` ignores the `isAcknowledged` flag on the response {es-pull}67591[#67591] (issue: {es-issue}53111[#53111])
@@ -53,9 +53,6 @@ Features/Stats::
 Geo::
 * Add support for `distance_feature` query for runtime `geo_point` field {es-pull}68094[#68094] (issue: {es-issue}67910[#67910])
 
-Infra/Core::
-* Fix an error that occurs while starting the service in Windows OS under a path with a space in it {es-pull}61895[#61895] (issue: {es-issue}61891[#61891])
-
 Infra/Scripting::
 * Remove leniency for casting from a `def` type to a `void` type in Painless {es-pull}66957[#66957] (issue: {es-issue}66175[#66175])
 
@@ -66,7 +63,8 @@ Network::
 * Fix `AbstractClient#execute` Listener Leak {es-pull}65415[#65415] (issue: {es-issue}65405[#65405])
 
 Packaging::
-* Fix installation using Windows MSI (issue: {es-issue}68914[#68914])
+* Fix an error that occurs while starting the service in Windows OS under a path with a space in it {es-pull}61895[#61895] (issue: {es-issue}61891[#61891])
+* Fix an issue with MSI installation on Windows that prevents {es} starting https://github.com/elastic/windows-installers/issues/402[#402] (issue: {es-issue}68914[#68914])
 
 Recovery::
 * Check graveyard on dangling index import {es-pull}67687[#67687]
@@ -77,6 +75,7 @@ SQL::
 
 Snapshot/Restore::
 * Reduce number of cache/prewarm threads {es-pull}67021[#67021]
+* Adjust encoding of Azure block IDs {es-pull}68957[#68957] (issue: {es-issue}66489[#66489])
 
 
 

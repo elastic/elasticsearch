@@ -55,9 +55,6 @@ authentication types. Besides the configuration, there are also two implicit rul
 as an operator.
 2. All <<internal-users>> are implicitly operator users.
 
-
-and used to determine whether the authenticating user is an operator locally. Once
-
 IMPORTANT: Once a user is designated as an operator, it still subjects to regular RBAC <<authorization>> checks.
 It is entirely possible that an operator user fails to perform certain actions due to RBAC check failures.
 In short, an operator is *not* automatically a `superuser`.

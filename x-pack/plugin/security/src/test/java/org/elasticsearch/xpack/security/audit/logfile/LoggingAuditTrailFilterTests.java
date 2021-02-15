@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.AuditEventMetaInfo;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.MockRequest;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.RestContent;
@@ -2308,7 +2306,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.authenticationFailed(randomAlphaOfLength(8), "realm", authToken, getRestRequest());
         if (filterMissingAction) {
-            assertThat("AuthenticationFailed realm rest request: not filtered out by the missing cluster action filter", logOutput.size(), is(0));
+            assertThat("AuthenticationFailed realm rest request: not filtered out by the missing cluster action filter",
+                logOutput.size(), is(0));
         } else {
             assertThat("AuthenticationFailed realm rest request: filtered out by the cluster action filters", logOutput.size(), is(1));
         }
@@ -2424,7 +2423,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // authentication Success
         auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, "realm"), getRestRequest());
         if (filterMissingAction) {
-            assertThat("AuthenticationSuccess rest request: not filtered out by the missing cluster action filter", logOutput.size(), is(0));
+            assertThat("AuthenticationSuccess rest request: not filtered out by the missing cluster action filter", logOutput.size(),
+                is(0));
         } else {
             assertThat("AuthenticationSuccess rest request: filtered out by the cluster action filters", logOutput.size(), is(1));
         }
@@ -2453,14 +2453,13 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             "create_doc");
 
         User user;
-        if (randomBoolean()) {
+        if (true) {
             user = new User("user1", new String[] { "r1" }, new User("authUsername", new String[] { "r2" }));
         } else {
             user = new User("user1", new String[] { "r1" });
         }
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext)
             : new MockIndicesRequest(threadContext, new String[] { "idx1", "idx2" });
-        final MockToken authToken = new MockToken("token1");
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
         final List<String> logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
 
@@ -2481,72 +2480,87 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), "indices:data/write/bulk[s][p]", request);
-        assertThat("Anonymous message: indices:data/write/bulk[s][p] not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        assertThat("Anonymous message: indices:data/write/bulk[s][p] not filtered out by the 'create_doc' filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), "indices:admin/mapping/auto_put", request);
-        assertThat("Anonymous message: indices:admin/mapping/auto_put not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        assertThat("Anonymous message: indices:admin/mapping/auto_put not filtered out by the 'create_doc' filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessGranted
         Authentication authentication = createAuthentication(user, "realm");
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/index", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: indices:data/write/index not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/index", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessGranted message: indices:data/write/index not filtered out by the 'create_doc' filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/bulk", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: indices:data/write/bulk not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/bulk", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessGranted message: indices:data/write/bulk not filtered out by the 'create_doc' filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s]", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: indices:data/write/bulk[s] not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s]", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessGranted message: indices:data/write/bulk[s] not filtered out by the 'create_doc' filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s][p]", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: indices:data/write/bulk[s][p] not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s][p]", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessGranted message: indices:data/write/bulk[s][p] not filtered out by the 'create_doc' filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:admin/mapping/auto_put", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: indices:admin/mapping/auto_put not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:admin/mapping/auto_put", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessGranted message: indices:admin/mapping/auto_put not filtered out by the 'create_doc' filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessDenied
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/index", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessDenied message: indices:data/write/index not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/index", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessDenied message: indices:data/write/index not filtered out by the 'create_doc' filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/bulk", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessDenied message: indices:data/write/bulk not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/bulk", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessDenied message: indices:data/write/bulk not filtered out by the 'create_doc' filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s]", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessDenied message: indices:data/write/bulk[s] not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s]", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessDenied message: indices:data/write/bulk[s] not filtered out by the 'create_doc' filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s][p]", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessDenied message: indices:data/write/bulk[s][p] not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:data/write/bulk[s][p]", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessDenied message: indices:data/write/bulk[s][p] not filtered out by the 'create_doc' filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:admin/mapping/auto_put", request, authzInfo(new String[]{"role1"}));
-        assertThat("AccessDenied message: indices:admin/mapping/auto_put not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
-        logOutput.clear();
-        threadContext.stashContext();
-
-        // explicitIndexAccess
-        auditTrail.explicitIndexAccessEvent(randomAlphaOfLengthBetween(8, 24), randomFrom(AuditLevel.ACCESS_GRANTED, AuditLevel.SYSTEM_ACCESS_GRANTED),
-            authentication, "indices:data/write/index:op_type/create", "idx1", BulkItemRequest.class.getName(), request.remoteAddress(), authorizationInfo);
-        assertThat("Explicit Index Access Event: indices:data/write/index:op_type/create not filtered out by the 'create_doc' filters", logOutput.size(), is(0));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "indices:admin/mapping/auto_put", request,
+            authzInfo(new String[]{"role1"}));
+        assertThat("AccessDenied message: indices:admin/mapping/auto_put not filtered out by the 'create_doc' filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
     }
@@ -2570,13 +2584,16 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         // anonymous accessDenied
         auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), "cluster:admin/xpack/security/api_key/*", createApiKeyRequest);
-        assertThat("Anonymous message: CreateApiKeyRequest not filtered out by 'manage_own_api_key' action filter", logOutput.size(), is(1));
+        assertThat("Anonymous message: CreateApiKeyRequest not filtered out by 'manage_own_api_key' action filter", logOutput.size(),
+            is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         // authenticationFailed
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, "cluster:admin/xpack/security/api_key/*", createApiKeyRequest);
-        assertThat("AuthenticationFailed: CreateApiKeyRequest not filtered out by 'manage_own_api_key' action filter", logOutput.size(), is(1));
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, "cluster:admin/xpack/security/api_key/*",
+            createApiKeyRequest);
+        assertThat("AuthenticationFailed: CreateApiKeyRequest not filtered out by 'manage_own_api_key' action filter", logOutput.size(),
+            is(1));
         logOutput.clear();
         threadContext.stashContext();
 
@@ -2584,26 +2601,30 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         Authentication authentication = createAuthentication(user, "realm");
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "cluster:admin/xpack/security/api_key/*",
             createApiKeyRequest, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: CreateApiKeyRequest filtered out by 'manage_own_api_key' action filters", logOutput.size(), is(0));
+        assertThat("AccessGranted message: CreateApiKeyRequest filtered out by 'manage_own_api_key' action filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "cluster:admin/xpack/security/api_key/*",
             getApiKeyRequestOwnedByAuthenticatedUser, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' action filters", logOutput.size(), is(0));
+        assertThat("AccessGranted message: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' action filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "cluster:admin/xpack/security/api_key/*",
             getApiKeyRequestNotOwnedByAuthenticatedUser, authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: GetApiKeyRequest (not owned by user) not filtered out by 'manage_own_api_key' action filters", logOutput.size(), is(1));
+        assertThat("AccessGranted message: GetApiKeyRequest (not owned by user) not filtered out by 'manage_own_api_key' action filters",
+            logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         // accessDenied
         auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "cluster:admin/xpack/security/api_key/*",
             createApiKeyRequest, authzInfo(new String[]{"role1"}));
-        assertThat("AccessDenied message: CreateApiKeyRequest filtered out by 'manage_own_api_key' action filters", logOutput.size(), is(0));
+        assertThat("AccessDenied message: CreateApiKeyRequest filtered out by 'manage_own_api_key' action filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
@@ -2651,15 +2672,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.tamperedRequest(randomAlphaOfLength(8), authentication, "cluster:admin/xpack/security/api_key/*",
             getApiKeyRequestOwnedByAuthenticatedUser);
-        assertThat("Tampered message with authentication: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' action filters",
-            logOutput.size(), is(0));
+        assertThat("Tampered message with authentication: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' " +
+                "action filters", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.tamperedRequest(randomAlphaOfLength(8), authentication, "cluster:admin/xpack/security/api_key/*",
             getApiKeyRequestNotOwnedByAuthenticatedUser);
-        assertThat("Tampered message with authentication: GetApiKeyRequest (not owned by user) not filtered out by 'manage_own_api_key' action filters",
-            logOutput.size(), is(1));
+        assertThat("Tampered message with authentication: GetApiKeyRequest (not owned by user) not filtered out by 'manage_own_api_key'" +
+                " action filters", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
@@ -2688,14 +2709,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         // runAsDenied
         auditTrail.runAsDenied(randomAlphaOfLength(8), createAuthentication(user, "realm"),
             "cluster:admin/xpack/security/api_key/*", createApiKeyRequest, authzInfo(new String[] { "role1" }));
-        assertThat("RunAsDenied message: CreateApiKeyRequest filtered out by 'manage_own_api_key' action filters", logOutput.size(), is(0));
+        assertThat("RunAsDenied message: CreateApiKeyRequest filtered out by 'manage_own_api_key' action filters", logOutput.size(),
+            is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.runAsDenied(randomAlphaOfLength(8), createAuthentication(user, "realm"),
             "cluster:admin/xpack/security/api_key/*", getApiKeyRequestOwnedByAuthenticatedUser, authzInfo(new String[] { "role1" }));
-        assertThat("RunAsDenied message: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' action filters", logOutput.size(),
-            is(0));
+        assertThat("RunAsDenied message: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' action filters",
+            logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
@@ -2716,15 +2738,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, "realm"),
             "cluster:admin/xpack/security/api_key/*", getApiKeyRequestOwnedByAuthenticatedUser);
-        assertThat("AuthenticationSuccess message: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' action is not filtered out",
-            logOutput.size(), is(0));
+        assertThat("AuthenticationSuccess message: GetApiKeyRequest (owned by user) filtered out by 'manage_own_api_key' action is not" +
+                " filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, "realm"),
             "cluster:admin/xpack/security/api_key/*", getApiKeyRequestNotOwnedByAuthenticatedUser);
-        assertThat("AuthenticationSuccess message: GetApiKeyRequest (not owned by user)not filtered out by 'manage_own_api_key' action is not filtered out",
-            logOutput.size(), is(1));
+        assertThat("AuthenticationSuccess message: GetApiKeyRequest (not owned by user)not filtered out by 'manage_own_api_key' action " +
+                "is not filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
     }
@@ -2766,14 +2788,15 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/delete", request,
             authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: indices:data/write/delete not filtered out by the 'index' action filters", logOutput.size(), is(1));
+        assertThat("AccessGranted message: indices:data/write/delete not filtered out by the 'index' action filters", logOutput.size(),
+            is(1));
         logOutput.clear();
         threadContext.stashContext();
 
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "indices:data/write/delete/byquery", request,
             authzInfo(new String[]{"role1"}));
-        assertThat("AccessGranted message: indices:data/write/delete/byquery not filtered out by the 'index' action filters", logOutput.size(),
-            is(1));
+        assertThat("AccessGranted message: indices:data/write/delete/byquery not filtered out by the 'index' action filters",
+            logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
     }
@@ -2822,7 +2845,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     private static Authentication createAuthentication(User user, String effectiveRealmName) {
         if (user.isRunAs()) {
             return new Authentication(user,
-                    new RealmRef(UNFILTER_MARKER + randomAlphaOfLength(4), "test", "foo"), new RealmRef(effectiveRealmName, "up", "by"));
+                new RealmRef(UNFILTER_MARKER + randomAlphaOfLength(4), "test", "foo"),
+                new RealmRef(effectiveRealmName, "up", "by"));
         } else {
             return new Authentication(user, new RealmRef(effectiveRealmName, "test", "foo"), null);
         }

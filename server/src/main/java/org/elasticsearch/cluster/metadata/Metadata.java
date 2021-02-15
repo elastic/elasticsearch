@@ -792,6 +792,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         for (var dsName : dataStreams) {
             var dataStream = metadata.dataStreams().get(dsName);
             if (dataStream == null) {
+                // should never occur since data streams cannot be deleted while they have snapshots underway
                 throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
             }
             builder.put(dataStream.snapshot(indices));

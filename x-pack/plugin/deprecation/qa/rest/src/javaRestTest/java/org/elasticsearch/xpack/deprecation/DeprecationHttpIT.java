@@ -13,13 +13,13 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
@@ -335,11 +335,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 .addHeader("X-Opaque-Id", "some xid")
                 .addHeader(
                     "Accept",
-                    "application/vnd.elasticsearch+json;compatible-with=" + Version.CURRENT.minimumRestCompatibilityVersion().major
+                    "application/vnd.elasticsearch+json;compatible-with=" + RestApiCompatibleVersion.minimumSupported().major
                 )
                 .addHeader(
                     "Content-Type",
-                    "application/vnd.elasticsearch+json;compatible-with=" + Version.CURRENT.minimumRestCompatibilityVersion().major
+                    "application/vnd.elasticsearch+json;compatible-with=" + RestApiCompatibleVersion.minimumSupported().major
                 )
                 .build();
             compatibleRequest.setOptions(compatibleOptions);

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.ElasticsearchDistribution
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.testkit.runner.BuildResult

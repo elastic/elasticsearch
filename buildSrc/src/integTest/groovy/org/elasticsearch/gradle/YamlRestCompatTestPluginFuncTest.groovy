@@ -296,8 +296,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         }
 
         when:
-        //TODO: remove "-i" once https://github.com/elastic/elasticsearch/issues/68973 is resolved
-        result = gradleRunner(transformTask, "-i").build()
+        result = gradleRunner(transformTask).build()
 
         then:
         result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE

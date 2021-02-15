@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -336,10 +337,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
 
         boolean required = consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER;
         for (RestApiCompatibleVersion restApiCompatibleVersion : parseField.getRestApiCompatibleVersions()) {
-            constructorArgInfos.putIfAbsent(restApiCompatibleVersion, new ArrayList<>());
-            constructorArgInfos.get(restApiCompatibleVersion)
-                .add(new ConstructorArgInfo(parseField, required));
+
+            constructorArgInfos.computeIfAbsent(restApiCompatibleVersion, (v)-> new ArrayList<>())
+                    .add(new ConstructorArgInfo(parseField, required));
         }
+        EnumMap<RestApiCompatibleVersion,List<ConstructorArgInfo>> em = new EnumMap<>(RestApiCompatibleVersion.class);
+
         //calculate the positions for the arguments
         return constructorArgInfos.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
     }

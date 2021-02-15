@@ -13,9 +13,18 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /**
  * A type of {@link RestTestTransform} that finds the transformation by a given key in to an {@link ObjectNode}.
  */
-public interface RestTestTransformByObjectKey extends RestTestTransform<ObjectNode> {
+public interface RestTestTransformByParentObject extends RestTestTransform<ObjectNode> {
+
     /**
      * @return The name of key to find in the REST test
      */
     String getKeyToFind();
+
+    /**
+     * @return If the value of the ObjectNode is also an ObjectNode, ensure that child key name is also satisfied.
+     * {@code null} to indicate no required children.
+     */
+    default String requiredChildKey() {
+        return null;
+    }
 }

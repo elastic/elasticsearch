@@ -222,7 +222,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * If the realm's CA path is monitored for changes and the underlying SSL context is reloaded, then we will get two different outcomes
      * (one failure, one success) depending on which file content is in place.
      */
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68995")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68995")
     public void testSslTrustIsReloaded() throws Exception {
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
         InetAddress listenAddress = ldapServer.getListenAddress("ldaps");

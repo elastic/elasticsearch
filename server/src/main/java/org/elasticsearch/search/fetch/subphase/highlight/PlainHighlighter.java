@@ -107,9 +107,9 @@ public class PlainHighlighter implements Highlighter {
                 throw new IllegalArgumentException(
                     "The length [" + textLength + "] of field [" + field +"] in doc[" + hitContext.hit().getId() + "]/index["
                         + context.getIndexName() +"] exceeds the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] "
-                        + "limit [" + maxAnalyzedOffset + "]. By setting the query parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] "
-                        + "to a value lower than the index limit [" + maxAnalyzedOffset + "], long fields will be returned truncated "
-                        + "instead of causing this error."
+                        + "limit [" + maxAnalyzedOffset + "]. To avoid this error, set the query parameter ["
+                        + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting [" + maxAnalyzedOffset + "] and "
+                        + "this will tolerate long field values by truncating them."
                 );
             }
 

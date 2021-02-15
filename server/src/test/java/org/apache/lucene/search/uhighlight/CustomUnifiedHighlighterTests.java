@@ -281,8 +281,8 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         });
         assertEquals(
             "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. "
-                + "By setting the query parameter [max_analyzed_offset] to a value lower than the index limit [10], long fields will be "
-                + "returned truncated instead of causing this error.",
+                + "To avoid this error, set the query parameter [max_analyzed_offset] to a value less than index setting [10] and this "
+                + "will tolerate long field values by truncating them.",
             e.getMessage()
         );
 
@@ -303,8 +303,8 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         });
         assertEquals(
             "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. "
-                + "By setting the query parameter [max_analyzed_offset] to a value lower than the index limit [10], long fields will be "
-                + "returned truncated instead of causing this error.",
+                + "To avoid this error, set the query parameter [max_analyzed_offset] to a value less than index setting [10] and this "
+                + "will tolerate long field values by truncating them.",
             e.getMessage()
         );
 

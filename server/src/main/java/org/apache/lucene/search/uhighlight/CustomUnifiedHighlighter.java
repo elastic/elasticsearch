@@ -129,9 +129,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
                 "The length [" + fieldValueLength + "] of field [" + field +"] in doc[" + docId + "]/index[" + index +"] exceeds the ["
-                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. By setting the query "
-                    + "parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value lower than the index limit ["
-                    + maxAnalyzedOffset + "], long fields will be returned truncated instead of causing this error."
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. To avoid this error, set "
+                    + "the query parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting ["
+                    + maxAnalyzedOffset + "] and this will tolerate long field values by truncating them."
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);

@@ -8,21 +8,15 @@
 
 package org.elasticsearch.gradle.test.rest.transform.header;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.feature.InjectFeatureTests;
 import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
-import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.LongAdder;
 
 public class InjectHeaderTests extends InjectFeatureTests {
 
@@ -76,33 +70,5 @@ public class InjectHeaderTests extends InjectFeatureTests {
     @Override
     protected boolean getHumanDebug() {
         return false;
-    }
-
-    private void validateBodyHasHeaders(List<ObjectNode> tests, Map<String, String> headers) {
-        tests.forEach(test -> {
-            Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
-            while (testsIterator.hasNext()) {
-                Map.Entry<String, JsonNode> testObject = testsIterator.next();
-                assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
-                ArrayNode testBody = (ArrayNode) testObject.getValue();
-                testBody.forEach(arrayObject -> {
-                    assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
-                    ObjectNode testSection = (ObjectNode) arrayObject;
-                    if (testSection.get("do") != null) {
-                        ObjectNode doSection = (ObjectNode) testSection.get("do");
-                        assertThat(doSection.get("headers"), CoreMatchers.notNullValue());
-                        ObjectNode headersNode = (ObjectNode) doSection.get("headers");
-                        LongAdder assertions = new LongAdder();
-                        headers.forEach((k, v) -> {
-                            assertThat(headersNode.get(k), CoreMatchers.notNullValue());
-                            TextNode textNode = (TextNode) headersNode.get(k);
-                            assertThat(textNode.asText(), CoreMatchers.equalTo(v));
-                            assertions.increment();
-                        });
-                        assertThat(assertions.intValue(), CoreMatchers.equalTo(headers.size()));
-                    }
-                });
-            }
-        });
     }
 }

@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
@@ -160,7 +161,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(indices.get(writeIndexPosition), newBackingIndex));
     }
 
-    public void testReconcile() {
+    public void testSnapshot() {
         var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
         var indicesToRemove = randomSubsetOf(preSnapshotDataStream.getIndices());
         if (indicesToRemove.size() == preSnapshotDataStream.getIndices().size()) {
@@ -172,83 +173,37 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         postSnapshotIndices.removeAll(indicesToRemove);
         postSnapshotIndices.addAll(indicesToAdd);
 
-        boolean changedMetadata = randomBoolean();
-        var postSnapshotMetadata = new HashMap<String, Object>();
-        if (preSnapshotDataStream.getMetadata() != null) {
-            postSnapshotMetadata.putAll(preSnapshotDataStream.getMetadata());
-        }
-        if (changedMetadata) {
-            postSnapshotMetadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        }
-
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
             preSnapshotDataStream.getTimeStampField(),
             postSnapshotIndices,
-            preSnapshotDataStream.getGeneration(),
-            postSnapshotMetadata,
+            preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
+            preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
             preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated()
-        );
+            preSnapshotDataStream.isReplicated() && randomBoolean());
 
-        var reconciledDataStream = preSnapshotDataStream.reconcile(postSnapshotDataStream);
+        var reconciledDataStream =
+            postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()));
 
-        assertThat(reconciledDataStream.getName(), equalTo(preSnapshotDataStream.getName()));
-        assertThat(reconciledDataStream.getTimeStampField(), equalTo(preSnapshotDataStream.getTimeStampField()));
-        assertThat(reconciledDataStream.getGeneration(), equalTo(preSnapshotDataStream.getGeneration()));
-        assertThat(
-            new HashSet<>(reconciledDataStream.getMetadata().entrySet()),
-            hasItems(postSnapshotDataStream.getMetadata().entrySet().toArray())
-        );
-        assertThat(reconciledDataStream.isHidden(), equalTo(preSnapshotDataStream.isHidden()));
-        assertThat(reconciledDataStream.isReplicated(), equalTo(preSnapshotDataStream.isReplicated()));
+        assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
+        assertThat(reconciledDataStream.getTimeStampField(), equalTo(postSnapshotDataStream.getTimeStampField()));
+        assertThat(reconciledDataStream.getGeneration(), equalTo(postSnapshotDataStream.getGeneration()));
+        if (reconciledDataStream.getMetadata() != null) {
+            assertThat(
+                new HashSet<>(reconciledDataStream.getMetadata().entrySet()),
+                hasItems(postSnapshotDataStream.getMetadata().entrySet().toArray())
+            );
+        } else {
+            assertNull(postSnapshotDataStream.getMetadata());
+        }
+        assertThat(reconciledDataStream.isHidden(), equalTo(postSnapshotDataStream.isHidden()));
+        assertThat(reconciledDataStream.isReplicated(), equalTo(postSnapshotDataStream.isReplicated()));
         assertThat(reconciledDataStream.getIndices(), everyItem(not(in(indicesToRemove))));
         assertThat(reconciledDataStream.getIndices(), everyItem(not(in(indicesToAdd))));
         assertThat(reconciledDataStream.getIndices().size(), equalTo(preSnapshotDataStream.getIndices().size() - indicesToRemove.size()));
     }
 
-    public void testReconcileWithInvalidDifferences() {
-        final String expectedError =
-            "cannot reconcile data streams with differing names, timestamp fields, hidden statuses, or replicated statuses";
-        var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
-        var changedName = new DataStream(
-            randomAlphaOfLength(50),
-            preSnapshotDataStream.getTimeStampField(),
-            preSnapshotDataStream.getIndices(),
-            preSnapshotDataStream.getGeneration(),
-            preSnapshotDataStream.getMetadata(),
-            preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated()
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> preSnapshotDataStream.reconcile(changedName));
-        assertThat(e.getMessage(), containsString(expectedError));
-
-        var changedHidden = new DataStream(
-            preSnapshotDataStream.getName(),
-            preSnapshotDataStream.getTimeStampField(),
-            preSnapshotDataStream.getIndices(),
-            preSnapshotDataStream.getGeneration(),
-            preSnapshotDataStream.getMetadata(),
-            preSnapshotDataStream.isHidden() ? false : true,
-            preSnapshotDataStream.isReplicated()
-        );
-        e = expectThrows(IllegalArgumentException.class, () -> preSnapshotDataStream.reconcile(changedHidden));
-        assertThat(e.getMessage(), containsString(expectedError));
-
-        var changedReplicated = new DataStream(
-            preSnapshotDataStream.getName(),
-            preSnapshotDataStream.getTimeStampField(),
-            preSnapshotDataStream.getIndices(),
-            preSnapshotDataStream.getGeneration(),
-            preSnapshotDataStream.getMetadata(),
-            preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated() ? false : true
-        );
-        e = expectThrows(IllegalArgumentException.class, () -> preSnapshotDataStream.reconcile(changedReplicated));
-        assertThat(e.getMessage(), containsString(expectedError));
-    }
-
-    public void testReconcileWithAllBackingIndicesRemoved() {
+    public void testSnapshotWithAllBackingIndicesRemoved() {
         var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
         var indicesToAdd = DataStreamTestHelper.randomIndexInstances();
 
@@ -264,9 +219,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> preSnapshotDataStream.reconcile(postSnapshotDataStream)
+            () -> postSnapshotDataStream.snapshot(
+                preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+            )
         );
-        assertThat(e.getMessage(), containsString("cannot reconcile data streams in which all pre-snapshot backing indices were deleted"));
+        assertThat(e.getMessage(), containsString("cannot reconcile data stream without at least one backing index"));
     }
-
 }

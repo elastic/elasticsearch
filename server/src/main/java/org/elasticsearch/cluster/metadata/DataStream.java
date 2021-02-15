@@ -173,38 +173,27 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
-     * Reconciles this data stream with its state at the end of the snapshot.
+     * Reconciles this data stream with a list of indices available in a snapshot. Allows snapshots to store accurate data
+     * stream definitions that do not reference backing indices not contained in the snapshot.
      *
-     * @param afterSnapshot The post-snapshot data stream
+     * @param indices List of indices in the snapshot
      * @return Reconciled {@link DataStream} instance
      */
-    public DataStream reconcile(DataStream afterSnapshot) {
-        if (name.equals(afterSnapshot.name) == false ||
-            timeStampField.equals(afterSnapshot.timeStampField) == false ||
-            hidden != afterSnapshot.hidden ||
-            replicated != afterSnapshot.replicated) {
-            throw new IllegalArgumentException(
-                "cannot reconcile data streams with differing names, timestamp fields, hidden statuses, or replicated statuses"
-            );
-        }
-
-        // starting from the pre-snapshot state ensures that any indices added during snapshot are excluded
+    public DataStream snapshot(List<String> indices) {
+        // do not include indices not available in the snapshot
         List<Index> reconciledIndices = new ArrayList<>(this.indices);
-        // do not include indices deleted during snapshot
-        reconciledIndices.removeIf(x -> afterSnapshot.indices.contains(x) == false);
+        reconciledIndices.removeIf(x -> indices.contains(x.getName()) == false);
 
         if (reconciledIndices.size() == 0) {
-            throw new IllegalArgumentException("cannot reconcile data streams in which all pre-snapshot backing indices were deleted");
+            throw new IllegalArgumentException("cannot reconcile data stream without at least one backing index");
         }
 
-        // take metadata from later data stream
-        // generation must come from the pre-snapshot DS
         return new DataStream(
             name,
             timeStampField,
             reconciledIndices,
             generation,
-            new HashMap<>(afterSnapshot.metadata),
+            metadata == null ? null : new HashMap<>(metadata),
             hidden,
             replicated
         );

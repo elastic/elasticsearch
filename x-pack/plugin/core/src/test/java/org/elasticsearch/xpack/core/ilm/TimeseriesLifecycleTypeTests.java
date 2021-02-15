@@ -257,9 +257,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hot = new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
-            SearchableSnapshotAction.NAME, new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))));
-            Phase warm = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
+            Phase hot = new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+                new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
+                new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))));
+            Phase warm = new Phase("warm", TimeValue.ZERO,
+                org.elasticsearch.common.collect.Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
             Phase cold = new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction()));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(

@@ -96,6 +96,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -300,14 +301,17 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
         }, (policyName, filtersList) -> {
             EventFilterPolicy.parsePredicate(filtersList);
-            EventFilterPolicy.testtest(filtersList);
-            });
+            eventFilterPolicyRegistry.get(policyName).orElse(new EventFilterPolicy(policyName, settings)).
+                validateIndexPrivilege(filtersList); });
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_CLUSTER_PRIVILEGES, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings)).
                 changeClusterPrivilegesFilter(filtersList);
             this.eventFilterPolicyRegistry.set(policyName, newPolicy);
-        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        }, (policyName, filtersList) -> {
+            EventFilterPolicy.parsePredicate(filtersList);
+            eventFilterPolicyRegistry.get(policyName).orElse(new EventFilterPolicy(policyName, settings)).
+                validateClusterPrivilege(filtersList); });
         // this log filter ensures that audit events are not filtered out because of the log level
         final LoggerContext ctx = LoggerContext.getContext(false);
         MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
@@ -1422,7 +1426,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             this.ignoreIndexPrivilegesPredicate = ignoreIndexPrivilegesPredicate;
             this.ignoreClusterPrivilegesPredicate = ignoreClusterPrivilegesPredicate;
 
-            if (!ignoreIndexPrivilegesPredicate.test("") && !ignoreClusterPrivilegesPredicate.test("")) {
+            if (ignoreIndexPrivilegesPredicate.test("") == false && ignoreClusterPrivilegesPredicate.test("") == false) {
                 final String message = String.format(
                     Locale.ROOT,
                     "Both Index and Cluster privilege ignore filters are set for policy [%s]. " +
@@ -1430,7 +1434,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 throw new IllegalArgumentException(message);
             }
 
-            if (!ignoreClusterPrivilegesPredicate.test("")) {
+            if (ignoreClusterPrivilegesPredicate.test("") == false) {
                 ClusterPermission.Builder builder = ClusterPermission.builder();
                 String[] clusterPrivileges = ignoreClusterPrivilegesPredicate.toString().split("\\|");
                 for (String privilege : clusterPrivileges) {
@@ -1441,10 +1445,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 this.clusterPermission = ClusterPermission.NONE;
             }
 
-            if (!ignoreIndexPrivilegesPredicate.test("")) {
+            if (ignoreIndexPrivilegesPredicate.test("") == false) {
                 List<IndicesPermission.Group> groups = new ArrayList<>();
-                groups.add(new IndicesPermission.Group(IndexPrivilege.get(Set.of(ignoreIndexPrivilegesPredicate.toString().split("\\|"))),
-                    FieldPermissions.DEFAULT, null, false, "*"));
+                Set<String> set = new HashSet<>(Arrays.stream(ignoreIndexPrivilegesPredicate.toString().split("\\|"))
+                    .collect(Collectors.toSet()));
+                groups.add(new IndicesPermission.Group(IndexPrivilege.get(set), FieldPermissions.DEFAULT, null, false, "*"));
                 this.indexPermission = groups.isEmpty() ? IndicesPermission.NONE :
                     new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
             } else {
@@ -1477,22 +1482,39 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate,
                     ignoreRolesPredicate, ignoreIndicesPredicate, parsePredicate(filtersList), ignoreClusterPrivilegesPredicate);
             } catch (IllegalArgumentException e) {
-                return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate,
-                    ignoreRolesPredicate, ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, ignoreClusterPrivilegesPredicate);
+                return this;
             }
         }
 
         private EventFilterPolicy changeClusterPrivilegesFilter(List<String> filtersList) {
-            return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
-                ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, parsePredicate(filtersList));
+            try {
+                return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
+                    ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, parsePredicate(filtersList));
+            } catch (IllegalArgumentException e) {
+                return this;
+            }
         }
 
         static Predicate<String> parsePredicate(List<String> l) {
             return Automatons.predicate(emptyStringBuildsEmptyAutomaton(l));
         }
 
-        static void testtest(List<String> l) {
-            throw new IllegalStateException("Cannot dynamically update SSL settings for the exporter");
+        private void validateIndexPrivilege(List<String> l) {
+            try {
+                new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate,
+                    ignoreRolesPredicate, ignoreIndicesPredicate, parsePredicate(l), ignoreClusterPrivilegesPredicate);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid setting for `index_privileges` audit policy filter found: " + e.getMessage());
+            }
+        }
+
+        private void validateClusterPrivilege(List<String> l) {
+            try {
+                new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate,
+                    ignoreRolesPredicate, ignoreIndicesPredicate, ignoreIndexPrivilegesPredicate, parsePredicate(l));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid setting for `index_privileges` audit policy filter found: " + e.getMessage());
+            }
         }
 
         /**

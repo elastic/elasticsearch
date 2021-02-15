@@ -99,5 +99,4 @@ public class InjectFeatureTests extends TransformTests {
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
     }
-
 }

@@ -3,7 +3,16 @@ setup:
   - skip:
       features: warnings
 ---
-"Test with existing warnings":
+"Test warnings":
+  - do:
+      warnings:
+        - "a"
+        - "b"
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+---
+"Not the test to change":
   - do:
       warnings:
         - "a"

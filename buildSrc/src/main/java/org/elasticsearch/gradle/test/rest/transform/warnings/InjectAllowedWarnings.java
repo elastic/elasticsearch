@@ -16,7 +16,9 @@ import org.elasticsearch.gradle.test.rest.transform.feature.FeatureInjector;
 
 import java.util.List;
 
-//TODO
+/**
+ * A transformation to inject an allowed warning.
+ */
 public class InjectAllowedWarnings extends FeatureInjector implements RestTestTransformByParentObject {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);

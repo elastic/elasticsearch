@@ -11,6 +11,7 @@ package org.elasticsearch.gradle
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.ObjectReader
 import com.fasterxml.jackson.databind.ObjectWriter
+import com.fasterxml.jackson.databind.SequenceWriter
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
@@ -205,6 +206,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.removeMatch("_source.blah")
               task.removeMatch("_source.junk", "two")
               task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
+              task.addWarning("one", "warning1", "warning2")
             })
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
@@ -249,7 +251,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         ---
         setup:
         - skip:
-            features: "headers"
+            features:
+            - "headers"
+            - "warnings"
         ---
         one:
         - do:
@@ -257,8 +261,11 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               index: "test"
               id: 1
             headers:
-              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
               Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+            warnings:
+            - "warning1"
+            - "warning2"
         - match:
             _source.values:
             - "z"
@@ -280,8 +287,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               index: "test"
               id: 1
             headers:
-              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
               Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         - match:
             _source.values:
             - "foo"
@@ -290,6 +297,15 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - match: {}
         - match: {}
         """.stripIndent()).readAll()
+
+        boolean humanDebug = false;
+        if(humanDebug) {
+            SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
+            for (ObjectNode transformedTest : actual) {
+                sequenceWriter.write(transformedTest)
+            }
+            sequenceWriter.close()
+        }
 
         expectedAll.eachWithIndex{ ObjectNode expected, int i ->
            assert expected == actual.get(i)

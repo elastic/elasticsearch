@@ -11,23 +11,31 @@ package org.elasticsearch.gradle.test.rest.transform.warnings;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.elasticsearch.gradle.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.test.rest.transform.feature.FeatureInjector;
+import org.gradle.api.tasks.Input;
 
 import java.util.List;
+import java.util.Objects;
 
-//TODO
+/**
+ * A transformation to inject an expected warning for a given test.
+ */
 public class InjectWarnings extends FeatureInjector implements RestTestTransformByParentObject {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private final List<String> warnings;
+    private final String testName;
 
     /**
-     * @param warnings The allowed warnings to inject
+     * @param warnings The warnings to inject
+     * @param testName The testName to inject
      */
-    public InjectWarnings(List<String> warnings) {
+    public InjectWarnings(List<String> warnings, String testName) {
         this.warnings = warnings;
+        this.testName = Objects.requireNonNull(testName, "inject warnings is only supported for named tests");
     }
 
     @Override
@@ -49,5 +57,20 @@ public class InjectWarnings extends FeatureInjector implements RestTestTransform
     @Override
     public String getSkipFeatureName() {
         return "warnings";
+    }
+
+    @Override
+    public boolean shouldApply(RestTestContext testContext) {
+        return testName.equals(testContext.getTestName());
+    }
+
+    @Input
+    public List<String> getWarnings() {
+        return warnings;
+    }
+
+    @Input
+    public String getTestName() {
+        return testName;
     }
 }

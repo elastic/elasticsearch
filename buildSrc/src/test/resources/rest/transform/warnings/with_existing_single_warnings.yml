@@ -3,7 +3,7 @@ setup:
   - skip:
       features: warnings
 ---
-"Test with existing single warnings":
+"Test warnings":
   - do:
       warnings:
         - "a"

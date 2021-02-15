@@ -1,5 +1,11 @@
 ---
-"Test without any warnings":
+"Test warnings":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+---
+"Test another":
   - do:
       something:
         id: "something"

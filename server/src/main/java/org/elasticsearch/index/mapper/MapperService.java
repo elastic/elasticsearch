@@ -14,7 +14,6 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -223,7 +222,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final Map<String, DocumentMapper> updatedEntries;
         try {
             // only update entries if needed
-            updatedEntries = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
+            updatedEntries = merge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
@@ -270,7 +269,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private void assertMappingVersion(
         final IndexMetadata currentIndexMetadata,
         final IndexMetadata newIndexMetadata,
-        final Map<String, DocumentMapper> updatedEntries) throws IOException {
+        final Map<String, DocumentMapper> updatedEntries) {
         if (Assertions.ENABLED
             && currentIndexMetadata != null
             && currentIndexMetadata.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
@@ -337,43 +336,78 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
         }
-
-        internalMerge(mappingSourcesCompressed, reason);
+        mergeAndApplyMappings(mappingSourcesCompressed, reason);
     }
 
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
         CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
-        internalMerge(Collections.singletonMap(type, content), reason);
+        mergeAndApplyMappings(Collections.singletonMap(type, content), reason);
     }
 
-    public void merge(IndexMetadata indexMetadata, MergeReason reason) {
-        internalMerge(indexMetadata, reason);
-    }
-
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        return internalMerge(Collections.singletonMap(type, mappingSource), reason).get(type);
-    }
-
-    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
+    public Map<String, DocumentMapper> merge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
         for (ObjectCursor<MappingMetadata> cursor : indexMetadata.getMappings().values()) {
             MappingMetadata mappingMetadata = cursor.value;
             map.put(mappingMetadata.type(), mappingMetadata.source());
         }
-        return internalMerge(map, reason);
+        return mergeAndApplyMappings(map, reason);
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(Map<String, CompressedXContent> mappings, MergeReason reason) {
-        DocumentMapper defaultMapper = null;
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
+        return mergeAndApplyMappings(Collections.singletonMap(type, mappingSource), reason).get(type);
+    }
+
+    private synchronized Map<String, DocumentMapper> mergeAndApplyMappings(Map<String, CompressedXContent> mappings, MergeReason reason) {
+        Map<String, Mapping> mergedMappings = mergeMappings(mappings, reason);
+
+        String newDefaultMappingSource = null;
+        DocumentMapper newDefaultMapper = null;
+        DocumentMapper newMapper = null;
+        Map<String, DocumentMapper> documentMappers = new LinkedHashMap<>();
+        for (Map.Entry<String, Mapping> entry : mergedMappings.entrySet()) {
+            String type = entry.getKey();
+            DocumentMapper newDocumentMapper = newDocumentMapper(entry.getValue(), reason);
+            if (type.equals(DEFAULT_MAPPING)) {
+                newDefaultMappingSource = mappings.get(DEFAULT_MAPPING).string();
+                newDefaultMapper = newDocumentMapper;
+            } else {
+                assert newMapper == null;
+                newMapper = newDocumentMapper;
+            }
+            documentMappers.put(type, newDocumentMapper);
+        }
+        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
+            return documentMappers;
+        }
+
+        if (newDefaultMappingSource != null) {
+            this.defaultMappingSource = newDefaultMappingSource;
+            this.defaultMapper = newDefaultMapper;
+        }
+        if (newMapper != null) {
+            this.mapper = newMapper;
+        }
+        assert documentMappers.values().stream().allMatch(this::assertSerialization);
+        return documentMappers;
+    }
+
+    private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
+        DocumentMapper newMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
+        newMapper.root().fixRedundantIncludes();
+        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
+        return newMapper;
+    }
+
+    private Map<String, Mapping> mergeMappings(Map<String, CompressedXContent> mappings, MergeReason reason) {
+        Mapping defaultMapping = null;
         String defaultMappingSource = null;
 
         if (mappings.containsKey(DEFAULT_MAPPING)) {
             // verify we can parse it
             // NOTE: never apply the default here
             try {
-                defaultMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser,
-                    mappingParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING)));
+                defaultMapping = mappingParser.parse(DEFAULT_MAPPING, mappings.get(DEFAULT_MAPPING));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, DEFAULT_MAPPING, e.getMessage());
             }
@@ -387,17 +421,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             defaultMappingSourceOrLastStored = this.defaultMappingSource;
         }
 
-        DocumentMapper documentMapper = null;
+        Mapping incomingMapping = null;
         for (Map.Entry<String, CompressedXContent> entry : mappings.entrySet()) {
             String type = entry.getKey();
             if (type.equals(DEFAULT_MAPPING)) {
                 continue;
             }
-
-            if (documentMapper != null) {
+            if (incomingMapping != null) {
                 throw new IllegalArgumentException("Cannot put multiple mappings: " + mappings.keySet());
             }
-
             final boolean applyDefault =
                 // the default was already applied if we are recovering
                 reason != MergeReason.MAPPING_RECOVERY
@@ -405,14 +437,47 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     && this.mapper == null;
 
             try {
-                documentMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser,
-                    mappingParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null));
+                incomingMapping = mappingParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
         }
 
-        return internalMerge(defaultMapper, defaultMappingSource, documentMapper, reason);
+        Map<String, Mapping> results = new LinkedHashMap<>(2);
+        if (defaultMapping != null) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
+                throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
+            } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
+                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
+            }
+            assert defaultMapping.root().name().equals(DEFAULT_MAPPING);
+            results.put(DEFAULT_MAPPING, defaultMapping);
+        }
+        if (incomingMapping != null) {
+            validateTypeName(incomingMapping.root().name());
+            Mapping newMapping;
+            DocumentMapper currentMapper = this.mapper;
+            if (currentMapper != null) {
+                newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+            } else {
+                newMapping = incomingMapping;
+            }
+            results.put(newMapping.root().name(), newMapping);
+        }
+        return Collections.unmodifiableMap(results);
+    }
+
+    private boolean assertSerialization(DocumentMapper mapper) {
+        // capture the source now, it may change due to concurrent parsing
+        final CompressedXContent mappingSource = mapper.mappingSource();
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+
+        if (newMapper.mappingSource().equals(mappingSource) == false) {
+            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+                + mappingSource + "]\n--> Result ["
+                + newMapper.mappingSource() + "]");
+        }
+        return true;
     }
 
     static void validateTypeName(String type) {
@@ -436,72 +501,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (type.charAt(0) == '.') {
             throw new IllegalArgumentException("mapping type name [" + type + "] must not start with a '.'");
         }
-    }
-
-    private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper,
-        @Nullable String defaultMappingSource, DocumentMapper mapper, MergeReason reason) {
-
-        Map<String, DocumentMapper> results = new LinkedHashMap<>(2);
-
-        if (defaultMapper != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException(DEFAULT_MAPPING_ERROR_MESSAGE);
-            } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "default_mapping_not_allowed", DEFAULT_MAPPING_ERROR_MESSAGE);
-            }
-            assert defaultMapper.type().equals(DEFAULT_MAPPING);
-            results.put(DEFAULT_MAPPING, defaultMapper);
-        }
-
-        DocumentMapper newMapper = null;
-        if (mapper != null) {
-            // check naming
-            validateTypeName(mapper.type());
-
-            // compute the merged DocumentMapper
-            DocumentMapper oldMapper = this.mapper;
-            if (oldMapper != null) {
-                newMapper = oldMapper.merge(mapper.mapping(), reason);
-            } else {
-                newMapper = mapper;
-            }
-
-            newMapper.root().fixRedundantIncludes();
-            newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
-            results.put(newMapper.type(), newMapper);
-        }
-
-        // make structures immutable
-        results = Collections.unmodifiableMap(results);
-
-        if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            return results;
-        }
-
-        // commit the change
-        if (defaultMappingSource != null) {
-            this.defaultMappingSource = defaultMappingSource;
-            this.defaultMapper = defaultMapper;
-        }
-        if (newMapper != null) {
-            this.mapper = newMapper;
-        }
-
-        assert results.values().stream().allMatch(this::assertSerialization);
-        return results;
-    }
-
-    private boolean assertSerialization(DocumentMapper mapper) {
-        // capture the source now, it may change due to concurrent parsing
-        final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
-
-        if (newMapper.mappingSource().equals(mappingSource) == false) {
-            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
-                + mappingSource + "]\n--> Result ["
-                + newMapper.mappingSource() + "]");
-        }
-        return true;
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {

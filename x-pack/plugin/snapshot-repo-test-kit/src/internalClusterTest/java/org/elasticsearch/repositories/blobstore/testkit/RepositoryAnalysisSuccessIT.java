@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -42,18 +43,18 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
-
-    // These tests are incomplete and do not currently verify that the speed test picks up on any particular repository-side failures
-    // TODO complete these tests
+public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
     @Before
     public void suppressConsistencyChecks() {
@@ -65,16 +66,16 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
         return List.of(TestPlugin.class, LocalStateCompositeXPackPlugin.class, SnapshotRepositoryTestKit.class);
     }
 
-    public void testFoo() {
+    public void testRepositoryAnalysis() {
 
-        createRepositoryNoVerify("test-repo", TestPlugin.DISRUPTABLE_REPO_TYPE);
+        createRepositoryNoVerify("test-repo", TestPlugin.ASSERTING_REPO_TYPE);
 
-        final DisruptableBlobStore blobStore = new DisruptableBlobStore();
+        final AssertingBlobStore blobStore = new AssertingBlobStore();
         for (final RepositoriesService repositoriesService : internalCluster().getInstances(RepositoriesService.class)) {
             try {
-                ((DisruptableRepository) repositoriesService.repository("test-repo")).setBlobStore(blobStore);
+                ((AssertingRepository) repositoriesService.repository("test-repo")).setBlobStore(blobStore);
             } catch (RepositoryMissingException e) {
-                // it's only present on voting masters and data nodes
+                // nbd, it's only present on voting masters and data nodes
             }
         }
 
@@ -96,16 +97,23 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
             blobStore.ensureMaxBlobSize(request.getMaxBlobSize().getBytes());
         }
 
+        if (usually()) {
+            request.maxTotalDataSize(new ByteSizeValue(between(1, 1 << 20)));
+            blobStore.ensureMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
+        }
+
         request.timeout(TimeValue.timeValueSeconds(5));
 
-        final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet();
+        final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request)
+            .actionGet(30L, TimeUnit.SECONDS);
 
         assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(blobStore.currentPath, nullValue());
     }
 
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
 
-        static final String DISRUPTABLE_REPO_TYPE = "disruptable";
+        static final String ASSERTING_REPO_TYPE = "asserting";
 
         @Override
         public Map<String, Repository.Factory> getRepositories(
@@ -116,8 +124,8 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
             RecoverySettings recoverySettings
         ) {
             return Map.of(
-                DISRUPTABLE_REPO_TYPE,
-                metadata -> new DisruptableRepository(
+                ASSERTING_REPO_TYPE,
+                metadata -> new AssertingRepository(
                     metadata,
                     namedXContentRegistry,
                     clusterService,
@@ -129,11 +137,11 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    static class DisruptableRepository extends BlobStoreRepository {
+    static class AssertingRepository extends BlobStoreRepository {
 
         private final AtomicReference<BlobStore> blobStoreRef = new AtomicReference<>();
 
-        DisruptableRepository(
+        AssertingRepository(
             RepositoryMetadata metadata,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
@@ -154,38 +162,55 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
             assertNotNull(blobStore);
             return blobStore;
         }
-
-        @Override
-        public String startVerification() {
-            return null; // suppress verify-on-register since we need to wire up all the nodes' repositories first
-        }
     }
 
-    static class DisruptableBlobStore implements BlobStore {
+    static class AssertingBlobStore implements BlobStore {
 
-        private final Map<String, DisruptableBlobContainer> blobContainers = ConcurrentCollections.newConcurrentMap();
+        @Nullable // if no current blob container
+        private String currentPath;
+
+        @Nullable // if no current blob container
+        private AssertingBlobContainer currentBlobContainer;
+
         private Semaphore writeSemaphore = new Semaphore(new RepositoryAnalyzeAction.Request("dummy").getConcurrency());
         private int maxBlobCount = new RepositoryAnalyzeAction.Request("dummy").getBlobCount();
         private long maxBlobSize = new RepositoryAnalyzeAction.Request("dummy").getMaxBlobSize().getBytes();
+        private long maxTotalBlobSize = new RepositoryAnalyzeAction.Request("dummy").getMaxTotalDataSize().getBytes();
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             assertThat(path.buildAsString(), startsWith("temp-analysis-"));
-            return blobContainers.computeIfAbsent(
-                path.buildAsString(),
-                ignored -> new DisruptableBlobContainer(path, this::deleteContainer, writeSemaphore, maxBlobCount, maxBlobSize)
-            );
+
+            synchronized (this) {
+                if (currentPath == null) {
+                    currentPath = path.buildAsString();
+                    currentBlobContainer = new AssertingBlobContainer(
+                        path,
+                        this::deleteContainer,
+                        writeSemaphore,
+                        maxBlobCount,
+                        maxBlobSize,
+                        maxTotalBlobSize
+                    );
+                }
+                assertThat(path.buildAsString(), equalTo(currentPath));
+                return currentBlobContainer;
+            }
         }
 
-        private void deleteContainer(DisruptableBlobContainer container) {
-            assertNotNull("container " + container.path() + " not found", blobContainers.remove(container.path().buildAsString()));
+        private void deleteContainer(AssertingBlobContainer container) {
+            synchronized (this) {
+                assertThat(currentPath, equalTo(container.path.buildAsString()));
+                currentPath = null;
+                currentBlobContainer = null;
+            }
         }
 
         @Override
         public void close() {}
 
         public void ensureMaxWriteConcurrency(int concurrency) {
-            writeSemaphore = new Semaphore(concurrency);
+            this.writeSemaphore = new Semaphore(concurrency);
         }
 
         public void ensureMaxBlobCount(int maxBlobCount) {
@@ -195,31 +220,39 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
         public void ensureMaxBlobSize(long maxBlobSize) {
             this.maxBlobSize = maxBlobSize;
         }
+
+        public void ensureMaxTotalBlobSize(long maxTotalBlobSize) {
+            this.maxTotalBlobSize = maxTotalBlobSize;
+        }
     }
 
-    static class DisruptableBlobContainer implements BlobContainer {
+    static class AssertingBlobContainer implements BlobContainer {
 
         private static final byte[] EMPTY = new byte[0];
 
         private final BlobPath path;
-        private final Consumer<DisruptableBlobContainer> deleteContainer;
+        private final Consumer<AssertingBlobContainer> deleteContainer;
         private final Semaphore writeSemaphore;
         private final int maxBlobCount;
         private final long maxBlobSize;
+        private final long maxTotalBlobSize;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
+        private final AtomicLong totalBytesWritten = new AtomicLong();
 
-        DisruptableBlobContainer(
+        AssertingBlobContainer(
             BlobPath path,
-            Consumer<DisruptableBlobContainer> deleteContainer,
+            Consumer<AssertingBlobContainer> deleteContainer,
             Semaphore writeSemaphore,
             int maxBlobCount,
-            long maxBlobSize
+            long maxBlobSize,
+            long maxTotalBlobSize
         ) {
             this.path = path;
             this.deleteContainer = deleteContainer;
             this.writeSemaphore = writeSemaphore;
             this.maxBlobCount = maxBlobCount;
             this.maxBlobSize = maxBlobSize;
+            this.maxTotalBlobSize = maxTotalBlobSize;
         }
 
         @Override
@@ -273,9 +306,11 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
         private void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
             throws IOException {
 
+            final byte[] existingBlob = blobs.get(blobName);
             if (failIfAlreadyExists) {
-                assertNull("blob [" + blobName + "] must not exist", blobs.get(blobName));
+                assertNull("blob [" + blobName + "] must not exist", existingBlob);
             }
+            final int existingSize = existingBlob == null ? 0 : existingBlob.length;
 
             assertThat(blobSize, lessThanOrEqualTo(maxBlobSize));
 
@@ -285,6 +320,8 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
                 assertThat((long) contents.length, equalTo(blobSize));
                 blobs.put(blobName, contents);
                 assertThat(blobs.size(), lessThanOrEqualTo(maxBlobCount));
+                final long currentTotal = totalBytesWritten.addAndGet(blobSize - existingSize);
+                assertThat(currentTotal, lessThanOrEqualTo(maxTotalBlobSize));
             } finally {
                 writeSemaphore.release();
             }
@@ -293,7 +330,9 @@ public class RepositoryAnalysisIT extends AbstractSnapshotIntegTestCase {
         @Override
         public DeleteResult delete() {
             deleteContainer.accept(this);
-            return new DeleteResult(blobs.size(), blobs.values().stream().mapToLong(b -> b.length).sum());
+            final DeleteResult deleteResult = new DeleteResult(blobs.size(), blobs.values().stream().mapToLong(b -> b.length).sum());
+            blobs.clear();
+            return deleteResult;
         }
 
         @Override

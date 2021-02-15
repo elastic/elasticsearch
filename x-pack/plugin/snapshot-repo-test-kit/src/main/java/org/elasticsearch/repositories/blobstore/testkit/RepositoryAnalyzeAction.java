@@ -571,7 +571,6 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         private void deleteContainer() {
             try {
-                getBlobContainer().delete();
                 final BlobContainer blobContainer = getBlobContainer();
                 blobContainer.delete();
                 if (failure.get() != null) {
@@ -805,8 +804,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         public void earlyReadNodeCount(int earlyReadNodeCount) {
-            if (earlyReadNodeCount <= 0) {
-                throw new IllegalArgumentException("earlyReadNodeCount must be >0, but was [" + earlyReadNodeCount + "]");
+            if (earlyReadNodeCount < 0) {
+                throw new IllegalArgumentException("earlyReadNodeCount must be >=0, but was [" + earlyReadNodeCount + "]");
             }
             this.earlyReadNodeCount = earlyReadNodeCount;
         }

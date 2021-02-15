@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -419,7 +420,9 @@ public class NativePrivilegeStore {
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)
+        if (isMoveFromRedToNonRed(previousState, currentState)
+            || isIndexDeleted(previousState, currentState)
+            || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             invalidateAll();
         }

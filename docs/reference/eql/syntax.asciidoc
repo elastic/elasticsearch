@@ -162,13 +162,17 @@ the operator uses a case-sensitive lexicographic order.
 
 NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
-You cannot chain comparison operators. Instead, use a
+[discrete]
+[[limitations-for-comparisons]]
+=== Limitations for comparisons
+
+You cannot chain comparisons. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
 example, `foo < bar <= baz` is not supported. However, you can rewrite the
 expression as `foo < bar and bar <= baz`, which is supported.
 
-You also cannot use comparison operators to compare a field to another field.
-This applies even if the fields are changed using a <<eql-functions,function>>.
+You also cannot compare a field to another field, even if the fields are changed
+using a <<eql-functions,function>>.
 
 *Example* +
 The following EQL query compares the `process.parent_name` field
@@ -217,24 +221,22 @@ Returns `true` if the condition to the right is `false`.
 
 [source,eql]
 ----
-user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
-user.name in~ ("administrator", "system", "network service")
-user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
-user.name not in~ ("administrator", "system", "network service")
-user.name : ("administrator", "system", "network service")
+my_field in ("Foo", "BAR", "BAZ")       // case-sensitive
+my_field in~ ("foo", "bar", "baz")      // case-insensitive
+
+my_field not in ("Foo", "BAR", "BAZ")   // case-sensitive
+my_field not in~ ("foo", "bar", "baz")  // case-insensitive
+
+my_field : ("foo", "bar", "baz")        // case-insensitive
 ----
 
 `in` (case-sensitive)::
-Returns `true` if the value is contained in the provided list.
-
-`in~` (case-insensitive)::
-Returns `true` if the value is contained in the provided list.
+Returns `true` if the value is contained in the provided list. For
+case-insensitive matching, use `in~`.
 
 `not in` (case-sensitive)::
-Returns `true` if the value is not contained in the provided list.
-
-`not in~` (case-insensitive)::
-Returns `true` if the value is not contained in the provided list.
+Returns `true` if the value is not contained in the provided list. For
+case-insensitive matching, use `not in~`.
 
 `:` (case-insensitive)::
 Returns `true` if the string is contained in the provided list. Can only be used
@@ -814,7 +816,7 @@ recent sequence overwrites the older one.
 * If the query includes <<eql-by-keyword,`by` fields>>, the query uses a
 separate state machine for each unique `by` field value.
 
-.*Example* 
+.*Example*
 [%collapsible]
 ====
 A data set contains the following `process` events in ascending chronological
@@ -1024,5 +1026,4 @@ Pending sequence matches move through each machine's states as follows:
 // |  +-----------+     +-----------+     +------------+  |
 // +------------------------------------------------------+
 ----
-
 ====

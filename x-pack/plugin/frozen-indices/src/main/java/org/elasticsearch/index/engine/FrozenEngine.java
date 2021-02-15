@@ -62,9 +62,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
             this.docsStats = docsStats(reader);
-            final DirectoryReader wrappedReader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
-                new RewriteCachingDirectoryReader(directory, wrappedReader.leaves()), config.getShardId());
+                new RewriteCachingDirectoryReader(directory, reader.leaves()), config.getShardId());
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);

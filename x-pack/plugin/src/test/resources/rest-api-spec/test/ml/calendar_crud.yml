@@ -389,9 +389,6 @@
 
 ---
 "Test delete calendar deletes events":
-  - skip:
-      features: warnings
-
   - do:
       ml.put_calendar:
         calendar_id: "cal-foo"
@@ -427,32 +424,14 @@
 
 # Check the event from calendar 1 is deleted
   - do:
-      warnings:
-        - "this request accesses system indices: [.ml-meta], but in a future major version, direct access to system indices will be prevented by default"
-      count:
-        index: .ml-meta
-        body:
-          query:
-            constant_score:
-              filter:
-                term:
-                  type: scheduled_event
+      ml.get_calendar_events:
+        calendar_id: "*"
   - match: { count: 2 }
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.ml-meta], but in a future major version, direct access to system indices will be prevented by default"
-      count:
-        index: .ml-meta
-        body:
-          query:
-            bool:
-              must:
-                - term:
-                    type: scheduled_event
-                - term:
-                    calendar_id: cal-foo
-  - match: { count: 0 }
+      catch: missing
+      ml.get_calendar_events:
+        calendar_id: "cal-foo"
 
 ---
 "Test get all calendar events":

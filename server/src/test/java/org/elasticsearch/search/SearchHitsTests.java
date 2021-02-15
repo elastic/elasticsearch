@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -44,7 +33,7 @@ import java.util.function.Predicate;
 public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
-        return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+        return createTestItem(randomFrom(XContentType.values()).canonical(), withOptionalInnerHits, withShardTarget);
     }
 
     private static SearchHit[] createSearchHitArray(int size, XContentType xContentType, boolean withOptionalInnerHits,
@@ -105,7 +94,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         switch (randomIntBetween(0, 5)) {
             case 0:
                 return new SearchHits(createSearchHitArray(instance.getHits().length + 1,
-                    randomFrom(XContentType.values()), false, randomBoolean()),
+                    randomFrom(XContentType.values()).canonical(), false, randomBoolean()),
                     instance.getTotalHits(), instance.getMaxScore());
             case 1:
                 final TotalHits totalHits;
@@ -176,7 +165,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         // This instance is used to test the transport serialization so it's fine
         // to produce shard targets (withShardTarget is true) since they are serialized
         // in this layer.
-        return createTestItem(randomFrom(XContentType.values()), true, true);
+        return createTestItem(randomFrom(XContentType.values()).canonical(), true, true);
     }
 
     @Override
@@ -240,7 +229,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
             long totalHits = 1000;
             float maxScore = 1.5f;
             SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
-            XContentType xContentType = randomFrom(XContentType.values());
+            XContentType xContentType = randomFrom(XContentType.values()).canonical();
             BytesReference bytes = toShuffledXContent(searchHits, xContentType, ToXContent.EMPTY_PARAMS, false);
             try (XContentParser parser = xContentType.xContent()
                     .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {

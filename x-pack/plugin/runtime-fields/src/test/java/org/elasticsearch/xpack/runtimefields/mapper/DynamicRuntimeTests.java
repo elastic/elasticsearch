@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -21,7 +23,7 @@ import java.util.Collections;
 public class DynamicRuntimeTests extends MapperServiceTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singletonList(new RuntimeFields());
+        return Collections.singletonList(new RuntimeFields(Settings.EMPTY));
     }
 
     public void testDynamicLeafFields() throws IOException {

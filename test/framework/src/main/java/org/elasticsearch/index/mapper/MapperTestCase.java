@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -40,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -103,9 +92,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
         ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
-        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         MappedFieldType fieldType = mapperService.fieldType("field");
-        Query query = fieldType.existsQuery(queryShardContext);
+        Query query = fieldType.existsQuery(searchExecutionContext);
         assertExistsQuery(fieldType, query, fields);
     }
 
@@ -315,12 +304,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup);
-            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft));
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            result.set(valueFetcher.fetchValues(lookup.source()));
+            result.set(valueFetcher.fetchValues(lookup.source(), Collections.emptySet()));
         });
         return result.get();
     }
@@ -453,8 +442,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery(null, null));
         } else {
-            QueryShardContext queryShardContext = createQueryShardContext(mapperService);
-            assertNotNull(fieldType.termQuery(getSampleValueForQuery(), queryShardContext));
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+            assertNotNull(fieldType.termQuery(getSampleValueForQuery(), searchExecutionContext));
         }
         assertSearchable(fieldType);
         assertParseMinimalWarnings();

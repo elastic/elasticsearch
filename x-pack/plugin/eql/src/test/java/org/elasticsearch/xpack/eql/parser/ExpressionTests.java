@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -11,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -274,8 +276,8 @@ public class ExpressionTests extends ESTestCase {
             new UnresolvedAttribute(null, "some.field"),
             new Literal(null, "test string", DataTypes.KEYWORD)
         );
-        UnresolvedFunction.ResolutionType resolutionType = UnresolvedFunction.ResolutionType.STANDARD;
-        Expression expected = new UnresolvedFunction(null, "concat", resolutionType, arguments);
+        FunctionResolutionStrategy resolutionStrategy = FunctionResolutionStrategy.DEFAULT;
+        Expression expected = new UnresolvedFunction(null, "concat", resolutionStrategy, arguments);
 
         assertEquals(expected, expr("concat(some.field, \"test string\")"));
     }
@@ -394,7 +396,8 @@ public class ExpressionTests extends ESTestCase {
         }
         ParsingException e = expectThrows(ParsingException.class, () -> expr(sb.toString()));
         assertEquals("line 1:" + (6 + firstComparator.length()) + ": mismatched input '" + secondComparator +
-                        "' expecting {<EOF>, 'and', 'in', 'not', 'or', ':', '+', '-', '*', '/', '%', '.', '['}",
-                e.getMessage());
+            "' expecting {<EOF>, 'and', 'in', 'in~', 'like', 'like~', 'not', 'or', "
+            + "'regex', 'regex~', ':', '+', '-', '*', '/', '%', '.', '['}",
+            e.getMessage());
     }
 }

@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Converts a CCR following index into a normal, standalone index, once the index is ready to be safely separated.
@@ -32,27 +35,39 @@ public final class UnfollowAction implements LifecycleAction {
 
     public static final String NAME = "unfollow";
     public static final String CCR_METADATA_KEY = "ccr";
+    static final String OPEN_FOLLOWER_INDEX_STEP_NAME = "open-follower-index";
+    static final String CONDITIONAL_UNFOLLOW_STEP = BranchingStep.NAME + "-check-unfollow-prerequisites";
 
     public UnfollowAction() {}
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey preUnfollowKey = new StepKey(phase, NAME, CONDITIONAL_UNFOLLOW_STEP);
         StepKey indexingComplete = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
         StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
         StepKey pauseFollowerIndex = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
         StepKey closeFollowerIndex = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
-        StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
-        StepKey openFollowerIndex = new StepKey(phase, NAME, OpenFollowerIndexStep.NAME);
+        StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowerIndexStep.NAME);
+        // maintaining the `open-follower-index` here (as opposed to {@link OpenIndexStep#NAME}) for BWC reasons (in case any managed
+        // index is in the `open-follower-index` step at upgrade time
+        StepKey openFollowerIndex = new StepKey(phase, NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
         StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
 
+        BranchingStep conditionalSkipUnfollowStep = new BranchingStep(preUnfollowKey, indexingComplete, nextStepKey,
+            (index, clusterState) -> {
+                IndexMetadata followerIndex = clusterState.metadata().index(index);
+                Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
+                // if the index has no CCR metadata we'll skip the unfollow action completely
+                return customIndexMetadata == null;
+            });
         WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
         WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
         PauseFollowerIndexStep step3 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
         CloseFollowerIndexStep step4 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
-        UnfollowFollowIndexStep step5 = new UnfollowFollowIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
-        OpenFollowerIndexStep step6 = new OpenFollowerIndexStep(openFollowerIndex, waitForYellowStep, client);
+        UnfollowFollowerIndexStep step5 = new UnfollowFollowerIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
+        OpenIndexStep step6 = new OpenIndexStep(openFollowerIndex, waitForYellowStep, client);
         WaitForIndexColorStep step7 = new WaitForIndexColorStep(waitForYellowStep, nextStepKey, ClusterHealthStatus.YELLOW);
-        return Arrays.asList(step1, step2, step3, step4, step5, step6, step7);
+        return Arrays.asList(conditionalSkipUnfollowStep, step1, step2, step3, step4, step5, step6, step7);
     }
 
     @Override

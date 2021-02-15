@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -101,7 +102,8 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
             searchResponse -> deleteForecasts(searchResponse, request, listener),
-            e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e)));
+            e -> handleFailure(e, request, listener)
+        );
 
         SearchSourceBuilder source = new SearchSourceBuilder();
 
@@ -181,7 +183,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                 logger.info("Deleted forecast(s) [{}] from job [{}]", forecastIds, jobId);
                 listener.onResponse(AcknowledgedResponse.TRUE);
             },
-            listener::onFailure));
+            e -> handleFailure(e, request, listener)));
     }
 
     private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {
@@ -237,5 +239,21 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         request.setQuery(query);
         request.setRefresh(true);
         return request;
+    }
+
+    private static void handleFailure(Exception e,
+                                      DeleteForecastAction.Request request,
+                                      ActionListener<AcknowledgedResponse> listener) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            if (request.isAllowNoForecasts() && Strings.isAllOrWildcard(request.getForecastId())) {
+                listener.onResponse(AcknowledgedResponse.of(true));
+            } else {
+                listener.onFailure(new ResourceNotFoundException(
+                    Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), request.getJobId())
+                ));
+            }
+        } else {
+            listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));
+        }
     }
 }

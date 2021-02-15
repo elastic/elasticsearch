@@ -114,7 +114,7 @@ public final class Message implements Element {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof Message)) {
+        if ((o instanceof Message) == false) {
             return false;
         }
         Message e = (Message) o;

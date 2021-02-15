@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.Network;
-import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
@@ -30,18 +18,14 @@ import com.maxmind.geoip2.record.Country;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Subdivision;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -69,7 +53,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final DatabaseReaderLazyLoader lazyLoader;
     private final Set<Property> properties;
     private final boolean ignoreMissing;
-    private final GeoIpCache cache;
     private final boolean firstOnly;
 
     /**
@@ -81,7 +64,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param targetField   the target field
      * @param properties    the properties; ideally this is lazily-loaded once on first use
      * @param ignoreMissing true if documents with a missing value for the field should be ignored
-     * @param cache         a geo-IP cache
      * @param firstOnly     true if only first result should be returned in case of array
      */
     GeoIpProcessor(
@@ -91,7 +73,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final String targetField,
         final Set<Property> properties,
         final boolean ignoreMissing,
-        final GeoIpCache cache,
         boolean firstOnly) {
         super(tag, description);
         this.field = field;
@@ -99,7 +80,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
         this.lazyLoader = lazyLoader;
         this.properties = properties;
         this.ignoreMissing = ignoreMissing;
-        this.cache = cache;
         this.firstOnly = firstOnly;
     }
 
@@ -201,18 +181,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
-        SpecialPermission.check();
-        CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () ->
-            cache.putIfAbsent(ipAddress, CityResponse.class, ip -> {
-                try {
-                    return lazyLoader.get().city(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-
+        CityResponse response = lazyLoader.getCity(ipAddress);
         Country country = response.getCountry();
         City city = response.getCity();
         Location location = response.getLocation();
@@ -287,18 +256,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> retrieveCountryGeoData(InetAddress ipAddress) {
-        SpecialPermission.check();
-        CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () ->
-            cache.putIfAbsent(ipAddress, CountryResponse.class, ip -> {
-                try {
-                    return lazyLoader.get().country(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-
+        CountryResponse response = lazyLoader.getCountry(ipAddress);
         Country country = response.getCountry();
         Continent continent = response.getContinent();
 
@@ -332,18 +290,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     private Map<String, Object> retrieveAsnGeoData(InetAddress ipAddress) {
-        SpecialPermission.check();
-        AsnResponse response = AccessController.doPrivileged((PrivilegedAction<AsnResponse>) () ->
-            cache.putIfAbsent(ipAddress, AsnResponse.class, ip -> {
-                try {
-                    return lazyLoader.get().asn(ip);
-                } catch (AddressNotFoundException e) {
-                    throw new AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-
+        AsnResponse response = lazyLoader.getAsn(ipAddress);
         Integer asn = response.getAutonomousSystemNumber();
         String organization_name = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
@@ -392,11 +339,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return Collections.unmodifiableMap(databaseReaders);
         }
 
-        private final GeoIpCache cache;
-
-        public Factory(Map<String, DatabaseReaderLazyLoader> databaseReaders, GeoIpCache cache) {
+        public Factory(Map<String, DatabaseReaderLazyLoader> databaseReaders) {
             this.databaseReaders = databaseReaders;
-            this.cache = cache;
         }
 
         @Override
@@ -443,8 +387,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
 
-            return new GeoIpProcessor(processorTag, description, ipField, lazyLoader, targetField, properties, ignoreMissing, cache,
-                firstOnly);
+            return new GeoIpProcessor(processorTag, description, ipField, lazyLoader, targetField, properties, ignoreMissing, firstOnly);
         }
     }
 

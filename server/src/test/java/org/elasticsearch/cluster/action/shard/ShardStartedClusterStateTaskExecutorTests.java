@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.action.shard;
@@ -287,17 +276,17 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         final String primaryAllocationId = primaryShard.allocationId().getId();
 
-        assertThat(indexMetadata.getTimestampMillisRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.NO_SHARDS));
 
-        final ShardLongFieldRange shardTimestampMillisRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN :
+        final ShardLongFieldRange shardTimestampRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN :
                 randomBoolean() ? ShardLongFieldRange.EMPTY : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
 
         final List<StartedShardEntry> tasks = new ArrayList<>();
-        tasks.add(new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampMillisRange));
+        tasks.add(new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampRange));
         if (randomBoolean()) {
             final ShardRouting replicaShard = clusterState.routingTable().shardRoutingTable(shardId).replicaShards().iterator().next();
             final String replicaAllocationId = replicaShard.allocationId().getId();
-            tasks.add(new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampMillisRange));
+            tasks.add(new StartedShardEntry(shardId, replicaAllocationId, primaryTerm, "test", shardTimestampRange));
         }
         final ClusterStateTaskExecutor.ClusterTasksResult result = executeTasks(clusterState, tasks);
         assertNotSame(clusterState, result.resultingState);
@@ -309,15 +298,15 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             final IndexShardRoutingTable shardRoutingTable = result.resultingState.routingTable().shardRoutingTable(task.shardId);
             assertThat(shardRoutingTable.getByAllocationId(task.allocationId).state(), is(ShardRoutingState.STARTED));
 
-            final IndexLongFieldRange timestampMillisRange = result.resultingState.metadata().index(indexName).getTimestampMillisRange();
-            if (shardTimestampMillisRange == ShardLongFieldRange.UNKNOWN) {
-                assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.UNKNOWN));
-            } else if (shardTimestampMillisRange == ShardLongFieldRange.EMPTY) {
-                assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
+            final IndexLongFieldRange timestampRange = result.resultingState.metadata().index(indexName).getTimestampRange();
+            if (shardTimestampRange == ShardLongFieldRange.UNKNOWN) {
+                assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            } else if (shardTimestampRange == ShardLongFieldRange.EMPTY) {
+                assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
             } else {
-                assertTrue(timestampMillisRange.isComplete());
-                assertThat(timestampMillisRange.getMin(), equalTo(shardTimestampMillisRange.getMin()));
-                assertThat(timestampMillisRange.getMax(), equalTo(shardTimestampMillisRange.getMax()));
+                assertTrue(timestampRange.isComplete());
+                assertThat(timestampRange.getMin(), equalTo(shardTimestampRange.getMin()));
+                assertThat(timestampRange.getMax(), equalTo(shardTimestampRange.getMax()));
             }
         });
     }

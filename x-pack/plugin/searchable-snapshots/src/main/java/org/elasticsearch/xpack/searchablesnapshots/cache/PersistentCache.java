@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
@@ -39,7 +40,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -66,7 +66,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,11 +74,13 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 
 import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableSortedSet;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.getShardCachePath;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 
 public class PersistentCache implements Closeable {
 
@@ -129,7 +130,7 @@ public class PersistentCache implements Closeable {
         }
     }
 
-    public void addCacheFile(CacheFile cacheFile, SortedSet<Tuple<Long, Long>> ranges) throws IOException {
+    public void addCacheFile(CacheFile cacheFile, SortedSet<ByteRange> ranges) throws IOException {
         ensureStarted();
         getWriter(cacheFile).updateCacheFile(cacheFile, ranges);
     }
@@ -140,8 +141,17 @@ public class PersistentCache implements Closeable {
     }
 
     public long getCacheSize(ShardId shardId, SnapshotId snapshotId) {
+        return getCacheSize(shardId, snapshotId, Files::exists);
+    }
+
+    // pkg private for tests
+    long getCacheSize(ShardId shardId, SnapshotId snapshotId, Predicate<Path> predicate) {
         long aggregateSize = 0L;
         for (CacheIndexWriter writer : writers) {
+            final Path snapshotCacheDir = resolveSnapshotCache(writer.nodePath().resolve(shardId)).resolve(snapshotId.getUUID());
+            if (Files.exists(snapshotCacheDir) == false) {
+                continue; // searchable snapshot shard is not present on this node path, not need to run a query
+            }
             try (IndexReader indexReader = DirectoryReader.open(writer.indexWriter)) {
                 final IndexSearcher searcher = new IndexSearcher(indexReader);
                 searcher.setQueryCache(null);
@@ -165,9 +175,11 @@ public class PersistentCache implements Closeable {
                         while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             if (isLiveDoc.test(docIdSetIterator.docID())) {
                                 final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                var ranges = buildCacheFileRanges(document);
-                                for (Tuple<Long, Long> range : ranges) {
-                                    aggregateSize += range.v2() - range.v1();
+                                final String cacheFileId = getValue(document, CACHE_ID_FIELD);
+                                if (predicate.test(snapshotCacheDir.resolve(cacheFileId))) {
+                                    long size = buildCacheFileRanges(document).stream().mapToLong(ByteRange::length).sum();
+                                    logger.trace("cache file [{}] has size [{}]", getValue(document, CACHE_ID_FIELD), size);
+                                    aggregateSize += size;
                                 }
                             }
                         }
@@ -226,7 +238,7 @@ public class PersistentCache implements Closeable {
 
                                                 final CacheKey cacheKey = buildCacheKey(cacheDocument);
                                                 final long fileLength = getFileLength(cacheDocument);
-                                                final SortedSet<Tuple<Long, Long>> ranges = buildCacheFileRanges(cacheDocument);
+                                                final SortedSet<ByteRange> ranges = buildCacheFileRanges(cacheDocument);
 
                                                 logger.trace("adding cache file with [id={}, key={}, ranges={}]", id, cacheKey, ranges);
                                                 cacheService.put(cacheKey, fileLength, file.getParent(), id, ranges);
@@ -292,16 +304,6 @@ public class PersistentCache implements Closeable {
                 logger.warn("failed to close persistent cache index", e);
             }
         }
-    }
-
-    public boolean hasDeletions() {
-        ensureOpen();
-        for (CacheIndexWriter writer : writers) {
-            if (writer.indexWriter.hasDeletions()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public long getNumDocs() {
@@ -490,7 +492,7 @@ public class PersistentCache implements Closeable {
             return nodePath;
         }
 
-        void updateCacheFile(CacheFile cacheFile, SortedSet<Tuple<Long, Long>> cacheRanges) throws IOException {
+        void updateCacheFile(CacheFile cacheFile, SortedSet<ByteRange> cacheRanges) throws IOException {
             updateCacheFile(buildId(cacheFile), buildDocument(nodePath, cacheFile, cacheRanges));
         }
 
@@ -556,7 +558,7 @@ public class PersistentCache implements Closeable {
         return new Term(CACHE_ID_FIELD, cacheFileUuid);
     }
 
-    private static Document buildDocument(NodeEnvironment.NodePath nodePath, CacheFile cacheFile, SortedSet<Tuple<Long, Long>> cacheRanges)
+    private static Document buildDocument(NodeEnvironment.NodePath nodePath, CacheFile cacheFile, SortedSet<ByteRange> cacheRanges)
         throws IOException {
         final Document document = new Document();
         document.add(new StringField(CACHE_ID_FIELD, buildId(cacheFile), Field.Store.YES));
@@ -564,9 +566,9 @@ public class PersistentCache implements Closeable {
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeVInt(cacheRanges.size());
-            for (Tuple<Long, Long> cacheRange : cacheRanges) {
-                output.writeVLong(cacheRange.v1());
-                output.writeVLong(cacheRange.v2());
+            for (ByteRange cacheRange : cacheRanges) {
+                output.writeVLong(cacheRange.start());
+                output.writeVLong(cacheRange.end());
             }
             output.flush();
             document.add(new StoredField(CACHE_RANGES_FIELD, output.bytes().toBytesRef()));
@@ -610,20 +612,20 @@ public class PersistentCache implements Closeable {
         return Long.parseLong(fileLength);
     }
 
-    private static SortedSet<Tuple<Long, Long>> buildCacheFileRanges(Document document) throws IOException {
+    private static SortedSet<ByteRange> buildCacheFileRanges(Document document) throws IOException {
         final BytesRef cacheRangesBytesRef = document.getBinaryValue(CACHE_RANGES_FIELD);
         assert cacheRangesBytesRef != null;
 
-        final SortedSet<Tuple<Long, Long>> cacheRanges = new TreeSet<>(Comparator.comparingLong(Tuple::v1));
+        final SortedSet<ByteRange> cacheRanges = new TreeSet<>();
         try (StreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(cacheRangesBytesRef.bytes))) {
             final int length = input.readVInt();
             assert length > 0 : "empty cache ranges";
-            Tuple<Long, Long> previous = null;
+            ByteRange previous = null;
             for (int i = 0; i < length; i++) {
-                final Tuple<Long, Long> range = Tuple.tuple(input.readVLong(), input.readVLong());
-                assert range.v1() < range.v2() : range;
-                assert range.v2() <= getFileLength(document);
-                assert previous == null || previous.v2() < range.v1();
+                final ByteRange range = ByteRange.of(input.readVLong(), input.readVLong());
+                assert range.length() > 0 : range;
+                assert range.end() <= getFileLength(document);
+                assert previous == null || previous.end() < range.start();
 
                 final boolean added = cacheRanges.add(range);
                 assert added : range + " already exist in " + cacheRanges;

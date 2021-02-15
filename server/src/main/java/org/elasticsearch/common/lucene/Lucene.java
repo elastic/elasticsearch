@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene;
@@ -25,6 +14,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -88,6 +78,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -536,7 +527,7 @@ public class Lucene {
     }
 
     public static void writeScoreDoc(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
-        if (!scoreDoc.getClass().equals(ScoreDoc.class)) {
+        if (scoreDoc.getClass().equals(ScoreDoc.class) == false) {
             throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
         }
         out.writeVInt(scoreDoc.doc);
@@ -917,7 +908,7 @@ public class Lucene {
     }
 
     private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
+        static final class LeafReaderWithLiveDocs extends SequentialStoredFieldsLeafReader {
             final Bits liveDocs;
             final int numDocs;
             LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
@@ -940,6 +931,10 @@ public class Lucene {
             @Override
             public CacheHelper getReaderCacheHelper() {
                 return null; // Modifying liveDocs
+            }
+            @Override
+            protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                return reader;
             }
         }
 

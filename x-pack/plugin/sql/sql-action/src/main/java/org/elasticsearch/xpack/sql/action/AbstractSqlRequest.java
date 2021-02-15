@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -64,7 +65,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     public RequestInfo requestInfo() {
         return requestInfo;
     }
-    
+
     public void requestInfo(RequestInfo requestInfo) {
         this.requestInfo = requestInfo;
     }
@@ -80,7 +81,7 @@ public abstract class AbstractSqlRequest extends ActionRequest implements ToXCon
     public void mode(String mode) {
         this.requestInfo.mode(Mode.fromString(mode));
     }
-    
+
     public String clientId() {
         return requestInfo.clientId();
     }

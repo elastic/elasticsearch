@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
@@ -40,17 +40,17 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
      */
     static final String NAME = "f";
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
-        super(name, dataType, zoneId, useDocValue, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean arrayLeniency) {
+        super(name, dataType, zoneId, arrayLeniency);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
-        super(name, dataType, zoneId, useDocValue);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
+        super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName,
             boolean arrayLeniency) {
-        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, arrayLeniency);
+        super(name, dataType, zoneId, hitName, arrayLeniency);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {
@@ -89,19 +89,15 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
-    
-    @Override
-    protected boolean isFromDocValuesOnly(DataType dataType) {
-        return SqlDataTypes.isFromDocValuesOnly(dataType);
-    }
-
     @Override
     protected Object unwrapCustomValue(Object values) {
         DataType dataType = dataType();
 
         if (dataType == GEO_POINT) {
             try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) values;
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(map.get("coordinates"), true);
                 return new GeoShape(geoPoint.lon(), geoPoint.lat());
             } catch (ElasticsearchParseException ex) {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());
@@ -126,7 +122,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         }
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId());
+                return DateUtils.asDateTimeWithNanos(values.toString()).withZoneSameInstant(zoneId());
             }
         }
 

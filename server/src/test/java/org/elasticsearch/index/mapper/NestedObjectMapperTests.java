@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -66,7 +55,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
 
-        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        assertThat(docMapper.mappers().hasNested(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
@@ -122,7 +111,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        assertThat(docMapper.mappers().hasNested(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
@@ -192,7 +181,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        assertThat(docMapper.mappers().hasNested(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
@@ -263,7 +252,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        assertThat(docMapper.mappers().hasNested(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(true));
@@ -333,11 +322,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertEquals("nested1", docMapper.getNestedParent("nested1.nested2"));
-        assertNull(docMapper.getNestedParent("nonexistent"));
-        assertNull(docMapper.getNestedParent("nested1"));
+        assertEquals("nested1", docMapper.mappers().getNestedParent("nested1.nested2"));
+        assertNull(docMapper.mappers().getNestedParent("nonexistent"));
+        assertNull(docMapper.mappers().getNestedParent("nested1"));
 
-        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        assertThat(docMapper.mappers().hasNested(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.nested().isIncludeInParent(), equalTo(false));
@@ -539,7 +528,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        assertThat(docMapper.mappers().hasNested(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
@@ -618,7 +607,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        assertFalse(mapperService.documentMapper().hasNonNestedParent("comments.messages"));
+        assertFalse(mapperService.documentMapper().mappers().hasNonNestedParent("comments.messages"));
 
         mapperService = createMapperService(mapping(b -> {
             b.startObject("comments");
@@ -632,7 +621,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        assertTrue(mapperService.documentMapper().hasNonNestedParent("comments.messages"));
+        assertTrue(mapperService.documentMapper().mappers().hasNonNestedParent("comments.messages"));
     }
 
     public void testLimitNestedDocsDefaultSettings() throws Exception {
@@ -783,7 +772,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper docMapper
             = createDocumentMapper(version, mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
 
-        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        assertThat(docMapper.mappers().hasNested(), equalTo(true));
         ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
@@ -806,7 +795,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.docs().size(), equalTo(3));
         if (version.before(Version.V_8_0_0)) {
-            assertThat(doc.docs().get(0).get(TypeFieldType.NAME), equalTo(nested1Mapper.nestedTypePath()));
+            assertThat(doc.docs().get(0).get("_type"), equalTo(nested1Mapper.nestedTypePath()));
         } else {
             assertThat(doc.docs().get(0).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
         }

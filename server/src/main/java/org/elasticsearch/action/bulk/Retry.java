@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.bulk;
 
@@ -102,13 +91,13 @@ public class Retry {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            if (!bulkItemResponses.hasFailures()) {
+            if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));
                 finishHim();
             } else {
                 if (canRetry(bulkItemResponses)) {
-                    addResponses(bulkItemResponses, (r -> !r.isFailed()));
+                    addResponses(bulkItemResponses, (r -> r.isFailed() == false));
                     retry(createBulkRequestForRetry(bulkItemResponses));
                 } else {
                     addResponses(bulkItemResponses, (r -> true));
@@ -152,7 +141,7 @@ public class Retry {
         }
 
         private boolean canRetry(BulkResponse bulkItemResponses) {
-            if (!backoff.hasNext()) {
+            if (backoff.hasNext() == false) {
                 return false;
             }
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {

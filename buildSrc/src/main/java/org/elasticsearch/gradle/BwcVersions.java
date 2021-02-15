@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle;
 
@@ -39,15 +28,15 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * A container for elasticsearch supported version information used in BWC testing.
- *
+ * <p>
  * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
  * the version the current one is wire and index compatible with.
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
- *
+ * <p>
  * Note that in this context, currentVersion is the unreleased version this build operates on.
  * At any point in time there will surely be four such unreleased versions being worked on,
  * thus currentVersion will be one of these.
- *
+ * <p>
  * Considering:
  * <dl>
  *     <dt>M, M &gt; 0</dt>
@@ -67,11 +56,11 @@ import static java.util.Collections.unmodifiableList;
  * <ul>
  * <li>the unreleased <b>staged</b>, M.N-2.0 (N &gt; 2) on the `M.(N-2)` branch</li>
  * </ul>
- *
+ * <p>
  * Each build is only concerned with versions before it, as those are the ones that need to be tested
  * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
  * version.
- *
+ * <p>
  * Each branch has a current version, and expected compatible versions are parsed from the server code's Version` class.
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
@@ -173,8 +162,8 @@ public class BwcVersions {
     }
 
     /**
-      * Returns info about the unreleased version, or {@code null} if the version is released.
-      */
+     * Returns info about the unreleased version, or {@code null} if the version is released.
+     */
     public UnreleasedVersionInfo unreleasedInfo(Version version) {
         return unreleased.get(version);
     }
@@ -339,15 +328,15 @@ public class BwcVersions {
     }
 
     public List<Version> getIndexCompatible() {
-        return unmodifiableList(
-            Stream.concat(groupByMajor.get(currentVersion.getMajor() - 1).stream(), groupByMajor.get(currentVersion.getMajor()).stream())
-                .collect(Collectors.toList())
-        );
+        var indexCompatibles = Stream.concat(
+            groupByMajor.get(currentVersion.getMajor() - 1).stream(),
+            groupByMajor.get(currentVersion.getMajor()).stream()
+        ).collect(Collectors.toList());
+        return unmodifiableList(filterSupportedVersions(indexCompatibles));
     }
 
     public List<Version> getWireCompatible() {
         List<Version> wireCompat = new ArrayList<>();
-
         List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
         int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
         for (int i = prevMajors.size() - 1; i > 0 && prevMajors.get(i).getMinor() == minor; i--) {
@@ -356,7 +345,13 @@ public class BwcVersions {
         wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
         wireCompat.sort(Version::compareTo);
 
-        return unmodifiableList(wireCompat);
+        return unmodifiableList(filterSupportedVersions(wireCompat));
+    }
+
+    private List<Version> filterSupportedVersions(List<Version> wireCompat) {
+        return Architecture.current() == Architecture.AARCH64
+            ? wireCompat.stream().filter(version -> version.onOrAfter("7.12.0")).collect(Collectors.toList())
+            : wireCompat;
     }
 
     public List<Version> getUnreleasedIndexCompatible() {

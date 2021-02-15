@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -43,8 +44,8 @@ public class LengthFunctionPipeTests extends AbstractNodeTestCase<LengthFunction
             newExpression,
             b1.input());
 
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         LengthFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new LengthFunctionPipe(
@@ -52,17 +53,17 @@ public class LengthFunctionPipeTests extends AbstractNodeTestCase<LengthFunction
             b2.expression(),
             b2.input());
 
-        assertEquals(newB, b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+        assertEquals(newB, b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
     public void testReplaceChildren() {
         LengthFunctionPipe b = randomInstance();
         Pipe newInput = randomValueOtherThan(b.input(), () -> pipe(randomStringLiteral()));
-        
+
         LengthFunctionPipe newB = new LengthFunctionPipe(b.source(), b.expression(), b.input());
         LengthFunctionPipe transformed = newB.replaceChildren(newInput);
-        
+
         assertEquals(transformed.input(), newInput);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());

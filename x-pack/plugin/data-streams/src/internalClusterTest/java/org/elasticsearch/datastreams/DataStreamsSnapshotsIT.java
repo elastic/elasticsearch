@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.datastreams;
 
@@ -11,9 +12,16 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
@@ -25,10 +33,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotRestoreException;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.hamcrest.Matchers;
@@ -467,5 +471,92 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo((SnapshotState.SUCCESS)));
         assertThat(snapshotInfo.dataStreams(), contains(dataStream));
         assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName(dataStream, 1)));
+    }
+
+    public void testCloneSnapshotThatIncludesDataStream() throws Exception {
+        final String sourceSnapshotName = "snap-source";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        assertSuccessful(
+            client.admin()
+                .cluster()
+                .prepareCreateSnapshot(REPO, sourceSnapshotName)
+                .setWaitForCompletion(true)
+                .setIndices("ds", indexWithoutDataStream)
+                .setIncludeGlobalState(false)
+                .execute()
+        );
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareCloneSnapshot(REPO, sourceSnapshotName, "target-snapshot-1")
+                .setIndices(indexWithoutDataStream)
+                .get()
+        );
+    }
+
+    public void testPartialRestoreSnapshotThatIncludesDataStream() {
+        final String snapshot = "test-snapshot";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        createFullSnapshot(REPO, snapshot);
+        assertAcked(client.admin().indices().prepareDelete(indexWithoutDataStream));
+        RestoreInfo restoreInfo = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshot)
+            .setIndices(indexWithoutDataStream)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(randomBoolean())
+            .get()
+            .getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), is(1));
+    }
+
+    public void testSnapshotDSDuringRollover() throws Exception {
+        // repository consistency check requires at least one snapshot per registered repository
+        createFullSnapshot(REPO, "snap-so-repo-checks-pass");
+        final String repoName = "mock-repo";
+        createRepository(repoName, "mock");
+        final boolean partial = randomBoolean();
+        blockAllDataNodes(repoName);
+        final String snapshotName = "ds-snap";
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setPartial(partial)
+            .setIncludeGlobalState(randomBoolean())
+            .execute();
+        waitForBlockOnAnyDataNode(repoName);
+        awaitNumberOfSnapshotsInProgress(1);
+        final ActionFuture<RolloverResponse> rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("ds", null));
+
+        if (partial) {
+            assertTrue(rolloverResponse.get().isRolledOver());
+        } else {
+            SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class, rolloverResponse::actionGet);
+            assertThat(e.getMessage(), containsString("Cannot roll over data stream that is being snapshotted:"));
+        }
+        unblockAllDataNodes(repoName);
+        final SnapshotInfo snapshotInfo = assertSuccessful(snapshotFuture);
+
+        if (snapshotInfo.dataStreams().contains("ds")) {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
+
+            RestoreInfo restoreSnapshotResponse = client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true)
+                .setIndices("ds")
+                .get()
+                .getRestoreInfo();
+
+            assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
+            assertEquals(restoreSnapshotResponse.failedShards(), 0);
+            assertFalse(partial);
+        } else {
+            assertTrue(partial);
+        }
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -92,20 +93,20 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         // Replace value
         Object newValue = randomValueOfTypeOtherThan(literal.value(), literal.dataType());
         assertEquals(new Literal(literal.source(), newValue, literal.dataType()),
-                literal.transformPropertiesOnly(p -> p == literal.value() ? newValue : p, Object.class));
+            literal.transformPropertiesOnly(Object.class, p -> p == literal.value() ? newValue : p));
 
         // Replace data type if there are more compatible data types
         List<DataType> validDataTypes = validReplacementDataTypes(literal.value(), literal.dataType());
         if (validDataTypes.size() > 1) {
             DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
             assertEquals(new Literal(literal.source(), literal.value(), newDataType),
-                    literal.transformPropertiesOnly(p -> newDataType, DataType.class));
+                literal.transformPropertiesOnly(DataType.class, p -> newDataType));
         }
     }
 
     @Override
     public void testReplaceChildren() {
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> randomInstance().replaceChildren(emptyList()));
+        Exception e = expectThrows(UnsupportedOperationException.class, () -> randomInstance().replaceChildrenSameSize(emptyList()));
         assertEquals("this type of node doesn't have any children to replace", e.getMessage());
     }
 

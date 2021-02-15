@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.password_protected_keystore;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -79,8 +81,13 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             assertThat(node.get("reload_exception"), instanceOf(Map.class));
             assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
                 equalTo("Provided keystore password was incorrect"),
-                equalTo("Keystore has been corrupted or tampered with")));
-            assertThat(ObjectPath.eval("reload_exception.type", node), equalTo("security_exception"));
+                equalTo("Keystore has been corrupted or tampered with"),
+                containsString("Error generating an encryption key from the provided password") // FIPS
+            ));
+            assertThat(ObjectPath.eval("reload_exception.type", node),
+                // Depends on exact security provider (eg Sun vs BCFIPS)
+                anyOf(equalTo("security_exception"), equalTo("general_security_exception"))
+            );
         }
     }
 

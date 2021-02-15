@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -22,7 +23,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
@@ -167,23 +168,23 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     @SuppressWarnings("unused")
     public abstract void testRangeQuery() throws IOException;
 
-    protected abstract Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx);
+    protected abstract Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx);
 
     @SuppressWarnings("unused")
     public abstract void testTermQuery() throws IOException;
 
-    protected abstract Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx);
+    protected abstract Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx);
 
     @SuppressWarnings("unused")
     public abstract void testTermsQuery() throws IOException;
 
-    protected abstract Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx);
+    protected abstract Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx);
 
-    protected static QueryShardContext mockContext() {
+    protected static SearchExecutionContext mockContext() {
         return mockContext(true);
     }
 
-    protected static QueryShardContext mockContext(boolean allowExpensiveQueries) {
+    protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
         return mockContext(allowExpensiveQueries, null);
     }
 
@@ -195,8 +196,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return true;
     }
 
-    protected static QueryShardContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        QueryShardContext context = mock(QueryShardContext.class);
+    protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
             when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
         }
@@ -293,7 +294,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return reader.document(docId).getBinaryValue("_source").utf8ToString();
     }
 
-    protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) {
+    protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, SearchExecutionContext> queryBuilder) {
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(simpleMappedFieldType(), mockContext(false)));
         assertThat(
             e.getMessage(),
@@ -301,7 +302,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         );
     }
 
-    protected final void checkLoop(BiConsumer<MappedFieldType, QueryShardContext> queryBuilder) {
+    protected final void checkLoop(BiConsumer<MappedFieldType, SearchExecutionContext> queryBuilder) {
         Exception e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.accept(loopFieldType(), mockContext()));
         assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving runtime fields: test -> test"));
     }
@@ -313,7 +314,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new RuntimeFields(), new TestScriptPlugin());
+        return List.of(new RuntimeFields(Settings.EMPTY), new TestScriptPlugin());
     }
 
     private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -347,7 +348,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 }
 
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.copyOf(new RuntimeFields().getContexts());
+                    return Set.copyOf(new RuntimeFields(Settings.EMPTY).getContexts());
                 }
             };
         }

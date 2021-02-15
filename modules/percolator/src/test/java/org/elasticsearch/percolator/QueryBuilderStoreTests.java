@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.percolator;
 
@@ -39,7 +28,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.SearchModule;
@@ -87,17 +76,17 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 }
             }
 
-            QueryShardContext queryShardContext = mock(QueryShardContext.class);
-            when(queryShardContext.indexVersionCreated()).thenReturn(version);
-            when(queryShardContext.getWriteableRegistry()).thenReturn(writableRegistry());
-            when(queryShardContext.getXContentRegistry()).thenReturn(xContentRegistry());
-            when(queryShardContext.getForField(fieldMapper.fieldType()))
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
+            when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
+            when(searchExecutionContext.getXContentRegistry()).thenReturn(xContentRegistry());
+            when(searchExecutionContext.getForField(fieldMapper.fieldType()))
                 .thenReturn(new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD));
-            when(queryShardContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
+            when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
                 return new KeywordFieldMapper.KeywordFieldType(fieldName);
             });
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), queryShardContext);
+            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), searchExecutionContext);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 LeafReaderContext leafContext = indexReader.leaves().get(0);

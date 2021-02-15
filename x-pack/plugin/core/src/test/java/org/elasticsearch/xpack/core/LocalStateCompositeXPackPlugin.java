@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -43,6 +44,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -553,5 +555,23 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
             .stream()
             .flatMap(p -> p.getSystemIndexDescriptors(this.settings).stream())
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return filterPlugins(MapperPlugin.class).stream()
+            .map(MapperPlugin::getMetadataMappers)
+            .flatMap (map -> map.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    @Override
+    public String getFeatureName() {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return this.getClass().getCanonicalName();
     }
 }

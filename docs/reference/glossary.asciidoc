@@ -61,7 +61,7 @@ that is accessed occasionally and not normally updated.
 
 [[glossary-component-template]] component template ::
 // tag::component-template-def[]
-A building block for constructing <<indices-templates,index templates>> that specifies index
+A building block for constructing <<index-templates,index templates>> that specifies index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and <<indices-aliases,aliases>>.
 // end::component-template-def[]
 
@@ -206,6 +206,19 @@ An index reduced to a low overhead state that still enables occasional searches.
 Frozen indices use a memory-efficient shard implementation and throttle searches to conserve resources.
 Searching a frozen index is lower overhead than re-opening a closed index to enable searching.
 // end::frozen-index-def[]
+
+[[glossary-frozen-phase]] frozen phase ::
+// tag::frozen-phase-def[]
+The fourth possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
+In the frozen phase, an index is no longer updated and queried rarely.
+The information still needs to be searchable, but it’s okay if those queries are extremely slow.
+// end::frozen-phase-def[]
+
+[[glossary-frozen-tier]] frozen tier::
+// tag::frozen-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that hold time series data
+that is accessed rarely and not normally updated.
+// end::frozen-tier-def[]
 
 [[glossary-hidden-index]] hidden index ::
 // tag::hidden-index-def[]
@@ -453,6 +466,7 @@ ifdef::permanently-unreleased-branch[]
 // tag::rollup-def[]
 Aggregates an index's time series data and stores the results in a new read-only
 index. For example, you can roll up hourly data into daily or weekly summaries.
+See {ref}/xpack-rollup.html[Roll up your data].
 // end::rollup-def[]
 
 endif::[]

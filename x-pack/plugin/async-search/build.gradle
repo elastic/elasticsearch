@@ -8,16 +8,12 @@ esplugin {
 }
 archivesBaseName = 'x-pack-async-search'
 
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs << "-Xlint:-rawtypes"
-}
-
 addQaCheckDependencies()
 
 dependencies {
   compileOnly project(":server")
 
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('async'))

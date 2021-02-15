@@ -344,14 +344,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
 
                 final String blockId = params.get("blockid");
-
-                if (Strings.hasText(blockId)) {
-                    try {
-                        Base64.getDecoder().decode(blockId);
-                    } catch (Exception e) {
-                        throw new AssertionError("blockid [" + blockId + "] is not in base64", e);
-                    }
-                }
+                assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
 
                 if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
                     blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));

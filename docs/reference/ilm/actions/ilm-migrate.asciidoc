@@ -14,6 +14,11 @@ replicas, {ilm-init} reduces the number of replicas before migrating the index.
 To prevent automatic migration without specifying allocation options,
 you can explicitly include the migrate action and set the enabled option to `false`.
 
+If the `cold` phase defines a <<ilm-searchable-snapshot, searchable snapshot action>> the `migrate`
+action will not be injected automatically in the `cold` phase because the managed index will be
+mounted directly on the target tier using the same <<tier-preference-allocation-filter, _tier_preference>>
+infrastructure the `migrate` actions configures.
+
 In the warm phase, the `migrate` action sets <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
 to `data_warm,data_hot`. This moves the index to nodes in the
 <<warm-tier, warm tier>>. If there are no nodes in the warm tier,  it falls back to the

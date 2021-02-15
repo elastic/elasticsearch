@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -1405,7 +1404,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final long totalSize = statsResponse.getStats()
             .stream()
             .flatMap(s -> s.getStats().stream())
-            .mapToLong(SearchableSnapshotShardStats.CacheIndexInputStats::getFileLength)
+            .mapToLong(SearchableSnapshotShardStats.CacheIndexInputStats::getTotalSize)
             .sum();
         final Set<String> nodeIdsWithLargeEnoughCache = new HashSet<>();
         for (ObjectCursor<DiscoveryNode> nodeCursor : client().admin()
@@ -1430,37 +1429,37 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertThat(stats.getShardRouting().getIndexName(), equalTo(indexName));
             if (shardRouting.started()) {
                 for (SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : stats.getStats()) {
-                    final String fileName = indexInputStats.getFileName();
+                    final String fileExt = indexInputStats.getFileExt();
                     assertThat(
-                        "Unexpected open count for " + fileName + " of shard " + shardRouting,
+                        "Unexpected open count for " + fileExt + " of shard " + shardRouting,
                         indexInputStats.getOpenCount(),
                         greaterThan(0L)
                     );
                     assertThat(
-                        "Unexpected close count for " + fileName + " of shard " + shardRouting,
+                        "Unexpected close count for " + fileExt + " of shard " + shardRouting,
                         indexInputStats.getCloseCount(),
                         lessThanOrEqualTo(indexInputStats.getOpenCount())
                     );
                     assertThat(
-                        "Unexpected file length for " + fileName + " of shard " + shardRouting,
-                        indexInputStats.getFileLength(),
+                        "Unexpected file length for " + fileExt + " of shard " + shardRouting,
+                        indexInputStats.getTotalSize(),
                         greaterThan(0L)
                     );
 
-                    if (cacheEnabled == false || nonCachedExtensions.contains(IndexFileNames.getExtension(fileName))) {
+                    if (cacheEnabled == false || nonCachedExtensions.contains(fileExt)) {
                         assertThat(
-                            "Expected at least 1 optimized or direct read for " + fileName + " of shard " + shardRouting,
+                            "Expected at least 1 optimized or direct read for " + fileExt + " of shard " + shardRouting,
                             max(indexInputStats.getOptimizedBytesRead().getCount(), indexInputStats.getDirectBytesRead().getCount()),
                             greaterThan(0L)
                         );
                         assertThat(
-                            "Expected no cache read or write for " + fileName + " of shard " + shardRouting,
+                            "Expected no cache read or write for " + fileExt + " of shard " + shardRouting,
                             max(indexInputStats.getCachedBytesRead().getCount(), indexInputStats.getCachedBytesWritten().getCount()),
                             equalTo(0L)
                         );
                     } else if (nodeIdsWithLargeEnoughCache.contains(stats.getShardRouting().currentNodeId())) {
                         assertThat(
-                            "Expected at least 1 cache read or write for " + fileName + " of shard " + shardRouting,
+                            "Expected at least 1 cache read or write for " + fileExt + " of shard " + shardRouting,
                             max(
                                 indexInputStats.getCachedBytesRead().getCount(),
                                 indexInputStats.getCachedBytesWritten().getCount(),
@@ -1469,18 +1468,18 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                             greaterThan(0L)
                         );
                         assertThat(
-                            "Expected no optimized read for " + fileName + " of shard " + shardRouting,
+                            "Expected no optimized read for " + fileExt + " of shard " + shardRouting,
                             indexInputStats.getOptimizedBytesRead().getCount(),
                             equalTo(0L)
                         );
                         assertThat(
-                            "Expected no direct read for " + fileName + " of shard " + shardRouting,
+                            "Expected no direct read for " + fileExt + " of shard " + shardRouting,
                             indexInputStats.getDirectBytesRead().getCount(),
                             equalTo(0L)
                         );
                     } else {
                         assertThat(
-                            "Expected at least 1 read or write of any kind for " + fileName + " of shard " + shardRouting,
+                            "Expected at least 1 read or write of any kind for " + fileExt + " of shard " + shardRouting,
                             max(
                                 indexInputStats.getCachedBytesRead().getCount(),
                                 indexInputStats.getCachedBytesWritten().getCount(),

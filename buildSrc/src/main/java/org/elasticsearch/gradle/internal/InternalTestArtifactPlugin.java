@@ -30,6 +30,8 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
         javaPluginExtension.registerFeature("testArtifacts", featureSpec -> {
             featureSpec.usingSourceSet(project.getExtensions().getByType(SourceSetContainer.class).getByName("test"));
             featureSpec.capability("org.elasticsearch.gradle", project.getName() + "-test-artifacts", "1.0");
+            // This feature is only used internally in the
+            // elasticsearch build so we do not need any publication.
             featureSpec.disablePublication();
         });
         Configuration testApiElements = project.getConfigurations().getByName("testApiElements");

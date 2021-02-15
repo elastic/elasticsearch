@@ -20,7 +20,7 @@ public enum RestApiCompatibleVersion {
     V_7(7);
 
     public final byte major;
-    private final static RestApiCompatibleVersion CURRENT = V_8;
+    private static final RestApiCompatibleVersion CURRENT = V_8;
 
     RestApiCompatibleVersion(int major) {
         this.major = (byte) major;

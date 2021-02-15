@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
-    private final Set<RestApiCompatibleVersion> restApiCompatibleVersions = new HashSet<>();
+    private final Set<RestApiCompatibleVersion> restApiCompatibleVersions = new HashSet<>(2);
     private String allReplacedWith = null;
     private final String[] allNames;
     private boolean fullyDeprecated = false;

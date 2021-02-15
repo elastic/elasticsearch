@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -88,7 +87,8 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     /**
      * List of constructor names used for generating the error message if not all arrive.
      */
-    private final Map<RestApiCompatibleVersion, List<ConstructorArgInfo>> constructorArgInfos = new HashMap<>();
+    private final Map<RestApiCompatibleVersion, List<ConstructorArgInfo>> constructorArgInfos =
+        new EnumMap<>(RestApiCompatibleVersion.class);
     private final ObjectParser<Target, Context> objectParser;
     private final BiFunction<Object[], Context, Value> builder;
     /**
@@ -341,7 +341,6 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
             constructorArgInfos.computeIfAbsent(restApiCompatibleVersion, (v)-> new ArrayList<>())
                     .add(new ConstructorArgInfo(parseField, required));
         }
-        EnumMap<RestApiCompatibleVersion,List<ConstructorArgInfo>> em = new EnumMap<>(RestApiCompatibleVersion.class);
 
         //calculate the positions for the arguments
         return constructorArgInfos.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));

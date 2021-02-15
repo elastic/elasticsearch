@@ -16,7 +16,6 @@ apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {

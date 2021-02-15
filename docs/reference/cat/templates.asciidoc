@@ -64,9 +64,9 @@ The API returns the following response:
 [source,txt]
 ----
 name          index_patterns order version composed_of
-my-template-0 [te*]          200           []
-my-template-1 [tea*]         201           []
-my-template-2 [teak*]        202   7       []
+my-template-0 [te*]          500           []
+my-template-1 [tea*]         501           []
+my-template-2 [teak*]        502   7       []
 ----
 // TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
 

@@ -204,7 +204,7 @@ public class RootObjectMapper extends ObjectMapper {
                 return true;
             } else if (fieldName.equals("runtime")) {
                 if (fieldNode instanceof Map) {
-                    RuntimeFieldType.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, builder::addRuntime);
+                    RuntimeFieldType.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, builder::addRuntime, true);
                     return true;
                 } else {
                     throw new ElasticsearchParseException("runtime must be a map type");
@@ -326,7 +326,13 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         assert this.runtimeFieldTypes != mergeWithObject.runtimeFieldTypes;
-        this.runtimeFieldTypes.putAll(mergeWithObject.runtimeFieldTypes);
+        for (Map.Entry<String, RuntimeFieldType> runtimeField : mergeWithObject.runtimeFieldTypes.entrySet()) {
+            if (runtimeField.getValue().isPlaceholderForRemoval()) {
+                this.runtimeFieldTypes.remove(runtimeField.getKey());
+            } else {
+                this.runtimeFieldTypes.put(runtimeField.getKey(), runtimeField.getValue());
+            }
+        }
     }
 
     void addRuntimeFields(Collection<RuntimeFieldType> runtimeFields) {
@@ -364,7 +370,7 @@ public class RootObjectMapper extends ObjectMapper {
             builder.field("numeric_detection", numericDetection.value());
         }
 
-        if (runtimeFieldTypes.size() > 0) {
+        if (runtimeFieldTypes.size() > 0 && params.paramAsBoolean("skip_runtime_section", false) == false) {
             builder.startObject("runtime");
             List<RuntimeFieldType> sortedRuntimeFieldTypes = runtimeFieldTypes.values().stream().sorted(
                 Comparator.comparing(RuntimeFieldType::name)).collect(Collectors.toList());

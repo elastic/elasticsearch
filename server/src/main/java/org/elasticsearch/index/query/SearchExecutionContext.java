@@ -601,7 +601,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
         if (runtimeMappings.isEmpty() == false) {
             RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
-                runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType));
+                runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType), false);
         }
         return Collections.unmodifiableMap(runtimeFieldTypes);
     }

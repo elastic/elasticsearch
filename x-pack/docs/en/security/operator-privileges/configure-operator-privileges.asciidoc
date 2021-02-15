@@ -1,0 +1,53 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[configure-operator-privileges]]
+=== Configure operator privileges
+
+==== Enable operator privileges
+Operator privileges need to be enabled explicitly on each node in the cluster.
+This is done by configure the `elasticsearch.yml` file:
+
+[source,yaml]
+----------------------------
+xpack.security.operator_privileges.enabled: true
+----------------------------
+
+If the node is already running before the above change is made, you need restart
+it for the feature to take effect.
+
+==== Designate operator users
+Operator users are just normal {es} users with special privileges to perform
+operator-only functionalities. They are specified in an `operator_users.yml` file located
+in `ES_PATH_CONF`. The file  defines a set of criteria that an authenticating
+user must match to be considered as an operator. Similar to other config files,
+it is local to a node and should be identical in most, if not all, cases.
+The following snippet shows an example of such a file:
+
+[source,yaml]
+-----------------------------------
+operator: <1>
+  - usernames: ["system_agent_1","system_agent_2"] <2>
+    realm_type: "file" <4>
+    realm_name: "file1" <3>
+    auth_type: "realm" <5>
+-----------------------------------
+<1> A fixed value of `operator` to signal the beginning of the definition.
+<2> A list of usernames allowed for operator users. This field is mandatory.
+<3> The type of the authenticating realm allowed for operator users. The default and only
+    acceptable value is <<file-realm,`file`>>.
+<4> The name of the authenticating realm allowed for operator users. For the `file` realm, the name is ignored.
+<5> The authentication type allowed for operator users. The default and only acceptable value is `realm`.
+
+You must specify at least the `usernames` field. Other fields will use their default values if not specified.
+All fields must be matched for a user to be qualified as an operator. You can also specify multiple groups of
+criteria. This is currently not very useful since this feature does not currently support other realms and
+authentication types. Besides the configuration, there are also two implicit rules:
+
+1. If the authenticating user <<run-as-privilege,run as>> another user, neither of them will be considered
+as an operator.
+2. All <<internal-users>> are implicitly operator users.
+
+IMPORTANT: Once a user is designated as an operator, it still subjects to regular RBAC <<authorization>> checks.
+It is entirely possible that an operator user could fail to perform certain actions due to RBAC check failures.
+In short, an operator is *not* automatically a `superuser`.
+

@@ -17,6 +17,7 @@ IP filtering, and auditing.
 * <<enable-audit-logging>>
 * <<encrypting-communications>>
 * <<ccs-clients-integrations>>
+* <<operator-privileges>>
 * <<security-getting-started>>
 * <<encrypting-internode-communications>>
 * <<security-troubleshooting>>
@@ -39,6 +40,8 @@ include::securing-communications/index.asciidoc[]
 include::using-ip-filtering.asciidoc[]
 
 include::ccs-clients-integrations/index.asciidoc[]
+
+include::operator-privileges/index.asciidoc[]
 
 include::get-started-security.asciidoc[]
 

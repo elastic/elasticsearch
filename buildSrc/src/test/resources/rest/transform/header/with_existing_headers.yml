@@ -1,4 +1,8 @@
 ---
+setup:
+  - skip:
+      features: headers
+---
 "Test without a setup":
   - do:
       headers:

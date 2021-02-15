@@ -3,7 +3,7 @@ setup:
   - skip:
       features: pre_existing_feature
 ---
-"Test without with single feature setup":
+"Test with single feature setup":
   - do:
       something:
         id: "something"

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -19,31 +20,45 @@ import java.io.IOException;
 public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest> {
 
     private String[] ids;
+    private final boolean summary;
 
-    public GetPipelineRequest(String... ids) {
+    public GetPipelineRequest(boolean summary, String... ids) {
         if (ids == null) {
             throw new IllegalArgumentException("ids cannot be null");
         }
         this.ids = ids;
+        this.summary = summary;
+    }
+
+    public GetPipelineRequest(String... ids) {
+        this(false, ids);
     }
 
     GetPipelineRequest() {
-        this.ids = Strings.EMPTY_ARRAY;
+        this(false, Strings.EMPTY_ARRAY);
     }
 
     public GetPipelineRequest(StreamInput in) throws IOException {
         super(in);
         ids = in.readStringArray();
+        summary = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(ids);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(summary);
+        }
     }
 
     public String[] getIds() {
         return ids;
+    }
+
+    public boolean isSummary() {
+        return summary;
     }
 
     @Override

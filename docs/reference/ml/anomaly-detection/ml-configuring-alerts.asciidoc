@@ -19,7 +19,8 @@ anomalies and notify you in an email. This page helps you to configure an
 select *{anomaly-detect-cap} alert* under the {ml-cap} section, then give a name 
 to the alert and optionally provide tags.
 
-// SCREENSHOT
+[role="screenshot"]
+image::images/ml-anomaly-alert-type.jpg["Creating an anomaly detection alert"]
 
 Specify the time interval for the alert to check detected anomalies. It is 
 recommended to select an interval that is similar to the bucket span of the 
@@ -37,13 +38,14 @@ Select the {anomaly-job} or the group of {anomaly-jobs} that is checked by the
 alert. In case you select a group, the {anomaly-detect} alert handles possible 
 duplications in the results, hence they don't trigger the configured actions 
 unnecessarily. If you assign additional jobs to the group, the alert 
-automatically check the new jobs the next time when it runs.
+automatically checks the new jobs the next time when it runs.
 
 You can select the result type of the {anomaly-job} that the alert checks. 
 {anomaly-detect-cap} produces three types of results: bucket, record, and 
 influencer. Bucket result type is selected by default.
 
-// SCREENSHOT
+[role="screenshot"]
+image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, an test interval"]
 
 For each alert, you can configure which severity level triggers it. The severity 
 threshold is based on the `anomaly_score` which indicates the significance of a 
@@ -61,7 +63,8 @@ As a next step, connect your alert to actions that use supported built-in
 integrations. Actions are {kib} services or third-party integrations that run 
 when the alert conditions are met.
 
-// SCREENSHOT
+[role="screenshot"]
+image::images/ml-anomaly-alert-actions.jpg["Selecting action type"]
 
 For example, you can choose _Slack_ as an action type and configure it to send a 
 message to a channel you selected or you can also create an index connector that 
@@ -69,4 +72,9 @@ writes the JSON object you configure to a specific index. It's also possible to
 customize the notification messages. A list of variables is available to include 
 in the message, like job ID, anomaly score, time, or top influencers.
 
-// SCREENSHOT
+[role="screenshot"]
+image::images/ml-anomaly-alert-messages.jpg["Customizing your message"]
+
+After you saved the configurations, the alert appears in the _Alerts and 
+Actions_ list where you can check its status and the overview of its 
+configuration information.

@@ -690,24 +690,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         return slice;
     }
 
-    @Override
-    public String toString() {
-        return "CachedBlobContainerIndexInput{"
-            + "sharedCacheFile="
-            + frozenCacheFile
-            + ", offset="
-            + offset
-            + ", length="
-            + length()
-            + ", position="
-            + getFilePointer()
-            + ", rangeSize="
-            + getDefaultRangeSize()
-            + ", directory="
-            + directory
-            + '}';
-    }
-
     private static boolean isCacheFetchAsyncThread(final String threadName) {
         return threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']');
     }

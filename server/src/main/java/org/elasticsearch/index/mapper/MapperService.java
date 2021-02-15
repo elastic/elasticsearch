@@ -205,8 +205,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                                              String type,
                                              Mapping incomingMapping) {
         Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
-
-        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap("skip_runtime_section", "true"));
+        //skip the runtime section or removed runtime fields will make the assertion fail
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
         try {
             mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, params);

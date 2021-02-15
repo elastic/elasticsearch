@@ -41,6 +41,16 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
 
+    /**
+     * Parameter used when serializing {@link RootObjectMapper} and request that the runtime section is skipped.
+     * This is only needed internally when we compare different versions of mappings and assert that they are the same.
+     * Runtime fields break these assertions as they can be removed: the master node sends the merged mappings without the runtime fields
+     * that needed to be removed. Then each local node as part of its assertions merges the incoming mapping with the current mapping,
+     *  and the previously removed runtime fields appear again, which is not desirable. The expectation is that those two versions of the
+     *  mappings are the same, besides runtime fields.
+     */
+    static final String TOXCONTENT_SKIP_RUNTIME = "skip_runtime";
+
     public static class Defaults {
         public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new DateFormatter[]{
@@ -370,7 +380,7 @@ public class RootObjectMapper extends ObjectMapper {
             builder.field("numeric_detection", numericDetection.value());
         }
 
-        if (runtimeFieldTypes.size() > 0 && params.paramAsBoolean("skip_runtime_section", false) == false) {
+        if (runtimeFieldTypes.size() > 0 && params.paramAsBoolean(TOXCONTENT_SKIP_RUNTIME, false) == false) {
             builder.startObject("runtime");
             List<RuntimeFieldType> sortedRuntimeFieldTypes = runtimeFieldTypes.values().stream().sorted(
                 Comparator.comparing(RuntimeFieldType::name)).collect(Collectors.toList());

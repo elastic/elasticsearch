@@ -113,6 +113,9 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
      * any of the usual runtime field methods. It only needs to be able to print itself out
      * as a field name with a null value, which is the syntax to indicate the intention to
      * remove a specific runtime field.
+     *
+     * Note that a placeholder is needed only until a full-blown DocumentMapper is built prior to merging. We are moving away from that
+     * approach by instead building Mapping only and calling merge against them.
      */
     private static class PlaceholderForRemoval extends RuntimeFieldType {
         PlaceholderForRemoval(String name) {

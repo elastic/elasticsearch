@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.ingest.geoip.GeoIpDownloader.ENDPOINT_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.MAX_CHUNK_SIZE;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -328,13 +329,13 @@ public class GeoIpDownloaderTests extends ESTestCase {
         builder.close();
         when(httpClient.getBytes("a.b?key=11111111-1111-1111-1111-111111111111")).thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
-        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY) {
+        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool,
+            Settings.builder().put(ENDPOINT_SETTING.getKey(), "a.b").build()) {
             @Override
             void processDatabase(Map<String, Object> databaseInfo) {
                 assertEquals(it.next(), databaseInfo);
             }
         };
-        geoIpDownloader.setEndpoint("a.b");
         geoIpDownloader.updateDatabases();
         assertFalse(it.hasNext());
     }

@@ -42,6 +42,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -73,11 +74,11 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
     private final ThreadPool threadPool;
     private final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
     private final PersistentTasksService persistentTasksService;
+    private final String endpoint;
 
     //visible for testing
     protected volatile GeoIpTaskState state;
     private volatile TimeValue pollInterval;
-    private volatile String endpoint;
     private volatile AllocatedPersistentTask persistentTask;
     private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile boolean enabled;
@@ -101,17 +102,6 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
         }
     }
 
-    public void setPollInterval(TimeValue pollInterval) {
-        this.pollInterval = pollInterval;
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(new TimeValue(1));
-        }
-    }
-
-    public void setEndpoint(String endpoint) {
-        this.endpoint = endpoint;
-    }
-
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
@@ -123,6 +113,13 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
             persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, ActionListener.wrap(r -> {
                 state = ((GeoIpTaskState) r.getState()).copy();
             }, e -> logger.error("could not remove task [" + GEOIP_DOWNLOADER + "]", e)));
+        }
+    }
+
+    public void setPollInterval(TimeValue pollInterval) {
+        this.pollInterval = pollInterval;
+        if (scheduled != null && scheduled.cancel()) {
+            scheduleNextRun(new TimeValue(1));
         }
     }
 
@@ -266,10 +263,8 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
-            clusterService.removeListener(this);
-            startPersistentTask();
-        }
+        clusterService.removeListener(this);
+        startPersistentTask();
     }
 
     private void startPersistentTask() {
@@ -283,5 +278,11 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
                 }
             }));
         }
+    }
+
+    @Override
+    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+                                                 PersistentTask<PersistentTaskParams> taskInProgress, Map<String, String> headers) {
+        return super.createTask(id, type, action, parentTaskId, taskInProgress, headers);
     }
 }

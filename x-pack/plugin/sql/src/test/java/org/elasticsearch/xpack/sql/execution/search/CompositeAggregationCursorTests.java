@@ -46,7 +46,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
         return new CompositeAggCursor(instance.next(), instance.extractors(),
                 randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
                 randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
-                !instance.includeFrozen(),
+                instance.includeFrozen() == false,
                 instance.indices());
     }
 

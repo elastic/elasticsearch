@@ -341,7 +341,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         service.onMaster();
         service.setUseAuto(true);
         boolean waitingAnalytics = randomBoolean();
-        boolean waitingAnomalyJobs = !waitingAnalytics || randomBoolean();
+        boolean waitingAnomalyJobs = waitingAnalytics == false || randomBoolean();
         int maxWaitingAnalytics = randomIntBetween(1, 2);
         int maxWaitingAnomaly = randomIntBetween(1, 2);
         List<String> assignedAnomalyJobs = randomList(0, 2, () -> randomAlphaOfLength(10));
@@ -377,7 +377,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         service.onMaster();
         service.setUseAuto(true);
         boolean waitingAnalytics = randomBoolean();
-        boolean waitingAnomalyJobs = !waitingAnalytics || randomBoolean();
+        boolean waitingAnomalyJobs = waitingAnalytics == false || randomBoolean();
         int maxWaitingAnalytics = randomIntBetween(1, 2);
         int maxWaitingAnomaly = randomIntBetween(1, 2);
         ClusterState clusterState = clusterState(

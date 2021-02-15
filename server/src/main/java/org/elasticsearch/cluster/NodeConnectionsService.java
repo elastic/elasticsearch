@@ -14,7 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -281,7 +281,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     private class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
-        private PlainListenableActionFuture<Void> future = PlainListenableActionFuture.newListenableFuture();
+        private ListenableActionFuture<Void> future = new ListenableActionFuture<>();
         private ActivityType activityType = ActivityType.IDLE; // indicates what any listeners are awaiting
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
@@ -412,10 +412,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
         }
 
-        private PlainListenableActionFuture<Void> getAndClearFuture() {
+        private ListenableActionFuture<Void> getAndClearFuture() {
             assert Thread.holdsLock(mutex) : "mutex not held";
-            final PlainListenableActionFuture<Void> drainedFuture = future;
-            future = PlainListenableActionFuture.newListenableFuture();
+            final ListenableActionFuture<Void> drainedFuture = future;
+            future = new ListenableActionFuture<>();
             return drainedFuture;
         }
 
@@ -437,7 +437,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
 
             activityType = newActivityType;
-            final PlainListenableActionFuture<Void> oldFuture = getAndClearFuture();
+            final ListenableActionFuture<Void> oldFuture = getAndClearFuture();
             addListener(listener);
             return () -> oldFuture.onFailure(new ElasticsearchException(cancellationMessage));
         }
@@ -449,7 +449,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             synchronized (mutex) {
                 assert activityType != ActivityType.IDLE;
                 if (activityType == completedActivityType) {
-                    final PlainListenableActionFuture<Void> oldFuture = getAndClearFuture();
+                    final ListenableActionFuture<Void> oldFuture = getAndClearFuture();
                     activityType = ActivityType.IDLE;
 
                     cleanup = e == null ? () -> oldFuture.onResponse(null) : () -> oldFuture.onFailure(e);

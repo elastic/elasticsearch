@@ -158,11 +158,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
             // Finally respond to the outer listener with the response from the original cluster state update
             updateRepoUuidStep.whenComplete(
-                    ignored -> acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure),
+                    ignored -> acknowledgementStep.addListener(listener),
                     listener::onFailure);
 
         } else {
-            acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure);
+            acknowledgementStep.addListener(listener);
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",

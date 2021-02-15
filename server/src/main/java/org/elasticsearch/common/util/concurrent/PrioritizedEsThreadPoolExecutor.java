@@ -207,7 +207,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         @Override
         public int compareTo(PrioritizedRunnable pr) {
             int res = super.compareTo(pr);
-            if (res != 0 || !(pr instanceof TieBreakingPrioritizedRunnable)) {
+            if (res != 0 || (pr instanceof TieBreakingPrioritizedRunnable) == false) {
                 return res;
             }
             return insertionOrder < ((TieBreakingPrioritizedRunnable) pr).insertionOrder ? -1 : 1;

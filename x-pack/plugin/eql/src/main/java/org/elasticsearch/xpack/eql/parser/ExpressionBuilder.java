@@ -11,6 +11,8 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
@@ -168,13 +170,25 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
         switch (predicate.kind.getType()) {
             case EqlBaseParser.SEQ:
-                return Predicates.combineOr(expressions(predicate.constant()).stream()
-                    .map(c -> new InsensitiveWildcardEquals(source, expr, c, zoneId))
-                    .collect(toList()));
+                return combineExpressions(predicate.constant(), c -> new InsensitiveWildcardEquals(source, expr, c, zoneId));
+            case EqlBaseParser.LIKE:
+            case EqlBaseParser.LIKE_INSENSITIVE:
+                return new Wildcard(
+                    source,
+                    expr,
+                    expressions(predicate.constant()),
+                    predicate.kind.getType() == EqlBaseParser.LIKE_INSENSITIVE
+                );
+            case EqlBaseParser.REGEX:
+            case EqlBaseParser.REGEX_INSENSITIVE:
+                return new Match(
+                    source,
+                    expr,
+                    expressions(predicate.constant()),
+                    predicate.kind.getType() == EqlBaseParser.REGEX_INSENSITIVE
+                );
             case EqlBaseParser.IN_INSENSITIVE:
-                Expression insensitiveIn = Predicates.combineOr(expressions(predicate.expression()).stream()
-                    .map(c -> new InsensitiveEquals(source, expr, c, zoneId))
-                    .collect(toList()));
+                Expression insensitiveIn = combineExpressions(predicate.expression(), c -> new InsensitiveEquals(source, expr, c, zoneId));
                 return predicate.NOT() != null ? new Not(source, insensitiveIn) : insensitiveIn;
             case EqlBaseParser.IN:
                 List<Expression> container = expressions(predicate.expression());
@@ -183,6 +197,13 @@ public class ExpressionBuilder extends IdentifierBuilder {
             default:
                 throw new ParsingException(source, "Unknown predicate {}", source.text());
         }
+    }
+
+    private Expression combineExpressions(
+        List<? extends ParserRuleContext> expressions,
+        java.util.function.Function<Expression, Expression> mapper
+    ) {
+        return Predicates.combineOr(expressions(expressions).stream().map(mapper::apply).collect(toList()));
     }
 
     @Override

@@ -24,7 +24,7 @@ image::images/ml-anomaly-alert-type.jpg["Creating an anomaly detection alert"]
 
 Specify the time interval for the alert to check detected anomalies. It is 
 recommended to select an interval that is similar to the bucket span of the 
-associated job. You can also select a notification method by using the _Notify_ 
+associated job. You can also select a notification option by using the _Notify_ 
 selector. There are three notification options:
 
 * Notify only on status change: actions are triggered when the alert status 
@@ -45,7 +45,7 @@ You can select the result type of the {anomaly-job} that the alert checks.
 influencer. Bucket result type is selected by default.
 
 [role="screenshot"]
-image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, an test interval"]
+image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
 
 For each alert, you can configure which severity level triggers it. The severity 
 threshold is based on the `anomaly_score` which indicates the significance of a 
@@ -53,7 +53,7 @@ given anomaly compared to previous anomalies. The default severity level is
 critical (anomalies with an `anomaly_score` 75 or higher).
 
 You can also test the configured conditions and check the sample results by 
-providing a valid interval in the respective field.
+providing a valid interval in the pertinent field.
 
 
 [[defining-actions]]

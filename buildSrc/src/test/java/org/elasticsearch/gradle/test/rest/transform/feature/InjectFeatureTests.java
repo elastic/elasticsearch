@@ -9,9 +9,7 @@
 package org.elasticsearch.gradle.test.rest.transform.feature;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.TransformTests;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
@@ -101,6 +99,5 @@ public class InjectFeatureTests extends TransformTests {
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
     }
-
 
 }

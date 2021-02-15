@@ -114,13 +114,10 @@ abstract public class TransformTests extends GradleUnitTestCase {
     protected List<ObjectNode> transformTests(List<ObjectNode> tests, List<RestTestTransform<?>> transforms) {
         List<ObjectNode> t = transformer.transformRestTests(new LinkedList<>(tests), transforms);
         if (getKnownFeatures() != null) {
-            getKnownFeatures().forEach(name -> {
-                validateFeatureNameExists(t, name);
-            });
+            getKnownFeatures().forEach(name -> { validateFeatureNameExists(t, name); });
         }
         return t;
     }
-
 
     protected List<String> getKnownFeatures() {
         return null;
@@ -321,7 +318,6 @@ abstract public class TransformTests extends GradleUnitTestCase {
         });
         assertFalse(teardownHasMatchObject.get());
     }
-
 
     protected boolean getHumanDebug() {
         return false;

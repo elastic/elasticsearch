@@ -10,20 +10,13 @@ package org.elasticsearch.gradle.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -41,10 +34,11 @@ public class AddMatchTests extends TransformTests {
         JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
         assertEquals(
             "adding matches is only supported for named tests",
-            expectThrows(NullPointerException.class, () -> transformTests(
-                new LinkedList<>(tests),
-                Collections.singletonList(new AddMatch("_type", addNode, null))))
-        .getMessage());
+            expectThrows(
+                NullPointerException.class,
+                () -> transformTests(new LinkedList<>(tests), Collections.singletonList(new AddMatch("_type", addNode, null)))
+            ).getMessage()
+        );
     }
 
     @Test

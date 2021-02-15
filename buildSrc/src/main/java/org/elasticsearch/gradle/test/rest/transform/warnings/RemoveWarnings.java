@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
-import org.elasticsearch.gradle.test.rest.transform.feature.FeatureInjector;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +39,6 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
         if (arrayWarnings == null) {
             return;
         }
-
 
         List<String> keepWarnings = new ArrayList<>();
         arrayWarnings.elements().forEachRemaining(warning -> {

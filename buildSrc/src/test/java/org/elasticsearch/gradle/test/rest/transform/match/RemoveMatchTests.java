@@ -11,19 +11,13 @@ package org.elasticsearch.gradle.test.rest.transform.match;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -35,16 +29,12 @@ public class RemoveMatchTests extends TransformTests {
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
     private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
 
-
     @Test
     public void testRemoveAll() throws Exception {
         String testName = "/rest/transform/match/match.yml";
         List<ObjectNode> tests = getTests(testName);
         validateTest(tests, true, true);
-        List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
-            Collections.singletonList(new RemoveMatch("_type"))
-        );
+        List<ObjectNode> transformedTests = transformTests(new LinkedList<>(tests), Collections.singletonList(new RemoveMatch("_type")));
         printTest(testName, transformedTests);
         validateTest(tests, false, true);
     }

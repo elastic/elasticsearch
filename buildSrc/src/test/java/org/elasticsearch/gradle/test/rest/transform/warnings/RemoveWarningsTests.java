@@ -11,10 +11,8 @@ package org.elasticsearch.gradle.test.rest.transform.warnings;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.TransformTests;
-import org.elasticsearch.gradle.test.rest.transform.feature.InjectFeatureTests;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -57,7 +55,7 @@ public class RemoveWarningsTests extends TransformTests {
      */
     @Test
     public void testRemoveWarningWithSinglePreExisting() throws Exception {
-        //For simplicity, when removing the last item, it does not remove the headers/teardown and leaves an empty array
+        // For simplicity, when removing the last item, it does not remove the headers/teardown and leaves an empty array
         String testName = "/rest/transform/warnings/with_existing_single_warnings.yml";
         List<ObjectNode> tests = getTests(testName);
         validateSetupExist(tests);

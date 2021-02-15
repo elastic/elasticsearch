@@ -14,10 +14,10 @@ anomalies and notify you in an email. This page helps you to configure an
 [[creating-anomaly-alerts]]
 == Creating an alert
 
-{anomaly-detect-cap} alerts can be created in the {anomaly-job} wizard or under 
-**Stack management > Alerts and Actions**. On the *Create alert* template, 
-select *{anomaly-detect-cap} alert* under the {ml-cap} section, then give a name 
-to the alert and optionally provide tags.
+{anomaly-detect-cap} alerts can be created in the {anomaly-job} wizard, from the 
+job list or under **Stack management > Alerts and Actions**. On the *Create 
+alert* template, select *{anomaly-detect-cap} alert* under the {ml-cap} section, 
+then give a name to the alert and optionally provide tags.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-type.jpg["Creating an anomaly detection alert"]

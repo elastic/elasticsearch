@@ -26,6 +26,7 @@ import org.junit.Before;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -113,14 +114,13 @@ public abstract class TransformTests extends GradleUnitTestCase {
 
     protected List<ObjectNode> transformTests(List<ObjectNode> tests, List<RestTestTransform<?>> transforms) {
         List<ObjectNode> t = transformer.transformRestTests(new LinkedList<>(tests), transforms);
-        if (getKnownFeatures() != null) {
-            getKnownFeatures().forEach(name -> { validateFeatureNameExists(t, name); });
-        }
+        getKnownFeatures().forEach(name -> { validateFeatureNameExists(t, name); });
+
         return t;
     }
 
     protected List<String> getKnownFeatures() {
-        return null;
+        return Collections.emptyList();
     }
 
     protected List<RestTestTransform<?>> getTransformations() {
@@ -131,8 +131,7 @@ public abstract class TransformTests extends GradleUnitTestCase {
     }
 
     protected List<ObjectNode> getTests(String relativePath) throws Exception {
-        String testName = relativePath;
-        File testFile = new File(getClass().getResource(testName).toURI());
+        File testFile = new File(getClass().getResource(relativePath).toURI());
         YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
         return READER.<ObjectNode>readValues(yamlParser).readAll();
     }

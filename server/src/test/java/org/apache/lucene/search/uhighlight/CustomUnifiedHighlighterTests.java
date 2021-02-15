@@ -280,8 +280,9 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, null);
         });
         assertEquals(
-            "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. To "
-                + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
+            "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. "
+                + "By setting the query parameter [max_analyzed_offset] to a value lower than the index limit [10], long fields will be "
+                + "returned truncated instead of causing this error.",
             e.getMessage()
         );
 
@@ -301,8 +302,9 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             );
         });
         assertEquals(
-            "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. To "
-                + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
+            "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. "
+                + "By setting the query parameter [max_analyzed_offset] to a value lower than the index limit [10], long fields will be "
+                + "returned truncated instead of causing this error.",
             e.getMessage()
         );
 

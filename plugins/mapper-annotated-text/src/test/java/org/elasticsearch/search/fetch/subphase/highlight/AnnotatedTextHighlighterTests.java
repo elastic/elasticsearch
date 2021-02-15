@@ -221,8 +221,9 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             )
         );
         assertEquals(
-            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. To "
-                + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
+            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. "
+                + "By setting the query parameter [max_analyzed_offset] to a value lower than the index limit [20], long fields will be "
+                + "returned truncated instead of causing this error.",
             e.getMessage()
         );
 
@@ -242,8 +243,9 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 )
         );
         assertEquals(
-            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. To "
-                + "ignore text beyond this limit when highlighting, set the query parameter [max_analyzed_offset] to the desired value.",
+            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [20]. "
+                + "By setting the query parameter [max_analyzed_offset] to a value lower than the index limit [20], long fields will be "
+                + "returned truncated instead of causing this error.",
             e.getMessage()
         );
 

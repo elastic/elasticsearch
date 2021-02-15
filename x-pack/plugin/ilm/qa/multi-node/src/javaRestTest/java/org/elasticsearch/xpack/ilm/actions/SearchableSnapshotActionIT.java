@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
@@ -227,7 +228,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
-        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup]" +
+        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]" +
             " actions which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
@@ -462,23 +463,32 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testConvertingPartialSearchableSnapshotIntoFull() throws Exception {
-        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) +"-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createPolicy(client(), policy, null, null,
-            new Phase("cold", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.SHARED_CACHE))),
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO,
+                Map.of(
+                    SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
+                    MountSearchableSnapshotRequest.Storage.SHARED_CACHE),
+                    RolloverAction.NAME, new RolloverAction(null, null, 1L))),
+            null, null,
             new Phase("frozen", TimeValue.ZERO,
                 singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
                     MountSearchableSnapshotRequest.Storage.FULL_COPY))),
             null
         );
 
-        createIndex(index, Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .build());
+        String alias = "alias-" + randomAlphaOfLengthBetween(5, 10);
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            true);
+
         ensureGreen(index);
-        indexDocument(client(), index, true);
+        indexDocument(client(), alias, true);
+        rolloverMaxOneDocCondition(client(), alias);
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + index;

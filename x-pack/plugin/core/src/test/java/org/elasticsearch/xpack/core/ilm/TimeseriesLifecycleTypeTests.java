@@ -205,21 +205,75 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testActionsThatCannotFollowSearchableSnapshot() {
-        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(5));
+        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
         assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME,
-            ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME));
+            ForceMergeAction.NAME, RollupILMAction.NAME));
     }
 
     public void testValidateActionsFollowingSearchableSnapshot() {
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
-        Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+        {
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
+            assertThat(e.getMessage(), is(
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
-        assertThat(e.getMessage(), is(
-            "phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup] actions" +
-            " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        {
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
+                Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(warmPhase, coldPhase, frozenPhase)));
+            assertThat(e.getMessage(), is(
+                "phases [frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
+
+        {
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO,
+                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
+                Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase,
+                    frozenPhase)));
+            assertThat(e.getMessage(), is(
+                "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
+
+        {
+            Phase hot = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            SearchableSnapshotAction.NAME, new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))));
+            Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
+            Phase cold = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(warm, hot, cold)));
+            assertThat(e.getMessage(), is(
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
+                    " which are not allowed after a managed index is mounted as a searchable snapshot"));
+        }
+
+        {
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction(),
+                SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+            try {
+                TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(frozenPhase));
+            } catch (Exception e) {
+                fail("unexpected exception while validating phase [ "+ frozenPhase +" ] but got [" + e.getMessage()+ "]");
+            }
+        }
     }
 
     public void testGetOrderedPhases() {

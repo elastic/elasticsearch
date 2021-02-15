@@ -4,7 +4,7 @@ setup:
       version: " - 7.1.99"
       reason:  why not
 ---
-"Test without with setup and skip but no feature":
+"Test with setup and skip but no feature":
   - do:
       something:
         id: "something"

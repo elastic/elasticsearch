@@ -5,7 +5,7 @@ setup:
       - pre_existing_feature1
       - pre_existing_feature2
 ---
-"Test without with multiple feature setup":
+"Test with multiple feature setup":
   - do:
       something:
         id: "something"

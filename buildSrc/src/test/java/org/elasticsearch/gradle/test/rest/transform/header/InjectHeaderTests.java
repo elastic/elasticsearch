@@ -54,7 +54,7 @@ public class InjectHeaderTests extends InjectFeatureTests {
     public void testInjectHeadersWithPreExisting() throws Exception {
         String testName = "/rest/transform/header/with_existing_headers.yml";
         List<ObjectNode> tests = getTests(testName);
-        validateSetupDoesNotExist(tests);
+        validateSetupExist(tests);
         validateBodyHasHeaders(tests, Map.of("foo", "bar"));
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);

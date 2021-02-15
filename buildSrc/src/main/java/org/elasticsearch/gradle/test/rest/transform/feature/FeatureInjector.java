@@ -32,7 +32,7 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
         // check to ensure that headers feature does not already exist
         if (setupNodeParent != null) {
             ArrayNode setupNode = (ArrayNode) setupNodeParent.get("setup");
-            if (hasHeadersFeature(setupNode)) {
+            if (hasFeature(setupNode)) {
                 return setupNodeParent;
             }
         }
@@ -55,7 +55,7 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
             // only transform an existing teardown section since a teardown does not inherit from setup but still needs the skip section
             if (teardownNode != null) {
                 // check to ensure that headers feature does not already exist
-                if (hasHeadersFeature(teardownNode)) {
+                if (hasFeature(teardownNode)) {
                     return teardownNodeParent;
                 }
                 addSkip(teardownNode);
@@ -75,7 +75,7 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
      */
     public abstract String getSkipFeatureName();
 
-    private boolean hasHeadersFeature(ArrayNode skipParent) {
+    private boolean hasFeature(ArrayNode skipParent) {
         JsonNode features = skipParent.at("/0/skip/features");
         if (features != null) {
             if (features.isArray()) {

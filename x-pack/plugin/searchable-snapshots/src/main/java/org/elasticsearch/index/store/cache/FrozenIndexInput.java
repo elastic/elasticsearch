@@ -10,7 +10,6 @@ package org.elasticsearch.index.store.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.SharedBytes;
@@ -40,9 +38,7 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
-import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
@@ -98,7 +94,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         int rangeSize,
         int recoveryRangeSize
     ) {
-        super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
+        super(logger, resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
         this.frozenCacheFile = frozenCacheFile;
         this.lastReadPosition = this.offset;
@@ -108,15 +104,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     @Override
-    public void innerClose() {
+    public void doClose() {
         // nothing needed to be done here
-    }
-
-    private void ensureContext(Predicate<IOContext> predicate) throws IOException {
-        if (predicate.test(context) == false) {
-            assert false : "this method should not be used with this context " + context;
-            throw new IOException("Cannot read the index input using context [context=" + context + ", input=" + this + ']');
-        }
     }
 
     private long getDefaultRangeSize() {
@@ -133,9 +122,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     }
 
     @Override
-    protected void readInternal(ByteBuffer b) throws IOException {
+    protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
-        assert assertCurrentThreadIsNotCacheFetchAsync();
         final long position = getFilePointer() + this.offset;
         final int length = b.remaining();
 
@@ -152,16 +140,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
                 luceneByteBufLock.writeLock().unlock();
             }
         };
-
-        // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
-        // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
-        if (length == CodecUtil.footerLength() && isClone == false && position == fileInfo.length() - length) {
-            if (readChecksumFromFileInfo(b)) {
-                logger.trace("read footer of file [{}] at position [{}], bypassing all caches", fileInfo.physicalName(), position);
-                return;
-            }
-            assert b.remaining() == length;
-        }
 
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
 
@@ -476,26 +454,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         throw new IOException("failed to read data from cache", e);
     }
 
-    private boolean readChecksumFromFileInfo(ByteBuffer b) throws IOException {
-        assert isClone == false;
-        byte[] footer;
-        try {
-            footer = checksumToBytesArray(fileInfo.checksum());
-        } catch (NumberFormatException e) {
-            // tests disable this optimisation by passing an invalid checksum
-            footer = null;
-        }
-        if (footer == null) {
-            return false;
-        }
-
-        b.put(footer);
-        assert b.remaining() == 0L;
-        return true;
-
-        // TODO we should add this to DirectBlobContainerIndexInput too.
-    }
-
     private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
         assert assertCurrentThreadMayWriteCacheFile();
         return fc.write(byteBuffer, start);
@@ -708,21 +666,9 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             + '}';
     }
 
-    private static boolean isCacheFetchAsyncThread(final String threadName) {
-        return threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']');
-    }
-
     private static boolean assertCurrentThreadMayWriteCacheFile() {
         final String threadName = Thread.currentThread().getName();
         assert isCacheFetchAsyncThread(threadName) : "expected the current thread ["
-            + threadName
-            + "] to belong to the cache fetch async thread pool";
-        return true;
-    }
-
-    private static boolean assertCurrentThreadIsNotCacheFetchAsync() {
-        final String threadName = Thread.currentThread().getName();
-        assert false == isCacheFetchAsyncThread(threadName) : "expected the current thread ["
             + threadName
             + "] to belong to the cache fetch async thread pool";
         return true;

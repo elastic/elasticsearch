@@ -207,6 +207,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.removeMatch("_source.junk", "two")
               task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
               task.addWarning("one", "warning1", "warning2")
+              task.addAllowedWarning("added allowed warning")
+              task.removeWarning("one", "warning to remove")
             })
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
@@ -220,6 +222,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               get:
                 index: test
                 id: 1
+              warnings:
+                - "warning to remove"
           - match: { _source.values: ["foo"] }
           - match: { _type: "_foo" }
           - match: { _source.blah: 1234 }
@@ -254,18 +258,21 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             features:
             - "headers"
             - "warnings"
+            - "allowed_warnings"
         ---
         one:
         - do:
             get:
               index: "test"
               id: 1
-            headers:
-              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
             warnings:
             - "warning1"
             - "warning2"
+            headers:
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+            allowed_warnings:
+            - "added allowed warning"
         - match:
             _source.values:
             - "z"
@@ -289,6 +296,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             headers:
               Accept: "application/vnd.elasticsearch+json;compatible-with=7"
               Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+            allowed_warnings:
+            - "added allowed warning"
         - match:
             _source.values:
             - "foo"
@@ -298,21 +307,21 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - match: {}
         """.stripIndent()).readAll()
 
-        boolean humanDebug = false;
-        if(humanDebug) {
-            SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
-            for (ObjectNode transformedTest : actual) {
-                sequenceWriter.write(transformedTest)
-            }
-            sequenceWriter.close()
-        }
-
         expectedAll.eachWithIndex{ ObjectNode expected, int i ->
+            if(expected != actual.get(i)) {
+                println("\nTransformed Test:")
+                SequenceWriter sequenceWriter = WRITER.writeValues(System.out)
+                for (ObjectNode transformedTest : actual) {
+                    sequenceWriter.write(transformedTest)
+                }
+                sequenceWriter.close()
+            }
            assert expected == actual.get(i)
         }
 
         when:
-        result = gradleRunner(transformTask).build()
+        //TODO: remove "-i" once https://github.com/elastic/elasticsearch/issues/68973 is resolved
+        result = gradleRunner(transformTask, "-i").build()
 
         then:
         result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE

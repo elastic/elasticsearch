@@ -271,7 +271,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     snapshotVersions,
                     indexSnapshots,
                     ShardGenerations.EMPTY,
-                    IndexMetaDataGenerations.EMPTY);
+                    IndexMetaDataGenerations.EMPTY,
+                    MISSING_UUID);
         });
     }
 

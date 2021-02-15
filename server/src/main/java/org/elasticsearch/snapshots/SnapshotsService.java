@@ -133,6 +133,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version REPOSITORY_UUID_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
+    // TODO: fold this into #REPOSITORY_UUID_IN_REPO_DATA_VERSION and remove separate handling of uuid and clusterUUID BwC where possible
+    public static final Version CLUSTER_UUID_IN_REPO_DATA_VERSION = Version.V_7_12_0;
+
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
     public static final Version MULTI_DELETE_VERSION = Version.V_7_8_0;
@@ -2440,13 +2443,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
+     * Checks whether the metadata version supports writing a repository uuid to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports writing repository uuid to the repository
+     */
+    public static boolean includesRepositoryUuid(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(REPOSITORY_UUID_IN_REPO_DATA_VERSION);
+    }
+
+    /**
+     * Checks whether the metadata version supports writing the cluster uuid to the repository.
      *
      * @param repositoryMetaVersion version to check
      * @return true if version supports {@link ShardGenerations}
      */
-    public static boolean includesRepositoryUuid(Version repositoryMetaVersion) {
-        return repositoryMetaVersion.onOrAfter(REPOSITORY_UUID_IN_REPO_DATA_VERSION);
+    public static boolean includesClusterUUID(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(CLUSTER_UUID_IN_REPO_DATA_VERSION);
     }
 
     /** Deletes snapshot from repository

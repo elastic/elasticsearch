@@ -162,18 +162,18 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     }
 
     public void testSnapshot() {
-        var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
-        var indicesToRemove = randomSubsetOf(preSnapshotDataStream.getIndices());
+        DataStream preSnapshotDataStream = DataStreamTestHelper.randomInstance();
+        List<Index> indicesToRemove = randomSubsetOf(preSnapshotDataStream.getIndices());
         if (indicesToRemove.size() == preSnapshotDataStream.getIndices().size()) {
             // never remove them all
             indicesToRemove.remove(0);
         }
-        var indicesToAdd = DataStreamTestHelper.randomIndexInstances();
-        var postSnapshotIndices = new ArrayList<>(preSnapshotDataStream.getIndices());
+        List<Index> indicesToAdd = DataStreamTestHelper.randomIndexInstances();
+        List<Index> postSnapshotIndices = new ArrayList<>(preSnapshotDataStream.getIndices());
         postSnapshotIndices.removeAll(indicesToRemove);
         postSnapshotIndices.addAll(indicesToAdd);
 
-        var postSnapshotDataStream = new DataStream(
+        DataStream postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
             preSnapshotDataStream.getTimeStampField(),
             postSnapshotIndices,
@@ -182,7 +182,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isHidden(),
             preSnapshotDataStream.isReplicated() && randomBoolean());
 
-        var reconciledDataStream =
+        DataStream reconciledDataStream =
             postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()));
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
@@ -204,10 +204,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
     }
 
     public void testSnapshotWithAllBackingIndicesRemoved() {
-        var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
-        var indicesToAdd = DataStreamTestHelper.randomIndexInstances();
+        DataStream preSnapshotDataStream = DataStreamTestHelper.randomInstance();
+        List<Index> indicesToAdd = DataStreamTestHelper.randomIndexInstances();
 
-        var postSnapshotDataStream = new DataStream(
+        DataStream postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
             preSnapshotDataStream.getTimeStampField(),
             indicesToAdd,

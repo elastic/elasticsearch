@@ -886,9 +886,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return Reconciled {@link Metadata} instance
      */
     public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
-        var builder = Metadata.builder(metadata);
-        for (var dsName : dataStreams) {
-            var dataStream = metadata.dataStreams().get(dsName);
+        Metadata.Builder builder = Metadata.builder(metadata);
+        for (String dsName : dataStreams) {
+            DataStream dataStream = metadata.dataStreams().get(dsName);
             if (dataStream == null) {
                 // should never occur since data streams cannot be deleted while they have snapshots underway
                 throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");

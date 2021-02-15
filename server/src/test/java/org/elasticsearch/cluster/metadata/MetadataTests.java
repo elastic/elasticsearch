@@ -1259,10 +1259,10 @@ public class MetadataTests extends ESTestCase {
      * Tests for the implementation of data stream snapshot reconciliation are located in {@link DataStreamTests#testSnapshot()}
      */
     public void testSnapshot() {
-        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
-        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        Metadata postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        List<String> dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
         List<String> indicesInSnapshot = new ArrayList<>();
-        for (var dsName : dataStreamsToSnapshot) {
+        for (String dsName : dataStreamsToSnapshot) {
             // always include at least one backing index per data stream
             DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
             indicesInSnapshot.addAll(
@@ -1272,7 +1272,7 @@ public class MetadataTests extends ESTestCase {
                 )
             );
         }
-        var reconciledMetadata = Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot);
+        Metadata reconciledMetadata = Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot);
         assertThat(reconciledMetadata.dataStreams().size(), equalTo(postSnapshotMetadata.dataStreams().size()));
         for (DataStream ds : reconciledMetadata.dataStreams().values()) {
             assertThat(ds.getIndices().size(), greaterThanOrEqualTo(1));
@@ -1280,10 +1280,10 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testSnapshotWithMissingDataStream() {
-        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
-        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        Metadata postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        List<String> dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
         List<String> indicesInSnapshot = new ArrayList<>();
-        for (var dsName : dataStreamsToSnapshot) {
+        for (String dsName : dataStreamsToSnapshot) {
             // always include at least one backing index per data stream
             DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
             indicesInSnapshot.addAll(

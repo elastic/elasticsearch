@@ -68,6 +68,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return length;
     }
 
+    @Override
     protected final void readInternal(ByteBuffer b) throws IOException {
         assert assertCurrentThreadIsNotCacheFetchAsync();
 

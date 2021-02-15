@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -61,7 +62,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
     // a set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot
     static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME, RollupILMAction.NAME);
+        FreezeAction.NAME, RollupILMAction.NAME);
 
     static {
         if (RollupV2.isEnabled()) {
@@ -301,23 +302,48 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
-        boolean hotPhaseContainsSearchableSnapshot = phases.stream()
-            .filter(phase -> HOT_PHASE.equals(phase.getName()))
-            .anyMatch(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME));
-        if (hotPhaseContainsSearchableSnapshot) {
-            String phasesDefiningIllegalActions = phases.stream()
-                // we're looking for prohibited actions in phases other than hot
-                .filter(phase -> HOT_PHASE.equals(phase.getName()) == false)
-                // filter the phases that define illegal actions
-                .filter(phase ->
-                    Collections.disjoint(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, phase.getActions().keySet()) == false)
-                .map(Phase::getName)
-                .collect(Collectors.joining(","));
-            if (Strings.hasText(phasesDefiningIllegalActions)) {
-                throw new IllegalArgumentException("phases [" + phasesDefiningIllegalActions + "] define one or more of " +
-                    ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT + " actions which are not allowed after a " +
-                    "managed index is mounted as a searchable snapshot");
+        // invalid configurations can occur if searchable_snapshot is defined in the `hot` phase, with subsequent invalid actions
+        // being defined in the warm/cold/frozen phases, or if it is defined in the `cold` phase with subsequent invalid actions
+        // being defined in the frozen phase
+
+        Optional<Phase> hotPhaseWithSearchableSnapshot = phases.stream()
+            .filter(phase -> phase.getName().equals(HOT_PHASE))
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+            .findAny();
+
+        final List<Phase> phasesFollowingSearchableSnapshot = new ArrayList<>(phases.size());
+        if (hotPhaseWithSearchableSnapshot.isPresent()) {
+            for (Phase phase : phases) {
+                if (phase.getName().equals(HOT_PHASE) == false) {
+                    phasesFollowingSearchableSnapshot.add(phase);
+                }
             }
+        } else {
+            // let's see if the cold phase defines `searchable_snapshot`
+            Optional<Phase> coldPhaseWithSearchableSnapshot = phases.stream()
+                .filter(phase -> phase.getName().equals(COLD_PHASE))
+                .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+                .findAny();
+            if (coldPhaseWithSearchableSnapshot.isPresent()) {
+                for (Phase phase : phases) {
+                    if (phase.getName().equals(FROZEN_PHASE)) {
+                        phasesFollowingSearchableSnapshot.add(phase);
+                        break;
+                    }
+                }
+            }
+        }
+
+        final String phasesDefiningIllegalActions = phasesFollowingSearchableSnapshot.stream()
+            // filter the phases that define illegal actions
+            .filter(phase ->
+                Collections.disjoint(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, phase.getActions().keySet()) == false)
+            .map(Phase::getName)
+            .collect(Collectors.joining(","));
+        if (Strings.hasText(phasesDefiningIllegalActions)) {
+            throw new IllegalArgumentException("phases [" + phasesDefiningIllegalActions + "] define one or more of " +
+                ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT + " actions which are not allowed after a " +
+                "managed index is mounted as a searchable snapshot");
         }
     }
 

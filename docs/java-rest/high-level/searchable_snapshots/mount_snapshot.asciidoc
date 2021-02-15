@@ -1,0 +1,40 @@
+--
+:api: searchable-snapshots-mount-snapshot
+:request: MountSnapshotRequest
+:response: MountSnapshotResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Mount Snapshot API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Mount Snapshot API mounts a snapshot as a searchable snapshot.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the repository.
+<2> The name of the snapshot.
+<3> The name of the index in the snapshot to mount.
+<4> (optional) The period to wait for a connection to the master node.
+<5> (optional) If true, the request blocks until the operation is complete.
+<6> (optional) The type of local storage to use for the mounted snapshot.
+<7> (optional) The name of the index that will be created.
+<8> (optional) Settings that should be added to the mounted index.
+<9> (optional) Names of settings that should be unset when the index is mounted.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the mounted snapshot was restored.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The restore info of the mounted snapshot.
+
+include::../execution.asciidoc[]

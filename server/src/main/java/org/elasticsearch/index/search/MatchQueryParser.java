@@ -532,9 +532,8 @@ public class MatchQueryParser {
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(fieldType.name(), e);
-                } else {
-                    throw e;
                 }
+                throw e;
             }
         }
 

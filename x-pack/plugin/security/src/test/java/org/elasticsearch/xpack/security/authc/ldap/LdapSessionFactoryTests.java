@@ -10,6 +10,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -244,6 +245,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * If the realm's CA path is monitored for changes and the underlying SSL context is reloaded, then we will get two different outcomes
      * (one failure, one success) depending on which file content is in place.
      */
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68995")
     public void testSslTrustIsReloaded() throws Exception {
         assumeFalse("NPE thrown in BCFIPS JSSE - addressed in " +
             "https://github.com/bcgit/bc-java/commit/5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",

@@ -40,7 +40,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
 
     static String[] DEFAULT_DATABASE_FILENAMES = new String[]{"GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"};
 
-    private SetOnce<LocalDatabases> localDatabases = new SetOnce<>();
+    private final SetOnce<LocalDatabases> localDatabases = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {

@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.test.rest.transform.warnings;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.gradle.api.tasks.Input;

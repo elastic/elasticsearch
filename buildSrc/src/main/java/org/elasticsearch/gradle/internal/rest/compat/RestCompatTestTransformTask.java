@@ -140,16 +140,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @param testName the test name to add the warning
      * @param warnings the warning(s) to add
      */
-    public void addWarning(String testName, String... warnings){
+    public void addWarning(String testName, String... warnings) {
         transformations.add(new InjectWarnings(Arrays.asList(warnings), testName));
     }
-
 
     /**
      * Removes one or more warnings
      * @param warnings the warning(s) to remove
      */
-    public void removeWarning(String... warnings){
+    public void removeWarning(String... warnings) {
         transformations.add(new RemoveWarnings(Set.copyOf(Arrays.asList(warnings))));
     }
 
@@ -157,7 +156,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * Adds one or more allowed warnings
      * @param allowedWarnings the warning(s) to add
      */
-    public void addAllowedWarning(String... allowedWarnings){
+    public void addAllowedWarning(String... allowedWarnings) {
         transformations.add(new InjectAllowedWarnings(Arrays.asList(allowedWarnings)));
     }
 

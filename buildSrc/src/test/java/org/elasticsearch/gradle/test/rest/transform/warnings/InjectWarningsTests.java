@@ -22,7 +22,6 @@ public class InjectWarningsTests extends InjectFeatureTests {
     Set<String> addWarnings = Set.of("added warning");
     private static final String WARNINGS = "warnings";
 
-
     /**
      * inject warning requires a test name to insert
      */
@@ -31,10 +30,13 @@ public class InjectWarningsTests extends InjectFeatureTests {
         String testName = "/rest/transform/warnings/without_existing_warnings.yml";
         List<ObjectNode> tests = getTests(testName);
         validateSetupDoesNotExist(tests);
-        assertEquals("inject warnings is only supported for named tests",
-            expectThrows(NullPointerException.class,
-                () -> transformTests(tests, Collections.singletonList(new InjectWarnings(new ArrayList<>(addWarnings), null))))
-                .getMessage());
+        assertEquals(
+            "inject warnings is only supported for named tests",
+            expectThrows(
+                NullPointerException.class,
+                () -> transformTests(tests, Collections.singletonList(new InjectWarnings(new ArrayList<>(addWarnings), null)))
+            ).getMessage()
+        );
     }
 
     /**

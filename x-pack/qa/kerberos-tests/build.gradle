@@ -10,16 +10,8 @@ testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "peppa"
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
-  testImplementation(project(xpackModule('security'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {

@@ -26,11 +26,7 @@ final Project krbFixtureProject = project(':test:fixtures:krb5kdc-fixture')
 final Project hdfsRepoPluginProject = project(':plugins:repository-hdfs')
 
 dependencies {
-  testImplementation(project(xpackModule('searchable-snapshots'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:searchable-snapshots-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   testImplementation hdfsRepoPluginProject
 }
 

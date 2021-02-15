@@ -2,16 +2,8 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
-  javaRestTestImplementation(project(xpackModule('ml'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:ml-test-artifacts")
-    }
-  }
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('ml'))))
   javaRestTestImplementation project(path: ':modules:ingest-common')
   javaRestTestImplementation project(path: xpackModule('data-streams'))
 }

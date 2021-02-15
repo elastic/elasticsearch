@@ -2,16 +2,9 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(path: xpackModule('core'))
-  yamlRestTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
-  yamlRestTestImplementation(project(xpackProject('plugin').path)) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:plugin-test-artifacts")
-    }
-  }}
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+}
 
 // bring in machine learning rest test suite
 restResources {

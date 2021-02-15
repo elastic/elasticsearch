@@ -6,16 +6,8 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
-  testImplementation(project(xpackModule('security'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation project(path: ':modules:reindex')
 }
 

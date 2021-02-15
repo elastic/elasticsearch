@@ -3,11 +3,7 @@ apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
   javaRestTestImplementation project(path: xpackModule('core'))
-  javaRestTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('transform'))
 }
 

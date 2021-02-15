@@ -8,11 +8,7 @@ restResources {
 }
 
 dependencies {
-  yamlRestTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 testClusters.all {

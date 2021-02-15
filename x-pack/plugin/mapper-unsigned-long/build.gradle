@@ -20,8 +20,5 @@ archivesBaseName = 'x-pack-unsigned-long'
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
-testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }}
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}

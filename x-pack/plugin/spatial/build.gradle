@@ -11,16 +11,8 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
-  yamlRestTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
   api project(path: ':modules:geo')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }

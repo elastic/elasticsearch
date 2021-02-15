@@ -9,11 +9,7 @@ final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testImplementation(project(xpackModule('searchable-snapshots'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:searchable-snapshots-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   testImplementation repositoryPlugin
 }
 

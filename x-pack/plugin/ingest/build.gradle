@@ -18,19 +18,11 @@ archivesBaseName = 'x-pack-ingest'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:geo')
-  testImplementation(project(xpackModule('monitoring'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:monitoring-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('monitoring'))))
 }
 
 addQaCheckDependencies()

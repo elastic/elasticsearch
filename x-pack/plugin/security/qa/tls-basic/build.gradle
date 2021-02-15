@@ -3,16 +3,8 @@ apply plugin: 'elasticsearch.java-rest-test'
 import org.elasticsearch.gradle.info.BuildParams
 
 dependencies {
-  testImplementation(project(xpackModule('security'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
-    }
-  }
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 if (BuildParams.inFipsJvm){

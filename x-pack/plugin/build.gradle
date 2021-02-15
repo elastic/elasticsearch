@@ -9,16 +9,8 @@ archivesBaseName = 'x-pack'
 
 dependencies {
   testImplementation project(xpackModule('core'))
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
-  javaRestTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))));
   if (false == isEclipse) {
     // let the yamlRestTest see the classpath of test
     // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it

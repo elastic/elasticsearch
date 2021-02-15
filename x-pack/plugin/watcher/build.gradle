@@ -28,11 +28,7 @@ dependencies {
   compileOnly project(path: ':modules:transport-netty4')
   compileOnly project(path: ':plugins:transport-nio')
 
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ilm'))
   testImplementation project(xpackModule('data-streams'))
 

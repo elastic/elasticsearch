@@ -3,16 +3,8 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   testImplementation project(path: xpackModule('core'))
-  testImplementation(project(xpackModule('security'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
-    }
-  }
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 testFixtures.useFixture ":x-pack:test:idp-fixture", "openldap"

@@ -3,11 +3,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   testImplementation project(xpackModule('security'))
-  testImplementation(project(xpackModule('security'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
-    }
-  }}
+  testImplementation(testArtifact(project(xpackModule('security'))))}
 
 testFixtures.useFixture ":x-pack:test:smb-fixture"
 

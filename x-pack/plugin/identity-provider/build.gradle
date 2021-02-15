@@ -13,17 +13,9 @@ archivesBaseName = 'x-pack-identity-provider'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
   // So that we can extend LocalStateCompositeXPackPlugin
-  testImplementation(project(xpackModule('security'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:security-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('security'))))
   // the following are all SAML dependencies - might as well download the whole internet
   api "org.opensaml:opensaml-core:3.4.5"
   api "org.opensaml:opensaml-saml-api:3.4.5"

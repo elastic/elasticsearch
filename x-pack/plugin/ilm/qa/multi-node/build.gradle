@@ -4,11 +4,8 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }}
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
 
 // let the javaRestTest see the classpath of main
 GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))

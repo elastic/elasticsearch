@@ -40,14 +40,12 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
             dependencies.add("testApiElements", projectDependency);
             dependencies.add("testRuntimeElements", projectDependency);
         });
-
         // PolicyUtil doesn't handle classifier notation well probably.
         // Instead of fixing PoliceUtil we stick to the pattern of changing
         // the basename here to indicate its a test artifacts jar.
         BasePluginConvention convention = (BasePluginConvention) project.getConvention().getPlugins().get("base");
         project.getTasks().named("testJar", Jar.class).configure(jar -> {
             jar.getArchiveBaseName().convention(project.provider(() -> convention.getArchivesBaseName() + "-test-artifacts"));
-            System.out.println("jar = " + jar.getArchiveBaseName().get());
             jar.getArchiveClassifier().set("");
         });
     }

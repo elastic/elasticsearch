@@ -9,10 +9,6 @@ archivesBaseName = 'x-pack-logstash'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

@@ -12,11 +12,7 @@ archivesBaseName = 'x-pack-searchable-snapshots'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  internalClusterTestImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()

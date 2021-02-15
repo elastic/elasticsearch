@@ -9,11 +9,7 @@ final Project fixture = project(':test:fixtures:s3-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
 
 dependencies {
-  testImplementation(project(xpackModule('repositories-metering-api'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:repositories-metering-api-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
   testImplementation repositoryPlugin
 }
 

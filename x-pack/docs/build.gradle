@@ -17,16 +17,8 @@ tasks.named("buildRestTests").configure {
 }
 
 dependencies {
-  testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }
-  testImplementation(project(xpackProject('plugin').path)) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:plugin-test-artifacts")
-    }
-  }
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackProject('plugin').path)))
 }
 
 restResources {

@@ -5,11 +5,7 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testImplementation project(path: xpackModule('core'))
   testImplementation project(path: xpackModule('security'))
-testImplementation(project(xpackModule('core'))) {
-    capabilities {
-      requireCapability("org.elasticsearch.gradle:core-test-artifacts")
-    }
-  }}
+testImplementation(testArtifact(project(xpackModule('core'))))}
 
 tasks.named("integTest").configure {
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"

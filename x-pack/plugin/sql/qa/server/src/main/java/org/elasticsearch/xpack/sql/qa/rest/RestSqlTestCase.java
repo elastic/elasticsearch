@@ -42,6 +42,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -834,6 +836,31 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
+    @SuppressWarnings("unchecked")
+    public void testMultiValueDifferentPathsWithArraysAndNulls() throws IOException {
+        ExhaustiveMultiPathMapper<Long> mapper = new ExhaustiveMultiPathMapper<>(randomIntBetween(3, 10));
+        // TODO AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68979")
+        // Supplier<Long> supplier = () -> randomNonNegativeByte() < 30 ? null : randomLong();
+        Supplier<Long> supplier = ESTestCase::randomLong;
+
+        index(Strings.toString(JsonXContent.contentBuilder().map(mapper.generate(supplier))));
+
+        Map<String, Object> retMap = runSql(randomMode(), "SELECT ARRAY(" + mapper.path() + ") FROM test", false);
+        List<?> rows = (List<?>) retMap.get("rows");
+        assertTrue(rows.size() == 1 && rows.get(0) instanceof List && ((List<?>) rows.get(0)).size() == 1);
+        List<?> cell = (List<?>) ((List<?>) rows.get(0)).get(0);
+        assertFalse(cell.isEmpty());
+        assertTrue(cell.get(0) instanceof Long);
+        List<Long> floats = (List<Long>) cell;
+
+        // order of array retrieval is stable, not trivial to predict and ultimately irrelevant / not guaranteed
+        floats.sort(Long::compare);
+        List<Long> values = mapper.values();
+        values.removeIf(Objects::isNull);
+        values.sort(Long::compare);
+        assertEquals(values, floats);
+    }
+
     public void testBasicTranslateQueryWithFilter() throws IOException {
         index("{\"test\":\"foo\"}", "{\"test\":\"bar\"}");
 
@@ -1163,6 +1190,169 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
+        }
+    }
+
+    /**
+     * Generates the map of a JSON object whose paths to a value are of a specified depth, having mapped all possible path combinations:
+     *   {"a": {"b": {"c": 1}}, "a": {"b.c": [2, 3]}, "a.b": [{"c": 4}, {"c": 5}], "a.b.c": ...}
+     * Some of the paths are randomly multiplied:
+     *   {"a": [{"b": {"c": 1}}}, {"b": {"c": 1}}}], ...}
+     */
+    private static class ExhaustiveMultiPathMapper<T> {
+        private final List<List<String>> paths;
+        private final String path;
+        private Map<String, Object> map;
+        private List<T> values;
+
+        // the depth excludes the leaf
+        ExhaustiveMultiPathMapper(int depth) {
+            if (depth < 2) {
+                throw new IllegalArgumentException("the depth must be larger than 2; provided: [" + depth + "]");
+            }
+            List<String> nodes = randomList(2, depth, () -> randomAlphaOfLength(randomIntBetween(1, 5)));
+            paths = generatePaths(nodes);
+            values = new ArrayList<>(paths.size());
+            path = String.join(".", paths.get(0));
+        }
+
+        Map<String, Object> map() {
+            return map == null ? null : new HashMap<>(map);
+        }
+
+        List<T> values() {
+            return values == null ? null : new ArrayList<>(values);
+        }
+
+        String path() {
+            return path;
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> generate(Supplier<T> supplier) {
+            values = new ArrayList<>(paths.size());
+            map = new HashMap<>();
+
+            for (List<String> path : paths) {
+                Object value;
+                if (randomBoolean()) {
+                    value = supplier.get();
+                    values.add((T) value);
+                } else {
+                    value = randomList(1, 5, supplier);
+                    values.addAll((List<T>) value);
+                }
+                if (path.size() == 1) { // "a.b.c": 3
+                    map.put(path.get(0), value);
+                } else {
+                    Map<String, Object> crrMap = new HashMap<>();
+                    crrMap.put(path.get(path.size() - 1), value);
+                    for (int j = path.size() - 2; j > 0; j--) {
+                        Map<String, Object> newMap = new HashMap<>();
+                        newMap.put(path.get(j), crrMap);
+                        crrMap = newMap;
+                    }
+                    mergeMaps(map, path.get(0), crrMap);
+                }
+            }
+            randomlyMultiplySubmaps(map, values);
+
+            return map();
+        }
+
+        // "a": {"b": 2} => "a": [{"b": 2}, {"b": 2}]
+        private static <T> void randomlyMultiplySubmaps(Map<String, Object> map, List<T> valuesList) {
+            map.keySet().forEach(key -> {
+                Object val = map.get(key);
+                if (val instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> innerMap = (Map<String, Object>) val;
+                    if (randomNonNegativeByte() < 60) {
+                        List<Map<String, Object>> replacementList = new ArrayList<>();
+                        int multiplicate = randomIntBetween(1, 5);
+                        for (int i = 0; i < multiplicate; i++) {
+                            Map<String, Object> copy = new HashMap<>(innerMap);
+                            replacementList.add(copy);
+                            if (i > 0) { // the initial copy is already part of valuesList
+                                collectLeaves(copy, valuesList);
+                            }
+                        }
+                        map.put(key, replacementList);
+                    } else {
+                        randomlyMultiplySubmaps(innerMap, valuesList);
+                    }
+                }
+            });
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <T> void collectLeaves(Map<String, Object> map, List<T> valuesList) {
+            for (Object val : map.values()) {
+                if (val instanceof Map) {
+                    collectLeaves((Map<String, Object>) val, valuesList);
+                } else if (val instanceof List) {
+                    for (Object o : (List<Object>) val) {
+                        if (o instanceof Map) {
+                            collectLeaves((Map<String, Object>) o, valuesList);
+                        } else {
+                            valuesList.add((T) o);
+                        }
+                    }
+                } else {
+                    valuesList.add((T) val);
+                }
+            }
+        }
+
+        // {"a" : {"b": {"c": 3}}} + "a", {"b.c": 4} => {"a": {"b": {"c": 3}, "b.c": 4}}
+        @SuppressWarnings("unchecked")
+        private static void mergeMaps(Map<String, Object> destination, String key, Map<String, Object> singleKeys) {
+            Object o = singleKeys;
+            while (destination.containsKey(key)) {
+                destination = (Map<String, Object>) destination.get(key);
+                key = singleKeys.keySet().toArray(new String[0])[0];
+                o = singleKeys.get(key);
+                if (o instanceof Map == false) {
+                    break;
+                }
+                singleKeys = (Map<String, Object>) o;
+            }
+            destination.put(key, o);
+        }
+
+        // generate all possible path combinations with given node names: a, b, c => (a, b, c), (a, b.c), (a.b, c), (a.b.c)
+        private static List<List<String>> generatePaths(List<String> nodes) {
+            if (nodes.size() == 0) {
+                return emptyList();
+            }
+            List<List<String>> paths = new ArrayList<>(singletonList(singletonList(nodes.get(0))));
+            for (int i = 1; i < nodes.size(); i++) {
+                List<List<String>> newPaths = new ArrayList<>();
+                for (List<String> crrPath : paths) {
+                    newPaths.addAll(extendPaths(crrPath, nodes.get(i)));
+                }
+                paths = newPaths;
+            }
+            return paths;
+        }
+
+        // (a, b) + c => (a, b, c), (a, bc)
+        private static List<List<String>> extendPaths(List<String> paths, String node) {
+            List<List<String>> extendedPaths = new ArrayList<>(paths.size() * 2);
+            List<String> listA = new ArrayList<>(paths);
+            listA.add(node);
+            extendedPaths.add(listA);
+            if (paths.isEmpty() == false) {
+                List<String> listB;
+                if (paths.size() > 1) {
+                    listB = paths.subList(0, paths.size() - 1);
+                    listB.add(paths.get(paths.size() - 1) + "." + node);
+                } else {
+                    listB = singletonList(paths.get(0) + "." + node);
+                }
+                extendedPaths.add(listB);
+            }
+            return extendedPaths;
         }
     }
 }

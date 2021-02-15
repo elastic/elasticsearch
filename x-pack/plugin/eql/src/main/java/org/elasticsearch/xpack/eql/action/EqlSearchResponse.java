@@ -242,12 +242,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             index = in.readString();
             id = in.readString();
             source = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-                if (in.readBoolean()) {
-                    fetchFields = in.readMap(StreamInput::readString, DocumentField::new);
-                } else {
-                    fetchFields = null;
-                }
+            if (in.getVersion().onOrAfter(Version.V_7_12_0) && in.readBoolean()) {
+                fetchFields = in.readMap(StreamInput::readString, DocumentField::new);
             } else {
                 fetchFields = null;
             }

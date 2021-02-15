@@ -141,7 +141,7 @@ public class BasicQueryClient implements QueryClient {
                 // NB:this is different from mget
                 .size(idQuery.ids().size());
             if (fetchFields != null) {
-                fetchFields.stream().forEach(f -> builder.fetchField(f));
+                fetchFields.forEach(builder::fetchField);
             }
 
             SearchRequest search = prepareRequest(builder, false, entry.getKey());

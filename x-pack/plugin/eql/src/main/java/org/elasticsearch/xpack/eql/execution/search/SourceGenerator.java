@@ -66,7 +66,7 @@ public abstract class SourceGenerator {
 
         // add the "fields" to be fetched
         if (fetchFields != null) {
-            fetchFields.stream().forEach(f -> source.fetchField(f));
+            fetchFields.forEach(source::fetchField);
         }
 
         if (container.limit() != null) {

@@ -62,7 +62,7 @@ public class RemoveMatchTests extends GradleUnitTestCase {
         validateTest(tests, true, false);
         List<ObjectNode> transformedTests = transformer.transformRestTests(
             new LinkedList<>(tests),
-            Collections.singletonList(new RemoveMatch("_type", "Basic"))
+            Collections.singletonList(new RemoveMatch("_type", "Last test"))
         );
         printTest(testName, transformedTests);
         validateTest(tests, false, false);
@@ -75,9 +75,9 @@ public class RemoveMatchTests extends GradleUnitTestCase {
         ObjectNode tearDown = tests.get(1);
         assertThat(tearDown.get("teardown"), CoreMatchers.notNullValue());
         ObjectNode firstTest = tests.get(2);
-        assertThat(firstTest.get("Test that queries on _index match against the correct indices."), CoreMatchers.notNullValue());
+        assertThat(firstTest.get("First test"), CoreMatchers.notNullValue());
         ObjectNode lastTest = tests.get(tests.size() - 1);
-        assertThat(lastTest.get("Basic"), CoreMatchers.notNullValue());
+        assertThat(lastTest.get("Last test"), CoreMatchers.notNullValue());
 
         // setup
         JsonNode setup = setUp.get("setup");
@@ -112,7 +112,7 @@ public class RemoveMatchTests extends GradleUnitTestCase {
         assertFalse(teardownHasMatchObject.get());
 
         // first test
-        JsonNode firstTestChild = firstTest.get("Test that queries on _index match against the correct indices.");
+        JsonNode firstTestChild = firstTest.get("First test");
         assertThat(firstTestChild, CoreMatchers.instanceOf(ArrayNode.class));
         ArrayNode firstTestParentArray = (ArrayNode) firstTestChild;
 
@@ -142,7 +142,7 @@ public class RemoveMatchTests extends GradleUnitTestCase {
         }
 
         // last test
-        JsonNode lastTestChild = lastTest.get("Basic");
+        JsonNode lastTestChild = lastTest.get("Last test");
         assertThat(lastTestChild, CoreMatchers.instanceOf(ArrayNode.class));
         ArrayNode lastTestParentArray = (ArrayNode) lastTestChild;
 

@@ -38,9 +38,10 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
         ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
         ArrayNode arrayWarnings = (ArrayNode) doNodeValue.get("warnings");
         if (arrayWarnings == null) {
-            arrayWarnings = new ArrayNode(jsonNodeFactory);
-            doNodeValue.set("warnings", arrayWarnings);
+            return;
         }
+
+
         List<String> keepWarnings = new ArrayList<>();
         arrayWarnings.elements().forEachRemaining(warning -> {
             String warningValue = warning.textValue();

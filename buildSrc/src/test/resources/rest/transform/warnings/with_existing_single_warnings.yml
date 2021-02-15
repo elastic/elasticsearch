@@ -1,13 +1,12 @@
 ---
 setup:
   - skip:
-      features: allowed_warnings
+      features: warnings
 ---
-"Test with existing allowed warnings":
+"Test with existing single warnings":
   - do:
-      allowed_warnings:
+      warnings:
         - "a"
-        - "b"
       something:
         id: "something"
   - match: { acknowledged: true }

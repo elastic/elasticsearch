@@ -1,4 +1,8 @@
 ---
+setup:
+  - skip:
+      features: warnings
+---
 "Test with existing warnings":
   - do:
       warnings:

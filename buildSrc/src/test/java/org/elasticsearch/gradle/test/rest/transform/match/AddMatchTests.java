@@ -18,6 +18,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
+import org.elasticsearch.gradle.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
@@ -28,45 +29,31 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class AddMatchTests extends GradleUnitTestCase {
+public class AddMatchTests extends TransformTests {
 
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
-    private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
-
-    private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
     @Test
     public void testAddAllNotSupported() throws Exception {
         String testName = "/rest/transform/match/match.yml";
-        File testFile = new File(getClass().getResource(testName).toURI());
-        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
-        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
-        RestTestTransformer transformer = new RestTestTransformer();
+        List<ObjectNode> tests = getTests(testName);
         JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
         assertEquals(
             "adding matches is only supported for named tests",
-            expectThrows(
-                NullPointerException.class,
-                () -> transformer.transformRestTests(
-                    new LinkedList<>(tests),
-                    Collections.singletonList(new AddMatch("_type", addNode, null))
-                )
-            ).getMessage()
-        );
-
+            expectThrows(NullPointerException.class, () -> transformTests(
+                new LinkedList<>(tests),
+                Collections.singletonList(new AddMatch("_type", addNode, null))))
+        .getMessage());
     }
 
     @Test
     public void testAddByTest() throws Exception {
         String testName = "/rest/transform/match/match.yml";
-        File testFile = new File(getClass().getResource(testName).toURI());
-        YAMLParser yamlParser = YAML_FACTORY.createParser(testFile);
-        List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
-        RestTestTransformer transformer = new RestTestTransformer();
+        List<ObjectNode> tests = getTests(testName);
         JsonNode addNode = MAPPER.convertValue(123456789, JsonNode.class);
         validateTest(tests, true);
-        List<ObjectNode> transformedTests = transformer.transformRestTests(
+        List<ObjectNode> transformedTests = transformTests(
             new LinkedList<>(tests),
             Collections.singletonList(new AddMatch("my_number", addNode, "Last test"))
         );
@@ -75,49 +62,9 @@ public class AddMatchTests extends GradleUnitTestCase {
     }
 
     private void validateTest(List<ObjectNode> tests, boolean beforeTransformation) {
-        ObjectNode setUp = tests.get(0);
-        assertThat(setUp.get("setup"), CoreMatchers.notNullValue());
-        ObjectNode tearDown = tests.get(1);
-        assertThat(tearDown.get("teardown"), CoreMatchers.notNullValue());
-        ObjectNode firstTest = tests.get(2);
-        assertThat(firstTest.get("First test"), CoreMatchers.notNullValue());
-        ObjectNode lastTest = tests.get(tests.size() - 1);
-        assertThat(lastTest.get("Last test"), CoreMatchers.notNullValue());
-
-        // setup
-        JsonNode setup = setUp.get("setup");
-        assertThat(setup, CoreMatchers.instanceOf(ArrayNode.class));
-        ArrayNode setupParentArray = (ArrayNode) setup;
-
-        AtomicBoolean setUpHasMatchObject = new AtomicBoolean(false);
-        setupParentArray.elements().forEachRemaining(node -> {
-            assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
-            ObjectNode childObject = (ObjectNode) node;
-            JsonNode matchObject = childObject.get("match");
-            if (matchObject != null) {
-                setUpHasMatchObject.set(true);
-            }
-        });
-        assertFalse(setUpHasMatchObject.get());
-
-        // teardown
-        JsonNode teardown = tearDown.get("teardown");
-        assertThat(teardown, CoreMatchers.instanceOf(ArrayNode.class));
-        ArrayNode teardownParentArray = (ArrayNode) teardown;
-
-        AtomicBoolean teardownHasMatchObject = new AtomicBoolean(false);
-        teardownParentArray.elements().forEachRemaining(node -> {
-            assertThat(node, CoreMatchers.instanceOf(ObjectNode.class));
-            ObjectNode childObject = (ObjectNode) node;
-            JsonNode matchObject = childObject.get("match");
-            if (matchObject != null) {
-                teardownHasMatchObject.set(true);
-            }
-        });
-        assertFalse(teardownHasMatchObject.get());
-
+        validateSetupAndTearDownForMatchTests(tests);
         // first test
-        JsonNode firstTestChild = firstTest.get("First test");
+        JsonNode firstTestChild = tests.get(2).get("First test");
         assertThat(firstTestChild, CoreMatchers.instanceOf(ArrayNode.class));
         ArrayNode firstTestParentArray = (ArrayNode) firstTestChild;
 
@@ -133,7 +80,7 @@ public class AddMatchTests extends GradleUnitTestCase {
         assertTrue(firstTestHasMatchObject.get());
 
         // last test
-        JsonNode lastTestChild = lastTest.get("Last test");
+        JsonNode lastTestChild = tests.get(tests.size() - 1).get("Last test");
         assertThat(lastTestChild, CoreMatchers.instanceOf(ArrayNode.class));
         ArrayNode lastTestParentArray = (ArrayNode) lastTestChild;
 
@@ -159,17 +106,8 @@ public class AddMatchTests extends GradleUnitTestCase {
         }
     }
 
-    // only to help manually debug
-    private void printTest(String testName, List<ObjectNode> tests) {
-        if (humanDebug) {
-            System.out.println("\n************* " + testName + " *************");
-            try (SequenceWriter sequenceWriter = MAPPER.writer().writeValues(System.out)) {
-                for (ObjectNode transformedTest : tests) {
-                    sequenceWriter.write(transformedTest);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+    @Override
+    protected boolean getHumanDebug() {
+        return false;
     }
 }

@@ -88,6 +88,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 (Optional,  <<query-dsl,query object>> Allows to filter indices if the provided
 query rewrites to `match_none` on every shard.
 
+`runtime_mappings`::
+(Optional, object)
+Defines ad-hoc <<runtime-search-request,runtime fields>> in the request similar
+to the way it is done in <<search-api-body-runtime, search requests>>. These fields
+exist only as part of the query and take precedence over fields defined with the
+same name in the index mappings.
+
 [[search-field-caps-api-response-body]]
 ==== {api-response-body-title}
 

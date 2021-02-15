@@ -16,14 +16,25 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.BasePluginConvention;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.jvm.tasks.Jar;
+
+import javax.inject.Inject;
 
 /**
  * Ideally, this plugin is intended to be temporary and in the long run we want to move
  * forward to port our test fixtures to use the gradle test fixtures plugin.
  * */
 public class InternalTestArtifactPlugin implements Plugin<Project> {
+
+    private final ProviderFactory providerFactory;
+
+    @Inject
+    public InternalTestArtifactPlugin(ProviderFactory providers) {
+        this.providerFactory = providers;
+    }
+
     @Override
     public void apply(Project project) {
         JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
@@ -47,7 +58,7 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
         // the basename here to indicate its a test artifacts jar.
         BasePluginConvention convention = (BasePluginConvention) project.getConvention().getPlugins().get("base");
         project.getTasks().named("testJar", Jar.class).configure(jar -> {
-            jar.getArchiveBaseName().convention(project.provider(() -> convention.getArchivesBaseName() + "-test-artifacts"));
+            jar.getArchiveBaseName().convention(providerFactory.provider(() -> convention.getArchivesBaseName() + "-test-artifacts"));
             jar.getArchiveClassifier().set("");
         });
     }

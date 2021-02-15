@@ -19,6 +19,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -27,7 +28,6 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -164,10 +164,10 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public DocValueFetcher.Leaf getLeafValueFetcher(DocValueFormat format) {
+        public FormattedDocValues getFormattedValues(DocValueFormat format) {
             DocValueFormat nanosFormat = DocValueFormat.withNanosecondResolution(format);
             SortedNumericDocValues values = getLongValuesAsNanos();
-            return new DocValueFetcher.Leaf() {
+            return new FormattedDocValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     return values.advanceExact(docId);

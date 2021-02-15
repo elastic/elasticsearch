@@ -13,9 +13,11 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.plugins.BasePluginConvention;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.jvm.tasks.Jar;
 
 /**
  * Ideally, this plugin is intended to be temporary and in the long run we want to move
@@ -37,6 +39,16 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
             Dependency projectDependency = dependencies.create(project);
             dependencies.add("testApiElements", projectDependency);
             dependencies.add("testRuntimeElements", projectDependency);
+        });
+
+        // PolicyUtil doesn't handle classifier notation well probably.
+        // Instead of fixing PoliceUtil we stick to the pattern of changing
+        // the basename here to indicate its a test artifacts jar.
+        BasePluginConvention convention = (BasePluginConvention) project.getConvention().getPlugins().get("base");
+        project.getTasks().named("testJar", Jar.class).configure(jar -> {
+            jar.getArchiveBaseName().convention(project.provider(() -> convention.getArchivesBaseName() + "-test-artifacts"));
+            System.out.println("jar = " + jar.getArchiveBaseName().get());
+            jar.getArchiveClassifier().set("");
         });
     }
 }

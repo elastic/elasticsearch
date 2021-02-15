@@ -30,10 +30,9 @@ class RandomBlobContent {
      * @param repositoryName The name of the repository being tested, for use in exception messages.
      * @param seed RNG seed to use for its contents.
      * @param isCancelledSupplier Predicate that causes reads to throw a {@link RepositoryVerificationException}, allowing for fast failure
-     *                            on cancellation. TODO does this actually cancel blob writes gracefully enough?
+     *                            on cancellation.
      * @param onLastRead Runs when a {@code read()} call returns the last byte of the file, or on {@code close()} if the file was not fully
      *                   read. Only runs once even if the last byte is read multiple times using {@code mark()} and {@code reset()}.
-     *                   TODO does this happen just before completion or do some SDKs read the stream more than once (e.g. checksum first)?
      */
     RandomBlobContent(String repositoryName, long seed, BooleanSupplier isCancelledSupplier, Runnable onLastRead) {
         this.repositoryName = repositoryName;

@@ -42,9 +42,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
-import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -432,8 +432,8 @@ class RollupShardIndexer {
 
         @Override
         public LeafCollector getLeafCollector(LeafReaderContext context) {
-            final List<DocValueFetcher.Leaf> groupFieldLeaves = leafFetchers(context, groupFieldFetchers);
-            final List<DocValueFetcher.Leaf> metricsFieldLeaves = leafFetchers(context, metricsFieldFetchers);
+            final List<FormattedDocValues> groupFieldLeaves = leafFetchers(context, groupFieldFetchers);
+            final List<FormattedDocValues> metricsFieldLeaves = leafFetchers(context, metricsFieldFetchers);
             return new LeafCollector() {
                 @Override
                 public void setScorer(Scorable scorer) {
@@ -442,7 +442,7 @@ class RollupShardIndexer {
                 @Override
                 public void collect(int docID) throws IOException {
                     List<List<Object>> combinationKeys = new ArrayList<>();
-                    for (DocValueFetcher.Leaf leafField : groupFieldLeaves) {
+                    for (FormattedDocValues leafField : groupFieldLeaves) {
                         if (leafField.advanceExact(docID)) {
                             List<Object> lst = new ArrayList<>();
                             for (int i = 0; i < leafField.docValueCount(); i++) {
@@ -456,11 +456,11 @@ class RollupShardIndexer {
 
                     final BytesRef valueBytes;
                     try (BytesStreamOutput out = new BytesStreamOutput()) {
-                        for (DocValueFetcher.Leaf leaf : metricsFieldLeaves) {
-                            if (leaf.advanceExact(docID)) {
-                                out.writeVInt(leaf.docValueCount());
-                                for (int i = 0; i < leaf.docValueCount(); i++) {
-                                    Object obj = leaf.nextValue();
+                        for (FormattedDocValues formattedDocValues : metricsFieldLeaves) {
+                            if (formattedDocValues.advanceExact(docID)) {
+                                out.writeVInt(formattedDocValues.docValueCount());
+                                for (int i = 0; i < formattedDocValues.docValueCount(); i++) {
+                                    Object obj = formattedDocValues.nextValue();
                                     if (obj instanceof Number == false) {
                                         throw new IllegalArgumentException("Expected [Number], got [" + obj.getClass() + "]");
                                     }
@@ -485,8 +485,8 @@ class RollupShardIndexer {
             };
         }
 
-        private List<DocValueFetcher.Leaf> leafFetchers(LeafReaderContext context, List<FieldValueFetcher> fetchers) {
-            List<DocValueFetcher.Leaf> leaves = new ArrayList<>();
+        private List<FormattedDocValues> leafFetchers(LeafReaderContext context, List<FieldValueFetcher> fetchers) {
+            List<FormattedDocValues> leaves = new ArrayList<>();
             for (FieldValueFetcher fetcher : fetchers) {
                 leaves.add(fetcher.getLeaf(context));
             }

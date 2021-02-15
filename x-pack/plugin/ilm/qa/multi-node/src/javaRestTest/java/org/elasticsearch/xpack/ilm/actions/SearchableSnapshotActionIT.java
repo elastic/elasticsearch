@@ -21,12 +21,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -39,6 +41,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -48,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
@@ -224,7 +228,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
-        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup]" +
+        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]" +
             " actions which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
@@ -459,23 +463,32 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testConvertingPartialSearchableSnapshotIntoFull() throws Exception {
-        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) +"-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createPolicy(client(), policy, null, null,
-            new Phase("cold", TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
-                    MountSearchableSnapshotRequest.Storage.SHARED_CACHE))),
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO,
+                Map.of(
+                    SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
+                    MountSearchableSnapshotRequest.Storage.SHARED_CACHE),
+                    RolloverAction.NAME, new RolloverAction(null, null, 1L))),
+            null, null,
             new Phase("frozen", TimeValue.ZERO,
                 singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
                     MountSearchableSnapshotRequest.Storage.FULL_COPY))),
             null
         );
 
-        createIndex(index, Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .build());
+        String alias = "alias-" + randomAlphaOfLengthBetween(5, 10);
+        createIndexWithSettings(client(), index, alias, Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias),
+            true);
+
         ensureGreen(index);
-        indexDocument(client(), index, true);
+        indexDocument(client(), alias, true);
+        rolloverMaxOneDocCondition(client(), alias);
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX + index;
@@ -525,4 +538,62 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat(e.getMessage(),
             containsString("policy specifies [searchable_snapshot] action multiple times with differing repositories"));
     }
+
+    public void testSearchableSnapshotActionOverridesMigrateAction() throws Exception {
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
+                SearchableSnapshotAction.NAME, new SearchableSnapshotAction(
+                    snapshotRepo, randomBoolean(), MountSearchableSnapshotRequest.Storage.FULL_COPY))
+            ),
+            new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(true))),
+            // this time transition condition will make sure we catch ILM in the warm phase so we can assert the warm migrate action
+            // didn't re-configure the tier allocation settings set by the searchable_snapshot action in the hot phase
+            // we'll use the origination date to kick off ILM to complete the policy
+            new Phase("cold", TimeValue.timeValueDays(5L), Map.of(MigrateAction.NAME, new MigrateAction(true))),
+            new Phase("frozen", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(true))),
+            null
+        );
+
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
+            new Template(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .build(), null, null)
+        );
+
+        indexDocument(client(), dataStream, true);
+        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
+        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_hot"));
+
+        // rollover the data stream so searchable_snapshot can complete
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
+        assertBusy(() -> {
+            logger.info("--> waiting for [{}] to exist...", restoredIndex);
+            assertTrue(indexExists(restoredIndex));
+        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("warm").getKey())),
+            30, TimeUnit.SECONDS);
+
+        Map<String, Object> warmIndexSettings = getIndexSettingsAsMap(restoredIndex);
+        // the warm phase shouldn't have changed the data_cold -> data_hot configuration
+        assertThat(warmIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+            is("data_cold,data_warm,data_hot"));
+
+        // make the index 100 days old so the cold phase transition timing passes
+        updateIndexSettings(restoredIndex, Settings.builder().put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE,
+            ZonedDateTime.now().toInstant().toEpochMilli() - TimeValue.timeValueDays(100).getMillis()));
+
+        // let's wait for ILM to finish
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("frozen").getKey())));
+
+        Map<String, Object> frozenIndexSettings = getIndexSettingsAsMap(restoredIndex);
+        // the frozen phase should've reconfigured the allocation preference
+        assertThat(frozenIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+            is("data_frozen,data_cold,data_warm,data_hot"));
+    }
+
 }

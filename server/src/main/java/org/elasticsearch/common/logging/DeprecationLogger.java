@@ -81,6 +81,8 @@ public class DeprecationLogger {
         final String msg,
         final Object... params
     ) {
+        assert category != DeprecationCategory.COMPATIBLE_API :
+            "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
         ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
         logger.log(DEPRECATION, deprecationMessage);
         return this;

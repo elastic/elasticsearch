@@ -370,4 +370,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             throw new UncheckedIOException(e);
         }
     }
+
+    @Override
+    public String getFeatureName() {
+        return "transform";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages configuration and state for transforms";
+    }
 }

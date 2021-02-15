@@ -41,6 +41,7 @@ rm -r samba4
 -----------------------------------------------------------------------------------------------------------
 cp ./ca.pem ../../../../../../../x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/ldap/support/smb_ca.crt
 cp ./cert.pem ../../../../../../../x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/ldap/support/smb_cert.crt
+cp ./cert.pem ../../../../../../../x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/samba4.crt
 
 
 keytool -keystore ../../../../../../../x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/ldap/support/ADtrust.jks -storepass changeit -delete -noprompt -alias smb_ca

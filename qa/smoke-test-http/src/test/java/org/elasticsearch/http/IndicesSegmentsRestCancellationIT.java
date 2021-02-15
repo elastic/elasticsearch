@@ -9,7 +9,6 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
@@ -174,7 +173,8 @@ public class IndicesSegmentsRestCancellationIT extends HttpSmokeTestCase {
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
-            searcherBlock.release();return super.acquireSearcher(source, scope, wrapper);
+            searcherBlock.release();
+            return super.acquireSearcher(source, scope, wrapper);
         }
     }
 

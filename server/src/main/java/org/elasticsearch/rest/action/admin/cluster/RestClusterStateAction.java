@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -22,19 +21,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
-import org.elasticsearch.rest.action.RestActionListener;
-import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -163,10 +155,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         private final LongSupplier currentTimeMillisSupplier;
         private final long startTimeMillis;
 
-        public RestClusterStateResponse(
-                ClusterStateRequest request,
-                ClusterStateResponse response,
-                LongSupplier currentTimeMillisSupplier) {
+        RestClusterStateResponse(ClusterStateRequest request, ClusterStateResponse response, LongSupplier currentTimeMillisSupplier) {
             this.request = request;
             this.response = response;
             this.currentTimeMillisSupplier = currentTimeMillisSupplier;

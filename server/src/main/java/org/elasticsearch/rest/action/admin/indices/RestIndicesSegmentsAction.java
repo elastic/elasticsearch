@@ -16,7 +16,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;

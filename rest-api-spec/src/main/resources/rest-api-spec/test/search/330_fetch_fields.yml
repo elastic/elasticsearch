@@ -335,7 +335,7 @@ Test unmapped field:
               - f1
               - { "field" : "f4", "include_unmapped" : true }
   -  match:
-        hits.hits.0.fields.f1: 
+        hits.hits.0.fields.f1:
         - some text
   -  match:
         hits.hits.0.fields.f4:
@@ -347,7 +347,7 @@ Test unmapped field:
               fields:
               - { "field" : "f*", "include_unmapped" : true }
   -  match:
-        hits.hits.0.fields.f1: 
+        hits.hits.0.fields.f1:
         - some text
   -  match:
         hits.hits.0.fields.f2\.a:
@@ -381,7 +381,7 @@ Test unmapped fields inside disabled objects:
            id: 1
            refresh: true
            body:
-              f1: 
+              f1:
                  - some text
                  - a: b
                  -
@@ -809,9 +809,44 @@ Test nested field with sibling field resolving to DocValueFetcher:
         hits.hits.0.fields.owner:
           - "Anna Ott"
   - match:
-        hits.hits.0.fields.owner\.length: 
+        hits.hits.0.fields.owner\.length:
         - 2
   - match:
         hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
   - match:
         hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}
+
+---
+"Test ignores malformed values while returning valid ones":
+  - skip:
+      version: ' - 8.0.0'
+      reason:  'Added in 8.0 - change on backport'
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              number:
+                type: long
+                ignore_malformed: true
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          number: [ 1, 2, "3", "four", 5, 6 ]
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+
+  - length: { hits.hits.0.fields.number : 5 }
+  - match: { hits.hits.0.fields.number.0 : 1 }
+  - match: { hits.hits.0.fields.number.1 : 2 }
+  - match: { hits.hits.0.fields.number.2 : 3 }
+  - match: { hits.hits.0.fields.number.3 : 5 }
+  - match: { hits.hits.0.fields.number.4 : 6 }

@@ -1475,11 +1475,15 @@ public final class OptimizerRules {
                     String match = pattern.exactMatch();
                     if (match != null) {
                         Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
-                        e = new Equals(e.source(), regexMatch.field(), literal);
+                        e = regexToEquals(regexMatch, literal);
                     }
                 }
             }
             return e;
+        }
+
+        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            return new Equals(regexMatch.source(), regexMatch.field(), literal);
         }
     }
 

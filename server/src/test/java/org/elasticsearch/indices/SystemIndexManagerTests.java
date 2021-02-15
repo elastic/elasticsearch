@@ -72,6 +72,8 @@ public class SystemIndexManagerTests extends ESTestCase {
         .setOrigin("FAKE_ORIGIN")
         .build();
 
+    private static final SystemIndices.Feature FEATURE = new SystemIndices.Feature("a test feature", List.of(DESCRIPTOR));
+
     private Client client;
 
     @Before
@@ -98,7 +100,9 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of("index 1", List.of(d1), "index 2", List.of(d2)));
+        SystemIndices systemIndices = new SystemIndices(Map.of(
+            "index 1", new SystemIndices.Feature("index 1 feature", List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2 feature", List.of(d2))));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -134,7 +138,9 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of("index 1", List.of(d1), "index 2", List.of(d2)));
+        SystemIndices systemIndices = new SystemIndices(Map.of(
+            "index 1", new SystemIndices.Feature("index 1 feature", List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2 feature", List.of(d2))));;
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -149,7 +155,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade closed indices.
      */
     public void testManagerSkipsClosedIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
@@ -161,7 +167,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade unhealthy indices.
      */
     public void testManagerSkipsIndicesWithRedStatus() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState();
@@ -175,7 +181,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * is earlier than an expected value.
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(5);
@@ -188,7 +194,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade indices where their mappings are already up-to-date.
      */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState();
@@ -201,7 +207,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));
@@ -214,7 +220,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager submits the expected request for an index whose mappings are out-of-date.
      */
     public void testManagerSubmitsPutRequest() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", List.of(DESCRIPTOR)));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));

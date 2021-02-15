@@ -1449,7 +1449,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
                 snapshotsService = new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService,
-                        transportService, actionFilters);
+                        transportService, actionFilters, Collections.emptyMap());
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
@@ -1562,13 +1562,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
                     metadataCreateIndexService,
+                    new MetadataDeleteIndexService(settings, clusterService, allocationService),
                     new IndexMetadataVerifier(
                         settings, namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
                         null),
-                        shardLimitValidator
-                );
+                    shardLimitValidator,
+                    systemIndices);
                 actions.put(PutMappingAction.INSTANCE,
                     new TransportPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
                         actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList()),

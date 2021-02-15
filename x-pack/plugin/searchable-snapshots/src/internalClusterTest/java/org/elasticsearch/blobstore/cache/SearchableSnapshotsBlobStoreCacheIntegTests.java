@@ -224,8 +224,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
         ).actionGet().getStats()) {
             for (final SearchableSnapshotShardStats.CacheIndexInputStats indexInputStats : shardStats.getStats()) {
                 // we read the header of each file contained within the .cfs file, which could be anywhere
-                final boolean mayReadMoreThanHeader = indexInputStats.getFileName().endsWith(".cfs");
-                if (indexInputStats.getFileLength() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2
+                final boolean mayReadMoreThanHeader = indexInputStats.getFileExt().equals("cfs");
+                if (indexInputStats.getTotalSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2
                     || mayReadMoreThanHeader == false) {
                     assertThat(Strings.toString(indexInputStats), indexInputStats.getBlobStoreBytesRequested().getCount(), equalTo(0L));
                 }

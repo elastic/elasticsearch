@@ -96,7 +96,7 @@ defined in the mappings.
   ...
   "hits" : {
     "total" : {
-      "value" : 10,
+      "value" : 11,
       "relation" : "eq"
     },
     "max_score" : null,
@@ -108,11 +108,11 @@ defined in the mappings.
       "sum_other_doc_count" : 0,
       "buckets" : [
         {
-          "key" : "THURSDAY",
-          "doc_count" : 4
+          "key" : "TUESDAY",
+          "doc_count" : 5
         },
         {
-          "key" : "TUESDAY",
+          "key" : "THURSDAY",
           "doc_count" : 4
         },
         {

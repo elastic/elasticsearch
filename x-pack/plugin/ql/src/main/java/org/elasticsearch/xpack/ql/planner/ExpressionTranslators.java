@@ -129,8 +129,8 @@ public final class ExpressionTranslators {
                 }
 
                 if (e instanceof RLike) {
-                    String pattern = ((RLike) e).pattern().asJavaRegex();
-                    q = new RegexQuery(e.source(), targetFieldName, pattern);
+                    RLike rl = ((RLike) e);
+                    q = new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
                 }
             } else {
                 q = new ScriptQuery(e.source(), e.asScript());

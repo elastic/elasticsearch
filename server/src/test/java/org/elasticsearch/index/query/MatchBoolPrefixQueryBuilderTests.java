@@ -19,7 +19,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -243,9 +243,9 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     public void testAnalysisSynonym() throws Exception {
-        final MatchQuery matchQuery = new MatchQuery(createSearchExecutionContext());
-        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        final Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "fox dogs red");
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+        final Query query = matchQueryParser.parse(MatchQueryParser.Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "fox dogs red");
 
         assertBooleanQuery(query, asList(
             new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),

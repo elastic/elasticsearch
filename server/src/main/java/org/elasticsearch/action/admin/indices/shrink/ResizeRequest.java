@@ -226,6 +226,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
                 }
             }
             builder.endObject();
+            if (maxSinglePrimarySize != null) {
+                builder.field(MAX_SINGLE_PRIMARY_SIZE.getPreferredName(), maxSinglePrimarySize);
+            }
         }
         builder.endObject();
         return builder;

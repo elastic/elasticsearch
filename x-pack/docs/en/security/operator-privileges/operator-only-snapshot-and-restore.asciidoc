@@ -2,18 +2,18 @@
 [testenv="enterprise"]
 [[operator-only-snapshot-and-restore]]
 === Operator Privileges and Snapshot/Restore
-The invocation of <<operator-only-apis>> and changes to <<operator-only-dynamic-cluster-settings>>
+The invocation of <<operator-only-apis>> and update of <<operator-only-dynamic-cluster-settings>>
 result changes in the cluster state, which can be <<snapshot-restore,snapshot and restored>>.
 Restoring snapshot data associated to <<operator-only-functionality,operator-only functionality>>
 is problematic because:
 
-1. A snapshot could contain wrong values for operator-only functionalities. Restore them
-   could break the cluster.
-2. Even if we could correct the values immediately after the restore, there will always be
-   a short time period where cluster could be in an inconsistent state.
+1. A snapshot could contain wrong values for operator-only functionalities, e.g. the snapshot
+   could have been taken in a different cluster. Restore them could break the current cluster.
+2. Even if we could correct the values immediately after restore, there will always be
+   a short period of time when cluster could be in an inconsistent state.
 3. We prefer configure operator-only functionality from a single place, i.e. through API calls.
 
-Therefore, <<configure-operator-privileges,*when the feature of operator privileges is enabled*>>,
+Therefore, <<configure-operator-privileges,*when the operator privileges feature is enabled*>>,
 snapshot data associated to any operator-only functionality are *not* restored.
 
 NOTE: They are still included when taking a snapshot so that all data are always preserved.

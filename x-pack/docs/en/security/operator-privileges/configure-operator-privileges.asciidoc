@@ -27,8 +27,8 @@ The following snippet shows an example of such a file:
 -----------------------------------
 operator: <1>
   - usernames: ["system_agent_1","system_agent_2"] <2>
-    realm_type: "file" <4>
-    realm_name: "file1" <3>
+    realm_type: "file" <3>
+    realm_name: "file1" <4>
     auth_type: "realm" <5>
 -----------------------------------
 <1> A fixed value of `operator` to signal the beginning of the definition.
@@ -40,7 +40,7 @@ operator: <1>
 
 You must specify at least the `usernames` field. Other fields will use their default values if not specified.
 All fields must be matched for a user to be qualified as an operator. You can also specify multiple groups of
-criteria. This is currently not very useful since this feature does not currently support other realms and
+criteria. This is currently not very useful since this feature does not yet support other realms and
 authentication types. Besides the configuration, there are also two implicit rules:
 
 1. If the authenticating user <<run-as-privilege,run as>> another user, neither of them will be considered
@@ -48,6 +48,6 @@ as an operator.
 2. All <<internal-users>> are implicitly operator users.
 
 IMPORTANT: Once a user is designated as an operator, it still subjects to regular RBAC <<authorization>> checks.
-It is entirely possible that an operator user could fail to perform certain actions due to RBAC check failures.
+It is entirely possible that an operator user fails to perform certain actions due to RBAC check failures.
 In short, an operator is *not* automatically a `superuser`.
 

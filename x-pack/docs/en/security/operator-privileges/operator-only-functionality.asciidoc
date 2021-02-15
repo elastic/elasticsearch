@@ -2,9 +2,10 @@
 [testenv="enterprise"]
 [[operator-only-functionality]]
 === Operator-only functionality
-There are two broad categories of operator-only functionalities: APIs and dynamic cluster Settings.
-They are pre-determined once the operator privileges feature is enabled. They may evolve in future
-releases, but are other fixed in a given {es} version.
+Operator-only functionalities are APIs or dynamic cluster settings protected by operator privileges.
+When the operator privileges feature is enabled, they can only be actioned/updated by operators.
+The list of operator-only APIs and dynamic cluster settings are pre-determined in the codebase.
+They may evolve in future releases, but are otherwise fixed in a given {es} version.
 
 [[operator-only-apis]]
 ==== Operator-only APIs

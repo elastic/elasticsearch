@@ -35,25 +35,25 @@ selector. There are three notification options:
   configured.
   
 Select the {anomaly-job} or the group of {anomaly-jobs} that is checked by the 
-alert. In case you select a group, the {anomaly-detect} alert handles possible 
-duplications in the results, hence they don't trigger the configured actions 
-unnecessarily. If you assign additional jobs to the group, the alert 
-automatically checks the new jobs the next time when it runs.
+alert. If you assign additional jobs to the group, the alert automatically 
+checks the new jobs the next time when it runs.
 
-You can select the result type of the {anomaly-job} that the alert checks. 
+You can select the result type of the {anomaly-job} that triggers the alert. 
 {anomaly-detect-cap} produces three types of results: bucket, record, and 
 influencer. Bucket result type is selected by default.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
 
-For each alert, you can configure which severity level triggers it. The severity 
-threshold is based on the `anomaly_score` which indicates the significance of a 
-given anomaly compared to previous anomalies. The default severity level is 
-critical (anomalies with an `anomaly_score` 75 or higher).
+For each alert, you can configure the `anomaly_score` that triggers it. The 
+`anomaly_score` indicates the significance of a given anomaly compared to 
+previous anomalies. The default severity threshold is 75 which means every 
+anomaly with an `anomaly_score` of 75 or higher triggers the alert.
 
 You can also test the configured conditions and check the sample results by 
-providing a valid interval in the pertinent field.
+providing a valid interval in the pertinent field. The generated preview 
+contains the number of potentially created alert instances during the relative 
+time range you defined.
 
 
 [[defining-actions]]

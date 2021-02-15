@@ -15,12 +15,20 @@ xpack.security.operator_privileges.enabled: true
 If the node is already running before the above change is made, you need restart
 it for the feature to take effect.
 
+WARNING: The feature needs to be either enabled or disabled consistently across all nodes
+in a cluster. Otherwise, you can get inconsistent behaviours depending on which node
+a request hits first and where it gets executed.
+
 ==== Designate operator users
 Operator users are just normal {es} users with special privileges to perform
 operator-only functionalities. They are specified in an `operator_users.yml` file located
-in `ES_PATH_CONF`. The file  defines a set of criteria that an authenticating
-user must match to be considered as an operator. Similar to other config files,
-it is local to a node and should be identical in most, if not all, cases.
+in `ES_PATH_CONF`. Similar to <<file-realm-configuration,other security config files>>,
+the `operator_users.yml` file is local to a node and not globally to the cluster.
+This means, in most cases, the same file should be distributed/copied to all nodes in
+a cluster.
+
+The `operator_users.yml` file defines a set of criteria that an authenticating
+user must match to be considered as an operator.
 The following snippet shows an example of such a file:
 
 [source,yaml]
@@ -46,6 +54,9 @@ authentication types. Besides the configuration, there are also two implicit rul
 1. If the authenticating user <<run-as-privilege,run as>> another user, neither of them will be considered
 as an operator.
 2. All <<internal-users>> are implicitly operator users.
+
+
+and used to determine whether the authenticating user is an operator locally. Once
 
 IMPORTANT: Once a user is designated as an operator, it still subjects to regular RBAC <<authorization>> checks.
 It is entirely possible that an operator user fails to perform certain actions due to RBAC check failures.

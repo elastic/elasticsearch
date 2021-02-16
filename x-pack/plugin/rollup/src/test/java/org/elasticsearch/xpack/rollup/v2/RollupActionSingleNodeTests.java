@@ -303,8 +303,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         String oldIndexName = rollover(dataStreamName).getOldIndex();
         String rollupIndexName = ".rollup-" + oldIndexName;
         rollup(oldIndexName, rollupIndexName, config);
+        assertRollupIndex(config, oldIndexName, rollupIndexName);
         rollup(oldIndexName, rollupIndexName + "-2", config);
-//        assertRollupIndex(config);
+        assertRollupIndex(config, oldIndexName, rollupIndexName + "-2");
     }
 
     private RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(String field) {
@@ -361,18 +362,22 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void assertRollupIndex(RollupActionConfig config) {
+        assertRollupIndex(config, index, rollupIndex);
+    }
+
+    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndex) {
         // TODO(talevy): assert mapping
         // TODO(talevy): assert settings
 
         final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
         long numBuckets = 0;
-        InternalComposite origResp = client().prepareSearch(index).addAggregation(aggregation).get().getAggregations().get("resp");
+        InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
             assertThat(origResp, equalTo(rollupResp));
             aggregation.aggregateAfter(origResp.afterKey());
-            origResp = client().prepareSearch(index).addAggregation(aggregation).get().getAggregations().get("resp");
+            origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
             rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         }
         assertThat(origResp, equalTo(rollupResp));

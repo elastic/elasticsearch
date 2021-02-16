@@ -18,7 +18,8 @@ POST /alias1/_rollover/my-index-000002
   "conditions": {
     "max_age":   "7d",
     "max_docs":  1000,
-    "max_size": "5gb"
+    "max_size": "5gb",
+    "max_single_primary_size": "2gb"
   }
 }
 ----
@@ -163,6 +164,16 @@ Replicas are not counted toward the maximum index size.
 
 TIP: To see the current index size, use the <<cat-indices, _cat indices>> API.
 The `pri.store.size` value shows the combined size of all primary shards.
+
+`max_single_primary_size`::
+(Optional, <<byte-units, byte units>>)
+Maximum primary shard size.
+This is the maximum size of the primary shards in the index. As with `max_size`,
+replicas are ignored.
+
+TIP: To see the current shard size, use the <<cat-shards, _cat shards>> API.
+The `store` value shows the size each shard, and `prirep` indicates whether a
+shard is a primary (`p`) or a replica (`r`).
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
@@ -192,7 +203,8 @@ POST /logs_write/_rollover <2>
   "conditions": {
     "max_age":   "7d",
     "max_docs":  1000,
-    "max_size":  "5gb"
+    "max_size":  "5gb",
+    "max_single_primary_size": "2gb"
   }
 }
 --------------------------------------------------
@@ -218,6 +230,7 @@ The API returns the following response:
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
     "[max_size: 5gb]": false,
+    "[max_single_primary_size: 2gb]": false
   }
 }
 --------------------------------------------------
@@ -250,7 +263,8 @@ POST /my-data-stream/_rollover <2>
   "conditions" : {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "5gb"
+    "max_size": "5gb",
+    "max_single_primary_size": "2gb"
   }
 }
 --------------------------------------------------
@@ -284,6 +298,7 @@ The API returns the following response:
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
     "[max_size: 5gb]": false,
+    "[max_single_primary_size: 2gb]": false
   }
 }
 --------------------------------------------------
@@ -329,7 +344,8 @@ POST /logs_write/_rollover
   "conditions" : {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "5gb"
+    "max_size": "5gb",
+    "max_single_primary_size": "2gb"
   },
   "settings": {
     "index.number_of_shards": 2
@@ -359,7 +375,8 @@ POST /my_alias/_rollover/my_new_index_name
   "conditions": {
     "max_age":   "7d",
     "max_docs":  1000,
-    "max_size": "5gb"
+    "max_size": "5gb",
+    "max_single_primary_size": "2gb"
   }
 }
 --------------------------------------------------
@@ -456,7 +473,8 @@ POST /logs_write/_rollover?dry_run
   "conditions" : {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_size": "5gb"
+    "max_size": "5gb",
+    "max_single_primary_size": "2gb"
   }
 }
 --------------------------------------------------

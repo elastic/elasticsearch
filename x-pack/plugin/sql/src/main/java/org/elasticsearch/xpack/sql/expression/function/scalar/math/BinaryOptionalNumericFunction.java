@@ -40,7 +40,7 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 

@@ -37,7 +37,7 @@ public class RestSqlIT extends RestSqlTestCase {
             } catch (URISyntaxException e) {
                 throw new RuntimeException("exception while reading the store", e);
             }
-            if (!Files.exists(keyStore)) {
+            if (Files.exists(keyStore) == false) {
                 throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
             }
             builder.put(ESRestTestCase.TRUSTSTORE_PATH, keyStore).put(ESRestTestCase.TRUSTSTORE_PASSWORD, "keypass");

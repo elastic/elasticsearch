@@ -8,7 +8,9 @@
 
 package org.elasticsearch.client.transform;
 
+import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -22,9 +24,13 @@ public class TransformNamedXContentProvider implements NamedXContentProvider {
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(SyncConfig.class,
-                        new ParseField(TimeSyncConfig.NAME),
-                        TimeSyncConfig::fromXContent));
+            new NamedXContentRegistry.Entry(SyncConfig.class, new ParseField(TimeSyncConfig.NAME), TimeSyncConfig::fromXContent),
+            new NamedXContentRegistry.Entry(
+                RetentionPolicyConfig.class,
+                new ParseField(TimeRetentionPolicyConfig.NAME),
+                TimeRetentionPolicyConfig::fromXContent
+            )
+        );
     }
 
 }

@@ -263,38 +263,19 @@ public final class SchemaUtil {
             listener.onResponse(Collections.emptyMap());
             return;
         }
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
-            .fields(fields)
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        FieldCapabilitiesRequest fieldCapabilitiesRequest =
+            new FieldCapabilitiesRequest()
+                .indices(index)
+                .fields(fields)
+                .runtimeFields(runtimeMappings)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         client.execute(
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(
-                response -> listener.onResponse(mergeSourceMappingsWithRuntimeMappings(extractFieldMappings(response), runtimeMappings)),
+                response -> listener.onResponse(extractFieldMappings(response)),
                 listener::onFailure)
         );
-    }
-
-    /**
-     * TODO: Remove after {@link FieldCapabilitiesAction} handles search runtime mappings.
-     *       See https://github.com/elastic/elasticsearch/issues/68117
-     */
-    private static Map<String, String> mergeSourceMappingsWithRuntimeMappings(Map<String, String> sourceMappings,
-                                                                              Map<String, Object> runtimeMappings) {
-        Map<String, String> sourceMappingsWithRuntimeFields = new HashMap<>(sourceMappings);
-        for (Map.Entry<String, Object> runtimeMappingEntry : runtimeMappings.entrySet()) {
-            if (runtimeMappingEntry.getValue() instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> runtimeMappingValue = (Map<String, Object>) runtimeMappingEntry.getValue();
-                if (runtimeMappingValue.containsKey("type")) {
-                    String fieldName = runtimeMappingEntry.getKey();
-                    @SuppressWarnings("unchecked")
-                    String type = (String) runtimeMappingValue.get("type");
-                    sourceMappingsWithRuntimeFields.put(fieldName, type);
-                }
-            }
-        }
-        return sourceMappingsWithRuntimeFields;
     }
 
     /**

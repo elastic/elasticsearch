@@ -103,6 +103,26 @@ subprojects {
   }
 }
 
+/**
+ * This is a convenient method for declaring test artifact dependencies provided by the internal
+ * test artifact plugin. It replaces basically the longer dependency notation with explicit capability
+ * declaration like this:
+ *
+ * testImplementation(project(xpackModule('repositories-metering-api'))) {
+ *    capabilities {
+ *         requireCapability("org.elasticsearch.gradle:repositories-metering-api-test-artifacts")
+ *    }
+ * }
+ *
+ * */
+ext.testArtifact = { p ->
+  def projectDependency = p.dependencies.create(p)
+  projectDependency.capabilities {
+    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-test-artifacts")
+  };
+}
+
+
 tasks.register("updateCIBwcVersions") {
   doLast {
     File yml = file(".ci/bwcVersions")

@@ -815,6 +815,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69014")
     public void testParallelIndexDeleteRemovesFeatureState() throws Exception {
         final String indexToBeDeleted = SystemIndexTestPlugin.SYSTEM_INDEX_NAME;
         final String fullIndexName = AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME;

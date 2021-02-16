@@ -78,8 +78,6 @@ with client certificates.
 include::securing-communications/security-minimal-setup.asciidoc[]
 include::securing-communications/security-basic-setup.asciidoc[]
 include::securing-communications/security-basic-setup-https.asciidoc[]
-include::securing-communications/tls-ad.asciidoc[]
-include::securing-communications/tls-ldap.asciidoc[]
 include::securing-communications/configuring-tls-docker.asciidoc[]
 include::securing-communications/enabling-cipher-suites.asciidoc[]
 include::reference/files.asciidoc[]

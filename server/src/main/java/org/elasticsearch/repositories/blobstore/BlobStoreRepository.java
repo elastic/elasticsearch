@@ -2471,17 +2471,47 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private static InputStream maybeRateLimit(InputStream stream, Supplier<RateLimiter> rateLimiterSupplier, CounterMetric metric) {
-        return new RateLimitingInputStream(stream, rateLimiterSupplier, metric::inc);
+    private static InputStream maybeRateLimit(
+            InputStream stream,
+            Supplier<RateLimiter> rateLimiterSupplier,
+            RateLimitingInputStream.Listener throttleListener) {
+        return new RateLimitingInputStream(stream, rateLimiterSupplier, throttleListener);
     }
 
+    /**
+     * Wrap the restore rate limiter (controlled by the repository setting `max_restore_bytes_per_sec` and the cluster setting
+     * `indices.recovery.max_bytes_per_sec`) around the given stream. Any throttling is reported to the given listener and not otherwise
+     * recorded in the value returned by {@link BlobStoreRepository#getRestoreThrottleTimeInNanos}.
+     */
     public InputStream maybeRateLimitRestores(InputStream stream) {
-        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos),
-            recoverySettings::rateLimiter, restoreRateLimitingTimeInNanos);
+        return maybeRateLimitRestores(stream, restoreRateLimitingTimeInNanos::inc);
     }
 
+    /**
+     * Wrap the restore rate limiter (controlled by the repository setting `max_restore_bytes_per_sec` and the cluster setting
+     * `indices.recovery.max_bytes_per_sec`) around the given stream. Any throttling is recorded in the value returned by {@link
+     * BlobStoreRepository#getRestoreThrottleTimeInNanos}.
+     */
+    public InputStream maybeRateLimitRestores(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
+        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, throttleListener),
+            recoverySettings::rateLimiter, throttleListener);
+    }
+
+    /**
+     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
+     * throttling is recorded in the value returned by {@link BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     */
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
+        return maybeRateLimitSnapshots(stream, snapshotRateLimitingTimeInNanos::inc);
+    }
+
+    /**
+     * Wrap the snapshot rate limiter (controlled by the repository setting `max_snapshot_bytes_per_sec`) around the given stream. Any
+     * throttling is reported to the given listener and not otherwise recorded in the value returned by {@link
+     * BlobStoreRepository#getSnapshotThrottleTimeInNanos()}.
+     */
+    public InputStream maybeRateLimitSnapshots(InputStream stream, RateLimitingInputStream.Listener throttleListener) {
+        return maybeRateLimit(stream, () -> snapshotRateLimiter, throttleListener);
     }
 
     @Override
@@ -2719,6 +2749,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("store cannot be marked as corrupted", inner);
             }
         }
+    }
+
+    public boolean supportURLRepo() {
+        return supportURLRepo;
     }
 
     /**

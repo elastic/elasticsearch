@@ -2,8 +2,7 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'))
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('transform'))
 }
 

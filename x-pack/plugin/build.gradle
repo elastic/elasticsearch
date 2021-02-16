@@ -3,23 +3,19 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
   testImplementation project(xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))));
   if (false == isEclipse) {
     // let the yamlRestTest see the classpath of test
     // Eclipse doesn't need this because it flattens test deps and gets very, very confused by it
     yamlRestTestImplementation project.sourceSets.test.runtimeClasspath
   }
-}
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
 }
 
 restResources {
@@ -35,10 +31,7 @@ artifacts {
   restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-
+tasks.named("testJar").configure {
   /*
    * Stick the license and notice file in the jar. This isn't strictly
    * needed because we don't publish it but it makes our super-paranoid
@@ -53,9 +46,6 @@ def testJar = tasks.register("testJar", Jar) {
       include project.noticeFile.name
     }
   }
-}
-artifacts {
-  testArtifacts testJar
 }
 
 // location for keys and certificates

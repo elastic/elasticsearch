@@ -10,9 +10,8 @@ dependencies {
   // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
   // Currently needed for MlConfigIndexMappingsFullClusterRestartIT and SLM classes used in
   // FullClusterRestartIT
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-
-  testImplementation project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(":qa:full-cluster-restart")))
   testImplementation project(':x-pack:qa')
 }
 

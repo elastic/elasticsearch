@@ -375,11 +375,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null
         );
 
-        createIndex(index, Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .build());
+        createIndex(index, Settings.EMPTY);
         ensureGreen(index);
         indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
         final String searchableSnapMountedIndexName = (storage == MountSearchableSnapshotRequest.Storage.FULL_COPY ?
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX : SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX) + index;
@@ -425,11 +427,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null
         );
 
-        createIndex(index, Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .build());
+        createIndex(index, Settings.EMPTY);
         ensureGreen(index);
         indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;

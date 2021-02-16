@@ -38,9 +38,9 @@ dependencies {
   api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('ql'))))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')

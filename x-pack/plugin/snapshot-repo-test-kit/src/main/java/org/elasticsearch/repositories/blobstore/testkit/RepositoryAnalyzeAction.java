@@ -188,6 +188,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         return nodes;
     }
 
+    /**
+     * Compute a collection of blob sizes which respects the blob count and the limits on the size of each blob and the total size to write.
+     * Tries its best to achieve an even spread of different-sized blobs to try and exercise the various size-based code paths well. See
+     * the corresponding unit tests for examples of its output.
+     */
     // Exposed for tests
     static List<Long> getBlobSizes(Request request) {
 

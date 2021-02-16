@@ -217,6 +217,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             blobSizes.add(s);
         }
         blobSizes.add(maxBlobSize);
+        // TODO also use sizes that aren't a power of two
 
         // Try and form an even spread of blob sizes by accounting for as many evenly spreads repeats as possible up-front.
         final long evenSpreadSize = blobSizes.stream().mapToLong(l -> l).sum();

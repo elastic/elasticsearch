@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.eql.execution.search.extractor;
 public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     public TimestampFieldHitExtractor(FieldHitExtractor target) {
-        super(target.fieldName(), target.fullFieldName(), target.dataType(), target.zoneId(), target.useDocValues(), target.hitName(),
+        super(target.fieldName(), target.dataType(), target.zoneId(), target.hitName(),
                 target.arrayLeniency());
     }
 
     @Override
-    protected Object parseDateString(Object values) {
-        return Long.parseLong(values.toString());
+    protected Object parseEpochMillisAsString(String str) {
+        return Long.parseLong(str);
     }
 }

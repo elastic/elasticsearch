@@ -158,3 +158,53 @@ setup:
       catch: missing
       eql.delete:
         id: $id
+
+---
+"EQL status API":
+
+  - do:
+      eql.search:
+        index: eql_test
+        keep_on_completion: true
+        wait_for_completion_timeout: "0ms"
+        body:
+          query: 'process where user == "SYSTEM"'
+  - is_true: id
+  - set: { id: id }
+
+  # status for eql search that may be completed or not
+  - do:
+      eql.get_status:
+        id: $id
+  - match: { id: $id }
+  - set: { is_running: run_status }
+  - match: { is_partial: $run_status }
+  - is_true: expiration_time_in_millis
+
+  # wait for the certain completion
+  - do:
+      eql.get:
+        id: $id
+        wait_for_completion_timeout: "10s"
+
+  # status for completed eql search
+  - do:
+      eql.get_status:
+        id: $id
+  - match: { id: $id }
+  - match: { is_running: false }
+  - match: { is_partial: false }
+  - is_false: start_time_in_millis
+  - is_true: expiration_time_in_millis
+  - match: { completion_status: 200 }
+
+  - do:
+      eql.delete:
+        id: $id
+  - match: { acknowledged: true }
+
+  # status for a deleted/missing eql search
+  - do:
+      catch: missing
+      eql.get_status:
+        id: $id

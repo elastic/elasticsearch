@@ -245,7 +245,6 @@ public class LdapSessionFactoryTests extends LdapTestCase {
      * If the realm's CA path is monitored for changes and the underlying SSL context is reloaded, then we will get two different outcomes
      * (one failure, one success) depending on which file content is in place.
      */
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68995")
     public void testSslTrustIsReloaded() throws Exception {
         assumeFalse("NPE thrown in BCFIPS JSSE - addressed in " +
             "https://github.com/bcgit/bc-java/commit/5aed687e17a3cd63f34373cafe92699b90076fb6#diff-8e5d8089bc0d504d93194a1e484d3950R179",
@@ -265,8 +264,11 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
             .build();
 
+        // !!!make sure that the file size on disk for the two pem CAs is different!!!
+        // otherwise, the resource watcher has to rely on the last modified timestamp to detect changes,
+        // and the resolution for that can be as low as a second, and the test would spuriously fail
         final Path realCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-ca.crt");
-        final Path fakeCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/smb_ca.crt");
+        final Path fakeCa = getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ad.crt");
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
@@ -279,6 +281,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             new SSLConfigurationReloader(environment, resourceWatcher, SSLService.getSSLConfigurations(environment.settings()).values())
                 .setSSLService(sslService);
             Files.copy(fakeCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
+            // resourceWatcher looks at the file size and last access timestamp to detect changes
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
             UncategorizedExecutionException e =

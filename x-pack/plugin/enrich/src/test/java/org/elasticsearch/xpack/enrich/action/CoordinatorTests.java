@@ -352,7 +352,7 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testAllSearchesExecuted() throws InterruptedException {
+    public void testAllSearchesExecuted() throws Exception {
 
         final ThreadPool threadPool = new TestThreadPool("test");
         final Coordinator coordinator = new Coordinator((request, responseConsumer) -> threadPool.generic().execute(() -> {
@@ -380,7 +380,9 @@ public class CoordinatorTests extends ESTestCase {
 
             assertTrue(completionCountdown.await(10L, TimeUnit.SECONDS));
             assertThat(coordinator.queue, empty());
-            assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+
+            assertBusy(() -> assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0)));
+            // ^ assertBusy here because the final check of the queue briefly counts as another remote request, after everything is complete
         } finally {
             ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
         }

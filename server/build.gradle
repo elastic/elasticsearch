@@ -13,7 +13,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 publishing {
   publications {
-    elastic(MavenPublication) {
+    elastic {
       artifactId 'elasticsearch'
     }
   }

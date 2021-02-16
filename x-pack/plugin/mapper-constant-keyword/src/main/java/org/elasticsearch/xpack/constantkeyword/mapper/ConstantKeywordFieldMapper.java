@@ -138,8 +138,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
 
             return value == null
-                ? (lookup, ignoredFields) -> Collections.emptyList()
-                : (lookup, ignoredFields) -> Collections.singletonList(value);
+                ? lookup -> Collections.emptyList()
+                : lookup -> Collections.singletonList(value);
         }
 
         @Override

@@ -142,11 +142,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency-map]
 =======
 
-`ngram_encoding`::::
+`n_gram_encoding`::::
 (object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]
 +
-.Properties of `ngram_encoding`
+.Properties of `n_gram_encoding`
 [%collapsible%open]
 =======
 `feature_prefix`::::

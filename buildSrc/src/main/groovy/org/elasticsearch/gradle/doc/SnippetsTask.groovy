@@ -51,14 +51,7 @@ class SnippetsTask extends DefaultTask {
      * directory.
      */
     @InputFiles
-    ConfigurableFileTree docs = project.fileTree(project.projectDir) {
-        // No snippets in the build file
-        exclude 'build.gradle'
-        // That is where the snippets go, not where they come from!
-        exclude 'build'
-        exclude 'build-idea'
-        exclude 'build-eclipse'
-    }
+    ConfigurableFileTree docs
 
     /**
      * Substitutions done on every snippet's contents.

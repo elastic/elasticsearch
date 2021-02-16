@@ -154,10 +154,9 @@ class PluginBuildPlugin implements Plugin<Project> {
         }
     }
 
-
     private static void configurePublishing(Project project, PluginPropertiesExtension extension) {
         if (project.plugins.hasPlugin(MavenPublishPlugin)) {
-            project.publishing.publications.nebula(MavenPublication).artifactId(extension.name)
+            project.publishing.publications.elastic(MavenPublication).artifactId(extension.name)
         }
     }
 

@@ -23,9 +23,11 @@ import org.gradle.api.XmlProvider;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.BasePluginConvention;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
@@ -37,15 +39,36 @@ import java.util.concurrent.Callable;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 
 public class PublishPlugin implements Plugin<Project> {
+    static final String MAVEN_SHADOW = "publish.maven.shadow";
+    static final String MAVEN_JAR = "publish.maven.jar";
 
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(BasePlugin.class);
-        project.getPluginManager().apply("nebula.maven-nebula-publish");
+        project.getPlugins().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
+        configurePublications(project);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
+    }
+
+    private void configurePublications(Project project) {
+        ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+        extraProperties.set(MAVEN_SHADOW, Boolean.FALSE);
+        extraProperties.set(MAVEN_JAR, Boolean.FALSE);
+
+        project.getPlugins().withType(JavaPlugin.class).configureEach(plugin -> extraProperties.set(MAVEN_JAR, Boolean.TRUE));
+        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> extraProperties.set(MAVEN_JAR, Boolean.TRUE));
+        PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
+        MavenPublication publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
+        project.afterEvaluate(p -> {
+            if (extraProperties.get(MAVEN_SHADOW) == Boolean.TRUE) {
+                configureWithShadowPlugin(project, publication);
+            } else if (extraProperties.get(MAVEN_JAR) == Boolean.TRUE) {
+                publication.from(p.getComponents().getByName("java"));
+            }
+        });
     }
 
     private static String getArchivesBaseName(Project project) {
@@ -73,7 +96,6 @@ public class PublishPlugin implements Plugin<Project> {
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);
-        configurePomWithShadowPlugin(project, publishing);
 
         mavenPublications.all(publication -> {
             // Add git origin info to generated POM files for internal builds
@@ -93,9 +115,8 @@ public class PublishPlugin implements Plugin<Project> {
         }));
     }
 
-    private static void configurePomWithShadowPlugin(Project project, PublishingExtension publishing) {
+    private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
-            MavenPublication publication = publishing.getPublications().maybeCreate("shadow", MavenPublication.class);
             ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
             shadow.component(publication);
             // Workaround for https://github.com/johnrengelman/shadow/issues/334

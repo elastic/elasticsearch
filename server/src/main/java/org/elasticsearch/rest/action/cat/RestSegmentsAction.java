@@ -23,7 +23,9 @@ import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.List;
 import java.util.Map;
@@ -58,14 +60,19 @@ public class RestSegmentsAction extends AbstractCatAction {
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+
+        return channel -> cancelClient.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
                 indicesSegmentsRequest.indices(indices);
-                client.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener<IndicesSegmentResponse>(channel) {
+                cancelClient.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener<IndicesSegmentResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
+                        if (request.getHttpChannel().isOpen() == false) {
+                            throw new TaskCancelledException("response channel [" + request.getHttpChannel() + "] closed");
+                        }
                         final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
                         Table tab = buildTable(request, clusterStateResponse, indicesSegments);
                         return RestTable.buildResponse(tab, channel);

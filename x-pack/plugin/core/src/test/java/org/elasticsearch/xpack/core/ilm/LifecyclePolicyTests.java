@@ -136,7 +136,16 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             phaseNames.add(0, TimeseriesLifecycleType.HOT_PHASE);
         }
         boolean hotPhaseContainsSearchableSnap = false;
-        for (String phase : phaseNames) {
+        boolean coldPhaseContainsSearchableSnap = false;
+        // let's order the phases so we can reason about actions in a previous phase in order to generate a random *valid* policy
+        List<String> orderedPhases = new ArrayList<>(phaseNames.size());
+        for (String validPhase : TimeseriesLifecycleType.VALID_PHASES) {
+            if (phaseNames.contains(validPhase)) {
+                orderedPhases.add(validPhase);
+            }
+        }
+
+        for (String phase : orderedPhases) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
@@ -150,10 +159,21 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 if (actionNames.contains(SearchableSnapshotAction.NAME)) {
                     hotPhaseContainsSearchableSnap = true;
                 }
-            } else {
+            }
+            if (phase.equals(TimeseriesLifecycleType.COLD_PHASE)) {
                 if (hotPhaseContainsSearchableSnap) {
                     // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
                     // configured in the hot phase
+                    actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+                }
+
+                if (actionNames.contains(SearchableSnapshotAction.NAME)) {
+                    coldPhaseContainsSearchableSnap = true;
+                }
+            } else {
+                if (hotPhaseContainsSearchableSnap || coldPhaseContainsSearchableSnap) {
+                    // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
+                    // configured in a previous phase (hot/cold)
                     actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
                 }
             }

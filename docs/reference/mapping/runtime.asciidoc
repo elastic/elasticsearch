@@ -139,18 +139,34 @@ PUT my-index
 }
 ----
 
+Runtime fields can be updated at any point in time: whenever a runtime field
+is added with the same name as an already existing field, the new field will
+overwrite the existing one.
+Existing runtime fields can also be removed from the index mappings by setting
+them to null as follows:
+
+ [source,console]
+ ----
+ PUT my-index/_mapping
+ {
+   "runtime": {
+     "day_of_week": null
+   }
+ }
+ ----
+
 [[runtime-updating-scripts]]
-.Updating runtime scripts
+.Updating and removing runtime fields
 ****
 
-Updating a script while a dependent query is running can return
+Updating or removing a runtime field while a dependent query is running can return
 inconsistent results. Each shard might have access to different versions of the
 script, depending on when the mapping change takes effect.
 
 Existing queries or visualizations in {kib} that rely on runtime fields can
-fail if you change the field type. For example, a bar chart visualization
+fail if you remove or update the field. For example, a bar chart visualization
 that uses a runtime field of type `ip` will fail if the type is changed
-to `boolean`.
+to `boolean`, or if the runtime field is removed.
 
 ****
 

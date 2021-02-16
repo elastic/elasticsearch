@@ -60,6 +60,10 @@ dependencies {
   testImplementation project(':test:fixtures:gcs-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
 restResources {
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
@@ -323,8 +327,4 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
 
 tasks.named("check").configure {
   dependsOn(largeBlobYamlRestTest, gcsThirdPartyTest)
-}
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
 }

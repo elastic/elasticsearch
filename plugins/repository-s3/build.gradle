@@ -48,6 +48,10 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
 restResources {
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
@@ -301,8 +305,4 @@ tasks.named("thirdPartyAudit").configure {
           'com.amazonaws.services.kms.model.GenerateDataKeyResult',
           'javax.activation.DataHandler'
   )
-}
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
 }

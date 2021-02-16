@@ -86,6 +86,10 @@ dependencies {
   testImplementation project(':test:fixtures:azure-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
 restResources {
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
@@ -369,7 +373,3 @@ tasks.register("azureThirdPartyTest", Test) {
   }
 }
 tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
-}

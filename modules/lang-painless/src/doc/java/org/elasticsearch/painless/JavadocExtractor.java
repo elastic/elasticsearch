@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 public class JavadocExtractor {
 
     private final JavaClassResolver resolver;
+    private final Map<String, ParsedJavaClass> cache = new HashMap<>();
 
     private static final String GPLv2 = "* This code is free software; you can redistribute it and/or modify it"+
         "\n * under the terms of the GNU General Public License version 2 only, as"+
@@ -52,14 +53,18 @@ public class JavadocExtractor {
 
 
     public ParsedJavaClass parseClass(String className) throws IOException {
-        InputStream classStream = resolver.openClassFile(className);
-        ParsedJavaClass parsed = new ParsedJavaClass(GPLv2);
-        if (classStream == null) {
+        ParsedJavaClass parsed = cache.get(className);
+        if (parsed != null) {
             return parsed;
         }
-        ClassFileVisitor visitor = new ClassFileVisitor();
-        CompilationUnit cu = StaticJavaParser.parse(classStream);
-        visitor.visit(cu, parsed);
+        InputStream classStream = resolver.openClassFile(className);
+        parsed = new ParsedJavaClass(GPLv2);
+        if (classStream != null) {
+            ClassFileVisitor visitor = new ClassFileVisitor();
+            CompilationUnit cu = StaticJavaParser.parse(classStream);
+            visitor.visit(cu, parsed);
+            cache.put(className, parsed);
+        }
         return parsed;
     }
 
@@ -209,47 +214,10 @@ public class JavadocExtractor {
             this.javadoc = javadoc;
             this.parameterNames = parameterNames;
         }
-    }
 
-    public static ParsedJavadoc clean(Javadoc javadoc) {
-        JavadocDescription description = javadoc.getDescription();
-        List<JavadocBlockTag> tags = javadoc.getBlockTags();
-        List<String> cleaned = new ArrayList<>(description.getElements().size() + tags.size());
-        cleaned.addAll(stripInlineTags(description));
-        ParsedJavadoc parsed = new ParsedJavadoc(cleaned(cleaned));
-        for (JavadocBlockTag tag: tags) {
-            String tagName = tag.getTagName();
-            // https://docs.oracle.com/en/java/javase/14/docs/specs/javadoc/doc-comment-spec.html#standard-tags
-            // ignore author, deprecated, hidden, provides, uses, see, serial*, since and version.
-            if ("param".equals(tagName)) {
-                tag.getName().ifPresent(t -> parsed.param.put(t, cleaned(stripInlineTags(tag.getContent()))));
-            } else if ("return".equals(tagName)) {
-                parsed.returns = cleaned(stripInlineTags(tag.getContent()));
-            } else if ("exception".equals(tagName) || "throws".equals(tagName)) {
-                if (tag.getName().isPresent() == false) {
-                    throw new IllegalStateException("Missing tag " + tag.toText());
-                }
-                parsed.thrws.add(List.of(tag.getName().get(), cleaned(stripInlineTags(tag.getContent()))));
-            }
+        public boolean isEmpty() {
+            return (javadoc == null || javadoc.isEmpty()) && parameterNames.isEmpty();
         }
-        return parsed;
-    }
-
-    private static String cleaned(List<String> segments) {
-        return Jsoup.clean(String.join("", segments), Whitelist.none()).replaceAll("[\n\\s]*\n[\n\\s]*", " ");
-    }
-
-    private static List<String> stripInlineTags(JavadocDescription description) {
-        List<JavadocDescriptionElement> elements = description.getElements();
-        List<String> stripped = new ArrayList<>(elements.size());
-        for (JavadocDescriptionElement element: elements) {
-            if (element instanceof JavadocInlineTag) {
-                stripped.add(((JavadocInlineTag)element).getContent());
-            } else {
-                stripped.add(element.toText());
-            }
-        }
-        return stripped;
     }
 
     public static class ParsedJavadoc implements ToXContent {
@@ -297,6 +265,47 @@ public class JavadocExtractor {
         public boolean isFragment() {
             return true;
         }
+    }
+
+    public static ParsedJavadoc clean(Javadoc javadoc) {
+        JavadocDescription description = javadoc.getDescription();
+        List<JavadocBlockTag> tags = javadoc.getBlockTags();
+        List<String> cleaned = new ArrayList<>(description.getElements().size() + tags.size());
+        cleaned.addAll(stripInlineTags(description));
+        ParsedJavadoc parsed = new ParsedJavadoc(cleaned(cleaned));
+        for (JavadocBlockTag tag: tags) {
+            String tagName = tag.getTagName();
+            // https://docs.oracle.com/en/java/javase/14/docs/specs/javadoc/doc-comment-spec.html#standard-tags
+            // ignore author, deprecated, hidden, provides, uses, see, serial*, since and version.
+            if ("param".equals(tagName)) {
+                tag.getName().ifPresent(t -> parsed.param.put(t, cleaned(stripInlineTags(tag.getContent()))));
+            } else if ("return".equals(tagName)) {
+                parsed.returns = cleaned(stripInlineTags(tag.getContent()));
+            } else if ("exception".equals(tagName) || "throws".equals(tagName)) {
+                if (tag.getName().isPresent() == false) {
+                    throw new IllegalStateException("Missing tag " + tag.toText());
+                }
+                parsed.thrws.add(List.of(tag.getName().get(), cleaned(stripInlineTags(tag.getContent()))));
+            }
+        }
+        return parsed;
+    }
+
+    private static String cleaned(List<String> segments) {
+        return Jsoup.clean(String.join("", segments), Whitelist.none()).replaceAll("[\n\\s]*\n[\n\\s]*", " ");
+    }
+
+    private static List<String> stripInlineTags(JavadocDescription description) {
+        List<JavadocDescriptionElement> elements = description.getElements();
+        List<String> stripped = new ArrayList<>(elements.size());
+        for (JavadocDescriptionElement element: elements) {
+            if (element instanceof JavadocInlineTag) {
+                stripped.add(((JavadocInlineTag)element).getContent());
+            } else {
+                stripped.add(element.toText());
+            }
+        }
+        return stripped;
     }
 
     private static class ClassFileVisitor extends VoidVisitorAdapter<ParsedJavaClass> {

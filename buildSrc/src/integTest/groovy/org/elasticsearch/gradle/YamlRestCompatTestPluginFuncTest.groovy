@@ -8,13 +8,24 @@
 
 package org.elasticsearch.gradle
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.ObjectReader
+import com.fasterxml.jackson.databind.ObjectWriter
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
-    def intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME;
+    private static final String intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME
+    private static final String transformTask  = ":" + YamlRestCompatTestPlugin.TRANSFORM_TASK_NAME
+    private static final YAMLFactory YAML_FACTORY = new YAMLFactory()
+    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY)
+    private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class)
+    private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class)
+
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
@@ -39,7 +50,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
+        result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
     def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:minor"() {
@@ -91,7 +102,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
-        result.task(':transformCompatTests').outcome == TaskOutcome.SUCCESS
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).exists()
@@ -119,7 +130,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':transformCompatTests').outcome == TaskOutcome.UP_TO_DATE
+        result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
     }
 
     def "yamlRestCompatTest is wired into check and checkRestCompat"() {
@@ -148,7 +159,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':transformCompatTests').outcome == TaskOutcome.NO_SOURCE
+        result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
 
         when:
         buildFile << """
@@ -162,7 +173,140 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SKIPPED
-        result.task(':transformCompatTests').outcome == TaskOutcome.SKIPPED
-
+        result.task(transformTask).outcome == TaskOutcome.SKIPPED
     }
+
+    def "transform task executes and works as configured"() {
+        given:
+        internalBuild()
+
+        addSubProject(":distribution:bwc:minor") << """
+        configurations { checkout }
+        artifacts {
+            checkout(new File(projectDir, "checkoutDir"))
+        }
+        """
+
+        buildFile << """
+            apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+            // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
+            import org.elasticsearch.gradle.testclusters.TestDistribution;
+            testClusters {
+              yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
+            }
+
+            dependencies {
+               yamlRestTestImplementation "junit:junit:4.12"
+            }
+            tasks.named("transformV7RestTests").configure({ task ->
+              task.replaceMatch("_type", "_doc")
+              task.replaceMatch("_source.values", ["z", "x", "y"], "one")
+              task.removeMatch("_source.blah")
+              task.removeMatch("_source.junk", "two")
+              task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
+            })
+            // can't actually spin up test cluster from this test
+           tasks.withType(Test).configureEach{ enabled = false }
+        """
+
+        setupRestResources([], [])
+
+        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
+        "one":
+          - do:
+              get:
+                index: test
+                id: 1
+          - match: { _source.values: ["foo"] }
+          - match: { _type: "_foo" }
+          - match: { _source.blah: 1234 }
+          - match: { _source.junk: true }
+        ---
+        "two":
+          - do:
+              get:
+                index: test
+                id: 1
+          - match: { _source.values: ["foo"] }
+          - match: { _type: "_foo" }
+          - match: { _source.blah: 1234 }
+          - match: { _source.junk: true }
+
+        """.stripIndent()
+        when:
+        def result = gradleRunner("yamlRestCompatTest").build()
+
+        then:
+
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
+
+
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml" ).exists()
+        List<ObjectNode> actual = READER.readValues(file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml")).readAll()
+        List<ObjectNode> expectedAll = READER.readValues(
+        """
+        ---
+        setup:
+        - skip:
+            features: "headers"
+        ---
+        one:
+        - do:
+            get:
+              index: "test"
+              id: 1
+            headers:
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        - match:
+            _source.values:
+            - "z"
+            - "x"
+            - "y"
+        - match:
+            _type: "_doc"
+        - match: {}
+        - match:
+            _source.junk: true
+        - match:
+            _source.added:
+              name: "jake"
+              likes: "cheese"
+        ---
+        two:
+        - do:
+            get:
+              index: "test"
+              id: 1
+            headers:
+              Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+              Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        - match:
+            _source.values:
+            - "foo"
+        - match:
+            _type: "_doc"
+        - match: {}
+        - match: {}
+        """.stripIndent()).readAll()
+
+        expectedAll.eachWithIndex{ ObjectNode expected, int i ->
+           assert expected == actual.get(i)
+        }
+
+        when:
+        result = gradleRunner(transformTask).build()
+
+        then:
+        result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
+
+        when:
+        buildFile.write(buildFile.text.replace("blah", "baz"))
+        result = gradleRunner(transformTask).build()
+
+        then:
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
+    }
+
 }

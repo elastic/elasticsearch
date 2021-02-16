@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -23,6 +24,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
@@ -54,6 +56,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private ScoreDoc[] scoreDocs;
     private final ParallelArray parallelArray;
     private final Closeable onClose;
+
+    private int storedFieldsReaderOrd = -1;
+    private StoredFieldsReader storedFieldsReader = null;
 
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
@@ -162,9 +167,16 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             for (int i = 0; i < scoreDocs.length; i++) {
                 scoreDocs[i].shardIndex = i;
             }
+            parallelArray.useSequentialStoredFieldsReader = scoreDocs.length >= 10 && hasSequentialAccess(scoreDocs);
+            if (parallelArray.useSequentialStoredFieldsReader == false) {
+                storedFieldsReaderOrd = -1;
+                storedFieldsReader = null;
+            }
             // for better loading performance we sort the array by docID and
             // then visit all leaves in order.
-            ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.doc));
+            if (parallelArray.useSequentialStoredFieldsReader == false) {
+                ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.doc));
+            }
             int docBase = -1;
             int maxDoc = 0;
             List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
@@ -190,8 +202,19 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
             }
             // now sort back based on the shardIndex. we use this to store the previous index
-            ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.shardIndex));
+            if (parallelArray.useSequentialStoredFieldsReader == false) {
+                ArrayUtil.introSort(scoreDocs, Comparator.comparingInt(i -> i.shardIndex));
+            }
         }
+    }
+
+    private static boolean hasSequentialAccess(ScoreDoc[] scoreDocs) {
+        for (int i = 0; i < scoreDocs.length - 1; i++) {
+            if (scoreDocs[i].doc + 1 != scoreDocs[i + 1].doc) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private TopDocs searchOperations(ScoreDoc after) throws IOException {
@@ -218,7 +241,25 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex] ? SourceFieldMapper.RECOVERY_SOURCE_NAME :
             SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
-        leaf.reader().document(segmentDocID, fields);
+
+        if (parallelArray.useSequentialStoredFieldsReader) {
+            if (storedFieldsReaderOrd != leaf.ord) {
+                if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
+                    storedFieldsReader = ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader();
+                    storedFieldsReaderOrd = leaf.ord;
+                } else {
+                    storedFieldsReader = null;
+                    storedFieldsReaderOrd = -1;
+                }
+            }
+        }
+        if (storedFieldsReader != null) {
+            assert parallelArray.useSequentialStoredFieldsReader;
+            assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
+            storedFieldsReader.visitDocument(segmentDocID, fields);
+        } else {
+            leaf.reader().document(segmentDocID, fields);
+        }
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
@@ -270,6 +311,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final long[] primaryTerm;
         final boolean[] isTombStone;
         final boolean[] hasRecoverySource;
+        boolean useSequentialStoredFieldsReader = false;
 
         ParallelArray(int size) {
             version = new long[size];
@@ -281,4 +323,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         }
     }
 
+    // for testing
+    boolean useSequentialStoredFieldsReader() {
+        return storedFieldsReader != null;
+    }
 }

@@ -9,10 +9,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.NoCache;
-import com.maxmind.db.NodeCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.model.AbstractResponse;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,9 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -45,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
@@ -57,8 +53,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -90,15 +84,16 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         if (databaseReaders != null) {
             throw new IllegalStateException("getProcessors called twice for geoip plugin!!");
         }
+        final long cacheSize = CACHE_SIZE.get(parameters.env.settings());
+        final GeoIpCache cache = new GeoIpCache(cacheSize);
         final Path geoIpDirectory = getGeoIpDirectory(parameters);
         final Path geoIpConfigDirectory = parameters.env.configFile().resolve("ingest-geoip");
-        long cacheSize = CACHE_SIZE.get(parameters.env.settings());
         try {
-            databaseReaders = loadDatabaseReaders(geoIpDirectory, geoIpConfigDirectory);
+            databaseReaders = loadDatabaseReaders(cache, geoIpDirectory, geoIpConfigDirectory);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders, new GeoIpCache(cacheSize)));
+        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders));
     }
 
     /*
@@ -118,7 +113,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         return geoIpDirectory;
     }
 
-    static Map<String, DatabaseReaderLazyLoader> loadDatabaseReaders(Path geoIpDirectory, Path geoIpConfigDirectory) throws IOException {
+    static Map<String, DatabaseReaderLazyLoader> loadDatabaseReaders(GeoIpCache cache,
+                                                                     Path geoIpDirectory,
+                                                                     Path geoIpConfigDirectory) throws IOException {
         assertDatabaseExistence(geoIpDirectory, true);
         assertDatabaseExistence(geoIpConfigDirectory, false);
         final boolean loadDatabaseOnHeap = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
@@ -127,7 +124,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         // load the default databases
         for (final String databaseFilename : DEFAULT_DATABASE_FILENAMES) {
             final Path databasePath = geoIpDirectory.resolve(databaseFilename);
-            final DatabaseReaderLazyLoader loader = createLoader(databasePath, loadDatabaseOnHeap);
+            final DatabaseReaderLazyLoader loader = createLoader(cache, databasePath, loadDatabaseOnHeap);
             databaseReaders.put(databaseFilename, loader);
         }
 
@@ -141,7 +138,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                     Path databasePath = iterator.next();
                     if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                         String databaseFileName = databasePath.getFileName().toString();
-                        final DatabaseReaderLazyLoader loader = createLoader(databasePath, loadDatabaseOnHeap);
+                        final DatabaseReaderLazyLoader loader = createLoader(cache, databasePath, loadDatabaseOnHeap);
                         databaseReaders.put(databaseFileName, loader);
                     }
                 }
@@ -150,10 +147,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         return Collections.unmodifiableMap(databaseReaders);
     }
 
-    private static DatabaseReaderLazyLoader createLoader(Path databasePath, boolean loadDatabaseOnHeap) {
-        return new DatabaseReaderLazyLoader(
-            databasePath,
-            () -> {
+    private static DatabaseReaderLazyLoader createLoader(GeoIpCache cache, Path databasePath, boolean loadDatabaseOnHeap) {
+        CheckedSupplier<DatabaseReader, IOException> loader = () -> {
                 DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(NoCache.getInstance());
                 if (loadDatabaseOnHeap) {
                     builder.fileMode(Reader.FileMode.MEMORY);
@@ -161,7 +156,8 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                     builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
                 }
                 return builder.build();
-            });
+        };
+        return new DatabaseReaderLazyLoader(cache, databasePath, loader);
     }
 
     private static void assertDatabaseExistence(final Path path, final boolean exists) throws IOException {
@@ -182,79 +178,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public void close() throws IOException {
         if (databaseReaders != null) {
             IOUtils.close(databaseReaders.values());
-        }
-    }
-
-    /**
-     * The in-memory cache for the geoip data. There should only be 1 instance of this class..
-     * This cache differs from the maxmind's {@link NodeCache} such that this cache stores the deserialized Json objects to avoid the
-     * cost of deserialization for each lookup (cached or not). This comes at slight expense of higher memory usage, but significant
-     * reduction of CPU usage.
-     */
-    static class GeoIpCache {
-        private final Cache<CacheKey<?>, AbstractResponse> cache;
-
-        //package private for testing
-        GeoIpCache(long maxSize) {
-            if (maxSize < 0) {
-                throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
-            }
-            this.cache = CacheBuilder.<CacheKey<?>, AbstractResponse>builder().setMaximumWeight(maxSize).build();
-        }
-
-        <T extends AbstractResponse> T putIfAbsent(InetAddress ip, Class<T> responseType,
-                                                   Function<InetAddress, AbstractResponse> retrieveFunction) {
-
-            //can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
-            CacheKey<T> cacheKey = new CacheKey<>(ip, responseType);
-            //intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-            AbstractResponse response = cache.get(cacheKey);
-            if (response == null) {
-                response = retrieveFunction.apply(ip);
-                cache.put(cacheKey, response);
-            }
-            return responseType.cast(response);
-        }
-
-        //only useful for testing
-        <T extends AbstractResponse> T get(InetAddress ip, Class<T> responseType) {
-            CacheKey<T> cacheKey = new CacheKey<>(ip, responseType);
-            return responseType.cast(cache.get(cacheKey));
-        }
-
-        /**
-         * The key to use for the cache. Since this cache can span multiple geoip processors that all use different databases, the response
-         * type is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
-         * IP may be in both with different values and we need to cache both. The response type scopes the IP to the correct database
-         * provides a means to safely cast the return objects.
-         *
-         * @param <T> The AbstractResponse type used to scope the key and cast the result.
-         */
-        private static class CacheKey<T extends AbstractResponse> {
-
-            private final InetAddress ip;
-            private final Class<T> responseType;
-
-            private CacheKey(InetAddress ip, Class<T> responseType) {
-                this.ip = ip;
-                this.responseType = responseType;
-            }
-
-            //generated
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                CacheKey<?> cacheKey = (CacheKey<?>) o;
-                return Objects.equals(ip, cacheKey.ip) &&
-                    Objects.equals(responseType, cacheKey.responseType);
-            }
-
-            //generated
-            @Override
-            public int hashCode() {
-                return Objects.hash(ip, responseType);
-            }
         }
     }
 

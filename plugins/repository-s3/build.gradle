@@ -15,6 +15,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -302,19 +303,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-// test jar is exported by the integTestArtifacts configuration to be used in the encrypted S3 repository test
-configurations {
-  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
-  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
-}
-
-def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
-  appendix 'internalClusterTest'
-  from sourceSets.internalClusterTest.output
-  // for the plugin-security.policy resource
-  from sourceSets.test.output
-}
-
-artifacts {
-  internalClusterTestArtifacts internalClusterTestJar
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
 }

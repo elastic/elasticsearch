@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
 }
 
 final File repoDir = file("$buildDir/testclusters/repo")

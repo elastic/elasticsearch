@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.test.rest.transform.feature.FeatureInjector;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 
 import java.util.List;
 
@@ -45,11 +46,13 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
     }
 
     @Override
+    @Internal
     public String getKeyToFind() {
         return "do";
     }
 
     @Override
+    @Internal
     public String getSkipFeatureName() {
         return "allowed_warnings";
     }

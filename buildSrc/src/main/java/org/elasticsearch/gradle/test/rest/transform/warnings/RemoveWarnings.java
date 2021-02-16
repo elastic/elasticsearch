@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,6 +57,7 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
     }
 
     @Override
+    @Internal
     public String getKeyToFind() {
         return "do";
     }

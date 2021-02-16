@@ -570,6 +570,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] { SetPriorityAction.NAME });
         assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] {});
 
+        assertNextActionName("cold", UnfollowAction.NAME, ReadOnlyAction.NAME,
+            new String[] {ReadOnlyAction.NAME, SearchableSnapshotAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME});
+        assertNextActionName("cold", UnfollowAction.NAME, SearchableSnapshotAction.NAME,
+            new String[] {SearchableSnapshotAction.NAME, AllocateAction.NAME, FreezeAction.NAME});
         assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME,
             new String[] {SetPriorityAction.NAME, AllocateAction.NAME, FreezeAction.NAME});
         assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME,
@@ -588,7 +592,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", ForceMergeAction.NAME, new String[] { AllocateAction.NAME });
-        assertInvalidAction("cold", ReadOnlyAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", RolloverAction.NAME, new String[] { AllocateAction.NAME });
         assertInvalidAction("cold", ShrinkAction.NAME, new String[] { AllocateAction.NAME });
 
@@ -740,6 +743,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return new MigrateAction(true);
             case RollupILMAction.NAME:
                 return TEST_ROLLUP_ACTION;
+            case SearchableSnapshotAction.NAME:
+                return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             }
             return new DeleteAction();
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));

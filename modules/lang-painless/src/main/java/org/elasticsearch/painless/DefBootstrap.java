@@ -131,6 +131,10 @@ public final class DefBootstrap {
          * as the cached class
          */
         static boolean checkClass(Class<?> clazz, Object receiver) {
+            if (receiver == null) {
+                throw new IllegalArgumentException("benchmark test for null");
+            }
+
             return receiver.getClass() == clazz;
         }
 

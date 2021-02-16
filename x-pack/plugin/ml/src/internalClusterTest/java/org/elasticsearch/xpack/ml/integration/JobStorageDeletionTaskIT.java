@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
-    private static final long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
+    private static long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
     private static final String UNRELATED_INDEX = "unrelated-data";
 
     private JobResultsProvider jobResultsProvider;
@@ -176,13 +175,13 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         assertThat(bucketHandler.get().count(), equalTo(11L));
 
         // Make sure dedicated index is gone
-        expectThrows(IndexNotFoundException.class, () -> client().admin()
+        assertThat(client().admin()
             .indices()
             .prepareGetIndex()
             .setIndices(dedicatedIndex)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()
-            .indices());
+            .indices().length, equalTo(0));
 
         // Make sure all results referencing the dedicated job are gone
         assertThat(client().prepareSearch()

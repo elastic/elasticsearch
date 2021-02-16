@@ -124,6 +124,14 @@ The original JSON document that is indexed will be stored in the
 <<glossary-source_field,`_source` field>>, which is returned by default when
 getting or searching for a document.
 
+[[glossary-eql]]
+Event Query Language (EQL) ::
+// tag::eql-def[]
+A query language for event-based time series data, such as logs, metrics, and
+traces. EQL supports matching for event sequences. In the {security-app}, you
+use EQL to write event correlation rules. See {ref}/eql.html[EQL].
+// end::eql-def[]
+
 [[glossary-field]] field ::
 
 A <<glossary-document,document>> contains a list of fields, or key-value

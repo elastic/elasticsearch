@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -32,6 +33,8 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
@@ -54,6 +57,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
+    private final Integer queryMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -85,8 +89,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     int noMatchSize,
                                     int maxPassages,
                                     Predicate<String> fieldMatcher,
-                                    int maxAnalyzedOffset) throws IOException {
-        super(searcher, analyzer);
+                                    int maxAnalyzedOffset,
+                                    Integer queryMaxAnalyzedOffset) throws IOException {
+        super(searcher, wrapAnalyzer(analyzer, queryMaxAnalyzedOffset));
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
@@ -96,7 +101,15 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.noMatchSize = noMatchSize;
         this.setFieldMatcher(fieldMatcher);
         this.maxAnalyzedOffset = maxAnalyzedOffset;
+        this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
+    }
+
+    protected static Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        if (maxAnalyzedOffset != null) {
+            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
+        }
+        return analyzer;
     }
 
     /**
@@ -112,22 +125,13 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
+        if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) &&
+                (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
-                "The length of ["
-                    + field
-                    + "] field of ["
-                    + docId
-                    + "] doc of ["
-                    + index
-                    + "] index "
-                    + "has exceeded ["
-                    + maxAnalyzedOffset
-                    + "] - maximum allowed to be analyzed for highlighting. "
-                    + "This maximum can be set by changing the ["
-                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
-                    + "] index level setting. "
-                    + "For large texts, indexing with offsets or term vectors is recommended!"
+                "The length [" + fieldValueLength + "] of field [" + field +"] in doc[" + docId + "]/index[" + index +"] exceeds the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. To avoid this error, set "
+                    + "the query parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting ["
+                    + maxAnalyzedOffset + "] and this will tolerate long field values by truncating them."
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);
@@ -223,5 +227,4 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         }
         return offsetSource;
     }
-
 }

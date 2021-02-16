@@ -10,6 +10,11 @@ The following pages have moved or been deleted.
 
 See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
 
+[role="exclude",id="saml-attribute-mapping"]
+==== Attribute mapping
+
+See <<saml-attributes-mapping,SAML attribute mapping>>.
+
 [role="exclude",id="saml-guide-authentication"]
 === Configure {es} for SAML authentication
 

@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -115,35 +116,52 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
             final long startTimeNanos = System.nanoTime();
             long firstByteNanos = startTimeNanos;
 
-            while (true) {
-                final int readSize;
-                try {
-                    readSize = throttledInputStream.read(buffer, 0, buffer.length);
-                } catch (IOException e) {
-                    logger.warn("exception while read blob for [{}]", request);
-                    listener.onFailure(e);
-                    return;
-                }
-
-                if (readSize == -1) {
-                    break;
-                }
-
-                if (readSize > 0) {
-                    if (bytesRead == 0L) {
-                        firstByteNanos = System.nanoTime();
+            boolean success = false;
+            try {
+                while (true) {
+                    final int readSize;
+                    try {
+                        readSize = throttledInputStream.read(buffer, 0, buffer.length);
+                    } catch (IOException e) {
+                        logger.warn("exception while read blob for [{}]", request);
+                        listener.onFailure(e);
+                        return;
                     }
 
-                    crc32.update(buffer, 0, readSize);
-                    bytesRead += readSize;
-                }
+                    if (readSize == -1) {
+                        break;
+                    }
 
-                if (cancellableTask.isCancelled()) {
-                    throw new RepositoryVerificationException(
-                        request.repositoryName,
-                        "cancelled [" + request.getDescription() + "] after reading [" + bytesRead + "] bytes"
-                    );
+                    if (readSize > 0) {
+                        if (bytesRead == 0L) {
+                            firstByteNanos = System.nanoTime();
+                        }
+
+                        crc32.update(buffer, 0, readSize);
+                        bytesRead += readSize;
+                    }
+
+                    if (cancellableTask.isCancelled()) {
+                        throw new RepositoryVerificationException(
+                            request.repositoryName,
+                            "cancelled [" + request.getDescription() + "] after reading [" + bytesRead + "] bytes"
+                        );
+                    }
                 }
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(throttledInputStream);
+                }
+            }
+            try {
+                throttledInputStream.close();
+            } catch (IOException e) {
+                throw new RepositoryVerificationException(
+                    request.repositoryName,
+                    "failed to close input stream when handling [" + request.getDescription() + "]",
+                    e
+                );
             }
 
             final long endTimeNanos = System.nanoTime();

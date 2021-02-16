@@ -4,8 +4,31 @@
 [[wildcard-field-type]]
 === Wildcard field type
 
-A `wildcard` field stores values optimised for wildcard grep-like queries.
-Wildcard queries are possible on other field types but suffer from constraints:
+The wildcard field optimizes high-cardinality keyword fields for
+<<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-regexp-query,`regexp`>>
+queries.
+
+[IMPORTANT]
+====
+We only recommend the `wildcard` type for fields that meet the following criteria:
+
+* You plan to regularly search the field using a pattern with leading wildcards,
+such as `*foo` or `*baz`.
+
+* The field contains values larger than 32KB. +
+OR +
+The field contains more than a million unique values.
+
+
+Otherwise, use the `keyword` field type for faster searches, faster indexing,
+and lower storage costs. For an in-depth comparison and decision flowchart, see
+our
+https://www.elastic.co/blog/find-strings-within-strings-faster-with-the-new-elasticsearch-wildcard-field[blog
+post].
+====
+
+<<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-regexp-query,`regexp`>>
+queries are possible on other field types but suffer from constraints:
 
 * `text` fields limit matching of any wildcard expressions to individual tokens rather than the original whole value held in a field
 * `keyword` fields are untokenized but slow at performing wildcard queries (especially patterns with leading wildcards).

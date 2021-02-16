@@ -41,8 +41,8 @@ systems behave incorrectly, or perform poorly, especially when accessed
 concurrently by multiple clients as the nodes of an {es} cluster do.
 
 The Repository analysis API performs a collection of read and write operations
-on your repository which are specially designed to detect incorrect behaviour
-and to measure the performance characteristics of your storage system.
+on your repository which are designed to detect incorrect behaviour and to
+measure the performance characteristics of your storage system.
 
 The default values for the parameters to this API are deliberately low to
 reduce the impact of running an analysis. A realistic experiment should set
@@ -64,14 +64,14 @@ been cleaned up correctly. If there is still leftover data at the specified
 location then you should manually remove it.
 
 If the connection from your client to {es} is closed while the client is
-waiting for the result of the analysis then the test is cancelled. Since an
-analysis takes a long time to complete, you may need to configure your client
-to wait for longer than usual for a response. On cancellation the analysis
-attempts to clean up the data it was writing, but it may not be able to remove
-it all. The path to the leftover data is recorded in the {es} logs. You should
-verify yourself that this location has been cleaned up correctly. If there is
-still leftover data at the specified location then you should manually remove
-it.
+waiting for the result of the analysis then the test is cancelled. Some clients
+are configured to close their connection if no response is received within a
+certain timeout. An analysis takes a long time to complete so you may need to
+relax any such client-side timeouts. On cancellation the analysis attempts to
+clean up the data it was writing, but it may not be able to remove it all. The
+path to the leftover data is recorded in the {es} logs. You should verify
+yourself that this location has been cleaned up correctly. If there is still
+leftover data at the specified location then you should manually remove it.
 
 If the analysis is successful then it detected no incorrect behaviour, but this
 does not mean that correct behaviour is guaranteed. The analysis attempts to
@@ -99,12 +99,17 @@ these systems. Analyses respect the repository settings
 the cluster setting `indices.recovery.max_bytes_per_sec` which you can use to
 limit the bandwidth they consume.
 
+NOTE: This API is intended for exploratory use by humans. You should expect the
+request parameters and the response format to vary in future versions.
+
+NOTE: This API may not work correctly in a mixed-version cluster.
+
 ==== Implementation details
 
 NOTE: This section of documentation describes how the Repository analysis API
 works in this version of {es}, but you should expect the implementation to vary
-between versions. The response format exposes details of the implementation so
-it may also be different in newer versions.
+between versions. The request parameters and response format depend on details
+of the implementation so may also be different in newer versions.
 
 The analysis comprises a number of blob-level tasks, as set by the `blob_count`
 parameter. The blob-level tasks are distributed over the data and
@@ -274,7 +279,7 @@ The probability of performing rare actions during the test. Equal to the
 The path in the repository under which all the blobs were written during the
 test.
 
-`bugs_detected`::
+`issues_detected`::
 (list)
 A list of correctness issues detected, which will be empty if the API
 succeeded. Included to emphasize that a successful response does not guarantee

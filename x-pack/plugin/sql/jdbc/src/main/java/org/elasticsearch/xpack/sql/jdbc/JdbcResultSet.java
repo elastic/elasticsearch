@@ -937,7 +937,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     public Array getArray(int columnIndex) throws SQLException {
         EsType type = columnType(columnIndex);
         if (isArray(type) == false) {
-            throw new SQLException("Cannot get an array for the column [" + columnIndex + "] of type [" + type.getName() + "]");
+            throw new SQLException("Cannot get column [" + columnIndex + "] of type [" + type.getName() + "] as array");
         }
         return new JdbcArray(type, (List<?>) getObject(columnIndex));
     }

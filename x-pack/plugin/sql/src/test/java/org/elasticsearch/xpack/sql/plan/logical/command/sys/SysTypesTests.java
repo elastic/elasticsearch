@@ -176,6 +176,4 @@ public class SysTypesTests extends ESTestCase {
             }
         }
     }
-
-
 }

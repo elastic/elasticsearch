@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
@@ -53,7 +52,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     private String error(IndexResolution getIndexResult, String sql) {
         Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics(),
-            SqlTestUtils.TEST_CFG.version()));
+            TEST_CFG.version()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
@@ -74,7 +73,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
         Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics(),
-            SqlTestUtils.TEST_CFG.version()));
+            TEST_CFG.version()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 

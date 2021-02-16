@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -192,6 +193,6 @@ final class TypeUtils {
     }
 
     static boolean isArray(EsType type) {
-        return type.getName().endsWith("_ARRAY");
+        return type.getVendorTypeNumber() == Types.ARRAY;
     }
 }

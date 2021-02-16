@@ -196,7 +196,7 @@ GET /_search
     4098435132000,
     4294967298
   ],
-  "track_total_hits": false
+  "track_total_hits": false                        <3>
 }
 ----
 // TEST[catch:missing]

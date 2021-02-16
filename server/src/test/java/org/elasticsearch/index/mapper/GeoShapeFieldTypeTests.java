@@ -47,5 +47,9 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         sourceValue = Arrays.asList(wktLineString, wktPoint);
         assertEquals(Arrays.asList(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(Arrays.asList(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a malformed value
+        sourceValue = "malformed";
+        assertEquals(Collections.emptyList(), fetchSourceValue(mapper, sourceValue, null));
     }
 }

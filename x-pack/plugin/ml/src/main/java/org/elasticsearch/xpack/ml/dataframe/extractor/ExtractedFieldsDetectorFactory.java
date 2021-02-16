@@ -171,6 +171,7 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.indices(index);
         fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         fieldCapabilitiesRequest.fields("*");
+        fieldCapabilitiesRequest.runtimeFields(config.getSource().getRuntimeMappings());
         LOGGER.debug(() -> new ParameterizedMessage(
             "[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
         ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {

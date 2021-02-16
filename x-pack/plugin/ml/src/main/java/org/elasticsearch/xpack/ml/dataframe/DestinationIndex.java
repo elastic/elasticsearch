@@ -72,6 +72,7 @@ public final class DestinationIndex {
 
     private static final String PROPERTIES = "properties";
     private static final String META = "_meta";
+    private static final String RUNTIME = "runtime";
 
     private static final String DFA_CREATOR = "data-frame-analytics";
 
@@ -179,6 +180,8 @@ public final class DestinationIndex {
         properties.putAll(createAdditionalMappings(config, fieldCapabilitiesResponse));
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
         metadata.putAll(createMetadata(config.getId(), clock, Version.CURRENT));
+        Map<String, Object> runtimeMappings = getOrPutDefault(mappingsAsMap, RUNTIME, HashMap::new);
+        runtimeMappings.putAll(config.getSource().getRuntimeMappings());
         return new CreateIndexRequest(destinationIndex, settings).mapping(mappingsAsMap);
     }
 
@@ -258,8 +261,12 @@ public final class DestinationIndex {
 
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(
             fieldCapabilitiesResponse -> {
+                Map<String, Object> addedMappings = new HashMap<>();
+
                 // Determine mappings to be added to the destination index
-                Map<String, Object> addedMappings = Map.of(PROPERTIES, createAdditionalMappings(config, fieldCapabilitiesResponse));
+                addedMappings.put(PROPERTIES, createAdditionalMappings(config, fieldCapabilitiesResponse));
+                // Also add runtime mappings
+                addedMappings.put(RUNTIME, config.getSource().getRuntimeMappings());
 
                 // Add the mappings to the destination index
                 PutMappingRequest putMappingRequest =

@@ -118,7 +118,7 @@ public class WindowsServiceTests extends PackagingTestCase {
             mv(installation.bundledJdk, relocatedJdk);
             Result result = sh.runIgnoreExitCode(serviceScript + " install");
             assertThat(result.exitCode, equalTo(1));
-            assertThat(result.stderr, containsString("could not find java in bundled jdk"));
+            assertThat(result.stderr, containsString("could not find java in bundled JDK"));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }

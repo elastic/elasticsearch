@@ -73,7 +73,7 @@ public class ArchiveTests extends PackagingTestCase {
             // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java in bundled jdk"));
+            assertThat(runResult.stderr, containsString("could not find java in bundled JDK"));
         } finally {
             if (distribution().hasJdk) {
                 mv(relocatedJdk, installation.bundledJdk);

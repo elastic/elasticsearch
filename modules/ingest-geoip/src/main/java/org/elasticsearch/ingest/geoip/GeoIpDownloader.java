@@ -199,7 +199,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void runDownloader() {
-        if (isCancelled() == false) {
+        if (isCancelled() == false && isCompleted() == false) {
             try {
                 updateDatabases();
             } catch (Exception e) {

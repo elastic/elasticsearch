@@ -287,6 +287,16 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertNotNull(dateField);
         assertThat(dateField.getValues().size(), equalTo(1));
         assertThat(dateField.getValue(), equalTo("1990/12/29"));
+
+        // check that badly formed dates in source are just ignored when fetching
+        source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .array("date_field", "1990-12-29T00:00:00.000Z", "baddate", "1991-12-29T00:00:00.000Z")
+            .endObject();
+        DocumentField dates
+            = fetchFields(mapperService, source, List.of(new FieldAndFormat("date_field", "yyyy/MM/dd"))).get("date_field");
+        assertThat(dates.getValues().size(), equalTo(2));
+        assertThat(dates, containsInAnyOrder(equalTo("1990/12/29"), equalTo("1991/12/29")));
     }
 
     public void testIgnoreAbove() throws IOException {

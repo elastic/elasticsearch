@@ -10,16 +10,11 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -36,12 +31,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +43,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> implements ClusterStateListener {
+class GeoIpDownloader extends AllocatedPersistentTask {
+
+    private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
     public static final boolean GEOIP_V2_FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.geoip_v2_feature_flag_enabled"));
 
@@ -61,8 +53,6 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("geoip.downloader.endpoint",
         "https://paisano.elastic.dev/v1/geoip/database", Property.NodeScope);
-    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", GEOIP_V2_FEATURE_FLAG_ENABLED,
-        Property.Dynamic, Property.NodeScope);
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";
     static final String DATABASES_INDEX = ".geoip_databases";
@@ -70,50 +60,24 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
 
     private final Client client;
     private final HttpClient httpClient;
-    private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
-    private final PersistentTasksService persistentTasksService;
     private final String endpoint;
 
     //visible for testing
     protected volatile GeoIpTaskState state;
     private volatile TimeValue pollInterval;
-    private volatile AllocatedPersistentTask persistentTask;
     private volatile Scheduler.ScheduledCancellable scheduled;
-    private volatile boolean enabled;
 
-    GeoIpDownloader(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool, Settings settings) {
-        super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
-        this.client = new OriginSettingClient(client, "geoip");
+    GeoIpDownloader(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool, Settings settings,
+                    long id, String type, String action, String description, TaskId parentTask,
+                    Map<String, String> headers) {
+        super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
-        this.clusterService = clusterService;
+        this.client = client;
         this.threadPool = threadPool;
-        persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
-        if (GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
-        }
-        enabled = ENABLED_SETTING.get(settings);
-        if (enabled) {
-            clusterService.addListener(this);
-        }
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-        if (enabled) {
-            startPersistentTask();
-        } else {
-            if (scheduled != null) {
-                scheduled.cancel();
-            }
-            persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, ActionListener.wrap(r -> {
-                state = ((GeoIpTaskState) r.getState()).copy();
-            }, e -> logger.error("could not remove task [" + GEOIP_DOWNLOADER + "]", e)));
-        }
     }
 
     public void setPollInterval(TimeValue pollInterval) {
@@ -190,7 +154,7 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
 
     boolean updateTaskState(String name) {
         PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
-        persistentTask.updatePersistentTaskState(state, future);
+        updatePersistentTaskState(state, future);
         try {
             state = ((GeoIpTaskState) future.actionGet().getState()).copy();
             return true;
@@ -230,24 +194,12 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
         return buf;
     }
 
-    //for testing only
-    void setPersistentTask(AllocatedPersistentTask persistentTask) {
-        this.persistentTask = persistentTask;
-    }
-
-    //for testing only
     void setState(GeoIpTaskState state) {
         this.state = state;
     }
 
-    @Override
-    protected void nodeOperation(AllocatedPersistentTask allocatedTask, PersistentTaskParams params, PersistentTaskState state) {
-        if (scheduled != null) {
-            scheduled.cancel();
-        }
-        if (enabled) {
-            this.persistentTask = allocatedTask;
-            this.state = state != null ? (GeoIpTaskState) state : new GeoIpTaskState();
+    void runDownloader() {
+        if (isCancelled() == false) {
             try {
                 updateDatabases();
             } catch (Exception e) {
@@ -257,32 +209,14 @@ class GeoIpDownloader extends PersistentTasksExecutor<PersistentTaskParams> impl
         }
     }
 
-    private void scheduleNextRun(TimeValue time) {
-        scheduled = threadPool.schedule(() -> nodeOperation(persistentTask, null, state), time, ThreadPool.Names.GENERIC);
-    }
-
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        clusterService.removeListener(this);
-        startPersistentTask();
-    }
-
-    private void startPersistentTask() {
-        ClusterState state = clusterService.state();
-        if (state.nodes().isLocalNodeElectedMaster() && PersistentTasksCustomMetadata.getTaskWithId(state, GEOIP_DOWNLOADER) == null) {
-            persistentTasksService.sendStartRequest(GEOIP_DOWNLOADER, GEOIP_DOWNLOADER, new GeoIpTaskParams(), ActionListener.wrap(r -> {
-            }, e -> {
-                if (e instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create geoip downloader task", e);
-                    clusterService.addListener(this);
-                }
-            }));
+    protected void onCancelled() {
+        if (scheduled != null) {
+            scheduled.cancel();
         }
     }
 
-    @Override
-    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                 PersistentTask<PersistentTaskParams> taskInProgress, Map<String, String> headers) {
-        return super.createTask(id, type, action, parentTaskId, taskInProgress, headers);
+    private void scheduleNextRun(TimeValue time) {
+        scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
     }
 }

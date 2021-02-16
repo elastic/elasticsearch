@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -35,6 +36,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -45,8 +47,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.ENDPOINT_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.MAX_CHUNK_SIZE;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,11 +65,12 @@ public class GeoIpDownloaderTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY,
-            Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpDownloader.ENABLED_SETTING)));
+            Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpDownloaderTaskExecutor.ENABLED_SETTING)));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
-        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY);
+        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
+            1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap());
     }
 
     @After
@@ -175,7 +177,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
 
-        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY) {
+        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
+            1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
             boolean updateTaskState(String name) {
                 assertEquals(0, state.getDatabases().get("test").getFirstChunk());
@@ -214,7 +217,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
 
-        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY) {
+        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
+            1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
             boolean updateTaskState(String name) {
                 assertEquals(9, state.getDatabases().get("test").getFirstChunk());
@@ -255,7 +259,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
 
-        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY) {
+        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
+            1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
             boolean updateTaskState(String name) {
                 fail();
@@ -286,17 +291,17 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testUpdateTaskState() {
-        AllocatedPersistentTask mock = mock(AllocatedPersistentTask.class);
         GeoIpTaskState taskState = new GeoIpTaskState();
-        doAnswer(invocationOnMock -> {
-            assertSame(taskState, invocationOnMock.getArguments()[0]);
-            ActionListener<PersistentTask<?>> listener = (ActionListener<PersistentTask<?>>) invocationOnMock.getArguments()[1];
-            PersistentTask<?> task = mock(PersistentTask.class);
-            when(task.getState()).thenReturn(taskState);
-            listener.onResponse(task);
-            return null;
-        }).when(mock).updatePersistentTaskState(any(), any());
-        geoIpDownloader.setPersistentTask(mock);
+        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
+            1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
+            @Override
+            public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
+                assertSame(taskState, state);
+                PersistentTask<?> task = mock(PersistentTask.class);
+                when(task.getState()).thenReturn(taskState);
+                listener.onResponse(task);
+            }
+        };
         geoIpDownloader.setState(taskState);
         assertTrue(geoIpDownloader.updateTaskState("test"));
     }
@@ -305,15 +310,16 @@ public class GeoIpDownloaderTests extends ESTestCase {
     public void testUpdateTaskStateError() {
         AllocatedPersistentTask mock = mock(AllocatedPersistentTask.class);
         GeoIpTaskState taskState = new GeoIpTaskState();
-        doAnswer(invocationOnMock -> {
-            assertSame(taskState, invocationOnMock.getArguments()[0]);
-            ActionListener<PersistentTask<?>> listener = (ActionListener<PersistentTask<?>>) invocationOnMock.getArguments()[1];
-            PersistentTask<?> task = mock(PersistentTask.class);
-            when(task.getState()).thenReturn(taskState);
-            listener.onFailure(new IllegalStateException("test failure"));
-            return null;
-        }).when(mock).updatePersistentTaskState(any(), any());
-        geoIpDownloader.setPersistentTask(mock);
+        geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
+            1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
+            @Override
+            public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
+                assertSame(taskState, state);
+                PersistentTask<?> task = mock(PersistentTask.class);
+                when(task.getState()).thenReturn(taskState);
+                listener.onFailure(new IllegalStateException("test failure"));
+            }
+        };
         geoIpDownloader.setState(taskState);
         assertFalse(geoIpDownloader.updateTaskState("test"));
     }
@@ -330,7 +336,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
         when(httpClient.getBytes("a.b?key=11111111-1111-1111-1111-111111111111")).thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool,
-            Settings.builder().put(ENDPOINT_SETTING.getKey(), "a.b").build()) {
+            Settings.builder().put(ENDPOINT_SETTING.getKey(), "a.b").build(),
+            1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
             void processDatabase(Map<String, Object> databaseInfo) {
                 assertEquals(it.next(), databaseInfo);

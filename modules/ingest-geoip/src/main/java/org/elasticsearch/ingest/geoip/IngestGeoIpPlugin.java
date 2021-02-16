@@ -74,7 +74,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             GeoIpDownloader.ENDPOINT_SETTING,
             GeoIpDownloader.POLL_INTERVAL_SETTING));
         if (GeoIpDownloader.GEOIP_V2_FEATURE_FLAG_ENABLED) {
-            settings.add(GeoIpDownloader.ENABLED_SETTING);
+            settings.add(GeoIpDownloaderTaskExecutor.ENABLED_SETTING);
         }
         return settings;
     }
@@ -185,7 +185,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
                                                                        Client client, SettingsModule settingsModule,
                                                                        IndexNameExpressionResolver expressionResolver) {
-        return List.of(new GeoIpDownloader(client, new HttpClient(), clusterService, threadPool, settingsModule.getSettings()));
+        return List.of(new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool, settingsModule.getSettings()));
     }
 
     @Override
@@ -216,6 +216,16 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             .setPrimaryIndex(DATABASES_INDEX)
             .build();
         return Collections.singleton(geoipDatabasesIndex);
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "geoip";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages data related to GeoIP database downloader";
     }
 
     private static XContentBuilder mappings() {

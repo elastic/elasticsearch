@@ -43,7 +43,7 @@ if (useFixture) {
 }
 
 task "beforeInternalClusterTest" {
-  dependsOn(fixture.postProcessFixture)
+  dependsOn ':test:fixtures:geoip-fixture:postProcessFixture'
   doLast {
     if (useFixture) {
       int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.geoip-fixture.tcp.80"
@@ -57,7 +57,7 @@ task "beforeInternalClusterTest" {
 
 internalClusterTest {
   systemProperty "es.geoip_v2_feature_flag_enabled", "true"
-  dependsOn("beforeInternalClusterTest")
+  dependsOn "beforeInternalClusterTest"
 }
 
 tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {

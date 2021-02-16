@@ -58,7 +58,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(GeoIpDownloader.ENABLED_SETTING.getKey(), false);
+            .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
         String endpoint = System.getProperty("geoip_endpoint");
         if (endpoint != null) {
             settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), endpoint);
@@ -69,7 +69,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testGeoIpDatabasesDownload() throws Exception {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloader.ENABLED_SETTING.getKey(), true))
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {

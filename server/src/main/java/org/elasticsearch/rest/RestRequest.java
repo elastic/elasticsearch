@@ -360,6 +360,18 @@ public class RestRequest implements ToXContent.Params {
         }
     }
 
+    public double paramAsDouble(String key, double defaultValue) {
+        String sValue = param(key);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(sValue);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Failed to parse double parameter [" + key + "] with value [" + sValue + "]", e);
+        }
+    }
+
     public int paramAsInt(String key, int defaultValue) {
         String sValue = param(key);
         if (sValue == null) {

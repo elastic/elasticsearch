@@ -234,7 +234,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 }
                 assertFalse(snapshot.useSequentialStoredFieldsReader());
             }
-            // enable optimization for sequential access of 10+ docs
+            // disable optimization for non-sequential accesses
             try (LuceneChangesSnapshot snapshot =
                      (LuceneChangesSnapshot) engine.newChangesSnapshot("test", between(1, 3), between(20, 100), false)) {
                 while ((op = snapshot.next()) != null) {
@@ -242,7 +242,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 }
                 assertFalse(snapshot.useSequentialStoredFieldsReader());
             }
-            // disable optimization for non-sequential accesses
+            // enable optimization for sequential access of 10+ docs
             try (LuceneChangesSnapshot snapshot =
                      (LuceneChangesSnapshot) engine.newChangesSnapshot("test", 11, between(21, 100), false)) {
                 while ((op = snapshot.next()) != null) {

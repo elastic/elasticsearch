@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.ingest.FingerprintProcessor.DELIMITER;
 import static org.elasticsearch.xpack.ingest.FingerprintProcessor.toBytes;
@@ -31,15 +32,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class FingerprintProcessorTests extends ESTestCase {
 
     public void testBasic() throws Exception {
-        var fields = new ArrayList<String>();
+        List<String> fields = new ArrayList<>();
         fields.add("foo");
         fields.add("bar");
 
-        var inputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> inputMap = new LinkedHashMap<>();
         inputMap.put("foo", "fooValue");
         inputMap.put("bar", "barValue");
 
-        List<Object> expectedValues = List.of("barValue", "fooValue");
+        List<Object> expectedValues = org.elasticsearch.common.collect.List.of("barValue", "fooValue");
 
         doTestFingerprint(inputMap, fields, expectedValues, "IgxzmZVknx4+Og/eUpvIlqH9PdI=");
     }
@@ -49,7 +50,7 @@ public class FingerprintProcessorTests extends ESTestCase {
         List<String> sortedFieldList = new ArrayList<>(fieldList);
         sortedFieldList.sort(Comparator.naturalOrder());
 
-        var sortedInputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> sortedInputMap = new LinkedHashMap<>();
         List<Object> expectedValues = new ArrayList<>();
         for (String s : sortedFieldList) {
             sortedInputMap.put(s, s);
@@ -57,7 +58,7 @@ public class FingerprintProcessorTests extends ESTestCase {
         }
         String sortedFingerprint = doTestFingerprint(sortedInputMap, sortedFieldList, expectedValues, null);
 
-        var shuffledInputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> shuffledInputMap = new LinkedHashMap<>();
         for (String s : fieldList) {
             shuffledInputMap.put(s, s);
         }
@@ -71,60 +72,85 @@ public class FingerprintProcessorTests extends ESTestCase {
         List<String> sortedKeyList = new ArrayList<>(keyList);
         sortedKeyList.sort(Comparator.naturalOrder());
 
-        var sortedInputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> sortedInputMap = new LinkedHashMap<>();
         List<Object> expectedValues = new ArrayList<>();
         for (String s : sortedKeyList) {
             sortedInputMap.put(s, s);
             expectedValues.add(s);
             expectedValues.add(s);
         }
-        var docMap = new HashMap<String, Object>();
+        Map<String, Object> docMap = new HashMap<>();
         docMap.put("map", sortedInputMap);
-        String sortedFingerprint = doTestFingerprint(docMap, List.of("map"), expectedValues, null);
+        String sortedFingerprint = doTestFingerprint(docMap, org.elasticsearch.common.collect.List.of("map"), expectedValues, null);
 
-        var shuffledInputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> shuffledInputMap = new LinkedHashMap<>();
         for (String s : keyList) {
             shuffledInputMap.put(s, s);
         }
-        docMap = new HashMap<String, Object>();
+        docMap = new HashMap<>();
         docMap.put("map", shuffledInputMap);
-        String shuffledFingerprint = doTestFingerprint(docMap, List.of("map"), expectedValues, null);
+        String shuffledFingerprint = doTestFingerprint(docMap, org.elasticsearch.common.collect.List.of("map"), expectedValues, null);
 
         assertThat(sortedFingerprint, equalTo(shuffledFingerprint));
     }
 
     public void testIgnoreMissing() throws Exception {
         // only one value contributes to fingerprint
-        var docMap = new HashMap<String, Object>();
+        Map<String, Object> docMap = new HashMap<>();
         docMap.put("foo", "foo");
-        doTestFingerprint(docMap, List.of("foo", "bar", "baz"), List.of("foo"), "WoyqQDn9vALAGmScjA9Z2yg7sos=", true);
+        doTestFingerprint(
+            docMap,
+            org.elasticsearch.common.collect.List.of("foo", "bar", "baz"),
+            org.elasticsearch.common.collect.List.of("foo"),
+            "WoyqQDn9vALAGmScjA9Z2yg7sos=",
+            true
+        );
 
         // two values contribute to fingerprint
         docMap = new HashMap<>();
         docMap.put("foo", "foo");
         docMap.put("bar", "foo");
-        doTestFingerprint(docMap, List.of("foo", "bar", "baz"), List.of("foo", "foo"), "vjq2RyU5UA8vzeM5gIbfrOGir7w=", true);
+        doTestFingerprint(
+            docMap,
+            org.elasticsearch.common.collect.List.of("foo", "bar", "baz"),
+            org.elasticsearch.common.collect.List.of("foo", "foo"),
+            "vjq2RyU5UA8vzeM5gIbfrOGir7w=",
+            true
+        );
 
         // three values contribute to fingerprint
         docMap = new HashMap<>();
         docMap.put("foo", "foo");
         docMap.put("bar", "foo");
         docMap.put("baz", "foo");
-        doTestFingerprint(docMap, List.of("foo", "bar", "baz"), List.of("foo", "foo", "foo"), "2Ozd89kaee2AnbrjU8zB6QGn9Wo=", true);
+        doTestFingerprint(
+            docMap,
+            org.elasticsearch.common.collect.List.of("foo", "bar", "baz"),
+            org.elasticsearch.common.collect.List.of("foo", "foo", "foo"),
+            "2Ozd89kaee2AnbrjU8zB6QGn9Wo=",
+            true
+        );
 
         // error when ignore_missing is false
-        final var docMap2 = new HashMap<String, Object>();
+        final Map<String, Object> docMap2 = new HashMap<>();
         docMap2.put("foo", "foo");
         docMap2.put("bar", "foo");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> doTestFingerprint(docMap2, List.of("foo", "bar", "baz"), List.of("foo"), null, false, null)
+            () -> doTestFingerprint(
+                docMap2,
+                org.elasticsearch.common.collect.List.of("foo", "bar", "baz"),
+                org.elasticsearch.common.collect.List.of("foo"),
+                null,
+                false,
+                null
+            )
         );
         assertThat(e.getMessage(), containsString("missing field [baz] when calculating fingerprint"));
     }
 
     public void testDataTypes() throws Exception {
-        var typesMap = new HashMap<String, Object>();
+        Map<String, Object> typesMap = new HashMap<>();
         typesMap.put("0string", "foo");
         typesMap.put("1byte[]", new byte[] { 0, 1, 2 });
         typesMap.put("2integer", 42);
@@ -158,15 +184,21 @@ public class FingerprintProcessorTests extends ESTestCase {
         expectedValues.add("9null");
         expectedValues.add(null);
 
-        var docMap = new HashMap<String, Object>();
+        Map<String, Object> docMap = new HashMap<>();
         docMap.put("types", typesMap);
-        doTestFingerprint(docMap, List.of("types"), expectedValues, null);
+        doTestFingerprint(docMap, org.elasticsearch.common.collect.List.of("types"), expectedValues, null);
     }
 
     public void testSalt() throws Exception {
-        var inputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> inputMap = new LinkedHashMap<>();
         inputMap.put("foo", "foo");
-        doTestFingerprint(inputMap, List.of("foo"), List.of("foo"), "rWTTCYvRPQAzKXydmKwyC+//dmM=", "salt");
+        doTestFingerprint(
+            inputMap,
+            org.elasticsearch.common.collect.List.of("foo"),
+            org.elasticsearch.common.collect.List.of("foo"),
+            "rWTTCYvRPQAzKXydmKwyC+//dmM=",
+            "salt"
+        );
     }
 
     private String doTestFingerprint(
@@ -207,7 +239,7 @@ public class FingerprintProcessorTests extends ESTestCase {
         String salt
     ) throws Exception {
         FingerprintProcessor.Factory factory = new FingerprintProcessor.Factory();
-        var config = new HashMap<String, Object>();
+        Map<String, Object> config = new HashMap<>();
         config.put("fields", fields);
         config.put("ignore_missing", ignoreMissing);
         if (salt != null) {
@@ -226,8 +258,8 @@ public class FingerprintProcessorTests extends ESTestCase {
         MessageDigest md = MessageDigest.getInstance(FingerprintProcessor.Factory.DEFAULT_METHOD);
         expectedBytes = md.digest(expectedBytes);
 
-        var input = new IngestDocument(inputMap, Map.of());
-        var output = fp.execute(input);
+        IngestDocument input = new IngestDocument(inputMap, org.elasticsearch.common.collect.Map.of());
+        IngestDocument output = fp.execute(input);
         assertTrue(output.hasField("fingerprint"));
         String fingerprint = output.getFieldValue("fingerprint", String.class);
         assertThat(fingerprint, equalTo(Base64.getEncoder().encodeToString(expectedBytes)));
@@ -238,25 +270,25 @@ public class FingerprintProcessorTests extends ESTestCase {
     }
 
     public void testMethod() throws Exception {
-        var expectedFingerprints = List.of(
+        List<String> expectedFingerprints = org.elasticsearch.common.collect.List.of(
             "b+3QyaPYdnUF1lb5IKE+1g==",
             "SX/93t223OurJvgMUOCtSl9hcpg=",
             "zDQYTy34tBlmNedlDdn++N7NN+wBY15mCoPDINmUxXc=",
             "xNIpYyJzRmg5R0T44ZORC2tgh8N4tVtTFzD5AdBqxmdOuRUjibQQ64lgefkbuZFl8Hv9ze9U6PAmrlgJPcRPGA=="
         );
 
-        var inputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> inputMap = new LinkedHashMap<>();
         inputMap.put("foo", "foo");
         inputMap.put("bar", "bar");
         FingerprintProcessor.Factory factory = new FingerprintProcessor.Factory();
         for (int k = 0; k < FingerprintProcessor.Factory.SUPPORTED_DIGESTS.length; k++) {
-            var config = new HashMap<String, Object>();
-            config.put("fields", List.of("foo", "bar"));
+            Map<String, Object> config = new HashMap<>();
+            config.put("fields", org.elasticsearch.common.collect.List.of("foo", "bar"));
             config.put("method", FingerprintProcessor.Factory.SUPPORTED_DIGESTS[k]);
 
             FingerprintProcessor fp = factory.create(null, randomAlphaOfLength(10), null, config);
-            var input = new IngestDocument(inputMap, Map.of());
-            var output = fp.execute(input);
+            IngestDocument input = new IngestDocument(inputMap, org.elasticsearch.common.collect.Map.of());
+            IngestDocument output = fp.execute(input);
             assertTrue(output.hasField("fingerprint"));
             String fingerprint = output.getFieldValue("fingerprint", String.class);
             assertThat(fingerprint, equalTo(expectedFingerprints.get(k)));
@@ -264,93 +296,113 @@ public class FingerprintProcessorTests extends ESTestCase {
     }
 
     public void testBasicObjectTraversal() throws Exception {
-        var fields = new ArrayList<String>();
+        List<String> fields = new ArrayList<>();
         fields.add("foo");
         fields.add("bar");
 
-        var inputMap = new HashMap<String, Object>();
+        Map<String, Object> inputMap = new HashMap<>();
         inputMap.put("foo", "foo1");
         inputMap.put("bar", "bar1");
-        doTestObjectTraversal(inputMap, fields, List.of("bar1", "foo1"));
+        doTestObjectTraversal(inputMap, fields, org.elasticsearch.common.collect.List.of("bar1", "foo1"));
     }
 
     public void testObjectTraversalWithLists() throws Exception {
-        var fields = new ArrayList<String>();
+        List<String> fields = new ArrayList<>();
         fields.add("foo");
         fields.add("bar");
 
-        var listInList = new ArrayList<>();
+        List<String> listInList = new ArrayList<>();
         listInList.add("rat");
         listInList.add("tiger");
         listInList.add("bear");
 
-        var setInList = new LinkedHashSet<>();
+        Set<String> setInList = new LinkedHashSet<>();
         setInList.add("dog");
         setInList.add("cat");
         setInList.add("eel");
 
-        var list = new ArrayList<>();
+        List<Object> list = new ArrayList<>();
         list.add("zoo");
         list.add("yak");
         list.add(listInList);
         list.add(setInList);
         list.add("xor");
 
-        var inputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> inputMap = new LinkedHashMap<>();
         inputMap.put("foo", list);
         inputMap.put("bar", "barValue");
 
-        List<Object> expectedValues = List.of("barValue", "zoo", "yak", "rat", "tiger", "bear", "cat", "dog", "eel", "xor");
+        List<Object> expectedValues = org.elasticsearch.common.collect.List.of(
+            "barValue",
+            "zoo",
+            "yak",
+            "rat",
+            "tiger",
+            "bear",
+            "cat",
+            "dog",
+            "eel",
+            "xor"
+        );
 
         doTestObjectTraversal(inputMap, fields, expectedValues);
     }
 
     public void testObjectTraversalWithMaps() throws Exception {
-        var fields = new ArrayList<String>();
+        List<String> fields = new ArrayList<>();
         fields.add("foo");
         fields.add("bar");
 
-        var fooSubMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> fooSubMap = new LinkedHashMap<>();
         fooSubMap.put("foo-sub1", "foo3");
         fooSubMap.put("foo-sub2", "foo2");
-        var barSubMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> barSubMap = new LinkedHashMap<>();
         barSubMap.put("bar-sub1", "bar3");
         barSubMap.put("bar-sub2", "bar2");
-        var inputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> inputMap = new LinkedHashMap<>();
         inputMap.put("foo", fooSubMap);
         inputMap.put("bar", barSubMap);
 
-        List<Object> expectedValues = List.of("bar-sub1", "bar3", "bar-sub2", "bar2", "foo-sub1", "foo3", "foo-sub2", "foo2");
+        List<Object> expectedValues = org.elasticsearch.common.collect.List.of(
+            "bar-sub1",
+            "bar3",
+            "bar-sub2",
+            "bar2",
+            "foo-sub1",
+            "foo3",
+            "foo-sub2",
+            "foo2"
+        );
 
         doTestObjectTraversal(inputMap, fields, expectedValues);
     }
 
     public void testObjectTraversalWithSets() throws Exception {
-        var fields = new ArrayList<String>();
+        List<String> fields = new ArrayList<>();
         fields.add("foo");
         fields.add("bar");
 
-        var fooSet = new LinkedHashSet<String>();
+        Set<String> fooSet = new LinkedHashSet<>();
         fooSet.add("foo3");
         fooSet.add("foo2");
-        var barSet = new LinkedHashSet<String>();
+        Set<String> barSet = new LinkedHashSet<>();
         barSet.add("bar3");
         barSet.add("bar2");
-        var inputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> inputMap = new LinkedHashMap<>();
         inputMap.put("foo", fooSet);
         inputMap.put("bar", barSet);
 
-        List<Object> expectedValues = List.of("bar2", "bar3", "foo2", "foo3");
+        List<Object> expectedValues = org.elasticsearch.common.collect.List.of("bar2", "bar3", "foo2", "foo3");
 
         doTestObjectTraversal(inputMap, fields, expectedValues);
     }
 
     public void testObjectTraversalWithNestedStructures() throws Exception {
-        var fields = new ArrayList<String>();
+        List<String> fields = new ArrayList<>();
         fields.add("foo");
         fields.add("bar");
 
-        var mapInList = new LinkedHashMap<String, Object>();
+        Map<String, Object> mapInList = new LinkedHashMap<>();
         mapInList.put("abc", "def");
         mapInList.put("ghi", "jkl");
 
@@ -361,15 +413,27 @@ public class FingerprintProcessorTests extends ESTestCase {
         listInMap.add(mapInList);
         listInMap.add(3.14D);
 
-        var fooMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> fooMap = new LinkedHashMap<>();
         fooMap.put("list", listInMap);
         fooMap.put("alpha", "beta");
 
-        var inputMap = new LinkedHashMap<String, Object>();
+        Map<String, Object> inputMap = new LinkedHashMap<>();
         inputMap.put("foo", fooMap);
         inputMap.put("bar", "barValue");
 
-        List<Object> expectedValues = List.of("barValue", "alpha", "beta", "list", now, "foo", "abc", "def", "ghi", "jkl", 3.14D);
+        List<Object> expectedValues = org.elasticsearch.common.collect.List.of(
+            "barValue",
+            "alpha",
+            "beta",
+            "list",
+            now,
+            "foo",
+            "abc",
+            "def",
+            "ghi",
+            "jkl",
+            3.14D
+        );
 
         doTestObjectTraversal(inputMap, fields, expectedValues);
     }
@@ -392,9 +456,9 @@ public class FingerprintProcessorTests extends ESTestCase {
             expectedBytes = concatBytes(expectedBytes, toBytes(value));
         }
 
-        var input = new IngestDocument(inputMap, Map.of());
-        var output = fp.execute(input);
-        var hasher = (TestHasher) threadLocalHasher.get();
+        IngestDocument input = new IngestDocument(inputMap, org.elasticsearch.common.collect.Map.of());
+        IngestDocument output = fp.execute(input);
+        TestHasher hasher = (TestHasher) threadLocalHasher.get();
         assertThat(hasher.getBytesSeen(), equalTo(expectedBytes));
         assertTrue(output.hasField("fingerprint"));
         assertThat(output.getFieldValue("fingerprint", String.class), equalTo(Base64.getEncoder().encodeToString(expectedBytes)));

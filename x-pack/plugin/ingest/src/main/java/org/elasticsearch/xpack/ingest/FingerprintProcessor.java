@@ -74,7 +74,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
         hasher.reset();
         hasher.update(salt);
 
-        var values = new Stack<>();
+        Stack<Object> values = new Stack<>();
         for (int k = fields.size() - 1; k >= 0; k--) {
             String field = fields.get(k);
             Object value = ingestDocument.getFieldValue(field, Object.class, true);
@@ -91,31 +91,32 @@ public final class FingerprintProcessor extends AbstractProcessor {
         if (values.size() > 0) {
             // iteratively traverse document fields
             while (values.isEmpty() == false) {
-                var value = values.pop();
+                Object value = values.pop();
                 if (value instanceof List) {
-                    var list = (List<?>) value;
+                    List<?> list = (List<?>) value;
                     for (int k = list.size() - 1; k >= 0; k--) {
                         values.push(list.get(k));
                     }
                 } else if (value instanceof Set) {
                     @SuppressWarnings("rawtypes")
-                    var set = (Set<Comparable>) value;
+                    Set<Comparable> set = (Set<Comparable>) value;
                     // process set entries in consistent order
-                    var setList = new ArrayList<>(set);
+                    @SuppressWarnings("rawtypes")
+                    List<Comparable> setList = new ArrayList<>(set);
                     setList.sort(Comparator.naturalOrder());
                     for (int k = setList.size() - 1; k >= 0; k--) {
                         values.push(setList.get(k));
                     }
                 } else if (value instanceof Map) {
-                    var map = (Map<String, Object>) value;
+                    Map<String, Object> map = (Map<String, Object>) value;
                     // process map entries in consistent order
-                    var entryList = new ArrayList<>(map.entrySet());
+                    List<Map.Entry<String, Object>> entryList = new ArrayList<>(map.entrySet());
                     entryList.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
                     for (int k = entryList.size() - 1; k >= 0; k--) {
                         values.push(entryList.get(k));
                     }
                 } else if (value instanceof Map.Entry) {
-                    var entry = (Map.Entry<?, ?>) value;
+                    Map.Entry<?, ?> entry = (Map.Entry<?, ?>) value;
                     hasher.update(DELIMITER);
                     hasher.update(toBytes(entry.getKey()));
                     values.push(entry.getValue());

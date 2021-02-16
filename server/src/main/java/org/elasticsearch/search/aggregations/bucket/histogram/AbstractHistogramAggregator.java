@@ -116,4 +116,25 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         add.accept("total_buckets", bucketOrds.size());
         super.collectDebugInfo(add);
     }
+
+    /**
+     * Returns the interval.
+     */
+    public double getInterval() {
+        return interval;
+    }
+
+    /**
+     * Returns the offset.
+     */
+    public double getOffset() {
+        return offset;
+    }
+
+    /**
+     * Returns the value associated with a bucket ordinal.
+     */
+    public long getBucketValue(long bucket) {
+        return bucketOrds.get(bucket);
+    }
 }

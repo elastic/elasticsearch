@@ -207,7 +207,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             List<Integer> expected = asList(ints);
             expected.sort(Integer::compare);
             List<?> actual = asList((Object[]) intArray.getArray());
-            actual.sort(Comparator.comparing(x -> ((Integer) x)));
+            actual.sort(Comparator.comparingInt(x -> (Integer) x));
             assertEquals(expected, actual);
 
             Array strArray = r.getArray(2);
@@ -215,7 +215,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
             strings.sort(String::compareTo);
             actual = asList((Object[]) strArray.getArray());
-            actual.sort(Comparator.comparing(x -> ((String) x)));
+            actual.sort(Comparator.comparing(x -> (String) x));
             assertEquals(strings, actual);
 
             assertTrue(r.next());

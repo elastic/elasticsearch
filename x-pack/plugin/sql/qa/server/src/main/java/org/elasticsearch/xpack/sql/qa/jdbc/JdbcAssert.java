@@ -389,8 +389,6 @@ public class JdbcAssert {
                 }
             }
             if (actualObject instanceof Point) {
-                // geo points are loaded form doc values where they are stored as long-encoded values leading
-                // to lose in precision
                 assertThat(expectedObject, instanceOf(Point.class));
                 assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
                 assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);

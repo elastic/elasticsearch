@@ -838,14 +838,14 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     @SuppressWarnings("unchecked")
     public void testMultiValueDifferentPathsWithArraysAndNulls() throws IOException {
-        ExhaustiveMultiPathMapper<Long> mapper = new ExhaustiveMultiPathMapper<>(randomIntBetween(3, 10));
         // TODO AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68979")
         // Supplier<Long> supplier = () -> randomNonNegativeByte() < 30 ? null : randomLong();
         Supplier<Long> supplier = ESTestCase::randomLong;
+        ExhaustiveMultiPathMapper<Long> mapper = new ExhaustiveMultiPathMapper<>(randomIntBetween(3, 10), supplier);
 
-        index(Strings.toString(JsonXContent.contentBuilder().map(mapper.generate(supplier))));
+        index(Strings.toString(JsonXContent.contentBuilder().map(mapper.map())));
 
-        Map<String, Object> retMap = runSql(randomMode(), "SELECT ARRAY(" + mapper.path() + ") FROM test", false);
+        Map<String, Object> retMap = runSql(randomMode(), "SELECT ARRAY(\\\"" + mapper.path() + "\\\") FROM test", false);
         List<?> rows = (List<?>) retMap.get("rows");
         assertTrue(rows.size() == 1 && rows.get(0) instanceof List && ((List<?>) rows.get(0)).size() == 1);
         List<?> cell = (List<?>) ((List<?>) rows.get(0)).get(0);
@@ -1206,14 +1206,17 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         private List<T> values;
 
         // the depth excludes the leaf
-        ExhaustiveMultiPathMapper(int depth) {
+        ExhaustiveMultiPathMapper(int depth, Supplier<T> supplier) {
             if (depth < 2) {
                 throw new IllegalArgumentException("the depth must be larger than 2; provided: [" + depth + "]");
             }
+            // generate the list of nodes ("a", "b", "c"...)
             List<String> nodes = randomList(2, depth, () -> randomAlphaOfLength(randomIntBetween(1, 5)));
             paths = generatePaths(nodes);
             values = new ArrayList<>(paths.size());
             path = String.join(".", paths.get(0));
+
+            generate(supplier);
         }
 
         Map<String, Object> map() {
@@ -1229,12 +1232,14 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> generate(Supplier<T> supplier) {
+        private void generate(Supplier<T> supplier) {
             values = new ArrayList<>(paths.size());
             map = new HashMap<>();
 
+            // add the leaf values to all paths
             for (List<String> path : paths) {
                 Object value;
+                // randomly generate single value or a list of them
                 if (randomBoolean()) {
                     value = supplier.get();
                     values.add((T) value);
@@ -1245,6 +1250,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 if (path.size() == 1) { // "a.b.c": 3
                     map.put(path.get(0), value);
                 } else {
+                    // for a path ["a", "b", "c"] construct the JSON-like map of a path {"a": {"b": {"c": ...}}}
                     Map<String, Object> crrMap = new HashMap<>();
                     crrMap.put(path.get(path.size() - 1), value);
                     for (int j = path.size() - 2; j > 0; j--) {
@@ -1256,8 +1262,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 }
             }
             randomlyMultiplySubmaps(map, values);
-
-            return map();
         }
 
         // "a": {"b": 2} => "a": [{"b": 2}, {"b": 2}]
@@ -1267,6 +1271,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 if (val instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> innerMap = (Map<String, Object>) val;
+                    // assuming a linear distribution of the random non-negative byte values (0-255), multiply roughly 1/4 of the time
                     if (randomNonNegativeByte() < 60) {
                         List<Map<String, Object>> replacementList = new ArrayList<>();
                         int multiplicate = randomIntBetween(1, 5);

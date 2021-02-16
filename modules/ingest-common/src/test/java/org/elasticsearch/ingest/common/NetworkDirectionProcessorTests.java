@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.ingest;
+package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
@@ -15,9 +16,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ingest.NetworkDirectionProcessor.Factory.DEFAULT_DEST_IP;
-import static org.elasticsearch.xpack.ingest.NetworkDirectionProcessor.Factory.DEFAULT_SOURCE_IP;
-import static org.elasticsearch.xpack.ingest.NetworkDirectionProcessor.Factory.DEFAULT_TARGET;
+import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_DEST_IP;
+import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_SOURCE_IP;
+import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_TARGET;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

@@ -299,6 +299,108 @@ public class RollupSearchIT extends ESRestTestCase {
         assertThat(hits.get("total"), equalTo(6)); // 6 docs in the live index
     }
 
+    /**
+     * Test that when querying explitly the indices inside a datastream, no result merging occurs
+     * and result from all indices are returned.
+     */
+    @SuppressWarnings("unchecked")
+    public void testSearchConcreteRollupIndicesInDatastream() throws Exception {
+        Template template = new Template(Settings.builder().put("index.number_of_shards", 1).build(),
+            new CompressedXContent("{" +
+                "\"properties\": {\n" +
+                "  \"@timestamp\": { \"type\": \"date\" },\n" +
+                "  \"units\": { \"type\": \"keyword\"},  \n" +
+                "  \"temperature\": { \"type\": \"double\"}  \n" +
+                "}}"), null);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-01-04T12:10:30Z\", \"temperature\": 27.5, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-01-04T17:12:25Z\", \"temperature\": 28.1, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-01-17T11:12:25Z\", \"temperature\": 25.4, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-02-02T11:00:37Z\", \"temperature\": 29, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-02-02T11:05:37Z\", \"temperature\": 27, \"units\": \"celsius\" }");
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-02-17T08:05:20Z\", \"temperature\": 19.5, \"units\": \"celsius\" }");
+
+        rolloverMaxOneDocCondition(client(), dataStream);
+        String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2)), is(true)), 30, TimeUnit.SECONDS);
+        // Rollup daily and monthly intervals
+        String dailyRollupIndex = ".rollup-daily-" + firstGenerationIndex;
+        rollupIndex(client(), firstGenerationIndex, dailyRollupIndex, "1d",
+            Set.of("units"), Set.of("temperature"), Set.of("max", "sum", "avg"));
+        String monthlyRollupIndex = ".rollup-monthly-" + firstGenerationIndex;
+        rollupIndex(client(), firstGenerationIndex, monthlyRollupIndex, "1M",
+            Set.of("units"), Set.of("temperature"), Set.of("max", "sum", "avg"));
+
+        String query = "{\n" +
+            "  \"size\": 0,\n" +
+            "  \"aggs\": {\n" +
+            "      \"temperatures\": {\n" +
+            "          \"date_histogram\": {\n" +
+            "              \"field\": \"@timestamp\",\n" +
+            "              \"calendar_interval\": \"%s\",\n" +
+            "              \"min_doc_count\": 1\n" +
+            "          },\n" +
+            "          \"aggs\": {\n" +
+            "              \"avg_temperature\": {\n" +
+            "                  \"avg\": {\n" +
+            "                      \"field\": \"temperature\"\n" +
+            "                  }\n" +
+            "              }\n" +
+            "          }\n" +
+            "      }\n" +
+            "  }\n" +
+            "}";
+
+        // Query daily rollup index explicitly instead of the data stream. Even if monthly rollups
+        // index exists, results should be computed on the daily rollups
+        Map<String, Object> response = search(dailyRollupIndex, String.format(query, "1M"));
+        Map<String, Object> shards = (Map<String, Object>) response.get("_shards");
+        assertThat(shards.get("total"), equalTo(1));
+        assertThat(shards.get("skipped"), equalTo(0));
+
+        // Total hits should contain the docs in the daily rollup index
+        Map<String, Object> hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(4)); // 4 docs in the daily rollup index
+        Map<String, Object> aggs = (Map<String, Object>) response.get("aggregations");
+        Map<String, Object> temps = (Map<String, Object>) aggs.get("temperatures");
+        List<Map<String, Object>> buckets = (List<Map<String, Object>>) temps.get("buckets");
+        assertThat(buckets.size(), equalTo(2));
+        assertThat(buckets.get(0).get("doc_count"), equalTo(3));
+        assertEquals(27, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertThat(buckets.get(1).get("doc_count"), equalTo(3));
+
+        // Search for monthly results in the live index. No rollups should be queried.
+        response =  search(firstGenerationIndex, String.format(query, "1M"));
+        shards = (Map<String, Object>) response.get("_shards");
+        assertThat(shards.get("total"), equalTo(1));
+        assertThat(shards.get("skipped"), equalTo(0));
+        hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(6)); // 6 docs in the live index
+
+        aggs = (Map<String, Object>) response.get("aggregations");
+        temps = (Map<String, Object>) aggs.get("temperatures");
+        buckets = (List<Map<String, Object>>) temps.get("buckets");
+        assertThat(buckets.size(), equalTo(2));
+        assertThat(buckets.get(0).get("doc_count"), equalTo(3));
+        assertEquals(27, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
+        assertThat(buckets.get(1).get("doc_count"), equalTo(3));
+
+        // Search for monthly results  in all indices. It should return documents for all indices
+        String allIndices = firstGenerationIndex + "," + dailyRollupIndex + "," + monthlyRollupIndex;
+        response =  search(allIndices, String.format(query, "1M"));
+        shards = (Map<String, Object>) response.get("_shards");
+        assertThat(shards.get("total"), equalTo(3));
+        assertThat(shards.get("skipped"), equalTo(0));
+        hits = (Map<String, Object>) response.get("hits");
+        assertThat(hits.get("total"), equalTo(12)); // 6 + 4 + 2 docs in the live, daily and monthly index
+    }
 
     /**
      * Rollup a datastream with the default timezone and aggregate using different timezones in the

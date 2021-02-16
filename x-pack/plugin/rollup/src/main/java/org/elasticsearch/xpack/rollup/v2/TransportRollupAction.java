@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
-import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -47,8 +46,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
-import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
@@ -221,7 +220,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
                 // Add the source index name to the rollup index metadata. If the original index is a rollup index itself
                 // we will add the name of the raw index that we initially rolled up.
-                Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName).getCustomData(RollupMetadata.TYPE);
+                Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
+                    .getCustomData(RollupIndexMetadata.TYPE);
                 String rollupSourceIndexName = idxMetadata != null ?
                     idxMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD) : originalIndexName;
                 Map<String, String> rollupIndexRollupMetadata = new HashMap<>();
@@ -243,7 +243,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
 
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata())
-                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupMetadata.TYPE, rollupIndexRollupMetadata));
+                    .put(IndexMetadata.builder(rollupIndexMetadata).putCustom(RollupIndexMetadata.TYPE, rollupIndexRollupMetadata));
 
                 if (originalIndex.getParentDataStream() != null) {
                     // If rolling up a backing index of a data stream, add rolled up index to backing data stream

@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
-import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -118,54 +117,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         SearchSourceBuilder source = getRequest().source();
 
         if (RollupV2.isEnabled()) {
-            Map<String, Tuple<String, RollupIndexMetadata>> preferRollup = new HashMap<>(shardsIts.size());
-
-            int i = 0;
-            for (SearchShardIterator iter : shardsIts) {
-                if (possibleMatches.get(i++)) {
-                    String indexName = iter.shardId().getIndexName();
-                    Map<String, String> idxMetadata = clusterState.getMetadata().index(indexName).getCustomData(RollupMetadata.TYPE);
-                    if (idxMetadata == null) {
-                        continue;
-                    }
-
-                    IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(indexName);
-                    if (originalIndex.getParentDataStream() == null) {
-                        continue;
-                    }
-
-                    String sourceIndex = idxMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD);
-                    try {
-                        RollupIndexMetadata rollupIndexMetadata = RollupIndexMetadata.parseMetadataXContent(
-                            idxMetadata.get(RollupIndexMetadata.ROLLUP_META_FIELD));
-
-                        if (preferRollup.containsKey(sourceIndex)) {
-                            Tuple<String, RollupIndexMetadata> previousOptimalIndex = preferRollup.get(sourceIndex);
-                            Map<String, RollupIndexMetadata> rollupGroup = Map.of(
-                                indexName, rollupIndexMetadata,
-                                previousOptimalIndex.v1(), previousOptimalIndex.v2());
-                            String newOptimalIndex = RollupShardDecider.findOptimalIndex(rollupGroup, source.aggregations());
-                            Tuple<String, RollupIndexMetadata> optimalTuple = Tuple.tuple(newOptimalIndex,rollupGroup.get(newOptimalIndex));
-                            preferRollup.put(sourceIndex, optimalTuple);
-
-                            String suboptimalIndex = indexName.equals(newOptimalIndex) ? indexName : previousOptimalIndex.v1();
-                            preferRollup.put(suboptimalIndex, optimalTuple);
-                        } else {
-                            preferRollup.put(sourceIndex, new Tuple<>(indexName, rollupIndexMetadata));
-                        }
-                    } catch (IOException e) {
-                        getLogger().error("Cannot parse rollup metadata for index [" + indexName + "].", e);
-                    }
-                }
-            }
-
-            i = 0;
-            for (SearchShardIterator iter : shardsIts) {
-                if (possibleMatches.get(i) && preferRollup.containsKey(iter.shardId().getIndexName())) {
-                    possibleMatches.clear(i);
-                }
-                i++;
-            }
+            possibleMatches = chooseOptimalRollupShards(shardsIts, possibleMatches, clusterState, source);
         }
 
         int i = 0;
@@ -181,6 +133,70 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         }
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
         return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()));
+    }
+
+    /**
+     * Iterate over the shard iterator and look for overlapping rollup indices. If rollup indices exist,
+     * the method includes the shards from the optimal rollup index that can match the query and ignores
+     * the shards from other overlapping indices.
+     *
+     * @return A {@link FixedBitSet} with the shards of the optimal indices.
+     */
+    private FixedBitSet chooseOptimalRollupShards(GroupShardsIterator<SearchShardIterator> shardsIts, FixedBitSet possibleMatches,
+                                                  ClusterState clusterState, SearchSourceBuilder source) {
+        // Map with key the index that will be replaced by an optimal rollup index. The optimal index
+        // will be its replacement. In the end all indices contains in the keys will be ignored.
+        Map<String, Tuple<String, RollupIndexMetadata>> indexReplacements = new HashMap<>(shardsIts.size());
+
+        int i = 0;
+        for (SearchShardIterator iter : shardsIts) {
+            if (possibleMatches.get(i++)) {
+                String indexName = iter.shardId().getIndexName();
+                Map<String, String> idxMetadata = clusterState.getMetadata().index(indexName).getCustomData(RollupIndexMetadata.TYPE);
+                IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(indexName);
+
+                // If index is not a member of a datastream it will not be replaced
+                if (idxMetadata == null || originalIndex.getParentDataStream() == null
+                    || indexReplacements.containsKey(indexName)) {
+                    continue;
+                }
+
+                try {
+                    String sourceIndex = idxMetadata.get(RollupIndexMetadata.SOURCE_INDEX_NAME_META_FIELD);
+                    RollupIndexMetadata rollupIndexMetadata = RollupIndexMetadata.parseMetadataXContent(
+                        idxMetadata.get(RollupIndexMetadata.ROLLUP_META_FIELD));
+                    if (indexReplacements.containsKey(sourceIndex)) {
+                        // Retrieve the previously optimal index and compare with the current index
+                        Tuple<String, RollupIndexMetadata> previousOptimalIndex = indexReplacements.get(sourceIndex);
+                        Map<String, RollupIndexMetadata> rollupGroup = Map.of(
+                            indexName, rollupIndexMetadata,
+                            previousOptimalIndex.v1(), previousOptimalIndex.v2());
+                        String newOptimalIndex = RollupShardDecider.findOptimalIndex(rollupGroup, source.aggregations());
+                        Tuple<String, RollupIndexMetadata> optimalTuple = Tuple.tuple(newOptimalIndex, rollupGroup.get(newOptimalIndex));
+                        // replace original index with the new optimal index
+                        indexReplacements.put(sourceIndex, optimalTuple);
+
+                        // replace suboptimal index with the new optimal index
+                        String suboptimalIndex = indexName.equals(newOptimalIndex) == false ? indexName : previousOptimalIndex.v1();
+                        indexReplacements.put(suboptimalIndex, optimalTuple);
+                    } else {
+                        indexReplacements.put(sourceIndex, Tuple.tuple(indexName, rollupIndexMetadata));
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to deserialize rollup index metadata for [" + indexName + "].", e);
+                }
+            }
+        }
+
+        FixedBitSet newMatches = possibleMatches.clone();
+        i = 0;
+        for (SearchShardIterator iter : shardsIts) {
+            if (newMatches.get(i) && indexReplacements.containsKey(iter.shardId().getIndexName())) {
+                newMatches.clear(i);
+            }
+            i++;
+        }
+        return newMatches;
     }
 
     @Override

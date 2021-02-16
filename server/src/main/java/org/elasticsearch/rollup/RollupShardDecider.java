@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
-import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -62,7 +61,7 @@ public class RollupShardDecider {
             return true;
         }
         // Rollup metadata must exist
-        Map<String, String> indexRollupMetadata = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
+        Map<String, String> indexRollupMetadata = requestIndexMetadata.getCustomData(RollupIndexMetadata.TYPE);
         if (indexRollupMetadata == null) {
             return true;
         }

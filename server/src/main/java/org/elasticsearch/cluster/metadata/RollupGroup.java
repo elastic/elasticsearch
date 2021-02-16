@@ -33,6 +33,7 @@ import java.util.Set;
  * its rollup information object as value.
  *
  */
+// TODO(csoulios): Removed this class because it is no longer used.
 public class RollupGroup extends AbstractDiffable<RollupGroup> implements ToXContentObject {
     private static final ParseField GROUP_FIELD = new ParseField("group");
 

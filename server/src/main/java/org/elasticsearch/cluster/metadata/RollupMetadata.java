@@ -26,6 +26,7 @@ import java.util.Objects;
 /**
  * Custom {@link Metadata} implementation for storing a map of {@link RollupGroup}s and their names.
  */
+// TODO(csoulios): Removed this class because it is no longer used.
 public class RollupMetadata extends AbstractDiffable<RollupMetadata> implements ToXContentObject {
     public static final String TYPE = "rollup";
     private static final ParseField ROLLUP = new ParseField("rollup");

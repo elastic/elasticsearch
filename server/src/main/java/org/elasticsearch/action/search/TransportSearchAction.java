@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.RollupMetadata;
+import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -721,7 +721,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else if (preFilterShardSize == null) {
             preFilterShardSize = SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
         }
-        if (RollupV2.isEnabled() && hasRollupDatastream(indices, clusterState)) {
+        if (RollupV2.isEnabled() && hasRollupDatastream(indices, searchRequest.indices(), clusterState)) {
             return true;
         }
         return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
@@ -729,13 +729,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             && preFilterShardSize < numShards;
     }
 
-    private static boolean hasRollupDatastream(String[] indices, ClusterState clusterState) {
+    private static boolean hasRollupDatastream(String[] indices, String[] requestIndices, ClusterState clusterState) {
+        Set<String> requestIndicesSet = Set.of(requestIndices);
         for (String index : indices) {
             IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(index);
             DataStream datastream = originalIndex.getParentDataStream() != null
                 ? originalIndex.getParentDataStream().getDataStream() : null;
             IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-            if (datastream != null && indexMetadata.getCustomData(RollupMetadata.TYPE) != null) {
+            if (datastream != null && indexMetadata.getCustomData(RollupIndexMetadata.TYPE) != null
+                && requestIndicesSet.contains(index) == false) {
                 return true;
             }
         }

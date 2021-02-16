@@ -45,8 +45,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class RollupIndexMetadata extends AbstractDiffable<RollupIndexMetadata> implements ToXContentObject {
 
+    public static final String TYPE = "rollup";
     public static final String SOURCE_INDEX_NAME_META_FIELD = "source_index";
-    public static final String ROLLUP_META_FIELD = "rollup_meta";
+    public static final String ROLLUP_META_FIELD = "meta";
 
     private static final ParseField DATE_INTERVAL_FIELD = new ParseField("interval");
     private static final ParseField DATE_TIMEZONE_FIELD = new ParseField("timezone");
@@ -61,7 +62,7 @@ public class RollupIndexMetadata extends AbstractDiffable<RollupIndexMetadata> i
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupIndexMetadata, Void> PARSER =
-        new ConstructingObjectParser<>("rollup_index", false,
+        new ConstructingObjectParser<>(ROLLUP_META_FIELD, false,
             a -> new RollupIndexMetadata((DateHistogramInterval) a[0], (WriteableZoneId) a[1], (Map<String, List<String>>) a[2]));
 
     static {

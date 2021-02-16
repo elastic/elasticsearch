@@ -460,7 +460,7 @@ The `:` operator and `like` keyword also support wildcards in
 [source,eql]
 ----
 my_field : ("doc*", "f*o", "ba?", "qux")
-my_field like ("F*O", "BA?", "QUX")
+my_field like ("Doc*", "F*O", "BA?", "QUX")
 ----
 
 [discrete]

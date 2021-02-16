@@ -8,8 +8,6 @@
 
 package org.elasticsearch.rollup;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
@@ -35,7 +33,6 @@ import java.util.Set;
 import java.util.SortedMap;
 
 public class RollupShardDecider {
-    private static final Logger logger = LogManager.getLogger(RollupShardDecider.class);
 
     public static final Set<String> SUPPORTED_AGGS = Set.of(
         DateHistogramAggregationBuilder.NAME,
@@ -135,7 +132,6 @@ public class RollupShardDecider {
 
     private static DateHistogramAggregationBuilder getDateHistogramAggregationBuilder(AggregatorFactories.Builder aggFactoryBuilders) {
         DateHistogramAggregationBuilder dateHistogramBuilder = null;
-
         for (AggregationBuilder builder : aggFactoryBuilders.getAggregatorFactories()) {
             if (builder.getWriteableName().equals(DateHistogramAggregationBuilder.NAME)) {
                 dateHistogramBuilder =  (DateHistogramAggregationBuilder) builder;
@@ -154,7 +150,7 @@ public class RollupShardDecider {
      * @param source The source of the aggregation in the request
      * @return the name of the optimal (maximum interval) index that matches the query
      */
-    static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramAggregationBuilder source) {
+    private static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramAggregationBuilder source) {
         String optimalIndex = null;
         ZoneId sourceTimeZone = ZoneOffset.UTC;
         if (source != null && source.timeZone() != null) {
@@ -192,7 +188,7 @@ public class RollupShardDecider {
      * @param candidateInterval the candidate inteval to validate
      * @return true if the candidate interval can match the required interval, otherwise false
      */
-    static boolean canMatchCalendarInterval(DateHistogramInterval requiredInterval, DateHistogramInterval candidateInterval) {
+    private static boolean canMatchCalendarInterval(DateHistogramInterval requiredInterval, DateHistogramInterval candidateInterval) {
         // If no interval is required, any interval should do
         if (requiredInterval == null) {
             return true;
@@ -221,7 +217,7 @@ public class RollupShardDecider {
         return requiredIntervalOrder >= candidateIntervalOrder;
     }
 
-    static boolean canMatchTimezone(ZoneId tz1, ZoneId tz2) {
+    private static boolean canMatchTimezone(ZoneId tz1, ZoneId tz2) {
         return tz1.getRules().equals(tz2.getRules());
     }
 }

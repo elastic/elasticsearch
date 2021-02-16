@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -91,6 +90,7 @@ public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTa
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        //bootstrap downloader after first
         clusterService.removeListener(this);
         if (event.localNodeMaster() && ENABLED_SETTING.get(event.state().getMetadata().settings())) {
             startTask(() -> clusterService.addListener(this));

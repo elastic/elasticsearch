@@ -49,7 +49,7 @@ setup:
         rest_total_hits_as_int: true
         index: test1
         body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}, "max_analyzed_offset": "20"}}
-  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em>..."}
 
 
 ---
@@ -75,7 +75,7 @@ setup:
         rest_total_hits_as_int: true
         index: test1
         body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {}}, "max_analyzed_offset": 20}}
-  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em>..."}
 
 
 ---
@@ -112,7 +112,35 @@ setup:
         rest_total_hits_as_int: true
         index: test1
         body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": 20}}
-  - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+  - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em>..."}
+
+---
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 and custom truncation_tag":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: truncation_tag query param added in 8.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": 25, "truncation_tag" : " [truncated...]"}}
+  - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> [truncated...]"}
+
+---
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 and custom truncation_tag and custom pre/post tags":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: truncation_tag query param added in 8.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "pre_tags": ["<tag1>"], "post_tags" : ["</tag1>"], "max_analyzed_offset": 20, "truncation_tag" : " [...truncated]"}}
+  - match: {hits.hits.0.highlight.field2.0: "The quick brown <tag1>fox</tag1> [...truncated]"}
 
 ---
 "Plain highlighter with max_analyzed_offset < 0 should FAIL":

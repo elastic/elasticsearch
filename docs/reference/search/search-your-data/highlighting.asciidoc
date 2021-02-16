@@ -234,6 +234,7 @@ pre_tags:: Use in conjunction with `post_tags` to define the HTML tags
 to use for the highlighted text. By default, highlighted text is wrapped
 in `<em>` and `</em>` tags. Specify as an array of strings.
 
+[[post-tags]]
 post_tags:: Use in conjunction with `pre_tags` to define the HTML tags
 to use for the highlighted text. By default, highlighted text is wrapped
 in `<em>` and `</em>` tags. Specify as an array of strings.
@@ -252,6 +253,12 @@ maximum limit, and the rest of the text is not processed, thus not highlighted a
 no error is returned. The <<max-analyzed-offset, `max_analyzed_offset`>> query setting
 does *not* override the <<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>>
 which prevails when it's set to lower value than the query setting.
+
+[[truncation_tag]]
+truncation_tag:: If <<max-analyzed-offset, `max_analyzed_offset`>> query param is set
+and the highlighting stops at that defined offset, the `truncation_tag` is appended right after
+the <<post-tags, `post-tag`>> of the last highlighted occurance and the the rest of the text is
+removed. Defaults to `...`.
 
 tags_schema:: Set to `styled` to use the built-in tag schema. The `styled`
 schema defines the following `pre_tags` and defines `post_tags` as

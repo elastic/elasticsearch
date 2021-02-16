@@ -19,6 +19,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.DEFAULT_TRUNCATED_TAG;
+
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;
@@ -93,6 +95,8 @@ public class SearchHighlightContext {
 
         private Integer maxAnalyzedOffset;
 
+        private String truncationTag;
+
         private String highlighterType;
 
         private Boolean forceSource;
@@ -155,6 +159,10 @@ public class SearchHighlightContext {
 
         public Integer maxAnalyzedOffset() {
             return maxAnalyzedOffset;
+        }
+
+        public String truncationTag() {
+            return truncationTag;
         }
 
         public String highlighterType() {
@@ -255,6 +263,11 @@ public class SearchHighlightContext {
                 return this;
             }
 
+            Builder truncationTag(String truncationTag) {
+                fieldOptions.truncationTag = truncationTag;
+                return this;
+            }
+
             Builder highlighterType(String type) {
                 fieldOptions.highlighterType = type;
                 return this;
@@ -346,6 +359,9 @@ public class SearchHighlightContext {
                 }
                 if (fieldOptions.maxAnalyzedOffset == null) {
                     fieldOptions.maxAnalyzedOffset = globalOptions.maxAnalyzedOffset;
+                }
+                if (fieldOptions.truncationTag == null) {
+                    fieldOptions.truncationTag = globalOptions.truncationTag;
                 }
                 if (fieldOptions.boundaryScannerType == null) {
                     fieldOptions.boundaryScannerType = globalOptions.boundaryScannerType;

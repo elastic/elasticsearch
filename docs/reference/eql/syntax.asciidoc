@@ -163,16 +163,16 @@ the operator uses a case-sensitive lexicographic order.
 NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
 [discrete]
-[[eql-syntax-pattern-comparison-operators]]
-=== Pattern comparison operators
+[[eql-syntax-pattern-comparison-keywords]]
+=== Pattern comparison keywords
 
 [source,eql]
 ----
-my_field like  "FOO*"       // case-sensitive wildcard matching
-my_field like~ "foo*"       // case-insensitive wildcard matching
+my_field like  "VALUE*"         // case-sensitive wildcard matching
+my_field like~ "value*"         // case-insensitive wildcard matching
 
-my_field regex  "BA[^Z].?"  // case-sensitive regex matching
-my_field regex~ "ba[^z].?"  // case-insensitive regex matching
+my_field regex  "VALUE[^Z].?"   // case-sensitive regex matching
+my_field regex~ "value[^z].?"   // case-insensitive regex matching
 ----
 
 `like` (case-sensitive)::

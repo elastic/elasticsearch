@@ -27,18 +27,18 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
-[[eql-like-regex-operators]]
-=== EQL: `like` and `regex` operators
+[[eql-like-regex-keywords]]
+=== EQL: `like` and `regex` keywords
 
-In 7.12, we added the `like` and `regex` operators to EQL. You can use the
-`like` operator to match strings to
+In 7.12, we added the `like` and `regex` keywords to EQL. You can use the
+`like` keyword to match strings to
 {ref}/eql-syntax.html#eql-syntax-wildcards[wildcard patterns], such as `foo*` or
-`ba?`. You can use the `regex` operator to match strings to regular expressions.
-You can use both `like` and `regex` as lookup operators to match a string
+`ba?`. You can use the `regex` keyword to match strings to regular expressions.
+You can use both `like` and `regex` to match a string
 against a list of patterns.
 
-By default, both operators are case-sensitive. For case-insensitive matching,
+By default, both keywords are case-sensitive. For case-insensitive matching,
 use `like~` or `regex~`. For more information, see the
-{ref}/eql-syntax.html#eql-syntax-pattern-comparison-operators[Pattern comparison
-operators] section of the {ref}/eql-syntax.html[EQL syntax documentation].
+{ref}/eql-syntax.html#eql-syntax-pattern-comparison-keywords[Pattern comparison
+keywords] section of the {ref}/eql-syntax.html[EQL syntax documentation].
 // end::notable-highlights[]

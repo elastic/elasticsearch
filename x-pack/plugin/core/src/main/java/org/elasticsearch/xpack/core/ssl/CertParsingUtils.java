@@ -248,7 +248,7 @@ public class CertParsingUtils {
         return trustManager(store, TrustManagerFactory.getDefaultAlgorithm());
     }
 
-    static KeyStore trustStore(Certificate[] certificates)
+    public static KeyStore trustStore(Certificate[] certificates)
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         assert certificates != null : "Cannot create trust store with null certificates";
         KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());

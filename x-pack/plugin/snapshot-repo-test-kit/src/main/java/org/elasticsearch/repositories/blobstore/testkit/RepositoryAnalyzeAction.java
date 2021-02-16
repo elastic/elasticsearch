@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -521,13 +522,13 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
         private void onWorkerCompletion() {
             if (workerCountdown.countDown()) {
-                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(listener, () -> {
                     final long listingStartTimeNanos = System.nanoTime();
                     ensureConsistentListing();
                     final long deleteStartTimeNanos = System.nanoTime();
                     deleteContainer();
                     sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
-                });
+                }));
             }
         }
 

@@ -19,8 +19,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.DEFAULT_TRUNCATED_TAG;
-
 public class SearchHighlightContext {
 
     private final Map<String, Field> fields;

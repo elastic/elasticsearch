@@ -25,11 +25,12 @@ public class JdbcArrayTests extends ESTestCase {
     static final List<EsType> ARRAY_TYPES = Arrays.stream(EsType.values()).filter(TypeUtils::isArray).collect(Collectors.toList());
 
     public void testMetaData() throws Exception {
-        EsType arrayType = randomFrom(ARRAY_TYPES);
-        Array array = new JdbcArray(arrayType, emptyList());
+        for (EsType arrayType : ARRAY_TYPES) {
+            Array array = new JdbcArray(arrayType, emptyList());
 
-        assertEquals(baseType(arrayType).getVendorTypeNumber().intValue(), array.getBaseType());
-        assertEquals(baseType(arrayType).getName(), array.getBaseTypeName());
+            assertEquals(baseType(arrayType).getVendorTypeNumber().intValue(), array.getBaseType());
+            assertEquals(baseType(arrayType).getName(), array.getBaseTypeName());
+        }
     }
 
     public void testGetArray() throws SQLException {
@@ -58,5 +59,11 @@ public class JdbcArrayTests extends ESTestCase {
 
         Object[] overlapping = (Object[]) array.getArray(9, 3);
         assertEquals(asList(8, 9), asList(overlapping));
+
+        SQLException sqle = expectThrows(SQLException.class, () -> array.getArray(0, 9));
+        assertEquals("Index value [0] out of range [1, 2147483647]", sqle.getMessage());
+
+        sqle = expectThrows(SQLException.class, () -> array.getArray(Integer.MAX_VALUE + 1L, 9));
+        assertEquals("Index value [2147483648] out of range [1, 2147483647]", sqle.getMessage());
     }
 }

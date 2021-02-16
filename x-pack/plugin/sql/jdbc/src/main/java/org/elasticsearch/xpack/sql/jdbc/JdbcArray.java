@@ -51,13 +51,13 @@ public class JdbcArray implements Array {
 
     @Override
     public Object getArray(long index, int count) throws SQLException {
-        if (index < 0 || index > Integer.MAX_VALUE) {
-            throw new SQLException("Index value [" + index + "] out of range [0, " + Integer.MAX_VALUE + "]");
+        if (index < 1 || index > Integer.MAX_VALUE) {
+            throw new SQLException("Index value [" + index + "] out of range [1, " + Integer.MAX_VALUE + "]");
         }
-        int index0 = (int) index - 1; // 0-based index
         if (count < 0) {
             throw new SQLException("Illegal negative count [" + count + "]");
         }
+        int index0 = (int) index - 1; // 0-based index
         int available = index0 < values.size() ? values.size() - index0 : 0;
         return available > 0 ?
             Arrays.copyOfRange(values.toArray(), index0, index0 + Math.min(count, available)):

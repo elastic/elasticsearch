@@ -16,12 +16,9 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;

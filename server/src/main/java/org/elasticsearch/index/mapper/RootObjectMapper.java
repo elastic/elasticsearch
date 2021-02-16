@@ -67,7 +67,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
-        protected final Map<String, RuntimeFieldType> runtimeFieldTypes = new HashMap<>();
+        protected Map<String, RuntimeFieldType> runtimeFieldTypes;
 
         public Builder(String name, Version indexCreatedVersion) {
             super(name, indexCreatedVersion);
@@ -89,8 +89,8 @@ public class RootObjectMapper extends ObjectMapper {
             return this;
         }
 
-        public RootObjectMapper.Builder addRuntime(RuntimeFieldType runtimeFieldType) {
-            this.runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType);
+        public RootObjectMapper.Builder setRuntime(Map<String, RuntimeFieldType> runtimeFields) {
+            this.runtimeFieldTypes = runtimeFields;
             return this;
         }
 
@@ -103,7 +103,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
                 Map<String, Mapper> mappers, Version indexCreatedVersion) {
             assert nested.isNested() == false;
-            return new RootObjectMapper(name, enabled, dynamic, mappers, runtimeFieldTypes,
+            return new RootObjectMapper(name, enabled, dynamic, mappers,
+                    runtimeFieldTypes == null ? Collections.emptyMap() : runtimeFieldTypes,
                     dynamicDateTimeFormatters,
                     dynamicTemplates,
                     dateDetection, numericDetection, indexCreatedVersion);
@@ -214,7 +215,7 @@ public class RootObjectMapper extends ObjectMapper {
                 return true;
             } else if (fieldName.equals("runtime")) {
                 if (fieldNode instanceof Map) {
-                    RuntimeFieldType.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, builder::addRuntime, true);
+                    builder.setRuntime(RuntimeFieldType.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true));
                     return true;
                 } else {
                     throw new ElasticsearchParseException("runtime must be a map type");
@@ -337,7 +338,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
         assert this.runtimeFieldTypes != mergeWithObject.runtimeFieldTypes;
         for (Map.Entry<String, RuntimeFieldType> runtimeField : mergeWithObject.runtimeFieldTypes.entrySet()) {
-            if (runtimeField.getValue().isPlaceholderForRemoval()) {
+            if (runtimeField.getValue() == null) {
                 this.runtimeFieldTypes.remove(runtimeField.getKey());
             } else {
                 this.runtimeFieldTypes.put(runtimeField.getKey(), runtimeField.getValue());

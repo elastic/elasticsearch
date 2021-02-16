@@ -8,17 +8,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * Base implementation for a runtime field that can be defined as part of the runtime section of the index mappings
@@ -55,24 +52,23 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
 
     /**
      * Parse runtime fields from the provided map, using the provided parser context.
-     * Each runtime field will be provided to the given consumer.
      * @param node the map that holds the runtime fields configuration
      * @param parserContext the parser context that holds info needed when parsing mappings
-     * @param runtimeFieldTypeConsumer the consumer that will receive each parsed runtime field
      * @param supportsRemoval whether a null value for a runtime field should be properly parsed and
      *                        translated to the removal of such runtime field
+     * @return the parsed runtime fields
      */
-    public static void parseRuntimeFields(Map<String, Object> node,
-                                          Mapper.TypeParser.ParserContext parserContext,
-                                          Consumer<RuntimeFieldType> runtimeFieldTypeConsumer,
-                                          boolean supportsRemoval) {
+    public static Map<String, RuntimeFieldType> parseRuntimeFields(Map<String, Object> node,
+                                                                   Mapper.TypeParser.ParserContext parserContext,
+                                                                   boolean supportsRemoval) {
+        Map<String, RuntimeFieldType> runtimeFields = new HashMap<>();
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
             String fieldName = entry.getKey();
             if (entry.getValue() == null) {
                 if (supportsRemoval) {
-                    runtimeFieldTypeConsumer.accept(new PlaceholderForRemoval(fieldName));
+                    runtimeFields.put(fieldName, null);
                 } else {
                     throw new MapperParsingException("Runtime field [" + fieldName + "] was set to null but its removal is not supported " +
                         "in this context");
@@ -92,7 +88,7 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
                     throw new MapperParsingException("No handler for type [" + type +
                         "] declared on runtime field [" + fieldName + "]");
                 }
-                runtimeFieldTypeConsumer.accept(typeParser.parse(fieldName, propNode, parserContext));
+                runtimeFields.put(fieldName, typeParser.parse(fieldName, propNode, parserContext));
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(fieldName, propNode);
                 iterator.remove();
@@ -101,51 +97,6 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
                     + entry.getValue().getClass().getName());
             }
         }
-    }
-
-    final boolean isPlaceholderForRemoval() {
-        return this instanceof PlaceholderForRemoval;
-    }
-
-    /**
-     * Placeholder runtime field used to remove an existing runtime field.
-     * It is expected to disappear after merging, hence it does not need to implement
-     * any of the usual runtime field methods. It only needs to be able to print itself out
-     * as a field name with a null value, which is the syntax to indicate the intention to
-     * remove a specific runtime field.
-     *
-     * Note that a placeholder is needed only until a full-blown DocumentMapper is built prior to merging. We are moving away from that
-     * approach by instead building Mapping only and calling merge against them.
-     */
-    private static class PlaceholderForRemoval extends RuntimeFieldType {
-        PlaceholderForRemoval(String name) {
-            super(name, Collections.emptyMap());
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.nullField(name());
-            return builder;
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String typeName() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected void doXContentBody(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            throw new UnsupportedOperationException();
-        }
+        return Collections.unmodifiableMap(runtimeFields);
     }
 }

@@ -56,7 +56,7 @@ when enabling minimal or basic security.
 . Start Elasticsearch. For example, if you installed Elasticsearch with a
 `.tar.gz` package, run the following command from the Elasticsearch directory:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch
 ----
@@ -64,7 +64,7 @@ when enabling minimal or basic security.
 . Set the passwords for the built-in users by running the `elasticsearch-setup-passwords` utility. Using the `auto` parameter outputs randomly-generated
 passwords to the console that you can change later if necessary:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-setup-passwords auto
 ----
@@ -73,7 +73,7 @@ If you want to use your own passwords, run the command with the
 `interactive` parameter instead of the `auto` parameter. Using this mode
 steps you through password configuration for all of the built-in users.
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-setup-passwords interactive
 ----

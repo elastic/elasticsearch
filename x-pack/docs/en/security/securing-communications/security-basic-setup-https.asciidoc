@@ -55,7 +55,7 @@ Complete all steps in <<security-basic-setup,Set up basic security for the Elast
 . From the directory where you installed {es}, run the {es}
    HTTP certificate tool to generate a Certificate Signing Request (CSR).
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-certutil http
 ----
@@ -99,7 +99,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
    contains one directory for both {es} and {kib}.
 +
-[source,bash]
+[source,txt]
 ----
 /elasticsearch
 |_ README.txt
@@ -107,7 +107,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 |_ sample-elasticsearch.yml
 ----
 +
-[source,bash]
+[source,txt]
 ----
 /kibana
 |_ README.txt
@@ -128,7 +128,7 @@ xpack.security.http.ssl.keystore.path: http.p12
 
 . Add the password for your private key to a secure setting in {es}.
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
@@ -170,7 +170,7 @@ internal access or on the public internet.
 
 . Generate a server certificate and private key for {kib}.
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-certutil csr -name kibana-server -dns example.com,www.example.com
 ----
@@ -181,7 +181,7 @@ and another SAN of `www.example.com`.
 This command generates a `csr-bundle.zip` file by default with the following
 contents:
 +
-[source,bash]
+[source,txt]
 ----
 /kibana-server
 |_ kibana-server.csr
@@ -542,7 +542,7 @@ setup.kibana
 
 . Enable the `elasticsearch-xpack` module.
 +
-[source,bash]
+[source,shell]
 ----
 ./metricbeat modules enable elasticsearch-xpack
 ----
@@ -573,14 +573,14 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
 . If you want to use the predefined assets for parsing, indexing, and
    visualizing your data, run the following command to load these assets:
 +
-[source,bash]
+[source,shell]
 ----
 ./metricbeat setup -e
 ----
 
 . Start Elasticsearch, and then start Metricbeat.
 +
-[source,bash]
+[source,shell]
 ----
 /.metricbeat -e
 ----

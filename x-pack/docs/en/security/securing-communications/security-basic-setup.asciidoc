@@ -50,7 +50,7 @@ that method of generating a CA and certificates.
 
 . Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-certutil ca
 ----
@@ -63,7 +63,7 @@ that method of generating a CA and certificates.
 . Generate a certificate and private key for your node. You include the
    `elastic-stack-ca.p12` output file that you generated in the previous step.
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
@@ -90,7 +90,7 @@ CA, plus a security certificate for each node in your cluster.
 
 . Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-certutil ca
 ----
@@ -115,7 +115,7 @@ instances:
 . Run the `elasticsearch-certutil` tool in `--silent` mode with the `cert`
 parameter and the following options:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-certutil cert --ca elastic-certificates.p12 --silent --in certificates.yaml --out node-certs.zip --pass <password>
 ----
@@ -190,7 +190,7 @@ xpack.security.transport.ssl.truststore.path: <node-name>.p12
 
 .  If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/elasticsearch-keystore add xpack.security.transport.ssl.keystore.secure_password
 
@@ -228,14 +228,14 @@ password that you created earlier.
 
    a. Create the {kib} keystore:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/kibana-keystore create
 ----
 
    b. Add the {es} user to the {kib} keystore:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/kibana-keystore add elasticsearch.username
 ----
@@ -244,7 +244,7 @@ When prompted, specify the `kibana_system` user.
 
    c. Add the password for the {es} user to the {kib} keystore:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/kibana-keystore add elasticsearch.password
 ----
@@ -253,7 +253,7 @@ When prompted, enter the password for the `kibana_system` user.
 
 2. Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
 +
-[source,bash]
+[source,shell]
 ----
 ./bin/kibana
 ----

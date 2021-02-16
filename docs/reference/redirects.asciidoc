@@ -11,7 +11,7 @@ The following pages have moved or been deleted.
 See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
 
 [role="exclude",id="saml-guide-authentication"]
-==== Configure {es} for SAML authentication
+=== Configure {es} for SAML authentication
 
 See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>.
 

@@ -18,6 +18,7 @@ public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTest
 
     protected abstract Settings repositorySettings();
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69087")
     public void testRepositoryAnalysis() throws Exception {
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();

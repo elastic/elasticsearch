@@ -105,10 +105,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 |_ README.txt
 |_ http.p12
 |_ sample-elasticsearch.yml
-----
-+
-[source,txt]
-----
+
 /kibana
 |_ README.txt
 |_ elasticsearch-ca.pem

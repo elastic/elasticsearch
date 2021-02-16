@@ -51,19 +51,19 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def guh = new File(testProjectDir.getRoot(), "gradle-user-home").absolutePath;
         def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', guh)
+        def unpackingMessage = "Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
+                "using SymbolicLinkPreservingUntarTransform"
         def result = withMockedDistributionDownload(version, platform, runner) {
             // initial run
             def firstRun = build()
-            assertOutputContains(firstRun.output, "Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
-                    "using SymbolicLinkPreservingUntarTransform")
+            assertOutputContains(firstRun.output, unpackingMessage)
             // 2nd invocation
             build()
         }
 
         then:
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertOutputMissing(result.output, "Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
-                "using SymbolicLinkPreservingUntarTransform")
+        assertOutputMissing(result.output, unpackingMessage)
     }
 
     def "transforms are reused across projects"() {
@@ -100,7 +100,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
+        result.output.count("Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
                 "using SymbolicLinkPreservingUntarTransform") == 1
     }
 

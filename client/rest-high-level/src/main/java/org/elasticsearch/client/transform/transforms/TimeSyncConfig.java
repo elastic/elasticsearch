@@ -44,6 +44,8 @@ public class TimeSyncConfig implements SyncConfig {
         return PARSER.apply(parser, null);
     }
 
+    // Deprecated, the public modifier will be removed in 8.0: use the builder instead
+    @Deprecated
     public TimeSyncConfig(String field, TimeValue delay) {
         this.field = field;
         this.delay = delay;
@@ -94,4 +96,37 @@ public class TimeSyncConfig implements SyncConfig {
         return NAME;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String field;
+        private TimeValue delay = TimeValue.ZERO;
+
+        /**
+         * The date field that is used to identify new documents in the source.
+         * @param field The field name of the timestamp field used for synchronizing
+         * @return The {@link Builder} with the field set.
+         */
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        /**
+         * The time delay between the current time and the latest input data time.
+         * The default value is 60s.
+         * @param delay the delay to use when checking for changes
+         * @return The {@link Builder} with delay set.
+         */
+        public Builder setDelay(TimeValue delay) {
+            this.delay = delay;
+            return this;
+        }
+
+        public TimeSyncConfig build() {
+            return new TimeSyncConfig(field, delay);
+        }
+    }
 }

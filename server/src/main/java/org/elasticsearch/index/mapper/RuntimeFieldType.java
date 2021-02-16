@@ -27,7 +27,7 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name());
         builder.field("type", typeName());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);

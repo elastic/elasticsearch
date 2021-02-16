@@ -55,6 +55,11 @@ providing a valid interval in the pertinent field. The generated preview
 contains the number of potentially created alert instances during the relative 
 time range you defined.
 
+NOTE: {anomaly-detect-cap} alert handles duplications. If you set an interval 
+that makes the alert to check the same bucket multiple times and the bucket 
+contains an anomaly that meets the alert conditions, then the configured action 
+is triggered only once.
+
 
 [[defining-actions]]
 == Defining actions

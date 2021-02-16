@@ -64,7 +64,15 @@ public class IndicesSegmentsRestCancellationIT extends HttpSmokeTestCase {
         return false;
     }
 
-    public void testClusterStateRestCancellation() throws Exception {
+    public void testIndicesSegmentsRestCancellation() throws Exception {
+        runTest(new Request(HttpGet.METHOD_NAME, "/_segments"));
+    }
+
+    public void testCatSegmentsRestCancellation() throws Exception {
+        runTest(new Request(HttpGet.METHOD_NAME, "/_cat/segments"));
+    }
+
+    private void runTest(Request request) throws Exception {
 
         createIndex("test", Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true).build());
         ensureGreen("test");
@@ -89,11 +97,9 @@ public class IndicesSegmentsRestCancellationIT extends HttpSmokeTestCase {
                 releasables.add(searcherBlock::release);
             }
 
-            final Request indicesSegments = new Request(HttpGet.METHOD_NAME, "/_segments");
-
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             logger.info("--> sending indices segments request");
-            final Cancellable cancellable = getRestClient().performRequestAsync(indicesSegments, new ResponseListener() {
+            final Cancellable cancellable = getRestClient().performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     future.onResponse(null);

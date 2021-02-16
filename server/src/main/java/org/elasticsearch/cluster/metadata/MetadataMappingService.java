@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 
@@ -106,7 +107,6 @@ public class MetadataMappingService {
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetadata);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper newMapper;
                 DocumentMapper existingMapper = mapperService.documentMapper();
 
                 String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
@@ -115,21 +115,20 @@ public class MetadataMappingService {
                         "] as the final mapping would have more than 1 type: " + Arrays.asList(existingMapper.type(), typeForUpdate));
                 }
 
+                Mapping newMapping;
                 if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
                     // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, false);
+                    newMapping = mapperService.parseMapping(request.type(), mappingUpdateSource, false);
                 } else {
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, existingMapper == null);
-                    if (existingMapper != null) {
-                        // first, simulate: just call merge and ignore the result
-                        existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
-                    }
+                    Mapping mapping = mapperService.parseMapping(request.type(), mappingUpdateSource, existingMapper == null);
+                    // first, simulate: just call merge and ignore the result
+                    newMapping = MapperService.mergeMappings(existingMapper, mapping, MergeReason.MAPPING_UPDATE);
                 }
                 if (mappingType == null) {
-                    mappingType = newMapper.type();
-                } else if (mappingType.equals(newMapper.type()) == false
-                        && (isMappingSourceTyped(request.type(), mappingUpdateSource)
-                                || mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false)) {
+                    mappingType = newMapping.type();
+                } else if (mappingType.equals(newMapping.type()) == false
+                    && (isMappingSourceTyped(request.type(), mappingUpdateSource)
+                    || mapperService.resolveDocumentType(mappingType).equals(newMapping.type()) == false)) {
                     throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
                 }
             }

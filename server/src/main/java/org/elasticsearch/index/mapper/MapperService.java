@@ -469,6 +469,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return new Mappings(defaultMapping, incomingMapping);
     }
 
+    public Mapping parseMapping(String type, CompressedXContent mappingSource, boolean applyDefault) {
+        try {
+            return mappingParser.parse(type, mappingSource, applyDefault ? this.defaultMappingSource : null);
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, type, e.getMessage());
+        }
+    }
+
     private static class Mappings {
         private final Mapping defaultMapping;
         private final Mapping incomingMapping;
@@ -495,13 +503,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Mapping newMapping = null;
         if (incomingMapping != null) {
             validateTypeName(incomingMapping.root().name());
-            if (currentMapper != null) {
-                newMapping = currentMapper.mapping().merge(incomingMapping, reason);
-            } else {
-                newMapping = incomingMapping;
-            }
+            newMapping = mergeMappings(currentMapper, incomingMapping, reason);
         }
         return new Mappings(defaultMapping, newMapping);
+    }
+
+    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+        Mapping newMapping;
+        if (currentMapper == null) {
+            newMapping = incomingMapping;
+        } else {
+            newMapping = currentMapper.mapping().merge(incomingMapping, reason);
+        }
+        return newMapping;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {

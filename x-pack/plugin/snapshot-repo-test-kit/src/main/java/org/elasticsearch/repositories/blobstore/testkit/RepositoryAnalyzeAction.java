@@ -452,7 +452,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
             for (int i = 0; i < request.getBlobCount(); i++) {
                 final long targetLength = blobSizes.get(i);
-                final boolean smallBlob = targetLength <= Integer.MAX_VALUE; // we only use the non-atomic API for larger blobs
+                final boolean smallBlob = targetLength <= Integer.MAX_VALUE; // avoid the atomic API for larger blobs
                 final VerifyBlobTask verifyBlobTask = new VerifyBlobTask(
                     nodes.get(random.nextInt(nodes.size())),
                     new BlobAnalyzeAction.Request(

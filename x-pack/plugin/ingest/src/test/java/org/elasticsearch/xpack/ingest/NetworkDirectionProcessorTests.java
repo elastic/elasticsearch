@@ -30,7 +30,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     }
 
     private Map<String, Object> buildEvent(String source, String destination) {
-        return new HashMap<>() {
+        return new HashMap<String, Object>() {
             {
                 put("source", new HashMap<String, Object>() {
                     {
@@ -138,7 +138,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
 
         if (internalNetworks != null) networks = Arrays.asList(internalNetworks);
 
-        var processor = new NetworkDirectionProcessor(
+        NetworkDirectionProcessor processor = new NetworkDirectionProcessor(
             null,
             null,
             DEFAULT_SOURCE_IP,
@@ -148,7 +148,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             ignoreMissing
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = new IngestDocument(source, org.elasticsearch.common.collect.Map.of());
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

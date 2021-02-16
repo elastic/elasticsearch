@@ -196,7 +196,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     }
 
     private boolean isUnspecified(InetAddress ip) {
-        var address = ip.getAddress();
+        byte[] address = ip.getAddress();
         return Arrays.equals(UNDEFINED_IP4, address) || Arrays.equals(UNDEFINED_IP6, address);
     }
 
@@ -209,7 +209,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     }
 
     private boolean isLocalOrPrivate(String ip) {
-        var address = InetAddresses.forString(ip);
+        InetAddress address = InetAddresses.forString(ip);
         return isPrivate(ip)
             || isLoopback(address)
             || isUnspecified(address)

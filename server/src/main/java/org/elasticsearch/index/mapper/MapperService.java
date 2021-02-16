@@ -228,7 +228,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 map.put(mappingMetadata.type(), mappingMetadata.source());
             }
             Mappings mappings = parseMappings(map, MergeReason.MAPPING_RECOVERY);
-            assert assertRefreshIsNotNeeded(this.mapper, mappings, map);
+            assert assertRefreshIsNotNeeded(this.mapper, mappings);
             updatedEntries = applyMappings(mappings, () -> map.get(DEFAULT_MAPPING).string(), MergeReason.MAPPING_RECOVERY);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
@@ -259,23 +259,30 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper,
-                                             Mappings mappings,
-                                             Map<String, CompressedXContent> incomingMappingSources) {
+                                             Mappings mappings) {
         Mappings mergedMappings = mergeMappings(currentMapper, mappings, MergeReason.MAPPING_RECOVERY);
         if (mergedMappings.defaultMapping != null) {
-            assertRefreshIsNotNeeded(mergedMappings.defaultMapping, DEFAULT_MAPPING, incomingMappingSources.get(DEFAULT_MAPPING));
+            assertRefreshIsNotNeeded(mergedMappings.defaultMapping, DEFAULT_MAPPING, mappings.defaultMapping);
         }
         if (mergedMappings.incomingMapping != null) {
             String type = mergedMappings.incomingMapping.root().name();
-            assertRefreshIsNotNeeded(mergedMappings.incomingMapping, type, incomingMappingSources.get(type));
+            assertRefreshIsNotNeeded(mergedMappings.incomingMapping, type, mappings.incomingMapping);
         }
         return true;
     }
 
-    private void assertRefreshIsNotNeeded(Mapping mergedMapping, String type, CompressedXContent incomingMappingSource) {
+    private void assertRefreshIsNotNeeded(Mapping mergedMapping, String type, Mapping incomingMapping) {
+        //skip the runtime section or removed runtime fields will make the assertion fail
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
         try {
-            mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, params);
+        } catch (Exception e) {
+            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
+        }
+        CompressedXContent incomingMappingSource;
+        try {
+            incomingMappingSource = new CompressedXContent(incomingMapping, XContentType.JSON, params);
         } catch (Exception e) {
             throw new AssertionError("failed to serialize source for type [" + type + "]", e);
         }

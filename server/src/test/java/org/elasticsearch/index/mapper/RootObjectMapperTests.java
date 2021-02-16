@@ -673,6 +673,20 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     "\"field\":{\"type\":\"keyword\"}}}}",
                 mapperService.documentMapper().mappingSource().toString());
         }
+        {
+            //remove a runtime field
+            String mapping = Strings.toString(runtimeMapping(
+                builder -> builder.nullField("field3")));
+            merge(MapperService.SINGLE_MAPPING_NAME, mapperService, mapping);
+            assertEquals("{\"_doc\":" +
+                    "{\"runtime\":{" +
+                    "\"field\":{\"type\":\"test\",\"prop2\":\"second version\"}," +
+                    "\"field2\":{\"type\":\"test\"}}," +
+                    "\"properties\":{" +
+                    "\"concrete\":{\"type\":\"keyword\"}," +
+                    "\"field\":{\"type\":\"keyword\"}}}}",
+                mapperService.documentMapper().mappingSource().toString());
+        }
     }
 
     public void testRuntimeSectionNonRuntimeType() throws IOException {
@@ -694,9 +708,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testRuntimeSectionWrongFormat() throws IOException {
-        XContentBuilder mapping = runtimeMapping(builder -> builder.field("field", "value"));
+        XContentBuilder mapping = runtimeMapping(builder -> builder.field("field", 123));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping [_doc]: Expected map for runtime field [field] definition but got a java.lang.String",
+        assertEquals("Failed to parse mapping [_doc]: Expected map for runtime field [field] definition but got a java.lang.Integer",
             e.getMessage());
     }
 

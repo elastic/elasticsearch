@@ -1,5 +1,5 @@
 [role="xpack"]
-[[saml-guide]]
+[[saml-guide-stack]]
 
 == Configuring SAML single-sign-on on the {stack}
 
@@ -72,7 +72,7 @@ For `<LogoutRequest>` messages, the message itself must be signed, and the
 signature should be provided as a URL parameter, as required by the HTTP-Redirect
 binding.
 
-[[saml-guide-authentication]]
+[[saml-elasticsearch-authentication]]
 === Configure {es} for SAML authentication
 
 There are five configuration steps to enable SAML authentication in {es}:

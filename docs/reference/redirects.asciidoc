@@ -4,6 +4,17 @@
 The following pages have moved or been deleted.
 
 // [START] Security redirects
+
+[role="exclude",id="saml-guide"]
+=== Configure SAML single-sign on
+
+See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
+
+[role="exclude",id="saml-guide-authentication"]
+==== Configure {es} for SAML authentication
+
+See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>.
+
 [role="exclude",id="active-directory-ssl"]
 === Setting up SSL between {es} and Active Directory
 
@@ -451,7 +462,7 @@ See <<ref-native-settings>>.
 [role="exclude",id="configuring-saml-realm"]
 === Configuring a SAML realm
 
-See <<saml-guide>>.
+See <<saml-guide-stack>>.
 
 [role="exclude",id="saml-settings"]
 ==== SAML realm settings

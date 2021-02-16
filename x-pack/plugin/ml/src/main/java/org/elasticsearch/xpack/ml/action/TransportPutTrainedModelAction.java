@@ -124,8 +124,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
             .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations())
             .build();
-        final ModelAliasMetadata currentMetadata = state.metadata().custom(ModelAliasMetadata.NAME);
-        if (currentMetadata != null && currentMetadata.getModelId(trainedModelConfig.getModelId()) != null) {
+        if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
                 request.getTrainedModelConfig().getModelId()

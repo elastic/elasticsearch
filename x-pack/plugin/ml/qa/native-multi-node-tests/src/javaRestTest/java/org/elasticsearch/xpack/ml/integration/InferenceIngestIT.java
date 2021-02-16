@@ -207,14 +207,14 @@ public class InferenceIngestIT extends ESRestTestCase {
         String regressionModelId2 = "test_regression_2";
         putModel(regressionModelId2, REGRESSION_CONFIG);
         String modelAlias = "test_regression";
-        postUpdateModelAlias(modelAlias, null, regressionModelId);
+        putModelAlias(modelAlias, regressionModelId);
 
         client().performRequest(putPipeline("simple_regression_pipeline", pipelineDefinition(modelAlias, "regression")));
 
         for (int i = 0; i < 10; i++) {
             client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
         }
-        postUpdateModelAlias(modelAlias, regressionModelId, regressionModelId2);
+        putModelAlias(modelAlias, regressionModelId2);
         // Need to assert busy as loading the model and then switching the model alias can take time
         assertBusy(() -> {
             String source = "{\n" +
@@ -245,6 +245,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             QueryBuilders.boolQuery()
                 .filter(
                     QueryBuilders.existsQuery("ml.inference.regression.predicted_value"))));
+        // Verify we have 15 documents that contain a predicted value for regression
         assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":15"));
 
         searchResponse = client().performRequest(searchRequest("index_for_inference_test",
@@ -260,17 +261,17 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":5"));
 
         assertBusy(() -> {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, client().performRequest(new Request("GET",
-            "_ml/trained_models/" + modelAlias + "/_stats")).getEntity().getContent())) {
-            GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
-            assertThat(response.toString(), response.getTrainedModelStats(), hasSize(1));
-            TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
-            assertThat(trainedModelStats.getModelId(), equalTo(regressionModelId2));
-            assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
-        } catch (ResponseException ex) {
-            //this could just mean shard failures.
-            fail(ex.getMessage());
-        }
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, client().performRequest(new Request("GET",
+                "_ml/trained_models/" + modelAlias + "/_stats")).getEntity().getContent())) {
+                GetTrainedModelsStatsResponse response = GetTrainedModelsStatsResponse.fromXContent(parser);
+                assertThat(response.toString(), response.getTrainedModelStats(), hasSize(1));
+                TrainedModelStats trainedModelStats = response.getTrainedModelStats().get(0);
+                assertThat(trainedModelStats.getModelId(), equalTo(regressionModelId2));
+                assertThat(trainedModelStats.getInferenceStats(), is(notNullValue()));
+            } catch (ResponseException ex) {
+                //this could just mean shard failures.
+                fail(ex.getMessage());
+            }
         });
     }
 
@@ -702,16 +703,8 @@ public class InferenceIngestIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void postUpdateModelAlias(String modelAlias, String oldModel, String newModel) throws IOException {
-        String oldModelStr = oldModel == null ? "" : "\"old_model_id\": \"" + oldModel + "\",";
-        String newModelStr = "\"new_model_id\": \"" + newModel + "\"";
-        Request request = new Request("POST", "_ml/trained_models/model_aliases/" + modelAlias + "/_update");
-        request.setJsonEntity(
-            "{"
-            + oldModelStr
-            + newModelStr
-            + "}"
-        );
+    private void putModelAlias(String modelAlias, String newModel) throws IOException {
+        Request request = new Request("PUT", "_ml/trained_models/" + newModel + "/model_aliases/" + modelAlias + "?reassign=true");
         client().performRequest(request);
     }
 

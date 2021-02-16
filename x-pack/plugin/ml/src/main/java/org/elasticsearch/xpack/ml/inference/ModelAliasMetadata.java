@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -36,6 +37,11 @@ public class ModelAliasMetadata implements Metadata.Custom {
     public static final String NAME = "trained_model_alias";
 
     public static final ModelAliasMetadata EMPTY = new ModelAliasMetadata(new HashMap<>());
+
+    public static ModelAliasMetadata fromState(ClusterState cs) {
+        ModelAliasMetadata modelAliasMetadata = cs.metadata().custom(NAME);
+        return modelAliasMetadata == null ? EMPTY : modelAliasMetadata;
+    }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new ModelAliasMetadataDiff(in);

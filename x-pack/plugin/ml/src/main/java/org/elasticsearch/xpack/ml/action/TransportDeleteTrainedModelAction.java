@@ -86,23 +86,21 @@ public class TransportDeleteTrainedModelAction
             return;
         }
 
-        final ModelAliasMetadata currentMetadata = state.metadata().custom(ModelAliasMetadata.NAME);
+        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(state);
         final List<String> modelAliases = new ArrayList<>();
-        if (currentMetadata != null) {
-            for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> modelAliasEntry : currentMetadata.modelAliases().entrySet()) {
-                if (modelAliasEntry.getValue().getModelId().equals(id)) {
-                    modelAliases.add(modelAliasEntry.getKey());
-                }
+        for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> modelAliasEntry : currentMetadata.modelAliases().entrySet()) {
+            if (modelAliasEntry.getValue().getModelId().equals(id)) {
+                modelAliases.add(modelAliasEntry.getKey());
             }
-            for (String modelAlias : modelAliases) {
-                if (referencedModels.contains(modelAlias)) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors",
-                        RestStatus.CONFLICT,
-                        id,
-                        modelAlias));
-                    return;
-                }
+        }
+        for (String modelAlias : modelAliases) {
+            if (referencedModels.contains(modelAlias)) {
+                listener.onFailure(new ElasticsearchStatusException(
+                    "Cannot delete model [{}] as it has a model_alias [{}] that is still referenced by ingest processors",
+                    RestStatus.CONFLICT,
+                    id,
+                    modelAlias));
+                return;
             }
         }
 
@@ -124,13 +122,11 @@ public class TransportDeleteTrainedModelAction
             return;
         }
 
-        clusterService.submitStateUpdateTask("delete-trained-model", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
+        clusterService.submitStateUpdateTask("delete-trained-model-alias", new AckedClusterStateUpdateTask(request, nameDeletionListener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 final ClusterState.Builder builder = ClusterState.builder(currentState);
-                final ModelAliasMetadata currentMetadata = currentState.metadata().custom(ModelAliasMetadata.NAME) == null ?
-                    ModelAliasMetadata.EMPTY :
-                    currentState.metadata().custom(ModelAliasMetadata.NAME);
+                final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
                 if (currentMetadata.modelAliases().isEmpty()) {
                     return currentState;
                 }

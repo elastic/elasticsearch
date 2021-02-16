@@ -88,12 +88,11 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
             },
             listener::onFailure
         );
-        final ModelAliasMetadata currentMetadata = clusterService.state().metadata().custom(ModelAliasMetadata.NAME);
         provider.expandIds(request.getResourceId(),
             request.isAllowNoResources(),
             request.getPageParams(),
             new HashSet<>(request.getTags()),
-            currentMetadata,
+            ModelAliasMetadata.fromState(clusterService.state()),
             idExpansionListener);
     }
 

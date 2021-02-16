@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -45,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -76,7 +76,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                              GetTrainedModelsStatsAction.Request request,
                              ActionListener<GetTrainedModelsStatsAction.Response> listener) {
 
-        final ModelAliasMetadata currentMetadata = clusterService.state().metadata().custom(ModelAliasMetadata.NAME);
+        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterService.state());
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
         ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(
@@ -91,11 +91,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()
                     .entrySet()
                     .stream()
-                    .flatMap(entry -> {
-                        Set<String> modelAliases = new HashSet<>(entry.getValue());
-                        modelAliases.add(entry.getKey());
-                        return modelAliases.stream();
-                    })
+                    .flatMap(entry -> Stream.concat(entry.getValue().stream(), Stream.of(entry.getKey())))
                     .collect(Collectors.toSet());
                 Map<String, Set<String>> pipelineIdsByModelIdsOrAliases = pipelineIdsByModelIdsOrAliases(clusterService.state(),
                     ingestService,
@@ -135,16 +131,13 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                                                                   ModelAliasMetadata currentMetadata,
                                                                   Map<String, Set<String>> modelIdToPipelineId) {
 
-        Map<String, ModelAliasMetadata.ModelAliasEntry> modelAliasToId = currentMetadata == null ?
-            Collections.emptyMap() :
-            currentMetadata.modelAliases();
         Map<String, IngestStats> ingestStatsMap = new HashMap<>();
         Map<String, Set<String>> trueModelIdToPipelines = modelIdToPipelineId.entrySet()
             .stream()
             .collect(Collectors.toMap(
                 entry -> {
-                    ModelAliasMetadata.ModelAliasEntry modelAliasEntry = modelAliasToId.get(entry.getKey());
-                    return modelAliasEntry == null ? entry.getKey() : modelAliasEntry.getModelId();
+                    String maybeModelId = currentMetadata.getModelId(entry.getKey());
+                    return maybeModelId == null ? entry.getKey() : maybeModelId;
                 },
                 Map.Entry::getValue,
                 Sets::union

@@ -620,15 +620,13 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private Map<String, String> gatherLazyChangedAliasesAndUpdateModelAliases(ClusterChangedEvent event,
-                                                                            boolean prefetchModels,
-                                                                            Set<String> allReferencedModelKeys) {
+                                                                              boolean prefetchModels,
+                                                                              Set<String> allReferencedModelKeys) {
         Map<String, String> changedAliases = new HashMap<>();
         if (event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME)) {
-            ModelAliasMetadata modelAliasMetadata = event.state().metadata().custom(ModelAliasMetadata.NAME);
-            Map<java.lang.String, ModelAliasMetadata.ModelAliasEntry> modelAliasesToIds = new HashMap<>();
-            if (modelAliasMetadata != null) {
-                modelAliasesToIds = new HashMap<>(modelAliasMetadata.modelAliases());
-            }
+            final Map<java.lang.String, ModelAliasMetadata.ModelAliasEntry> modelAliasesToIds = new HashMap<>(
+                ModelAliasMetadata.fromState(event.state()).modelAliases()
+            );
             modelIdToModelAliases.clear();
             for (Map.Entry<java.lang.String, ModelAliasMetadata.ModelAliasEntry> aliasToId : modelAliasesToIds.entrySet()) {
                 modelIdToModelAliases.computeIfAbsent(aliasToId.getValue().getModelId(), k -> new HashSet<>()).add(aliasToId.getKey());

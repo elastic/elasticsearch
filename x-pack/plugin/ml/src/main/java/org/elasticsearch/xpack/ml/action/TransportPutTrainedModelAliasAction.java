@@ -30,7 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -46,17 +46,16 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY;
 
-public class TransportUpdateTrainedModelAliasAction extends AcknowledgedTransportMasterNodeAction<UpdateTrainedModelAliasAction.Request> {
+public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMasterNodeAction<PutTrainedModelAliasAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportUpdateTrainedModelAliasAction.class);
-
+    private static final Logger logger = LogManager.getLogger(TransportPutTrainedModelAliasAction.class);
 
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
     private final InferenceAuditor auditor;
 
     @Inject
-    public TransportUpdateTrainedModelAliasAction(
+    public TransportPutTrainedModelAliasAction(
         TransportService transportService,
         TrainedModelProvider trainedModelProvider,
         ClusterService clusterService,
@@ -66,12 +65,12 @@ public class TransportUpdateTrainedModelAliasAction extends AcknowledgedTranspor
         InferenceAuditor auditor,
         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(
-            UpdateTrainedModelAliasAction.NAME,
+            PutTrainedModelAliasAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            UpdateTrainedModelAliasAction.Request::new,
+            PutTrainedModelAliasAction.Request::new,
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
@@ -83,28 +82,39 @@ public class TransportUpdateTrainedModelAliasAction extends AcknowledgedTranspor
     @Override
     protected void masterOperation(
         Task task,
-        UpdateTrainedModelAliasAction.Request request,
+        PutTrainedModelAliasAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
         final boolean mlSupported = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING);
         final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported || licenseState.isAllowedByLicense(model.getLicenseLevel());
+        final String oldModelId = ModelAliasMetadata.fromState(state).getModelId(request.getModelAlias());
 
+        if (oldModelId != null && (request.isReassign() == false)) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "cannot assign model_alias [{}] to model_id [{}] as model_alias already refers to [{}]. "
+                    +
+                    "Set parameter [reassign] to [true] if model_alias should be reassigned.",
+                request.getModelAlias(),
+                request.getModelId(),
+                oldModelId));
+            return;
+        }
         Set<String> modelIds = new HashSet<>();
         modelIds.add(request.getModelAlias());
-        modelIds.add(request.getNewModelId());
-        if (request.getOldModelId() != null) {
-            modelIds.add(request.getOldModelId());
+        modelIds.add(request.getModelId());
+        if (oldModelId != null) {
+            modelIds.add(oldModelId);
         }
         trainedModelProvider.getTrainedModels(modelIds, GetTrainedModelsAction.Includes.empty(), true, ActionListener.wrap(
             models -> {
                 TrainedModelConfig newModel = null;
                 TrainedModelConfig oldModel = null;
                 for (TrainedModelConfig config : models) {
-                    if (config.getModelId().equals(request.getNewModelId())) {
+                    if (config.getModelId().equals(request.getModelId())) {
                         newModel = config;
                     }
-                    if (config.getModelId().equals(request.getOldModelId())) {
+                    if (config.getModelId().equals(oldModelId)) {
                         oldModel = config;
                     }
                     if (config.getModelId().equals(request.getModelAlias())) {
@@ -116,7 +126,7 @@ public class TransportUpdateTrainedModelAliasAction extends AcknowledgedTranspor
                 }
                 if (newModel == null) {
                     listener.onFailure(
-                        ExceptionsHelper.badRequestException("cannot find model matching new_model_id [{}]", request.getNewModelId())
+                        ExceptionsHelper.badRequestException("cannot find model matching model_id [{}]", request.getModelId())
                     );
                     return;
                 }
@@ -124,13 +134,9 @@ public class TransportUpdateTrainedModelAliasAction extends AcknowledgedTranspor
                     listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     return;
                 }
-                if (request.getOldModelId() != null) {
-                    if (oldModel == null) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException("cannot find model matching old_model_id [{}]", request.getOldModelId())
-                        );
-                        return;
-                    }
+                // if old model is null, none of these validations matter
+                // we should still allow reassignment even if the old model was some how deleted and the alias still refers to it
+                if (oldModel != null) {
                     if (isLicensed.test(oldModel) == false) {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                         return;
@@ -159,19 +165,17 @@ public class TransportUpdateTrainedModelAliasAction extends AcknowledgedTranspor
                     || Sets.intersection(newInputFields, oldInputFields).size() < (oldInputFields.size() / 2)) {
                         String warning =  Messages.getMessage(
                             TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY,
-                            UpdateTrainedModelAliasAction.Request.OLD_MODEL_ID.getPreferredName(),
-                            request.getOldModelId(),
-                            UpdateTrainedModelAliasAction.Request.NEW_MODEL_ID.getPreferredName(),
-                            request.getNewModelId());
-                        auditor.warning(request.getOldModelId(), warning);
-                        logger.warn("[{}] {}", request.getOldModelId(), warning);
+                            request.getModelId(),
+                            oldModelId);
+                        auditor.warning(oldModelId, warning);
+                        logger.warn("[{}] {}", oldModelId, warning);
                         HeaderWarning.addWarning(warning);
                     }
                 }
                 clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     public ClusterState execute(final ClusterState currentState) {
-                        return updateModelAlias(currentState, request, logger);
+                        return updateModelAlias(currentState, request);
                     }
                 });
 
@@ -180,58 +184,29 @@ public class TransportUpdateTrainedModelAliasAction extends AcknowledgedTranspor
         ));
     }
 
-    static ClusterState updateModelAlias(
-        final ClusterState currentState,
-        final UpdateTrainedModelAliasAction.Request request,
-        final Logger logger
-    ) {
+    static ClusterState updateModelAlias(final ClusterState currentState, final PutTrainedModelAliasAction.Request request) {
         final ClusterState.Builder builder = ClusterState.builder(currentState);
-        final ModelAliasMetadata currentMetadata = currentState.metadata().custom(ModelAliasMetadata.NAME) == null ?
-            ModelAliasMetadata.EMPTY :
-            currentState.metadata().custom(ModelAliasMetadata.NAME);
+        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(currentState);
         String currentModelId = currentMetadata.getModelId(request.getModelAlias());
-        if (request.getOldModelId() != null) {
-            if (currentModelId == null) {
-                throw ExceptionsHelper.badRequestException(
-                    "Expected model_alias [{}] to exist for old_model_id [{}] but model_alias does not exist",
-                    request.getModelAlias(),
-                    request.getOldModelId()
-                );
-            }
-            if (currentModelId.equals(request.getOldModelId()) == false) {
-                throw ExceptionsHelper.badRequestException(
-                    "Expected model_alias [{}] to point to old_model_id [{}] but model_alias refers to model [{}]",
-                    request.getModelAlias(),
-                    request.getOldModelId(),
-                    currentModelId
-                );
-            }
-        } else if (currentModelId != null) {
-            throw ExceptionsHelper.badRequestException(
-                "No old_model_id provided but model_alias [{}] currently refers to model [{}]",
-                request.getModelAlias(),
-                currentModelId
-            );
-        }
         final Map<String, ModelAliasMetadata.ModelAliasEntry> newMetadata = new HashMap<>(currentMetadata.modelAliases());
         if (currentModelId == null) {
-            logger.info("creating new model_alias [{}] for model [{}]", request.getModelAlias(), request.getNewModelId());
+            logger.info("creating new model_alias [{}] for model [{}]", request.getModelAlias(), request.getModelId());
         } else {
             logger.info(
                 "updating model_alias [{}] to refer to model [{}] from model [{}]",
                 request.getModelAlias(),
-                request.getNewModelId(),
+                request.getModelId(),
                 currentModelId
             );
         }
-        newMetadata.put(request.getModelAlias(), new ModelAliasMetadata.ModelAliasEntry(request.getNewModelId()));
+        newMetadata.put(request.getModelAlias(), new ModelAliasMetadata.ModelAliasEntry(request.getModelId()));
         final ModelAliasMetadata modelAliasMetadata = new ModelAliasMetadata(newMetadata);
         builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(ModelAliasMetadata.NAME, modelAliasMetadata).build());
         return builder.build();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(UpdateTrainedModelAliasAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutTrainedModelAliasAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

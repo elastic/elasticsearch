@@ -25,7 +25,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 
@@ -71,16 +70,8 @@ public class InferenceProcessorIT extends ESRestTestCase {
         }
     }
 
-    private void postUpdateModelAlias(String modelAlias, String oldModel, String newModel) throws IOException {
-        String oldModelStr = oldModel == null ? "" : "\"old_model_id\": \"" + oldModel + "\",";
-        String newModelStr = "\"new_model_id\": \"" + newModel + "\"";
-        Request request = new Request("POST", "_ml/trained_models/model_aliases/" + modelAlias + "/_update");
-        request.setJsonEntity(
-            "{"
-                + oldModelStr
-                + newModelStr
-                + "}"
-        );
+    private void putModelAlias(String modelAlias, String newModel) throws IOException {
+        Request request = new Request("PUT", "_ml/trained_models/" + newModel + "/model_aliases/" + modelAlias + "?reassign=true");
         client().performRequest(request);
     }
 
@@ -165,8 +156,8 @@ public class InferenceProcessorIT extends ESRestTestCase {
     public void testCreateAndDeletePipelineWithInferenceProcessorByName() throws Exception {
         putRegressionModel();
 
-        postUpdateModelAlias("regression_first", null, MODEL_ID);
-        postUpdateModelAlias("regression_second", null, MODEL_ID);
+        putModelAlias("regression_first", MODEL_ID);
+        putModelAlias("regression_second", MODEL_ID);
         createdPipelines.add("first_pipeline");
         putPipeline("regression_first", "first_pipeline");
         createdPipelines.add("second_pipeline");
@@ -221,7 +212,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
 
     public void testDeleteModelWhileAliasReferencedByPipeline() throws Exception {
         putRegressionModel();
-        postUpdateModelAlias("regression_first", null, MODEL_ID);
+        putModelAlias("regression_first", MODEL_ID);
         createdPipelines.add("first_pipeline");
         putPipeline("regression_first", "first_pipeline");
         Exception ex = expectThrows(Exception.class,

@@ -758,7 +758,7 @@ public class TrainedModelProvider {
                           ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
         Set<String> expandedIdsFromAliases = new HashSet<>();
-        if (modelAliasMetadata != null && (Strings.isAllOrWildcard(tokens) == false)) {
+        if (Strings.isAllOrWildcard(tokens) == false) {
             for (String token : tokens) {
                 if (Regex.isSimpleMatchPattern(token)) {
                     for (String modelAlias : modelAliasMetadata.modelAliases().keySet()) {
@@ -832,16 +832,14 @@ public class TrainedModelProvider {
                     }
                     // We should gather ALL model aliases referenced by the given model IDs
                     // This way the callers have access to them
-                    Map<String, Set<String>> idsToAliases = modelAliasMetadata != null ?
-                        modelAliasMetadata.modelAliases()
+                    Map<String, Set<String>> idsToAliases = modelAliasMetadata.modelAliases()
                             .entrySet()
                             .stream()
                             .collect(Collectors.toMap(
                                 entry -> entry.getValue().getModelId(),
                                 entry -> Sets.newHashSet(entry.getKey()),
                                 Sets::union
-                            )) :
-                        new HashMap<>();
+                            ));
                     Map<String, Set<String>> allFoundIds = collectIds(pageParams, foundResourceIds, foundFromDocs)
                         .stream()
                         .collect(Collectors.toMap(Function.identity(), k -> idsToAliases.getOrDefault(k, Collections.emptySet())));

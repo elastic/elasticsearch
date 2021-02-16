@@ -82,12 +82,9 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "my-regression"
-        body: >
-          {
-             "new_model_id": "a-unused-regression-model1"
-          }
+        model_id: "a-unused-regression-model1"
 ---
 "Test get stats given missing trained model":
 

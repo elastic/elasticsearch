@@ -828,15 +828,12 @@ setup:
         include_model_definition: true
         decompress_definition: false
 ---
-"Test update model model aliases":
+"Test put model model aliases":
 
   - do:
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-1"
-          }
+        model_id: "a-regression-model-1"
   - do:
       ml.get_trained_models:
         model_id: "regression-model,a-classification-model"
@@ -847,13 +844,10 @@ setup:
   - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
 
   - do:
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-0",
-             "old_model_id": "a-regression-model-1"
-          }
+        model_id: "a-regression-model-0"
+        reassign: true
   - do:
       ml.get_trained_models:
         model_id: "regression-model,a-classification-model"
@@ -864,12 +858,9 @@ setup:
   - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
 
   - do:
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "regression-model-again"
-        body: >
-          {
-             "new_model_id": "a-regression-model-0"
-          }
+        model_id: "a-regression-model-0"
   - do:
       ml.get_trained_models:
         model_id: "a-regression-model-*"
@@ -880,112 +871,45 @@ setup:
   - match: { trained_model_configs.0.metadata.model_aliases.0: "regression-model" }
   - match: { trained_model_configs.0.metadata.model_aliases.1: "regression-model-again" }
 ---
-"Test update model alias with missing new model id":
+"Test update model alias with model id referring to missing model":
   - do:
-      catch: /\[new_model_id\] must not be null/
-      ml.update_trained_model_alias:
+      catch: /cannot find model matching model_id \[missing-model\]/
+      ml.put_trained_model_alias:
         model_alias: "regression-model"
-        body: >
-          {
-          }
----
-"Test update model alias with new model id referring to missing model":
-  - do:
-      catch: /cannot find model matching new_model_id \[missing-model\]/
-      ml.update_trained_model_alias:
-        model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "missing-model"
-          }
----
-"Test update model alias with old model id referring to missing model":
-  - do:
-      catch: /cannot find model matching old_model_id \[missing-model\]/
-      ml.update_trained_model_alias:
-        model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-0",
-             "old_model_id": "missing-model"
-          }
+        model_id: "missing-model"
 ---
 "Test update model alias with bad alias":
   - do:
       catch: /must start with alphanumeric and cannot end with numbers/
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "regression-model-123123"
-        body: >
-          {
-             "new_model_id": "a-regression-model-0"
-          }
+        model_id: "regression-model-123123"
   - do:
       catch: bad_request
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "z-classification-model"
-        body: >
-          {
-             "new_model_id": "z-classification-model"
-          }
-  - do:
-      catch: bad_request
-      ml.update_trained_model_alias:
-        model_alias: "z-classification-model"
-        body: >
-          {
-             "new_model_id": "a-classification-model",
-             "old_model_id": "z-classification-model"
-          }
----
-"Test update model alias where alias exists but old model id is incorrect":
-  - do:
-      ml.update_trained_model_alias:
-        model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-0"
-          }
-  - do:
-      catch: bad_request
-      ml.update_trained_model_alias:
-        model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-1"
-          }
-  - do:
-      catch: bad_request
-      ml.update_trained_model_alias:
-        model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-1",
-             "old_model_id": "a-regression-model-2"
-          }
+        model_id: "z-classification-model"
 ---
 "Test update model alias where alias exists but old model id is different inference type":
   - do:
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-0"
-          }
+        model_id: "a-regression-model-0"
   - do:
       catch: bad_request
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-classification-model",
-             "old_model_id": "a-regression-model-0"
-          }
+        model_id: "a-classification-model"
+        reassign: true
+---
+"Test update model alias where alias exists but reassign is false":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"
   - do:
       catch: bad_request
-      ml.update_trained_model_alias:
+      ml.put_trained_model_alias:
         model_alias: "regression-model"
-        body: >
-          {
-             "new_model_id": "a-regression-model-1",
-             "old_model_id": "a-regression-model-2"
-          }
+        model_id: "a-regression-model-1"
+        reassign: false

@@ -195,6 +195,11 @@ public class SchemaUtilTests extends ESTestCase {
                 for (String field : fieldCapsRequest.fields()) {
                     responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));
                 }
+                for (Map.Entry<String, Object> runtimeField : fieldCapsRequest.runtimeFields().entrySet()) {
+                    String field = runtimeField.getKey();
+                    String type = (String)((Map) runtimeField.getValue()).get("type");
+                    responseMap.put(field, singletonMap(field, createFieldCapabilities(field, type)));
+                }
 
                 final FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(fieldCapsRequest.indices(), responseMap);
                 listener.onResponse((Response) response);

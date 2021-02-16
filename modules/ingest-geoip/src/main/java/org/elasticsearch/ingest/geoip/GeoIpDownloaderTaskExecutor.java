@@ -90,7 +90,7 @@ public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTa
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        //bootstrap downloader after first
+        //bootstrap downloader after first cluster start
         clusterService.removeListener(this);
         if (event.localNodeMaster() && ENABLED_SETTING.get(event.state().getMetadata().settings())) {
             startTask(() -> clusterService.addListener(this));

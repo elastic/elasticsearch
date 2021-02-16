@@ -10,7 +10,6 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;

@@ -123,7 +123,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
                             "cluster:admin/analyze",
                             // To facilitate using the file uploader functionality
-                            "monitor_text_structure"
+                            "monitor_text_structure",
+                            // To cancel tasks and delete async searches
+                            "cancel_task"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()

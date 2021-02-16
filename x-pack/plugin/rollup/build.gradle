@@ -15,7 +15,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('analytics'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()

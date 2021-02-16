@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class AsyncSearchSecurityIT extends ESRestTestCase {
     /**
@@ -126,8 +127,8 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, other));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
-            // user-manage cannot access the result
-            exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-manage"));
+            // user-cancel cannot access the result
+            exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-cancel"));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other cannot delete the result
@@ -145,13 +146,17 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             Response delResp = deleteAsyncSearch(id, user);
             assertOK(delResp);
 
-            // check that user with 'manage' privileges can delete an async
-            // search submitted by a different user
-            Response newResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
-            assertOK(newResp);
-            String newId = extractResponseId(newResp);
-            delResp = deleteAsyncSearch(newId, "user-manage");
-            assertOK(delResp);
+            // check that users with the 'cancel_task' privilege can delete an async
+            // search submitted by a different user.
+            for (String runAs : new String[] { "user-cancel", "test_kibana_user" }) {
+                Response newResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
+                assertOK(newResp);
+                String newId = extractResponseId(newResp);
+                exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, runAs));
+                assertThat(exc.getResponse().getStatusLine().getStatusCode(), greaterThan(400));
+                delResp = deleteAsyncSearch(newId, runAs);
+                assertOK(delResp);
+            }
         }
         ResponseException exc = expectThrows(ResponseException.class,
             () -> submitAsyncSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));

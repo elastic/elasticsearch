@@ -9,7 +9,7 @@ final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   testImplementation repositoryPlugin
 }
 

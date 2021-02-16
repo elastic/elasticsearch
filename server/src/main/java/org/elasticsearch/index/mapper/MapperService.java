@@ -182,7 +182,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMappingMetadata != null) {
             String type = newMappingMetadata.type();
             CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            Mapping incomingMapping = parseMappings(type, incomingMappingSource);
+            Mapping incomingMapping = parseMapping(type, incomingMappingSource);
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
@@ -277,7 +277,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private synchronized DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
-        Mapping incomingMapping = parseMappings(mappingType, mappingSource);
+        Mapping incomingMapping = parseMapping(mappingType, mappingSource);
         Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
         DocumentMapper newMapper = newDocumentMapper(mapping, reason);
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
@@ -295,7 +295,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return newMapper;
     }
 
-    private Mapping parseMappings(String mappingType, CompressedXContent mappingSource) {
+    public Mapping parseMapping(String mappingType, CompressedXContent mappingSource) {
         try {
             return mappingParser.parse(mappingType, mappingSource);
         } catch (Exception e) {
@@ -303,7 +303,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
+    public static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason) {
         Mapping newMapping;
         if (currentMapper == null) {
             newMapping = incomingMapping;

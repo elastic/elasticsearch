@@ -179,7 +179,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
             .indices()
             .prepareGetIndex()
             .setIndices(dedicatedIndex)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()
             .indices().length, equalTo(0));
 

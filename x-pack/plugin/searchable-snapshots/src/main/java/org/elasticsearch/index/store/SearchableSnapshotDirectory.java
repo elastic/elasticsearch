@@ -457,7 +457,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "@snapshotId=" + snapshotId + " lockFactory=" + lockFactory + " shard=" + shardId;
+        return this.getClass().getSimpleName() + "(snapshotId=" + snapshotId + ", indexId=" + indexId + " shardId=" + shardId + ')';
     }
 
     private void cleanExistingRegularShardFiles() {

@@ -373,7 +373,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     public void testDistanceTypeIsDeprecated() throws IOException {
         String json =
             "{\n" +
-                "  \"_geo_distance\" : {\n" +
+                "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
                 "    \"distance_type\" : \"arc\",\n" +

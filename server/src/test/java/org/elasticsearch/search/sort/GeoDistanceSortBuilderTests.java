@@ -49,25 +49,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanceSortBuilder> {
 
-    private static final int NUMBER_OF_TESTBUILDERS = 20;
-
-    @Override
-    public void testFromXContent() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            GeoDistanceSortBuilder testItem = randomGeoDistanceSortBuilder();
-            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder);
-            try (XContentParser parser = createParser(shuffled)) {
-                parser.nextToken();
-                NestedSortBuilder parsedItem = NestedSortBuilder.fromXContent(parser);
-                assertNotSame(testItem, parsedItem);
-                assertEquals(testItem, parsedItem);
-                assertEquals(testItem.hashCode(), parsedItem.hashCode());
-            }
-        }
-    }
-
     @Override
     protected GeoDistanceSortBuilder createTestItem() {
         return randomGeoDistanceSortBuilder();

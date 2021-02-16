@@ -139,11 +139,7 @@ PUT my-index
 }
 ----
 
-Runtime fields can be updated at any point in time: whenever a runtime field
-is added with the same name as an already existing field, the new field will
-overwrite the existing one.
-Existing runtime fields can also be removed from the index mappings by setting
-them to null as follows:
+You can update or remove runtime fields at any time. To replace an existing runtime field, add a new runtime field to the mappings with the same name. To remove a runtime field from the mappings, set the value of the runtime field to `null`:
 
  [source,console]
  ----

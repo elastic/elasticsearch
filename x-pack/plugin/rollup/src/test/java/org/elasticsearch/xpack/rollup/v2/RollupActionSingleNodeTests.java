@@ -19,7 +19,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -87,6 +91,31 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "numeric_1", "type=double",
                 "numeric_2", "type=float",
                 "categorical_1", "type=keyword").get();
+    }
+
+    public void testRollupShardIndexerCleansTempFiles() throws IOException {
+        // create rollup config and index documents into source index
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig("date_1");
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
+        bulkIndex(sourceSupplier);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(index);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        IndexShard shard = indexService.getShard(0);
+
+        // re-use source index as temp index for test
+        RollupShardIndexer indexer = new RollupShardIndexer(client(), indexService, shard.shardId(), config, index, 2);
+        indexer.execute();
+        assertThat(indexer.tmpFilesDeleted, equalTo(indexer.tmpFiles));
+        // assert that files are deleted
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {

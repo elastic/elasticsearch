@@ -6,7 +6,7 @@ setup:
           body:
               settings:
                   number_of_shards: 1
-                  index.highlight.max_analyzed_offset: 10
+                  index.highlight.max_analyzed_offset: 30
               mappings:
                   properties:
                       field1:
@@ -37,6 +37,20 @@ setup:
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
 
+---
+"Unified highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 should SUCCEED":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: max_analyzed_offset query param added in 8.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}, "max_analyzed_offset": "20"}}
+  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+
 
 ---
 "Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
@@ -46,8 +60,22 @@ setup:
       search:
           rest_total_hits_as_int: true
           index: test1
-          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 should SUCCEED":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: max_analyzed_offset query param added in 8.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {}}, "max_analyzed_offset": 20}}
+  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
 
 
 ---
@@ -71,3 +99,35 @@ setup:
           index: test1
           body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=20 should SUCCEED":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: max_analyzed_offset query param added in 8.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": 20}}
+  - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+
+---
+"Plain highlighter with max_analyzed_offset < 0 should FAIL":
+
+  - skip:
+      version: " - 7.99.99"
+      reason: max_analyzed_offset query param added in 8.0
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": -10}}
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer" }

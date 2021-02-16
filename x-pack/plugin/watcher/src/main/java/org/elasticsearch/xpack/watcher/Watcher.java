@@ -664,6 +664,16 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         );
     }
 
+    @Override
+    public String getFeatureName() {
+        return "watcher";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages Watch definitions and state";
+    }
+
     private Settings getWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
@@ -825,5 +835,4 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             throw new UncheckedIOException("Failed to build " + TriggeredWatchStoreField.INDEX_NAME + " index mappings", e);
         }
     }
-
 }

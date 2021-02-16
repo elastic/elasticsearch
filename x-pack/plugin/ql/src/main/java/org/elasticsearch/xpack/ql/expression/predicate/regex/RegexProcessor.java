@@ -31,6 +31,10 @@ public class RegexProcessor implements Processor {
         }
 
         public static Boolean match(Object value, String pattern) {
+            return match(value, pattern, Boolean.FALSE);
+        }
+
+        public static Boolean match(Object value, String pattern, Boolean caseInsensitive) {
             if (pattern == null) {
                 return Boolean.TRUE;
             }
@@ -39,7 +43,11 @@ public class RegexProcessor implements Processor {
                 return null;
             }
 
-            return Pattern.compile(pattern).matcher(value.toString()).matches();
+            int flags = 0;
+            if (Boolean.TRUE.equals(caseInsensitive)) {
+                flags |= Pattern.CASE_INSENSITIVE;
+            }
+            return Pattern.compile(pattern, flags).matcher(value.toString()).matches();
         }
     }
 

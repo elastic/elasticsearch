@@ -49,7 +49,7 @@ public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTa
     protected GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool,
                                           Settings settings) {
         super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
-        this.client = new OriginSettingClient(client, "geoip");
+        this.client = client;
         this.httpClient = httpClient;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -92,7 +92,7 @@ public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTa
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         clusterService.removeListener(this);
-        if (ENABLED_SETTING.get(event.state().getMetadata().settings())) {
+        if (event.localNodeMaster() && ENABLED_SETTING.get(event.state().getMetadata().settings())) {
             startTask(() -> clusterService.addListener(this));
         }
     }

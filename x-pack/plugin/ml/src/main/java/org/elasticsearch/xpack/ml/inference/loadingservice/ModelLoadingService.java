@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -400,7 +402,7 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getLicenseLevel(),
             modelStatsService,
             trainedModelCircuitBreaker);
-        boolean modelAcquired = false;
+        final ModelAndConsumerLoader modelAndConsumerLoader = new ModelAndConsumerLoader(new ModelAndConsumer(loadedModel, consumer));
         synchronized (loadingListeners) {
             populateNewModelAlias(modelId);
             // If the model is referenced, that means it is currently in a pipeline somewhere
@@ -408,19 +410,22 @@ public class ModelLoadingService implements ClusterStateListener {
             if (referencedModels.contains(modelId)
                 || Sets.haveNonEmptyIntersection(modelIdToModelAliases.getOrDefault(modelId, new HashSet<>()), referencedModels)
                 || consumer.equals(Consumer.SEARCH)) {
-                // temporarily increase the reference count before adding to
-                // the cache in case the model is evicted before the listeners
-                // are called in which case acquire() would throw.
-                loadedModel.acquire();
-                localModelCache.put(modelId, new ModelAndConsumer(loadedModel, consumer));
+                try {
+                    // The local model may already be in cache. If it is, we don't bother adding it to cache.
+                    // If it isn't, we flip an `isLoaded` flag, and increment the model counter to make sure if it is evicted
+                    // between now and when the listeners access it, the circuit breaker reflects actual usage.
+                    localModelCache.computeIfAbsent(modelId, modelAndConsumerLoader);
+                } catch (ExecutionException ee) {
+                    logger.warn(() -> new ParameterizedMessage("[{}] threw when attempting add to cache", modelId), ee);
+                }
                 shouldNotAudit.remove(modelId);
-                modelAcquired = true;
             }
             listeners = loadingListeners.remove(modelId);
-            // if there are no listeners, simply release and leave
+            // if there are no listeners, we should just exit
             if (listeners == null) {
-                loadedModel.release();
-                if (modelAcquired) {
+                // If we newly added it into cache, release the model so that the circuit breaker can still accurately keep track
+                // of memory
+                if(modelAndConsumerLoader.isLoaded()) {
                     loadedModel.release();
                 }
                 return;
@@ -430,9 +435,8 @@ public class ModelLoadingService implements ClusterStateListener {
             loadedModel.acquire();
             listener.onResponse(loadedModel);
         }
-        // account for the acquire in the synchronized block above
-        // We cannot simply utilize the same conditionals as `referencedModels` could have changed once we exited the synchronized block
-        if (modelAcquired) {
+        // account for the acquire in the synchronized block above if the model was loaded into the cache
+        if (modelAndConsumerLoader.isLoaded()) {
             loadedModel.release();
         }
     }
@@ -510,12 +514,13 @@ public class ModelLoadingService implements ClusterStateListener {
         Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) ?
             getReferencedModelKeys(currentIngestMetadata) :
             new HashSet<>(referencedModels);
-        Set<String> referencedModelsBeforeClusterState = null;
+        Set<String> referencedModelsBeforeClusterState;
         Set<String> loadingModelBeforeClusterState = null;
-        Set<String> removedModels = null;
+        Set<String> removedModels;
         Map<String, Set<String>> addedModelViaAliases = new HashMap<>();
+        Map<String, Set<String>> oldIdToAliases;
         synchronized (loadingListeners) {
-            Map<String, Set<String>> oldIdToAliases = new HashMap<>(modelIdToModelAliases);
+            oldIdToAliases = new HashMap<>(modelIdToModelAliases);
             Map<String, String> changedAliases = gatherLazyChangedAliasesAndUpdateModelAliases(
                 event,
                 prefetchModels,
@@ -553,6 +558,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 if (oldModelAliasesNotReferenced && newModelAliasesNotReferenced && modelIsNotReferenced) {
                     ModelAndConsumer modelAndConsumer = localModelCache.get(modelId);
                     if (modelAndConsumer != null && modelAndConsumer.consumers.contains(Consumer.SEARCH) == false) {
+                        logger.trace("[{} ({})] invalidated from cache", modelId, modelAliasOrId);
                         localModelCache.invalidate(modelId);
                     }
                 }
@@ -613,7 +619,18 @@ public class ModelLoadingService implements ClusterStateListener {
                 logger.trace("cluster state event changed referenced models: before {} after {}", referencedModelsBeforeClusterState,
                     referencedModels);
             }
-            logger.trace("adding new models via model_aliases and ids: {}", addedModelViaAliases);
+            if (oldIdToAliases.equals(modelIdToModelAliases) == false) {
+                logger.trace("model id to alias mappings changed. before {} after {}. Model alias to IDs {}",
+                    oldIdToAliases,
+                    modelIdToModelAliases,
+                    modelAliasToId);
+            }
+            if (addedModelViaAliases.isEmpty() == false) {
+                logger.trace("adding new models via model_aliases and ids: {}", addedModelViaAliases);
+            }
+            if (modelIdToUpdatedModelAliases.isEmpty() == false) {
+                logger.trace("delayed model aliases to update {}", modelIdToModelAliases);
+            }
         }
         removedModels.forEach(this::auditUnreferencedModel);
         loadModelsForPipeline(addedModelViaAliases.keySet());
@@ -739,6 +756,27 @@ public class ModelLoadingService implements ClusterStateListener {
                     return addFluently(listenerQueue, modelLoadedListener);
                 }
             });
+        }
+    }
+
+    private static class ModelAndConsumerLoader implements CacheLoader<String, ModelAndConsumer> {
+
+        private boolean loaded;
+        private final ModelAndConsumer modelAndConsumer;
+
+        ModelAndConsumerLoader(ModelAndConsumer modelAndConsumer) {
+            this.modelAndConsumer = modelAndConsumer;
+        }
+
+        boolean isLoaded() {
+            return loaded;
+        }
+
+        @Override
+        public ModelAndConsumer load(String key) throws Exception {
+            loaded = true;
+            modelAndConsumer.model.acquire();
+            return modelAndConsumer;
         }
     }
 }

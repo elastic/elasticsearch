@@ -36,7 +36,7 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
-            if (!(indexFieldData instanceof IndexHistogramFieldData)) {
+            if ((indexFieldData instanceof IndexHistogramFieldData) == false) {
                 throw new IllegalArgumentException("Expected histogram type on field [" + fieldContext.field() +
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }

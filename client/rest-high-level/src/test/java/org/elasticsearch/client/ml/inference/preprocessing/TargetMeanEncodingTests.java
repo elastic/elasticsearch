@@ -30,7 +30,7 @@ public class TargetMeanEncodingTests extends AbstractXContentTestCase<TargetMean
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override

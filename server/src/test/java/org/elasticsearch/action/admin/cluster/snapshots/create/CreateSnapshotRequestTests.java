@@ -56,6 +56,18 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
+            List<String> featureStates = new ArrayList<>();
+            int count = randomInt(3) + 1;
+
+            for (int i = 0; i < count; ++i) {
+                featureStates.add(randomAlphaOfLength(randomInt(3) + 2));
+            }
+
+            original.featureStates(featureStates);
+        }
+
+
+        if (randomBoolean()) {
             original.partial(randomBoolean());
         }
 

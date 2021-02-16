@@ -75,7 +75,7 @@ public class Matchers {
 
         @Override
         public boolean matches(T t) {
-            return !delegate.matches(t);
+            return delegate.matches(t) == false;
         }
 
         @Override

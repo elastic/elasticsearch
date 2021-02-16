@@ -57,17 +57,21 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_age", "10d")
                     .field("max_docs", 100)
                     .field("max_size", "45gb")
+                    .field("max_single_primary_size", "55gb")
                 .endObject()
             .endObject();
         request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
-        assertThat(conditions.size(), equalTo(3));
+        assertThat(conditions.size(), equalTo(4));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
         MaxDocsCondition maxDocsCondition = (MaxDocsCondition)conditions.get(MaxDocsCondition.NAME);
         assertThat(maxDocsCondition.value, equalTo(100L));
         MaxSizeCondition maxSizeCondition = (MaxSizeCondition)conditions.get(MaxSizeCondition.NAME);
         assertThat(maxSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(45)));
+        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
+            (MaxSinglePrimarySizeCondition)conditions.get(MaxSinglePrimarySizeCondition.NAME);
+        assertThat(maxSinglePrimarySizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(55)));
     }
 
     public void testParsingWithIndexSettings() throws Exception {

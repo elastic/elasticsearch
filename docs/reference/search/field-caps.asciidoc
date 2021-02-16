@@ -26,6 +26,12 @@ GET /_field_caps?fields=rating
 
 `POST /<target>/_field_caps?fields=<fields>`
 
+[[search-field-caps-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata`, `read`, or `manage` <<privileges-list-indices,index
+privilege>> for the target data stream, index, or index alias.
 
 [[search-field-caps-api-desc]]
 ==== {api-description-title}
@@ -81,6 +87,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 `index_filter`::
 (Optional,  <<query-dsl,query object>> Allows to filter indices if the provided
 query rewrites to `match_none` on every shard.
+
+`runtime_mappings`::
+(Optional, object)
+Defines ad-hoc <<runtime-search-request,runtime fields>> in the request similar
+to the way it is done in <<search-api-body-runtime, search requests>>. These fields
+exist only as part of the query and take precedence over fields defined with the
+same name in the index mappings.
 
 [[search-field-caps-api-response-body]]
 ==== {api-response-body-title}

@@ -2744,7 +2744,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
-        responseListener.whenComplete(future::onResponse, future::onFailure);
+        responseListener.addListener(future);
         return future;
     }
 }

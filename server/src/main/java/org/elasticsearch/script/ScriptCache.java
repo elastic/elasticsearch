@@ -158,7 +158,7 @@ public class ScriptCache {
             }
         });
 
-        if(!tokenBucketState.tokenSuccessfullyTaken) {
+        if (tokenBucketState.tokenSuccessfullyTaken == false) {
             scriptMetrics.onCompilationLimit();
             // Otherwise reject the request
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +

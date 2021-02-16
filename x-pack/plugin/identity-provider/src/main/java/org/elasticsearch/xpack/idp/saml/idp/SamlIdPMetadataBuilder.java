@@ -197,7 +197,7 @@ public class SamlIdPMetadataBuilder {
     }
 
     private List<NameIDFormat> buildNameIDFormats() {
-        List<NameIDFormat> formats = new ArrayList();
+        List<NameIDFormat> formats = new ArrayList<>();
         if (nameIdFormats.isEmpty()) {
             throw new IllegalStateException("NameID format has not been specified");
         }

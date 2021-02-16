@@ -168,6 +168,161 @@ a specific order. See the mapping documentation on <<array, arrays>> for more
 background.
 
 [discrete]
+[[search-fields-nested]]
+==== Handling of nested fields
+
+The `fields` response for <<nested,`nested` fields>> is slightly different from that
+of regular object fields. While leaf values inside regular `object` fields are
+returned as a flat list, values inside `nested` fields are grouped to maintain the
+independence of each object inside the original nested array.
+For each entry inside a nested field array, values are again returned as a flat list
+unless there are other `nested` fields inside the parent nested object, in which case
+the same procedure is repeated again for the deeper nested fields.
+
+Given the following mapping where `user` is a nested field, after indexing
+the following document and retrieving all fields under the `user` field:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "group" : { "type" : "keyword" },
+      "user": {
+        "type": "nested",
+        "properties": {
+          "first" : { "type" : "keyword" },
+          "last" : { "type" : "keyword" }
+        }
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1?refresh=true
+{
+  "group" : "fans",
+  "user" : [
+    {
+      "first" : "John",
+      "last" :  "Smith"
+    },
+    {
+      "first" : "Alice",
+      "last" :  "White"
+    }
+  ]
+}
+
+POST my-index-000001/_search
+{
+  "fields": ["*"],
+  "_source": false
+}
+--------------------------------------------------
+
+the response will group `first` and `last` name instead of
+returning them as a flat list.
+
+[source,console-result]
+----
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [{
+      "_index": "my-index-000001",
+      "_id": "1",
+      "_score": 1.0,
+      "fields": {
+        "group" : ["fans"],
+        "user": [{
+            "first": ["John"],
+            "last": ["Smith"],
+          },
+          {
+            "first": ["Alice"],
+            "last": ["White"],
+          }
+        ]
+      }
+    }]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+
+Nested fields will be grouped by their nested paths, no matter the pattern used to retrieve them.
+For example, querying only for the `user.first` field in the example above:
+
+[source,console]
+--------------------------------------------------
+POST my-index-000001/_search
+{
+  "fields": ["user.first"],
+  "_source": false
+}
+--------------------------------------------------
+// TEST[continued]
+
+will return only the users first name but still maintain the structure of the nested `user` array:
+
+[source,console-result]
+----
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [{
+      "_index": "my-index-000001",
+      "_id": "1",
+      "_score": 1.0,
+      "fields": {
+        "user": [{
+            "first": ["John"],
+          },
+          {
+            "first": ["Alice"],
+          }
+        ]
+      }
+    }]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+
+However, when the `fields` pattern targets the nested `user` field directly, no
+values will be returned since the pattern doesn't match any leaf fields.
+
+[discrete]
 [[retrieve-unmapped-fields]]
 ==== Retrieving unmapped fields
 

@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -43,16 +44,24 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
+    private static final ParseField MAX_SINGLE_PRIMARY_SIZE_CONDITION = new ParseField(MaxSinglePrimarySizeCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxAgeCondition.NAME, new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
-                MAX_AGE_CONDITION);
+                conditions.put(MaxAgeCondition.NAME,
+                    new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
+            MAX_AGE_CONDITION);
         CONDITION_PARSER.declareLong((conditions, value) ->
-                conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
+            conditions.put(MaxDocsCondition.NAME,
+                new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
         CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxSizeCondition.NAME, new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
-                MAX_SIZE_CONDITION);
+                conditions.put(MaxSizeCondition.NAME,
+                    new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
+            MAX_SIZE_CONDITION);
+        CONDITION_PARSER.declareString((conditions, s) ->
+                conditions.put(MaxSinglePrimarySizeCondition.NAME,
+                    new MaxSinglePrimarySizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSinglePrimarySizeCondition.NAME))),
+            MAX_SINGLE_PRIMARY_SIZE_CONDITION);
 
         PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
             CONDITIONS, ObjectParser.ValueType.OBJECT);
@@ -112,7 +121,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeString(rolloverTarget);
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
-        out.writeCollection(conditions.values(), StreamOutput::writeNamedWriteable);
+        out.writeCollection(
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).collect(Collectors.toList()),
+            StreamOutput::writeNamedWriteable);
         createIndexRequest.writeTo(out);
     }
 
@@ -144,6 +155,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;
     }
+
     /**
      * Sets if the rollover should not be executed when conditions are met
      */
@@ -191,6 +203,16 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.conditions.put(maxSizeCondition.name, maxSizeCondition);
     }
 
+    /**
+     * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
+     */
+    public void addMaxSinglePrimarySizeCondition(ByteSizeValue size) {
+        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(size);
+        if (this.conditions.containsKey(maxSinglePrimarySizeCondition.name)) {
+            throw new IllegalArgumentException(maxSinglePrimarySizeCondition + " condition is already set");
+        }
+        this.conditions.put(maxSinglePrimarySizeCondition.name, maxSinglePrimarySizeCondition);
+    }
 
     public boolean isDryRun() {
         return dryRun;

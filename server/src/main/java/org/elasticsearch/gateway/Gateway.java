@@ -77,7 +77,7 @@ public class Gateway {
         // update the global state, and clean the indices, we elect them in the next phase
         final Metadata.Builder metadataBuilder = Metadata.builder(electedGlobalState).removeAllIndices();
 
-        assert !indices.containsKey(null);
+        assert indices.containsKey(null) == false;
         final Object[] keys = indices.keys;
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] != null) {

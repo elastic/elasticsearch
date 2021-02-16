@@ -1,7 +1,7 @@
 Contributing to elasticsearch
 =============================
 
-Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
 If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
 make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
@@ -174,17 +174,26 @@ manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
    1. Open **Preferences > Tools > Checkstyle**
-   2. Change the "Scan Scope" to "Only Java sources (including tests)"
-   3. Check the "+" under "Configuration file"
-   4. Set "Description" to "Elasticsearch" (or whatever you want)
-   5. Select "Use a local Checkstyle file"
-   6. For the "File", enter `checkstyle_ide.xml`
-   7. Tick "Store relative to project location"
-   8. Click "Next", then "Finish".
-   9. Click the box next to the new configuration to make it "Active". Without doing this,
-      you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
-      tool window and run the check manually. You can still do this with an active config.
-   10. Click "OK" to apply the new preferences
+   2. We have some custom Checkstyle rules, and the Checkstyle plugin needs
+      to know where to find them. Under the "Third-Party Checks" section,
+      click the "+" button.
+   3. Select `buildSrc/build-bootstrap/libs/buildSrc-$VERSION.jar` where
+      `$VERSION` is something like `7.0.0-SNAPSHOT`. This jar file will
+      always exist if you imported the project into IntelliJ before
+      configuring Checkstyle.
+   4. Make sure that "Checkstyle version" is set to the highest available version
+   5. Change the "Scan Scope" to "Only Java sources (including tests)"
+   6. Click the "+" under "Configuration file"
+   7. Set "Description" to "Elasticsearch"
+   8. Select "Use a local Checkstyle file"
+   9. For the "File", enter `checkstyle_ide.xml`
+   10. Tick "Store relative to project location"
+   11. Click "Next", then "Finish".
+   12. Click the box next to the new configuration to make it "Active".
+       Without doing this, you'll have to explicitly choose the
+       "Elasticsearch" configuration in the Checkstyle tool window and run
+       the check manually.
+   13. Click "OK" to apply the new preferences
 
 #### Formatting
 
@@ -197,7 +206,8 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
    4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
-   5. Click "OK"
+   5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
+   6. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
@@ -313,10 +323,10 @@ Please follow these formatting guidelines:
   decrease in consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use
-  the form `foo == false` instead of `!foo` for better readability of the
-  code. While this isn't strictly enforced, if might get called out in PR
-  reviews as something to change.
+* Negative boolean expressions must use the form `foo == false` instead of
+  `!foo` for better readability of the code. This is enforced via
+  Checkstyle. Conversely, you should not write e.g. `if (foo == true)`, but
+  just `if (foo)`.
 
 #### Editor / IDE Support
 

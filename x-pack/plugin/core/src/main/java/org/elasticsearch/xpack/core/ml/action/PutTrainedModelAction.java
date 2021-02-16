@@ -38,7 +38,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
 
             if (builder.getModelId() == null) {
                 builder.setModelId(modelId).build();
-            } else if (!Strings.isNullOrEmpty(modelId) && !modelId.equals(builder.getModelId())) {
+            } else if (Strings.isNullOrEmpty(modelId) == false && modelId.equals(builder.getModelId()) == false) {
                 // If we have model_id in both URI and body, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID,
                     TrainedModelConfig.MODEL_ID.getPreferredName(),

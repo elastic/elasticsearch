@@ -12,5 +12,5 @@ archivesBaseName = 'x-pack-vectors'
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
-testImplementation(testArtifact(project(xpackModule('core'))))}
-
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}

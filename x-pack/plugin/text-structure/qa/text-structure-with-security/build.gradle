@@ -1,7 +1,6 @@
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(path: xpackModule('core'))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
   yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
 }

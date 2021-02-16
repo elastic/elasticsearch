@@ -1,7 +1,8 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('security'))))}
+  testImplementation(testArtifact(project(xpackModule('security'))))
+}
 
 tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'

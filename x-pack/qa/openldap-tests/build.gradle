@@ -2,7 +2,6 @@ apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

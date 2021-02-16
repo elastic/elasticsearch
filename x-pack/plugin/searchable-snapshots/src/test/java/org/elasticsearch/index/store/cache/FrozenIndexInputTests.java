@@ -10,6 +10,7 @@ package org.elasticsearch.index.store.cache;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -45,12 +45,15 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testRandomReads() throws IOException {
         final String fileName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        final byte[] fileData = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+        final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
+
+        final byte[] fileData = bytes.v2();
+        final String checksum = bytes.v1();
 
         final Path tempDir = createTempDir().resolve(SHARD_ID.getIndex().getUUID()).resolve(String.valueOf(SHARD_ID.getId()));
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(10),
-            new StoreFileMetadata(fileName, fileData.length, "_na", Version.CURRENT.luceneVersion),
+            new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion),
             new ByteSizeValue(fileData.length)
         );
 
@@ -100,7 +103,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         ) {
             directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
 
-            // TODO does not test the checksum shortcut, does not test using the recovery range size
+            // TODO does not test using the recovery range size
             final IndexInput indexInput = directory.openInput(fileName, newIOContext(random()));
             assertThat(indexInput, instanceOf(FrozenIndexInput.class));
             assertEquals(fileData.length, indexInput.length());

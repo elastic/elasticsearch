@@ -131,4 +131,8 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
         return name.startsWith("segments_") == false || Arrays.stream(realDirectory.listAll()).noneMatch(s -> s.equals(name));
     }
 
+    @Override
+    public String toString() {
+        return "InMemoryNoOpCommitDirectory(" + "real=" + realDirectory + ", delegate=" + in + '}';
+    }
 }

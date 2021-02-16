@@ -14,7 +14,9 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,6 +24,12 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesSegmentsAction extends BaseRestHandler {
+
+    private final ThreadPool threadPool;
+
+    public RestIndicesSegmentsAction(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     @Override
     public List<Route> routes() {
@@ -41,6 +49,8 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
                 Strings.splitStringByCommaToArray(request.param("index")));
         indicesSegmentsRequest.verbose(request.paramAsBoolean("verbose", false));
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
-        return channel -> client.admin().indices().segments(indicesSegmentsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().indices().segments(
+                indicesSegmentsRequest,
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request));
     }
 }

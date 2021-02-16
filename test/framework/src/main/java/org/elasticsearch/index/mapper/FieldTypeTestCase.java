@@ -56,7 +56,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, Collections.singletonList(values)));
+        lookup.setSource(Collections.singletonMap(field, org.elasticsearch.common.collect.List.of(values)));
         return fetcher.fetchValues(lookup);
     }
 }

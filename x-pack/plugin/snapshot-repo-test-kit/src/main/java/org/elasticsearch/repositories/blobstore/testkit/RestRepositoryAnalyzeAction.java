@@ -8,8 +8,10 @@
 package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
@@ -54,7 +56,13 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
         return channel -> cancelClient.execute(
             RepositoryAnalyzeAction.INSTANCE,
             analyzeRepositoryRequest,
-            new RestStatusToXContentListener<>(channel)
+            new RestStatusToXContentListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(RepositoryAnalyzeAction.Response response, XContentBuilder builder) throws Exception {
+                    builder.humanReadable(request.paramAsBoolean("human", true));
+                    return super.buildResponse(response, builder);
+                }
+            }
         );
     }
 }

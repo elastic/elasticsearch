@@ -15,11 +15,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -45,5 +48,15 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new RestRepositoryAnalyzeAction());
+    }
+
+    static void humanReadableNanos(XContentBuilder builder, String rawFieldName, String readableFieldName, long nanos) throws IOException {
+        assert rawFieldName.equals(readableFieldName) == false : rawFieldName + " vs " + readableFieldName;
+
+        if (builder.humanReadable()) {
+            builder.field(readableFieldName, TimeValue.timeValueNanos(nanos).toHumanReadableString(2));
+        }
+
+        builder.field(rawFieldName, nanos);
     }
 }

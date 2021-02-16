@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,6 +56,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
 /**
  * Action which instructs a node to write a blob to the blob store and verify that it can be read correctly by other nodes. The other nodes
@@ -807,7 +810,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
             builder.startObject("blob");
             builder.field("name", blobName);
-            builder.field("size", blobLength);
+            builder.humanReadableField("size_bytes", "size", new ByteSizeValue(blobLength));
             builder.field("read_start", checksumStart);
             builder.field("read_end", checksumEnd);
             builder.field("read_early", readEarly);
@@ -819,11 +822,11 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             builder.field("name", nodeName);
             builder.endObject();
 
-            builder.field("write_elapsed_nanos", writeElapsedNanos);
+            humanReadableNanos(builder, "write_elapsed_nanos", "write_elapsed", writeElapsedNanos);
             if (overwrite) {
-                builder.field("overwrite_elapsed_nanos", overwriteElapsedNanos);
+                humanReadableNanos(builder, "overwrite_elapsed_nanos", "overwrite_elapsed", overwriteElapsedNanos);
             }
-            builder.field("write_throttled_nanos", writeThrottledNanos);
+            humanReadableNanos(builder, "write_throttled_nanos", "write_throttled", writeThrottledNanos);
 
             builder.startArray("reads");
             for (ReadDetail readDetail : readDetails) {
@@ -922,9 +925,9 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 builder.field("found", false);
             } else {
                 builder.field("found", true);
-                builder.field("first_byte_nanos", firstByteNanos);
-                builder.field("elapsed_nanos", elapsedNanos);
-                builder.field("throttled_nanos", throttleNanos);
+                humanReadableNanos(builder, "first_byte_time_nanos", "first_byte_time", firstByteNanos);
+                humanReadableNanos(builder, "elapsed_nanos", "elapsed", elapsedNanos);
+                humanReadableNanos(builder, "throttled_nanos", "throttled", throttleNanos);
             }
 
             builder.endObject();

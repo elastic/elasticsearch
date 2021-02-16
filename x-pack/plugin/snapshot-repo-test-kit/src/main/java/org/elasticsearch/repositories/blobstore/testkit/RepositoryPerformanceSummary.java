@@ -10,12 +10,15 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
+
+import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
 public class RepositoryPerformanceSummary implements Writeable, ToXContentFragment {
 
@@ -87,18 +90,18 @@ public class RepositoryPerformanceSummary implements Writeable, ToXContentFragme
 
         builder.startObject("write");
         builder.field("count", writeCount);
-        builder.field("total_bytes", writeBytes);
-        builder.field("total_throttled_nanos", writeThrottledNanos);
-        builder.field("total_elapsed_nanos", writeElapsedNanos);
+        builder.humanReadableField("total_size_bytes", "total_size", new ByteSizeValue(writeBytes));
+        humanReadableNanos(builder, "total_throttled_nanos", "total_throttled", writeThrottledNanos);
+        humanReadableNanos(builder, "total_elapsed_nanos", "total_elapsed", writeElapsedNanos);
         builder.endObject();
 
         builder.startObject("read");
         builder.field("count", readCount);
-        builder.field("total_bytes", readBytes);
-        builder.field("total_wait_nanos", readWaitNanos);
-        builder.field("max_wait_nanos", maxReadWaitNanos);
-        builder.field("total_throttled_nanos", readThrottledNanos);
-        builder.field("total_elapsed_nanos", readElapsedNanos);
+        builder.humanReadableField("total_size_bytes", "total_size", new ByteSizeValue(readBytes));
+        humanReadableNanos(builder, "total_wait_nanos", "total_wait", readWaitNanos);
+        humanReadableNanos(builder, "max_wait_nanos", "max_wait", maxReadWaitNanos);
+        humanReadableNanos(builder, "total_throttled_nanos", "total_throttled", readThrottledNanos);
+        humanReadableNanos(builder, "total_elapsed_nanos", "total_elapsed", readElapsedNanos);
         builder.endObject();
 
         builder.endObject();

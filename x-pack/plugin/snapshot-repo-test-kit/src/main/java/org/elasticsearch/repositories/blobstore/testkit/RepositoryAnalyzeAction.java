@@ -70,6 +70,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
+
 /**
  * Action which distributes a bunch of {@link BlobAnalyzeAction}s over the nodes in the cluster, with limited concurrency, and collects
  * the results. Tries to fail fast by cancelling everything if any child task fails, or the timeout is reached, to avoid consuming
@@ -982,8 +984,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             builder.field("concurrency", concurrency);
             builder.field("read_node_count", readNodeCount);
             builder.field("early_read_node_count", earlyReadNodeCount);
-            builder.field("max_blob_size", maxBlobSize);
-            builder.field("max_total_data_size", maxTotalDataSize);
+            builder.humanReadableField("max_blob_size_bytes", "max_blob_size", maxBlobSize);
+            builder.humanReadableField("max_total_data_size_bytes", "max_total_data_size", maxTotalDataSize);
             builder.field("seed", seed);
             builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);
@@ -1003,8 +1005,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 builder.endArray();
             }
 
-            builder.field("listing_nanos", listingTimeNanos);
-            builder.field("delete_nanos", deleteTimeNanos);
+            humanReadableNanos(builder, "listing_elapsed_nanos", "listing_elapsed", listingTimeNanos);
+            humanReadableNanos(builder, "delete_elapsed_nanos", "delete_elapsed", deleteTimeNanos);
 
             builder.endObject();
             return builder;

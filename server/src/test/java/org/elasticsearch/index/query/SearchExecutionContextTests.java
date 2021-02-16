@@ -365,7 +365,8 @@ public class SearchExecutionContextTests extends ESTestCase {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createSearchExecutionContext(
             "uuid",
             null,
-            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+            createMappingLookup(org.elasticsearch.common.collect.List.of(
+                new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), Collections.emptyList()),
             runtimeMappings,
             Collections.singletonList(new TestRuntimeField.Plugin())));
         assertEquals("Expected map for runtime field [field] definition but got a java.util.Arrays$ArrayList", exception.getMessage());
@@ -377,7 +378,9 @@ public class SearchExecutionContextTests extends ESTestCase {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createSearchExecutionContext(
             "uuid",
             null,
-            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+            createMappingLookup(org.elasticsearch.common.collect.List.of(
+                new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                Collections.emptyList()),
             runtimeMappings,
             Collections.singletonList(new TestRuntimeField.Plugin())));
         assertEquals("Runtime field [field] was set to null but its removal is not supported in this context", exception.getMessage());

@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -38,8 +40,9 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -122,7 +125,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         // <4> We have unassigned the tasks, respond to the listener.
-        ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(
+        ActionListener<Collection<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(
             unassignedPersistentTasks -> {
                 // Wait for our tasks to all stop
                 client.admin()
@@ -154,7 +157,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         );
 
         // <3> After isolating the datafeeds, unassign the tasks
-        ActionListener<List<IsolateDatafeedAction.Response>> isolateDatafeedListener = ActionListener.wrap(
+        ActionListener<Collection<IsolateDatafeedAction.Response>> isolateDatafeedListener = ActionListener.wrap(
             isolatedDatafeeds -> {
                 logger.info("Isolated the datafeeds");
                 unassignPersistentTasks(tasksCustomMetadata, unassignPersistentTasksListener);
@@ -235,7 +238,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
                 }
 
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public ClusterState execute(ClusterState currentState) {
                     logger.trace("Executing cluster state update");
                     MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().custom(MlMetadata.TYPE));
                     builder.isUpgradeMode(request.isEnabled());
@@ -265,7 +268,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
      * @param listener            Alerted when tasks are unassignd
      */
     private void unassignPersistentTasks(PersistentTasksCustomMetadata tasksCustomMetadata,
-                                         ActionListener<List<PersistentTask<?>>> listener) {
+                                         ActionListener<Collection<PersistentTask<?>>> listener) {
         List<PersistentTask<?>> mlTasks = tasksCustomMetadata
             .tasks()
             .stream()
@@ -274,45 +277,54 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             // However, the order in which the distributed tasks handle the un-allocation event is not guaranteed.
             .sorted(Comparator.comparing(PersistentTask::getTaskName))
             .collect(Collectors.toList());
+        logger.info(
+            "Un-assigning persistent tasks: {}",
+            mlTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]"))
+        );
+        if (mlTasks.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
 
-        logger.info("Un-assigning persistent tasks : " +
-            mlTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]")));
-
-        TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor =
-            new TypedChainTaskExecutor<>(client.threadPool().executor(executor),
-                r -> true,
-                // Another process could modify tasks and thus we cannot find them via the allocation_id and name
-                // If the task was removed from the node, all is well
-                // We handle the case of allocation_id changing later in this transport class by timing out waiting for task completion
-                // Consequently, if the exception is ResourceNotFoundException, continue execution; circuit break otherwise.
-                ex -> ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException == false);
+        GroupedActionListener<PersistentTask<?>> groupedActionListener = new GroupedActionListener<>(listener, mlTasks.size());
 
         for (PersistentTask<?> task : mlTasks) {
-            chainTaskExecutor.add(
-                chainedTask -> persistentTasksClusterService.unassignPersistentTask(task.getId(),
-                    task.getAllocationId(),
-                    AWAITING_UPGRADE.getExplanation(),
-                    chainedTask)
-            );
+            persistentTasksClusterService.unassignPersistentTask(task.getId(),
+                task.getAllocationId(),
+                AWAITING_UPGRADE.getExplanation(),
+                ActionListener.wrap(groupedActionListener::onResponse, e -> {
+                    logger.debug(() -> new ParameterizedMessage(
+                        "failed to isolate task [{}] with allocation id [{}] and name [{}]",
+                        task.getId(),
+                        task.getAllocationId(),
+                        task.getTaskName()
+                    ), e);
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                        groupedActionListener.onResponse(task);
+                    } else {
+                        groupedActionListener.onFailure(e);
+                    }
+                }));
         }
-        chainTaskExecutor.execute(listener);
     }
 
     private void isolateDatafeeds(PersistentTasksCustomMetadata tasksCustomMetadata,
-                                  ActionListener<List<IsolateDatafeedAction.Response>> listener) {
+                                  ActionListener<Collection<IsolateDatafeedAction.Response>> listener) {
         Set<String> datafeedsToIsolate = MlTasks.startedDatafeedIds(tasksCustomMetadata);
+        logger.info("Isolating datafeeds: {}", datafeedsToIsolate.toString());
+        if (datafeedsToIsolate.isEmpty()) {
+            listener.onResponse(Collections.emptyList());
+            return;
+        }
 
-        logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
-        TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor =
-            new TypedChainTaskExecutor<>(client.threadPool().executor(executor), r -> true, ex -> true);
+        GroupedActionListener<IsolateDatafeedAction.Response> groupedActionListener = new GroupedActionListener<>(
+            listener,
+            datafeedsToIsolate.size()
+        );
 
         datafeedsToIsolate.forEach(datafeedId -> {
             IsolateDatafeedAction.Request isolationRequest = new IsolateDatafeedAction.Request(datafeedId);
-            isolateDatafeedsExecutor.add(isolateListener ->
-                executeAsyncWithOrigin(client, ML_ORIGIN, IsolateDatafeedAction.INSTANCE, isolationRequest, isolateListener)
-            );
+            executeAsyncWithOrigin(client, ML_ORIGIN, IsolateDatafeedAction.INSTANCE, isolationRequest, groupedActionListener);
         });
-
-        isolateDatafeedsExecutor.execute(listener);
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -96,6 +97,7 @@ public class RestCancellableNodeClient extends FilterClient {
                     }
                 }
             });
+        assert task instanceof CancellableTask : action.name() + " is not cancellable";
         final TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
         closeListener.registerTask(taskHolder, taskId);
         closeListener.maybeRegisterChannel(httpChannel);

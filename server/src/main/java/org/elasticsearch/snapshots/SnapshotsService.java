@@ -127,7 +127,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final Version REPOSITORY_UUID_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
     // TODO: fold this into #REPOSITORY_UUID_IN_REPO_DATA_VERSION and remove separate handling of uuid and clusterUUID BwC where possible
-    public static final Version CLUSTER_UUID_IN_REPO_DATA_VERSION = Version.V_8_0_0;
+    public static final Version CLUSTER_UUID_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 

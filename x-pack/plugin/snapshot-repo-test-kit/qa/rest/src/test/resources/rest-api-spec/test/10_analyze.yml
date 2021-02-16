@@ -21,8 +21,8 @@ setup:
 ---
 "Analysis fails on readonly repositories":
   - skip:
-      version: "- 7.99.99"
-      reason: "introduced in 8.0"
+      version: "- 7.11.99"
+      reason: "introduced in 7.12"
 
   - do:
       catch: bad_request
@@ -37,8 +37,8 @@ setup:
 ---
 "Analysis without details":
   - skip:
-      version: "- 7.99.99"
-      reason: "introduced in 8.0"
+      version: "- 7.11.99"
+      reason: "introduced in 7.12"
 
   - do:
       snapshot.repository_analyze:
@@ -92,8 +92,8 @@ setup:
 ---
 "Analysis with details":
   - skip:
-      version: "- 7.99.99"
-      reason: "introduced in 8.0"
+      version: "- 7.11.99"
+      reason: "introduced in 7.12"
 
   - do:
       snapshot.repository_analyze:
@@ -123,8 +123,8 @@ setup:
 ---
 "Analysis with ?human=false":
   - skip:
-      version: "- 7.99.99"
-      reason: "introduced in 8.0"
+      version: "- 7.11.99"
+      reason: "introduced in 7.12"
 
   - do:
       snapshot.repository_analyze:

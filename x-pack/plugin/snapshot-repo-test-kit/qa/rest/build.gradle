@@ -1,0 +1,27 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(path: xpackModule('snapshot-repo-test-kit'), configuration: 'testArtifacts')
+}
+
+// TODO we want 3rd-party tests for other repository types too
+final File repoDir = file("$buildDir/testclusters/repo")
+
+tasks.named("integTest").configure {
+  systemProperty 'tests.path.repo', repoDir
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'path.repo', repoDir.absolutePath
+}
+
+restResources {
+  restApi {
+    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
+    includeXpack 'snapshot_repo_test_kit'
+  }
+}

@@ -38,6 +38,7 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -55,12 +56,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class);
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
-    private static final Map<String, String> headers = Map.of(
-        "Content-Type",
-        "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION,
-        "Accept",
-        "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION
-    );
+    private static final Map<String, String> headers = new LinkedHashMap<>();
 
     private FileCollection input;
     private File output;
@@ -72,6 +68,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers
+        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
+        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
         transformations.add(new InjectHeaders(headers));
     }
 

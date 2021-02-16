@@ -176,13 +176,13 @@ my_field regex~ "value[^z].?"   // case-insensitive regex matching
 ----
 
 `like` (case-sensitive)::
-Returns `true` if the string to the left of the operator matches a
+Returns `true` if the string to the left of the keyword matches a
 <<eql-syntax-wildcards,wildcard pattern>> to the right. Supports
 <<eql-syntax-lookup-operators,list lookups>>. Can only be used to compare
 strings. For case-insensitive matching, use `like~`.
 
 `regex` (case-sensitive)::
-Returns `true` if the string to the left of the operator matches a regular
+Returns `true` if the string to the left of the keyword matches a regular
 expression to the right. For supported regular expression syntax, see
 <<regexp-syntax>>. Supports <<eql-syntax-lookup-operators,list lookups>>. Can
 only be used to compare strings. For case-insensitive matching, use `regex~`.
@@ -428,9 +428,9 @@ use a regular string with the `\"` escape sequence.
 [[eql-syntax-wildcards]]
 === Wildcards
 
-For string comparisons using the `:` or `like` operator, you can use the `*` and
-`?` wildcards to match specific patterns. The `*` wildcard matches zero or more
-characters:
+For string comparisons using the `:` operator or `like` keyword, you can use the
+`*` and `?` wildcards to match specific patterns. The `*` wildcard matches zero
+or more characters:
 
 [source,eql]
 ----
@@ -454,7 +454,7 @@ my_field like "DOC?"  // Matches "DOCS" or "DOCs" but not "DOC", "DOCUMENT", or 
 my_field like "D?c"   // Matches "DOC" but not "DISC"
 ----
 
-The `:` and `like` operators also support wildcards in
+The `:` operator and `like` keyword also support wildcards in
 <<eql-syntax-lookup-operators,list lookups>>:
 
 [source,eql]

@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -46,6 +47,8 @@ import java.util.stream.StreamSupport;
 public class Realms implements Iterable<Realm> {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
+    private static final int REALM_ORDER_LOWER_BOUND = Integer.MIN_VALUE + 2;
+    private static final int REALM_ORDER_UPPER_BOUND = Integer.MAX_VALUE - 2;
 
     private final Settings settings;
     private final Environment env;
@@ -54,6 +57,7 @@ public class Realms implements Iterable<Realm> {
     private final ThreadContext threadContext;
     private final ReservedRealm reservedRealm;
 
+    private final Set<String> disabledNativeRealmTypes;
     protected List<Realm> realms;
     // a list of realms that are considered standard in that they are provided by x-pack and
     // interact with a 3rd party source on a limited basis
@@ -70,7 +74,9 @@ public class Realms implements Iterable<Realm> {
         this.threadContext = threadContext;
         this.reservedRealm = reservedRealm;
         assert factories.get(ReservedRealm.TYPE) == null;
-        this.realms = initRealms();
+        final List<RealmConfig> realmConfigs = buildRealmConfigs();
+        disabledNativeRealmTypes = findDisabledNativeRealmTypes(realmConfigs);
+        this.realms = initRealms(realmConfigs);
         // pre-computing a list of internal only realms allows us to have much cheaper iteration than a custom iterator
         // and is also simpler in terms of logic. These lists are small, so the duplication should not be a real issue here
         List<Realm> standardRealms = new ArrayList<>();
@@ -164,41 +170,25 @@ public class Realms implements Iterable<Realm> {
         return factories.get(type);
     }
 
-    protected List<Realm> initRealms() throws Exception {
-        Map<RealmConfig.RealmIdentifier, Settings> realmsSettings = RealmSettings.getRealmSettings(settings);
-        Set<String> internalTypes = new HashSet<>();
+    protected List<Realm> initRealms(List<RealmConfig> realmConfigs) throws Exception {
         List<Realm> realms = new ArrayList<>();
-        List<String> kerberosRealmNames = new ArrayList<>();
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         Map<Integer, Set<String>> orderToRealmName = new HashMap<>();
-        for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
-            Realm.Factory factory = factories.get(identifier.getType());
-            if (factory == null) {
-                throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
-            }
-            RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
+        for (RealmConfig config: realmConfigs) {
+            Realm.Factory factory = factories.get(config.identifier().getType());
+            assert factory != null : "unknown realm type [" + config.identifier().getType() + "]";
             if (config.enabled() == false) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("realm [{}] is disabled", identifier);
+                    logger.debug("realm [{}] is disabled", config.identifier());
                 }
                 continue;
             }
-            if (FileRealmSettings.TYPE.equals(identifier.getType()) || NativeRealmSettings.TYPE.equals(identifier.getType())) {
-                // this is an internal realm factory, let's make sure we didn't already registered one
-                // (there can only be one instance of an internal realm)
-                if (internalTypes.contains(identifier.getType())) {
-                    throw new IllegalArgumentException("multiple [" + identifier.getType() + "] realms are configured. ["
-                            + identifier.getType() + "] is an internal realm and therefore there can only be one such realm configured");
-                }
-                internalTypes.add(identifier.getType());
-            }
-            if (KerberosRealmSettings.TYPE.equals(identifier.getType())) {
-                kerberosRealmNames.add(identifier.getName());
-                if (kerberosRealmNames.size() > 1) {
-                    throw new IllegalArgumentException("multiple realms " + kerberosRealmNames.toString() + " configured of type ["
-                        + identifier.getType() + "], [" + identifier.getType() + "] can only have one such realm " +
-                        "configured");
-                }
+            // Ensure we always have some values reserved at each end of integer's range
+            // so they can be used for adding file and native realms
+            if (config.order() <= REALM_ORDER_LOWER_BOUND || config.order() >= REALM_ORDER_UPPER_BOUND) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT,
+                    "realm order value must be greater than [%s] and smaller than [%s], but got [%s] for [%s]",
+                    REALM_ORDER_LOWER_BOUND, REALM_ORDER_UPPER_BOUND, config.order(), config.identifier()));
             }
             Realm realm = factory.create(config);
             nameToRealmIdentifier.computeIfAbsent(realm.name(), k ->
@@ -210,12 +200,9 @@ public class Realms implements Iterable<Realm> {
 
         checkUniqueOrders(orderToRealmName);
 
-        if (realms.isEmpty() == false) {
-            Collections.sort(realms);
-        } else {
-            // there is no "realms" configuration, add the defaults
-            addNativeRealms(realms);
-        }
+        addNativeRealms(realms);
+        Collections.sort(realms);
+
         // always add built in first!
         realms.add(0, reservedRealm);
         String duplicateRealms = nameToRealmIdentifier.entrySet().stream()
@@ -291,21 +278,24 @@ public class Realms implements Iterable<Realm> {
     }
 
     private void addNativeRealms(List<Realm> realms) throws Exception {
-        Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
-        if (fileRealm != null) {
-            var realmIdentifier = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
-            realms.add(fileRealm.create(new RealmConfig(
-                realmIdentifier,
-                ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 1),
-                env, threadContext)));
-        }
-        Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
-        if (indexRealmFactory != null) {
-            var realmIdentifier = new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
-            realms.add(indexRealmFactory.create(new RealmConfig(
-                realmIdentifier,
-                ensureOrderSetting(settings, realmIdentifier, Integer.MIN_VALUE + 2),
-                env, threadContext)));
+        final boolean noRealmConfigured = realms.isEmpty();
+        int realmOrder = noRealmConfigured ? REALM_ORDER_LOWER_BOUND - 1 : REALM_ORDER_UPPER_BOUND;
+        addUnconfiguredRealmIfNecessary(realms, FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME, realmOrder);
+
+        realmOrder += 1;
+        addUnconfiguredRealmIfNecessary(realms, NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME, realmOrder);
+    }
+
+    private void addUnconfiguredRealmIfNecessary(List<Realm> realms, String type, String name, int order) throws Exception {
+        if (false == disabledNativeRealmTypes.contains(type) && false == realms.stream().anyMatch(r -> type.equals(r.type()))) {
+            Realm.Factory factory = factories.get(FileRealmSettings.TYPE);
+            if (factory != null) {
+                var realmIdentifier = new RealmConfig.RealmIdentifier(type, name);
+                realms.add(factory.create(new RealmConfig(
+                    realmIdentifier,
+                    ensureOrderSetting(settings, realmIdentifier, order),
+                    env, threadContext)));
+            }
         }
     }
 
@@ -322,6 +312,47 @@ public class Realms implements Iterable<Realm> {
         if (Strings.hasText(duplicateOrders)) {
             throw new IllegalArgumentException("Found multiple realms configured with the same order: " + duplicateOrders);
         }
+    }
+
+    private List<RealmConfig> buildRealmConfigs() {
+        final Map<RealmConfig.RealmIdentifier, Settings> realmsSettings = RealmSettings.getRealmSettings(settings);
+        final Set<String> internalTypes = new HashSet<>();
+        final List<String> kerberosRealmNames = new ArrayList<>();
+        final List<RealmConfig> realmConfigs = new ArrayList<>();
+        for (RealmConfig.RealmIdentifier identifier : realmsSettings.keySet()) {
+            Realm.Factory factory = factories.get(identifier.getType());
+            if (factory == null) {
+                throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
+            }
+            RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
+            if (FileRealmSettings.TYPE.equals(identifier.getType()) || NativeRealmSettings.TYPE.equals(identifier.getType())) {
+                // this is an internal realm factory, let's make sure we didn't already registered one
+                // (there can only be one instance of an internal realm)
+                if (internalTypes.contains(identifier.getType())) {
+                    throw new IllegalArgumentException("multiple [" + identifier.getType() + "] realms are configured. ["
+                        + identifier.getType() + "] is an internal realm and therefore there can only be one such realm configured");
+                }
+                internalTypes.add(identifier.getType());
+            }
+            if (KerberosRealmSettings.TYPE.equals(identifier.getType())) {
+                kerberosRealmNames.add(identifier.getName());
+                if (kerberosRealmNames.size() > 1) {
+                    throw new IllegalArgumentException("multiple realms " + kerberosRealmNames.toString() + " configured of type ["
+                        + identifier.getType() + "], [" + identifier.getType() + "] can only have one such realm " +
+                        "configured");
+                }
+            }
+            realmConfigs.add(config);
+        }
+        return realmConfigs;
+    }
+
+    private Set<String> findDisabledNativeRealmTypes(List<RealmConfig> realmConfigs) {
+        return realmConfigs.stream()
+            .filter(rc -> FileRealmSettings.TYPE.equals(rc.type()) || NativeRealmSettings.TYPE.equals(rc.type()))
+            .filter(rc -> false == rc.enabled())
+            .map(RealmConfig::type)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     private static void combineMaps(Map<String, Object> mapA, Map<String, Object> mapB) {

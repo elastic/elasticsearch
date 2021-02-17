@@ -25,7 +25,5 @@ public interface TranslatorHandler {
 
     String nameOf(Expression e);
 
-    String dateFormat(Expression e);
-
     Object convert(Object value, DataType dataType);
 }

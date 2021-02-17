@@ -96,5 +96,5 @@ have returned the year 2018 for a date that's actually in 2019. With calendar in
 February 5th, 2019 actually belonging to the 2019 year bucket. 
 
 [IMPORTANT]
-Histogram in SQL cannot be applied applied on **TIME** type.
+Histogram in SQL cannot be applied on **TIME** type.
 E.g.: `HISTOGRAM(CAST(birth_date AS TIME), INTERVAL '10' MINUTES)` is currently not supported.

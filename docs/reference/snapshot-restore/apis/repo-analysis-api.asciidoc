@@ -45,9 +45,9 @@ on your repository which are designed to detect incorrect behaviour and to
 measure the performance characteristics of your storage system.
 
 The default values for the parameters to this API are deliberately low to
-reduce the impact of running an analysis. A realistic experiment should set
-`blob_count` to at least `2000`, `max_blob_size` to at least `2gb`, and
-`max_total_data_size` to at least `1tb`, and will almost certainly need to
+reduce the impact of running an analysis inadvertently. A realistic experiment
+should set `blob_count` to at least `2000`, `max_blob_size` to at least `2gb`,
+and `max_total_data_size` to at least `1tb`, and will almost certainly need to
 increase the `timeout` to allow time for the process to complete successfully.
 You should run the analysis on a multi-node cluster of a similar size to your
 production cluster so that it can detect any problems that only arise when the
@@ -130,10 +130,10 @@ semantics that {es} requires.
 
 For some blob-level tasks, the executing node will overwrite the blob while its
 peers are reading it. In this case the data read may come from either the
-original or the overwritten blob, but must not return partial data or a mix of
-data from the two blobs. If any of these reads returns partial data or a mix of
-the two blobs then the repository does not implement the necessary atomicity
-semantics that {es} requires for overwrites.
+original or the overwritten blob, but the read operation must not return
+partial data or a mix of data from the two blobs. If any of these reads returns
+partial data or a mix of the two blobs then the repository does not implement
+the necessary atomicity semantics that {es} requires for overwrites.
 
 The executing node will use a variety of different methods to write the blob.
 For instance, where applicable, it will use both single-part and multi-part
@@ -259,10 +259,20 @@ parameter.
 The limit on the size of a blob written during the test, equal to the
 `?max_blob_size` parameter.
 
+`max_blob_size_bytes`::
+(long)
+The limit, in bytes, on the size of a blob written during the test, equal to
+the `?max_blob_size` parameter.
+
 `max_total_data_size`::
 (string)
 The limit on the total size of all blob written during the test, equal to the
 `?max_total_data_size` parameter.
+
+`max_total_data_size_bytes`::
+(long)
+The limit, in bytes, on the total size of all blob written during the test,
+equal to the `?max_total_data_size` parameter.
 
 `seed`::
 (long)
@@ -302,19 +312,31 @@ in the test.
 =====
 `count`::
 (integer)
-The numer of write operations performed in the test.
+The number of write operations performed in the test.
 
-`total_bytes`::
-(integer)
+`total_size`::
+(string)
+The total size of all the blobs written in the test.
+
+`total_size_bytes`::
+(long)
 The total size of all the blobs written in the test, in bytes.
 
+`total_throttled`::
+(string)
+The total time spent waiting due to the `max_snapshot_bytes_per_sec` throttle.
+
 `total_throttled_nanos`::
-(integer)
+(long)
 The total time spent waiting due to the `max_snapshot_bytes_per_sec` throttle,
 in nanoseconds.
 
+`total_elapsed`::
+(string)
+The total elapsed time spent on writing blobs in the test.
+
 `total_elapsed_nanos`::
-(integer)
+(long)
 The total elapsed time spent on writing blobs in the test, in nanoseconds.
 =====
 
@@ -328,37 +350,60 @@ the test.
 =====
 `count`::
 (integer)
-The numer of read operations performed in the test.
+The number of read operations performed in the test.
 
-`total_bytes`::
-(integer)
+`total_size`::
+(string)
+The total size of all the blobs or partial blobs read in the test.
+
+`total_size_bytes`::
+(long)
 The total size of all the blobs or partial blobs read in the test, in bytes.
 
-`total_throttled_nanos`::
-(integer)
-The total time spent waiting due to the `max_restore_bytes_per_sec` or
-`indices.recovery.max_bytes_per_sec` throttles, in nanoseconds.
+`total_wait`::
+(string)
+The total time spent waiting for the first byte of each read request to be
+received.
 
 `total_wait_nanos`::
-(integer)
+(long)
 The total time spent waiting for the first byte of each read request to be
 received, in nanoseconds.
 
+`max_wait`::
+(string)
+The maximum time spent waiting for the first byte of any read request to be
+received.
+
 `max_wait_nanos`::
-(integer)
+(long)
 The maximum time spent waiting for the first byte of any read request to be
 received, in nanoseconds.
 
+`total_throttled`::
+(string)
+The total time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles.
+
+`total_throttled_nanos`::
+(long)
+The total time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles, in nanoseconds.
+
+`total_elapsed`::
+(string)
+The total elapsed time spent on reading blobs in the test.
+
 `total_elapsed_nanos`::
-(integer)
+(long)
 The total elapsed time spent on reading blobs in the test, in nanoseconds.
 =====
 ====
 
 `details`::
 (array)
-A description of every read and write operation performed during the test. This is
-only returned if the `?detailed` request parameter is set to `true`.
+A description of every read and write operation performed during the test. This
+is only returned if the `?detailed` request parameter is set to `true`.
 +
 .Properties of items within `details`
 [%collapsible]
@@ -375,6 +420,10 @@ A description of the blob that was written and read.
 The name of the blob.
 
 `size`::
+(string)
+The size of the blob.
+
+`size_bytes`::
 (long)
 The size of the blob in bytes.
 
@@ -411,17 +460,31 @@ The id of the writer node.
 The name of the writer node
 =====
 
+`write_elapsed`::
+(string)
+The elapsed time spent writing this blob.
+
 `write_elapsed_nanos`::
-(object)
+(long)
 The elapsed time spent writing this blob, in nanoseconds.
 
+`overwrite_elapsed`::
+(string)
+The elapsed time spent overwriting this blob. Omitted if the blob was not
+overwritten.
+
 `overwrite_elapsed_nanos`::
-(object)
+(long)
 The elapsed time spent overwriting this blob, in nanoseconds. Omitted if the
 blob was not overwritten.
 
+`write_throttled`::
+(string)
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
+while writing this blob.
+
 `write_throttled_nanos`::
-(object)
+(long)
 The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
 while writing this blob, in nanoseconds.
 
@@ -458,18 +521,33 @@ complete. Omitted if `false`.
 Whether the blob was found by this read operation or not. May be `false` if the
 read was started before the write completed.
 
-`first_byte_nanos`::
-(boolean)
+`first_byte_time`::
+(string)
+The length of time waiting for the first byte of the read operation to be
+received. Omitted if the blob was not found.
+
+`first_byte_time_nanos`::
+(long)
 The length of time waiting for the first byte of the read operation to be
 received, in nanoseconds. Omitted if the blob was not found.
 
+`elapsed`::
+(string)
+The length of time spent reading this blob. Omitted if the blob was not found.
+
 `elapsed_nanos`::
-(boolean)
+(long)
 The length of time spent reading this blob, in nanoseconds. Omitted if the blob
 was not found.
 
+`throttled`::
+(string)
+The length of time time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles during the read of this blob.
+Omitted if the blob was not found.
+
 `throttled_nanos`::
-(boolean)
+(long)
 The length of time time spent waiting due to the `max_restore_bytes_per_sec` or
 `indices.recovery.max_bytes_per_sec` throttles during the read of this blob, in
 nanoseconds. Omitted if the blob was not found.
@@ -477,3 +555,20 @@ nanoseconds. Omitted if the blob was not found.
 =====
 
 ====
+
+`listing_elapsed`::
+(string)
+The time it took to retrieve a list of all the blobs in the container.
+
+`listing_elapsed_nanos`::
+(long)
+The time it took to retrieve a list of all the blobs in the container, in
+nanoseconds.
+
+`delete_elapsed`::
+(string)
+The time it took to delete all the blobs in the container.
+
+`delete_elapsed_nanos`::
+(long)
+The time it took to delete all the blobs in the container, in nanoseconds.

@@ -118,7 +118,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnNotFoundAfterWrite() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
-        request.earlyReadNodeCount(0); // not found on early read is ok
+        request.rareActionProbability(0.0); // not found on an early read or an overwrite is ok
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
 

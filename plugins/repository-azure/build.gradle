@@ -90,6 +90,11 @@ testArtifacts {
   registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
 }
 
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
 restResources {
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'

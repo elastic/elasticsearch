@@ -304,7 +304,7 @@ public class FetchPhase {
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
                 hitContext.valuesLookup().source().setSource(fieldsVisitor.source());
 
-                SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
+                SourceLookup scriptSourceLookup = context.getSearchLookup().source();
                 scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
                 scriptSourceLookup.setSource(fieldsVisitor.source());
             }

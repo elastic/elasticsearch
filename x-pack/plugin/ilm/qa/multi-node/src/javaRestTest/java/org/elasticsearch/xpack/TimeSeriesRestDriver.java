@@ -121,11 +121,6 @@ public final class TimeSeriesRestDriver {
         assertThat(client.performRequest(request).getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
-    public static void refresh(RestClient client, String index) throws IOException {
-        final Request request = new Request("POST", "/" + index + "/_refresh");
-        assertThat(client.performRequest(request).getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
-    }
-
     public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action)
         throws IOException {
         createNewSingletonPolicy(client, policyName, phaseName, action, TimeValue.ZERO);

@@ -15,14 +15,6 @@ import java.time.ZoneId;
 
 public class RollupShardDeciderTests extends ESTestCase {
 
-    public void testFindOptimalIntervalIndex() {
-
-        // DateHistogramAggregationBuilder source = new DateHistogramAggregationBuilder("");
-
-    }
-
-
-
     public void testCanMatchCalendarInterval() {
         assertTrue(RollupShardDecider.canMatchCalendarInterval(DateHistogramInterval.HOUR, DateHistogramInterval.HOUR));
         assertTrue(RollupShardDecider.canMatchCalendarInterval(DateHistogramInterval.DAY, DateHistogramInterval.DAY));
@@ -39,7 +31,6 @@ public class RollupShardDeciderTests extends ESTestCase {
 
         assertTrue(RollupShardDecider.canMatchCalendarInterval(null, DateHistogramInterval.HOUR));
         assertFalse(RollupShardDecider.canMatchCalendarInterval(DateHistogramInterval.HOUR, null));
-
     }
 
     public void testCanMatchTimezone() {

@@ -177,10 +177,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(client(), originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
-        assertBusy(() -> assertTrue(indexExists(secondIndex)));
-        assertBusy(() -> assertTrue(indexExists(originalIndex)));
-        assertBusy(() -> assertEquals("true",
-            getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
+
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
+            assertTrue(indexExists(secondIndex));
+            assertTrue(indexExists(originalIndex));
+            assertEquals("true", getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testRolloverActionWithIndexingComplete() throws Exception {
@@ -217,11 +220,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(client(), originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
-        assertBusy(() -> assertTrue(indexExists(originalIndex)));
-        assertBusy(() -> assertFalse(indexExists(secondIndex)));
-        assertBusy(() -> assertEquals("true",
-            getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
+
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
+            assertTrue(indexExists(originalIndex));
+            assertFalse(indexExists(secondIndex)); // careful, *assertFalse* not *assertTrue*
+            assertEquals("true", getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testRolloverActionWithMaxSinglePrimarySize() throws Exception {
@@ -239,10 +244,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
 
-        assertBusy(() -> assertTrue(indexExists(secondIndex)));
-        assertBusy(() -> assertTrue(indexExists(originalIndex)));
-        assertBusy(() -> assertEquals("true",
-            getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)));
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
+            assertTrue(indexExists(secondIndex));
+            assertTrue(indexExists(originalIndex));
+            assertEquals("true", getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testAllocateOnlyAllocation() throws Exception {

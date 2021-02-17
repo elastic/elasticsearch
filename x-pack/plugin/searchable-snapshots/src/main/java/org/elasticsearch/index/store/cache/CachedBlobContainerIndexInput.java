@@ -608,20 +608,20 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public String toString() {
-        return "CachedBlobContainerIndexInput{"
-            + "cacheFileReference="
-            + cacheFileReference
-            + ", offset="
-            + offset
-            + ", length="
-            + length()
-            + ", position="
-            + getFilePointer()
-            + ", rangeSize="
-            + getDefaultRangeSize()
-            + ", directory="
-            + directory
-            + '}';
+        final CacheFile cacheFile = cacheFileReference.cacheFile.get();
+        return super.toString()
+            + "[cache file="
+            + (cacheFile != null
+                ? String.join(
+                    "/",
+                    directory.getShardId().getIndex().getUUID(),
+                    String.valueOf(directory.getShardId().getId()),
+                    "snapshot_cache",
+                    directory.getSnapshotId().getUUID(),
+                    cacheFile.getFile().getFileName().toString()
+                )
+                : null)
+            + ']';
     }
 
     private static class CacheFileReference implements CacheFile.EvictionListener {

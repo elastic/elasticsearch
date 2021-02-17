@@ -205,6 +205,20 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return clone;
     }
 
+    @Override
+    public String toString() {
+        return super.toString() + "[length=" + length() + ", file pointer=" + getFilePointer() + ", offset=" + offset + ']';
+    }
+
+    @Override
+    protected String getFullSliceDescription(String sliceDescription) {
+        final String resourceDesc = super.toString();
+        if (sliceDescription != null) {
+            return "slice(" + sliceDescription + ") of " + resourceDesc;
+        }
+        return resourceDesc;
+    }
+
     protected void ensureOpen() throws IOException {
         if (closed.get()) {
             throw new IOException(toString() + " is closed");

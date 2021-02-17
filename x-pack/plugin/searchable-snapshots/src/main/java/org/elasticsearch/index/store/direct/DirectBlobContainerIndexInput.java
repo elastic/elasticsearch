@@ -291,7 +291,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                sliceDescription,
+                getFullSliceDescription(sliceDescription),
                 blobContainer,
                 fileInfo,
                 context,
@@ -330,18 +330,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public String toString() {
-        return "DirectBlobContainerIndexInput{"
-            + "resourceDesc="
-            + super.toString()
-            + ", fileInfo="
-            + fileInfo
-            + ", offset="
-            + offset
-            + ", length="
-            + length()
-            + ", position="
-            + position
-            + '}';
+        return super.toString() + "[read seq=" + (streamForSequentialReads != null ? "yes" : "no") + ']';
     }
 
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {

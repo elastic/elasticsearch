@@ -11,7 +11,7 @@ dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
   testImplementation project(path: ':modules:aggs-matrix-stats')
 }

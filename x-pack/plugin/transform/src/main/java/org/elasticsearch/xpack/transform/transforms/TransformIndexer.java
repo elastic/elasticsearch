@@ -379,6 +379,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected void initializeFunction() {
         // create the function
         function = FunctionFactory.create(getConfig());
+        if (isContinuous()) {
+            changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
+        }
         List<String> warnings = getWarnings(function, getConfig().getSource(), getConfig().getSyncConfig());
         for (String warning : warnings) {
             logger.warn(new ParameterizedMessage("[{}] {}", getJobId(), warning));

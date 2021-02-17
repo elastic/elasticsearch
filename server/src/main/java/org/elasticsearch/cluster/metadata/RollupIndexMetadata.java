@@ -38,7 +38,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * such as which date-intervals and date-timezones they are configured with and what metric aggregations
  * do they support.
  *
- * The information in this class will be used to decide which index within the {@link RollupGroup} will be chosen
+ * The information in this class will be used to decide which index within a rollup group will be chosen
  * for a specific aggregation. For example, if there are two indices with different intervals (`1h`, `1d`) and
  * a date-histogram aggregation request is sent for daily intervals, then the index with the associated `1d` interval
  * will be chosen.

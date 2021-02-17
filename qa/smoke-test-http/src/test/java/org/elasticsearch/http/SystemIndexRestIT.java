@@ -8,6 +8,7 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
@@ -33,12 +35,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -135,14 +139,38 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(SystemIndexDescriptor.builder()
-                .setIndexPattern(SYSTEM_INDEX_NAME + "*")
-                .setPrimaryIndex(SYSTEM_INDEX_NAME)
-                .setDescription("Test system index")
-                .setSettings(SETTINGS)
-                .setType(Type.INTERNAL)
-                .build()
-            );
+            try (final XContentBuilder builder = jsonBuilder()) {
+                builder.startObject();
+                {
+                    builder.startObject("_meta");
+                    builder.field("version", Version.CURRENT.toString());
+                    builder.endObject();
+
+                    builder.field("dynamic", "strict");
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("some_field");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+
+                return Collections.singletonList(SystemIndexDescriptor.builder()
+                    .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                    .setPrimaryIndex(SYSTEM_INDEX_NAME)
+                    .setDescription("Test system index")
+                    .setOrigin(getClass().getName())
+                    .setVersionMetaKey("version")
+                    .setMappings(builder)
+                    .setSettings(SETTINGS)
+                    .setType(Type.INTERNAL)
+                    .build()
+                );
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);
+            }
         }
 
         @Override

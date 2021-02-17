@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -34,7 +33,7 @@ import java.util.SortedMap;
 
 public class RollupShardDecider {
 
-    public static final Set<String> SUPPORTED_AGGS = Set.of(
+    static final Set<String> SUPPORTED_AGGS = Set.of(
         DateHistogramAggregationBuilder.NAME,
         TermsAggregationBuilder.NAME,
         MinAggregationBuilder.NAME,
@@ -48,9 +47,7 @@ public class RollupShardDecider {
      * Decide if index can be matched considering rollup indices
      */
     public static boolean canMatch(ShardSearchRequest request,
-                                   SearchExecutionContext context,
                                    IndexMetadata requestIndexMetadata,
-                                   String[] indices,
                                    SortedMap<String, IndexAbstraction> indexLookup) throws IOException {
         IndexAbstraction originalIndex = indexLookup.get(requestIndexMetadata.getIndex().getName());
         // Index must be member of a data stream
@@ -86,6 +83,18 @@ public class RollupShardDecider {
         return true;
     }
 
+    /**
+     * Parses the search request and checks if the required conditions are met so that results
+     * can be answered by a rollup index.
+     *
+     * Conditions that must be met are:
+     *  - Request size must be 0
+     *  - Metric aggregations must be supported
+     *  - No use of runtime fields in the query
+     *
+     * @param request the search request to parse
+     * @return true if a rollup index can
+     */
     private static boolean checkRollupConditions(ShardSearchRequest request) {
         if (request.source() == null) {
             return false;
@@ -102,12 +111,13 @@ public class RollupShardDecider {
             return false;
         }
 
-        //TODO(csoulios): Add check for runtime fields in the request
+        // TODO(csoulios): Add check for runtime fields in the request
         return true;
     }
 
     /**
      * Check if requested aggregations are supported by rollup indices
+     *
      * @param aggregations the aggregation builders
      * @return true if aggregations are supported by rollups, otherwise false
      */
@@ -125,8 +135,15 @@ public class RollupShardDecider {
         return true;
     }
 
-    public static String findOptimalIndex(Map<String, RollupIndexMetadata> rollupGroup, AggregatorFactories.Builder aggFactoryBuilders) {
-        DateHistogramAggregationBuilder dateHistogramBuilder = getDateHistogramAggregationBuilder(aggFactoryBuilders);
+    /**
+     * From a collection of rollup group indices, find the optimal rollup index to match a list of aggregations.
+     *
+     * @param rollupGroup  a map containing the names and {@link RollupIndexMetadata} for indices to be compared
+     * @param aggregations the aggregations that the rollup indices will be queried for
+     * @return the name of the optimal rollup index
+     */
+    public static String findOptimalIndex(Map<String, RollupIndexMetadata> rollupGroup, AggregatorFactories.Builder aggregations) {
+        DateHistogramAggregationBuilder dateHistogramBuilder = getDateHistogramAggregationBuilder(aggregations);
         return findOptimalIntervalIndex(rollupGroup, dateHistogramBuilder);
     }
 
@@ -150,23 +167,13 @@ public class RollupShardDecider {
      * @param source The source of the aggregation in the request
      * @return the name of the optimal (maximum interval) index that matches the query
      */
-    private static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramAggregationBuilder source) {
-        String optimalIndex = null;
-        ZoneId sourceTimeZone = ZoneOffset.UTC;
-        if (source != null && source.timeZone() != null) {
-            sourceTimeZone = ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
-        }
+    static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramAggregationBuilder source) {
         DateHistogramInterval sourceInterval = source != null ? source.getCalendarInterval() : null;
-
+        String optimalIndex = null;
         DateHistogramInterval maxInterval = null;
         for (Map.Entry<String, RollupIndexMetadata> entry : rollupGroup.entrySet()) {
             String rollupIndex = entry.getKey();
             RollupIndexMetadata metadata = entry.getValue();
-            ZoneId thisTimezone = metadata.getDateTimezone().zoneId();
-            if (sourceTimeZone.getRules().equals(thisTimezone.getRules()) == false) {
-                // Incompatible timezone => skip this rollup group
-                continue;
-            }
 
             DateHistogramInterval thisInterval = metadata.getDateInterval();
             if (canMatchCalendarInterval(sourceInterval, thisInterval)) {
@@ -184,11 +191,12 @@ public class RollupShardDecider {
      * matches the required interval only if it has greater or equal accuracy to the required interval. This means
      * that the base unit (1h, 1d, 1M etc) of the candidate interval must be smaller or equal to the base unit
      * of the required interval.
-     * @param requiredInterval the required interval to match
+     *
+     * @param requiredInterval  the required interval to match
      * @param candidateInterval the candidate inteval to validate
      * @return true if the candidate interval can match the required interval, otherwise false
      */
-    private static boolean canMatchCalendarInterval(DateHistogramInterval requiredInterval, DateHistogramInterval candidateInterval) {
+    static boolean canMatchCalendarInterval(DateHistogramInterval requiredInterval, DateHistogramInterval candidateInterval) {
         // If no interval is required, any interval should do
         if (requiredInterval == null) {
             return true;
@@ -217,6 +225,11 @@ public class RollupShardDecider {
         return requiredIntervalOrder >= candidateIntervalOrder;
     }
 
+    /**
+     * Check if two timezones are compatible.
+     *
+     * @return true if the timezones are compatible, otherwise false
+     */
     private static boolean canMatchTimezone(ZoneId tz1, ZoneId tz2) {
         return tz1.getRules().equals(tz2.getRules());
     }

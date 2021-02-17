@@ -1235,8 +1235,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         IndexMetadata requestIndexMetadata = clusterService.state().getMetadata()
                                 .index(request.shardId().getIndexName());
 
-                        if (RollupShardDecider.canMatch(request, context, requestIndexMetadata,
-                            request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
+                        if (RollupShardDecider.canMatch(request, requestIndexMetadata,
+                            clusterService.state().getMetadata().getIndicesLookup()) == false) {
                             return new CanMatchResponse(false, minMax);
                         }
                     }

@@ -136,7 +136,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     /**
-     * Iterate over the shard iterator and look for overlapping rollup indices. If rollup indices exist,
+     * Iterate over the shard iterator and search for overlapping rollup indices. If rollup indices exist,
      * the method includes the shards from the optimal rollup index that can match the query and ignores
      * the shards from other overlapping indices.
      *
@@ -145,7 +145,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private FixedBitSet chooseOptimalRollupShards(GroupShardsIterator<SearchShardIterator> shardsIts, FixedBitSet possibleMatches,
                                                   ClusterState clusterState, SearchSourceBuilder source) {
         // Map with key the index that will be replaced by an optimal rollup index. The optimal index
-        // will be its replacement. In the end all indices contains in the keys will be ignored.
+        // will be its replacement. In the end all indices contained in the keys will be ignored.
         Map<String, Tuple<String, RollupIndexMetadata>> indexReplacements = new HashMap<>(shardsIts.size());
 
         int i = 0;
@@ -155,9 +155,9 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                 Map<String, String> idxMetadata = clusterState.getMetadata().index(indexName).getCustomData(RollupIndexMetadata.TYPE);
                 IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(indexName);
 
-                // If index is not a member of a datastream it will not be replaced
-                if (idxMetadata == null || originalIndex.getParentDataStream() == null
-                    || indexReplacements.containsKey(indexName)) {
+                // If index is not a member of a data stream or is not a rollup index, it will not be replaced
+                // Also, if an index has already been marked to be replaced, it should be skipped.
+                if (idxMetadata == null || originalIndex.getParentDataStream() == null || indexReplacements.containsKey(indexName)) {
                     continue;
                 }
 
@@ -166,17 +166,19 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                     RollupIndexMetadata rollupIndexMetadata = RollupIndexMetadata.parseMetadataXContent(
                         idxMetadata.get(RollupIndexMetadata.ROLLUP_META_FIELD));
                     if (indexReplacements.containsKey(sourceIndex)) {
-                        // Retrieve the previously optimal index and compare with the current index
+                        // Retrieve the previously optimal index and compare it with the current index
+                        // Find a new optimal index and replace source index and suboptimal rollup index
+                        // with the new optimal index.
                         Tuple<String, RollupIndexMetadata> previousOptimalIndex = indexReplacements.get(sourceIndex);
                         Map<String, RollupIndexMetadata> rollupGroup = Map.of(
                             indexName, rollupIndexMetadata,
                             previousOptimalIndex.v1(), previousOptimalIndex.v2());
                         String newOptimalIndex = RollupShardDecider.findOptimalIndex(rollupGroup, source.aggregations());
                         Tuple<String, RollupIndexMetadata> optimalTuple = Tuple.tuple(newOptimalIndex, rollupGroup.get(newOptimalIndex));
-                        // replace original index with the new optimal index
+                        // Replace original index with the new optimal index
                         indexReplacements.put(sourceIndex, optimalTuple);
 
-                        // replace suboptimal index with the new optimal index
+                        // Replace suboptimal index with the new optimal index
                         String suboptimalIndex = indexName.equals(newOptimalIndex) == false ? indexName : previousOptimalIndex.v1();
                         indexReplacements.put(suboptimalIndex, optimalTuple);
                     } else {

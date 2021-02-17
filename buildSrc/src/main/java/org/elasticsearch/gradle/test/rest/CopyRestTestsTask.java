@@ -16,6 +16,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -43,9 +44,9 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  */
 public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
-    private final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
-    private final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
-    private final DirectoryProperty outputResourceDir = getProject().getObjects().directoryProperty();
+    private final ListProperty<String> includeCore;
+    private final ListProperty<String> includeXpack;
+    private final DirectoryProperty outputResourceDir;
 
     private FileCollection coreConfig;
     private FileCollection xpackConfig;
@@ -65,10 +66,14 @@ public class CopyRestTestsTask extends DefaultTask {
         ProjectLayout projectLayout,
         Factory<PatternSet> patternSetFactory,
         FileSystemOperations fileSystemOperations,
-        ArchiveOperations archiveOperations
+        ArchiveOperations archiveOperations,
+        ObjectFactory objectFactory
     ) {
-        corePatternSet = patternSetFactory.create();
-        xpackPatternSet = patternSetFactory.create();
+        this.includeCore = objectFactory.listProperty(String.class);
+        this.includeXpack = objectFactory.listProperty(String.class);
+        this.outputResourceDir = objectFactory.directoryProperty();
+        this.corePatternSet = patternSetFactory.create();
+        this.xpackPatternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;

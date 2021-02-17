@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -59,13 +60,15 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     private static final Map<String, String> headers = new LinkedHashMap<>();
 
-    private final DirectoryProperty sourceDirectory = getProject().getObjects().directoryProperty();
-    private final DirectoryProperty outputDirectory = getProject().getObjects().directoryProperty();
+    private final DirectoryProperty sourceDirectory;
+    private final DirectoryProperty outputDirectory;
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
 
     @Inject
-    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
+    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory, ObjectFactory objectFactory) {
+        this.sourceDirectory = objectFactory.directoryProperty();
+        this.outputDirectory = objectFactory.directoryProperty();
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers

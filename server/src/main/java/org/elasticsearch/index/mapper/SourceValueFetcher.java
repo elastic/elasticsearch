@@ -61,8 +61,6 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                     for (Object o : (List<?>) value) {
                         if (o != null) {
                             queue.add(o);
-                        } else if (nullValue != null) {
-                            queue.add(nullValue);
                         }
                     }
                 } else {

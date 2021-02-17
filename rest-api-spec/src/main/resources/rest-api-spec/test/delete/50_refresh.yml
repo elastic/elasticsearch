@@ -12,6 +12,9 @@
                   number_of_shards: 5
                   number_of_routing_shards: 5
                   number_of_replicas: 0
+                  # make sure that we don't have shard relocations; otherwise search can be executed on a relocated shard,
+                  # which does not have the latest data.
+                  routing.rebalance.enable: none
  - do:
       cluster.health:
           wait_for_status: green

@@ -37,7 +37,7 @@ data streams. If you use the {agent}, assign your index templates a priority
 lower than `100` to avoid overriding the built-in templates. Otherwise, to avoid
 accidentally applying the built-in templates, do one or more of the following:
 
-- To disable all built-index index and component templates, set
+- To disable all built-in index and component templates, set
 <<stack-templates-enabled,`stack.templates.enabled`>> to `false` using the
 <<cluster-update-settings,cluster update settings API>>.
 

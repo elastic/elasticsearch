@@ -24,6 +24,7 @@ import java.util.List;
 public class Fleet extends Plugin implements SystemIndexPlugin {
 
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet-server");
+
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(

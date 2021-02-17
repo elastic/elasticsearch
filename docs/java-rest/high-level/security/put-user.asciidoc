@@ -8,7 +8,7 @@
 === Put User API
 
 [id="{upid}-{api}-request"]
-==== Put User Request Request
+==== Put User Request
 
 The +{request}+ class is used to create or update a user in the Native Realm.
 There are 3 different factory methods for creating a request.

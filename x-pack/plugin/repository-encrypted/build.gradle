@@ -13,7 +13,8 @@ archivesBaseName = 'x-pack-repository-encrypted'
 dependencies {
     // necessary for the license check
     compileOnly project(path: xpackModule('core'))
-    testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testImplementation(testArtifact(project(xpackModule('core'))))
+
     // required for integ tests of encrypted FS repository
     internalClusterTestImplementation project(":test:framework")
     // required for integ tests of encrypted cloud repositories

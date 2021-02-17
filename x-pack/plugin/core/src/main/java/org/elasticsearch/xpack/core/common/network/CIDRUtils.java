@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.expression.function.scalar.string;
+package org.elasticsearch.xpack.core.common.network;
 
 import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 
 import java.net.InetAddress;
 
@@ -22,7 +21,6 @@ public class CIDRUtils {
     }
 
     public static boolean isInRange(String address, String... cidrAddresses) {
-        try {
             // Check if address is parsable first
             byte[] addr = InetAddresses.forString(address).getAddress();
 
@@ -43,10 +41,6 @@ public class CIDRUtils {
                 }
                 if (isBetween(addr, lower, upper)) return true;
             }
-        } catch (IllegalArgumentException e) {
-            throw new EqlIllegalArgumentException(e.getMessage());
-        }
-
         return false;
     }
 
@@ -56,7 +50,7 @@ public class CIDRUtils {
 
         if (prefixLength < 0 || prefixLength > 8 * value.getAddress().length) {
             throw new IllegalArgumentException("illegal prefixLength '" + prefixLength +
-                    "'. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges");
+                "'. Must be 0-32 for IPv4 ranges, 0-128 for IPv6 ranges");
         }
 
         byte[] lower = value.getAddress();

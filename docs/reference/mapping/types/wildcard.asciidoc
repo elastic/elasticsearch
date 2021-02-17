@@ -19,7 +19,6 @@ such as `*foo` or `*baz`.
 OR +
 The field contains more than a million unique values.
 
-
 Otherwise, use the `keyword` field type for faster searches, faster indexing,
 and lower storage costs. For an in-depth comparison and decision flowchart, see
 our
@@ -36,7 +35,9 @@ queries are possible on other field types but suffer from constraints:
 Internally the `wildcard` field indexes the whole field value using ngrams and stores the full string.
 The index is used as a rough filter to cut down the number of values that are then checked by retrieving and checking the full values.
 This field is especially well suited to run grep-like queries on log lines. Storage costs are typically lower than those of `keyword`
-fields but search speeds for exact matches on full terms are slower.
+fields but search speeds for exact matches on full terms are slower. If the
+field values share many prefixes, such as URLs for the same website, storage
+costs for a `wildcard` field may be higher than an equivalent `keyword` field.
 
 You index and search a wildcard field as follows
 

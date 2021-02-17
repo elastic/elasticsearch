@@ -72,7 +72,7 @@ request. So,
 `metrics` selects the fields of the "top" document to return. You can request
 a single metric with something like `"metric": {"field": "m"}` or multiple
 metrics by requesting a list of metrics like `"metric": [{"field": "m"}, {"field": "i"}`.
-The fields can be <<numbers,number>>, <<keywords,keyword>>, or <<ips,ip>>.
+The fields can be <<number,numbers>>, <<keyword,keywords>>, or <<ip,ips>>.
 Here is a more complete example:
 
 [source,console,id=search-aggregations-metrics-top-metrics-list-of-metrics]

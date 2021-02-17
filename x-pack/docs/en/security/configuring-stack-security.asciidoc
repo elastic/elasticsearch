@@ -53,7 +53,7 @@ your {es} cluster, you configure TLS on the HTTP interface for both
 configuration, but TLS on the HTTP layer is unidirectional.
 
 NOTE: If you need mutual (bidirectional) TLS on the HTTP layer, then you'll
-need to configure <<security-mutual-tls-overview,mutual authenticated encryption>>.
+need to configure mutual authenticated encryption.
 
 You then configure {kib}, {ls}, and Beats to communicate with
 {es} using TLS so that all communications are encrypted. This level
@@ -61,19 +61,6 @@ of security is strong, and ensures that any communications in and out of your
 cluster are secure.
 
 <<security-basic-setup-https,Set up basic security plus HTTPS traffic>>
-
-[discrete]
-[[security-mutual-tls-overview]]
-=== Mutual authenticated encryption
-
-This scenario provides the greatest levels of security. After configuring TLS
-and securing HTTP traffic, you'll configure connections from {kib}, {ls},
-and Beats with TLS. You'll be running TLS everywhere like in the previous
-scenario, and gain additional security by configuring {es} to require
-client certificates from incoming connections for client authentication.
-
-Additionally, you'll configure connections from Beats to {ls} over TLS
-with client certificates.
 
 include::securing-communications/security-minimal-setup.asciidoc[]
 include::securing-communications/security-basic-setup.asciidoc[]

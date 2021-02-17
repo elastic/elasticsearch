@@ -9,7 +9,6 @@ passwords for built-in users. You can add more users later, but using the
 built-in users simplifies the process of enabling security for your
 cluster.
 
-[discrete]
 ==== Prerequisites
 
 . Install and configure {es} and {kib}. See https://www.elastic.co/guide/en/elastic-stack-get-started/current/get-started-elastic-stack.html[Getting started with the Elastic Stack].
@@ -21,7 +20,6 @@ The free licenses include basic security settings for the Elastic Stack. You
 can also enable a free trial license to access all features of the Elastic
 Stack. See https://www.elastic.co/subscriptions[subscriptions] and https://www.elastic.co/guide/en/kibana/7.9/managing-licenses.html[license management].
 
-[discrete]
 ==== Enable {es} security features
 
 When you use the free licenses, the {es} security
@@ -43,7 +41,6 @@ configuration files. If you installed {es} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
 
-[discrete]
 ==== Create passwords for built-in users
 
 To communicate with the cluster, you must specify a username and password for
@@ -83,3 +80,14 @@ steps you through password configuration for all of the built-in users.
 WARNING: After you set a password for the `elastic` user, the bootstrap
 password is no longer valid. You cannot run the `elasticsearch-setup-passwords
 command a second time.
+
+[[minimal-security-whatsnext]]
+==== What's next?
+
+Congratulations! You enabled password protection for your local cluster to
+prevent unauthorized access. You can log in to {kib} securely as the `elastic`
+user.
+
+To add another layer of security, <<security-basic-setup,Set up basic security for the Elastic Stack>>. You'll configure Transport Layer Security (TLS) to
+secure all internal communication between nodes and communication with nodes
+in a remote cluster.

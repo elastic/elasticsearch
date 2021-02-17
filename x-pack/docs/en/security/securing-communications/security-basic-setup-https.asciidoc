@@ -99,18 +99,23 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
    contains one directory for both {es} and {kib}.
 +
+--
 [source,txt]
 ----
 /elasticsearch
 |_ README.txt
 |_ http.p12
 |_ sample-elasticsearch.yml
+----
 
+[source,txt]
+----
 /kibana
 |_ README.txt
 |_ elasticsearch-ca.pem
 |_ sample-kibana.yml
 ----
+--
 
 . Copy the relevant `http.p12` certificate to the `ES_PATH_CONF` directory on each node.
 
@@ -329,7 +334,7 @@ list of indices.
    b. Enter the username, password, and other user details.
 
    c. Assign the following roles to the **metricbeat_setup** user:
-
++
 [cols="1,1"]
 |===
 | Role               | Purpose
@@ -370,7 +375,7 @@ these instructions create a user that is explicitly used for monitoring
    b. Enter the username, password, and other user details.
 
    c. Assign the following roles to the **metricbeat_monitoring** user:
-
++
 [cols="1,1"]
 |===
 | Role                    | Purpose
@@ -404,7 +409,7 @@ Users who publish events to {es} need to create and write to {metricbeat} indice
    b. Enter the username, password, and other user details.
 
    c. Assign the following roles to the **metricbeat_writer** user:
-
++
 [cols="1,1"]
 |===
 | Role                          | Purpose
@@ -444,7 +449,7 @@ users.
    b. Enter the username, password, and other user details.
 
    c. Assign the following roles to the **metricbeat_reader** user:
-
++
 [cols="1,1"]
 |===
 | Role                          | Purpose

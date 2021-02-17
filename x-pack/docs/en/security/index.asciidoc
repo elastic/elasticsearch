@@ -54,7 +54,8 @@ can connect to the cluster based on <<ip-filtering,IP filters>>. You can
 block and allow specific IP addresses, subnets, or DNS domains to
 control network-level access to a cluster.
 
-See <<setting-up-authentication>> and <<authorization>>.
+See <<setting-up-authentication,User authentication>> and
+<<authorization,User authorization>>.
 
 [discrete]
 [[preserving-data-integrity]]

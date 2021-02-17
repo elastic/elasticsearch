@@ -5,11 +5,10 @@
 ++++
 
 Let's say you want to set up the Elastic Stack with some security, but don't
-need to encrypt all traffic flowing in and out of your cluster. You'll need to
-configure the Elastic Stack with user and password authentication for
-built-in users, plus Transport Layer Security (TLS). The transport layer
-handles all internal communication between nodes and communication with nodes
-in a remote cluster.
+need to encrypt all traffic flowing in and out of your cluster. After adding
+password protection in the <<security-minimal-setup,minimal security configuration>>, you'll need to configure Transport Layer Security (TLS). The
+transport layer handles all internal communication between nodes and
+communication with nodes in a remote cluster.
 
 The transport layer relies on mutual TLS for both encryption and
 authentication. Applying TLS ensures that a malicious node cannot join the
@@ -190,12 +189,17 @@ xpack.security.transport.ssl.truststore.path: <node-name>.p12
 
 .  If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
 +
+--
 [source,shell]
 ----
 ./bin/elasticsearch-keystore add xpack.security.transport.ssl.keystore.secure_password
+----
 
+[source,shell]
+----
 ./bin/elasticsearch-keystore add xpack.security.transport.ssl.truststore.secure_password
 ----
+--
 
 .  Complete the previous steps for each node in your cluster.
 
@@ -259,3 +263,14 @@ When prompted, enter the password for the `kibana_system` user.
 ----
 
 3. Log in to {kib} as the `elastic` user.
+
+[[encrypting-internode-whatsnext]]
+==== What's next?
+
+Congratulations! You've encrypted communications between the nodes in your
+cluster and can pass the
+<<bootstrap-checks-tls,TLS bootstrap check>>.
+
+To add another layer of security, <<security-basic-setup-https,Set up basic security for the Elastic Stack plus secured HTTPS traffic>>. In addition to
+configuring TLS on the transport interface of your {es} cluster, you configure
+TLS on the HTTP interface for both {es} and {kib}.

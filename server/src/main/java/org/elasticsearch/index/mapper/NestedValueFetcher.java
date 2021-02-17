@@ -19,7 +19,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class NestedValueFetcher implements ValueFetcher {
 
@@ -39,7 +38,7 @@ public class NestedValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, Set<String> ignoreFields) throws IOException {
+    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
         List<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
@@ -53,7 +52,7 @@ public class NestedValueFetcher implements ValueFetcher {
             SourceLookup nestedSourceLookup = new SourceLookup();
             nestedSourceLookup.setSource(filteredSource);
 
-            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup, ignoreFields);
+            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup);
 
             Map<String, Object> nestedEntry = new HashMap<>();
             for (DocumentField field : fetchResult.values()) {

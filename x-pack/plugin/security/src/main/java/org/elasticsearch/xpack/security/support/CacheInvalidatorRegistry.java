@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
@@ -34,6 +35,7 @@ public class CacheInvalidatorRegistry {
     public void onSecurityIndexStageChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
+            || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             cacheInvalidators.values().forEach(CacheInvalidator::invalidateAll);
         }

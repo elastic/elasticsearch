@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,8 +48,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS;
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
-        AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
+    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME,
+        ReadOnlyAction.NAME, SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS;
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
@@ -61,19 +62,19 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
     // a set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot
     static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Sets.newHashSet(ShrinkAction.NAME, ForceMergeAction.NAME,
-        FreezeAction.NAME, SearchableSnapshotAction.NAME, RollupILMAction.NAME);
+        FreezeAction.NAME, RollupILMAction.NAME);
 
     static {
         if (RollupV2.isEnabled()) {
             ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
                 ReadOnlyAction.NAME, RollupILMAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
-            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-                MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
+            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
+                SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME);
         } else {
             ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
                 ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
-            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
-                MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
+            ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
+                SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME);
         }
         VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
         VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
@@ -131,6 +132,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 // we won't automatically migrate the data if an allocate action that defines any allocation rule is present
                 return false;
             }
+        }
+
+        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null && phase.getName().equals(FROZEN_PHASE) == false) {
+            // the `searchable_snapshot` action defines migration rules itself, so no need to inject a migrate action, unless we're in the
+            // frozen phase (as the migrate action would also include the `data_frozen` role which is not guaranteed to be included by all
+            // types of searchable snapshots)
+            return false;
         }
 
         MigrateAction migrateAction = (MigrateAction) phase.getActions().get(MigrateAction.NAME);
@@ -290,26 +298,68 @@ public class TimeseriesLifecycleType implements LifecycleType {
         }
 
         validateActionsFollowingSearchableSnapshot(phases);
+        validateAllSearchableSnapshotActionsUseSameRepository(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
-        boolean hotPhaseContainsSearchableSnapshot = phases.stream()
-            .filter(phase -> HOT_PHASE.equals(phase.getName()))
-            .anyMatch(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME));
-        if (hotPhaseContainsSearchableSnapshot) {
-            String phasesDefiningIllegalActions = phases.stream()
-                // we're looking for prohibited actions in phases other than hot
-                .filter(phase -> HOT_PHASE.equals(phase.getName()) == false)
-                // filter the phases that define illegal actions
-                .filter(phase ->
-                    Collections.disjoint(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, phase.getActions().keySet()) == false)
-                .map(Phase::getName)
-                .collect(Collectors.joining(","));
-            if (Strings.hasText(phasesDefiningIllegalActions)) {
-                throw new IllegalArgumentException("phases [" + phasesDefiningIllegalActions + "] define one or more of " +
-                    ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT + " actions which are not allowed after a " +
-                    "managed index is mounted as a searchable snapshot");
+        // invalid configurations can occur if searchable_snapshot is defined in the `hot` phase, with subsequent invalid actions
+        // being defined in the warm/cold/frozen phases, or if it is defined in the `cold` phase with subsequent invalid actions
+        // being defined in the frozen phase
+
+        Optional<Phase> hotPhaseWithSearchableSnapshot = phases.stream()
+            .filter(phase -> phase.getName().equals(HOT_PHASE))
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+            .findAny();
+
+        final List<Phase> phasesFollowingSearchableSnapshot = new ArrayList<>(phases.size());
+        if (hotPhaseWithSearchableSnapshot.isPresent()) {
+            for (Phase phase : phases) {
+                if (phase.getName().equals(HOT_PHASE) == false) {
+                    phasesFollowingSearchableSnapshot.add(phase);
+                }
             }
+        } else {
+            // let's see if the cold phase defines `searchable_snapshot`
+            Optional<Phase> coldPhaseWithSearchableSnapshot = phases.stream()
+                .filter(phase -> phase.getName().equals(COLD_PHASE))
+                .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+                .findAny();
+            if (coldPhaseWithSearchableSnapshot.isPresent()) {
+                for (Phase phase : phases) {
+                    if (phase.getName().equals(FROZEN_PHASE)) {
+                        phasesFollowingSearchableSnapshot.add(phase);
+                        break;
+                    }
+                }
+            }
+        }
+
+        final String phasesDefiningIllegalActions = phasesFollowingSearchableSnapshot.stream()
+            // filter the phases that define illegal actions
+            .filter(phase ->
+                Collections.disjoint(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, phase.getActions().keySet()) == false)
+            .map(Phase::getName)
+            .collect(Collectors.joining(","));
+        if (Strings.hasText(phasesDefiningIllegalActions)) {
+            throw new IllegalArgumentException("phases [" + phasesDefiningIllegalActions + "] define one or more of " +
+                ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT + " actions which are not allowed after a " +
+                "managed index is mounted as a searchable snapshot");
+        }
+    }
+
+    static void validateAllSearchableSnapshotActionsUseSameRepository(Collection<Phase> phases) {
+        Set<String> allRepos = phases.stream()
+            .flatMap(phase -> phase.getActions().entrySet().stream())
+            .filter(e -> e.getKey().equals(SearchableSnapshotAction.NAME))
+            .map(Map.Entry::getValue)
+            .map(action -> (SearchableSnapshotAction) action)
+            .map(SearchableSnapshotAction::getSnapshotRepository)
+            .collect(Collectors.toSet());
+
+        if (allRepos.size() > 1) {
+            throw new IllegalArgumentException("policy specifies [" + SearchableSnapshotAction.NAME +
+                "] action multiple times with differing repositories " + allRepos +
+                ", the same repository must be used for all searchable snapshot actions");
         }
     }
 

@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -71,7 +72,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -320,7 +323,8 @@ public class SearchExecutionContextTests extends ESTestCase {
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
-        runtimeFields.forEach(builder::addRuntime);
+        Map<String, RuntimeFieldType> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(MappedFieldType::name, r -> r));
+        builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
         return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
     }
@@ -351,6 +355,30 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(context.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
         assertThat(context.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+    }
+
+    public void testSearchRequestRuntimeFieldsWrongFormat() {
+        Map<String, Object> runtimeMappings = new HashMap<>();
+        runtimeMappings.put("field", Arrays.asList("test1", "test2"));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+            runtimeMappings,
+            Collections.singletonList(new TestRuntimeField.Plugin())));
+        assertEquals("Expected map for runtime field [field] definition but got a java.util.Arrays$ArrayList", exception.getMessage());
+    }
+
+    public void testSearchRequestRuntimeFieldsRemoval() {
+        Map<String, Object> runtimeMappings = new HashMap<>();
+        runtimeMappings.put("field", null);
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+            runtimeMappings,
+            Collections.singletonList(new TestRuntimeField.Plugin())));
+        assertEquals("Runtime field [field] was set to null but its removal is not supported in this context", exception.getMessage());
     }
 
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {

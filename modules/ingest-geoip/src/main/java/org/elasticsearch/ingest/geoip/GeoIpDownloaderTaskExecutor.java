@@ -64,8 +64,10 @@ public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTa
 
     private void setEnabled(boolean enabled) {
         if (enabled) {
-            startTask(() -> {
-            });
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                startTask(() -> {
+                });
+            }
         } else {
             persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, ActionListener.wrap(r -> {
             }, e -> logger.error("failed to remove geoip task", e)));

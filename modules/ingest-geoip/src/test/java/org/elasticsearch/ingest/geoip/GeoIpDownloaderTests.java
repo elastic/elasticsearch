@@ -188,7 +188,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            int indexChunks(String name, InputStream is, int chunk) throws IOException {
+            int indexChunks(String name, InputStream is, int chunk) {
                 assertSame(bais, is);
                 assertEquals(0, chunk);
                 return 11;
@@ -228,7 +228,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            int indexChunks(String name, InputStream is, int chunk) throws IOException {
+            int indexChunks(String name, InputStream is, int chunk) {
                 assertSame(bais, is);
                 assertEquals(9, chunk);
                 return 11;

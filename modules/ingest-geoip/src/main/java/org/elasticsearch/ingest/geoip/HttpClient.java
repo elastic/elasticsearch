@@ -16,12 +16,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.BufferedInputStream;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -32,14 +30,10 @@ import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 
-public class HttpClient implements Closeable {
+public class HttpClient {
 
     public byte[] getBytes(String url) throws IOException {
         return get(url).readAllBytes();
-    }
-
-    public String getString(String url) throws IOException {
-        return new String(getBytes(url), StandardCharsets.UTF_8);
     }
 
     public InputStream get(String urlToGet) throws IOException {
@@ -86,10 +80,6 @@ public class HttpClient implements Closeable {
         conn.setDoOutput(false);
         conn.setInstanceFollowRedirects(false);
         return conn;
-    }
-
-    @Override
-    public void close() {
     }
 
     private static <R> R doPrivileged(CheckedSupplier<R, IOException> supplier) throws IOException {

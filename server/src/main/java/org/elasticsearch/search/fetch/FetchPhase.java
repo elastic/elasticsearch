@@ -390,9 +390,6 @@ public class FetchPhase {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
                 List<?> nestedParsedSource = XContentMapValues.extractNestedValue(nestedPath, rootSourceAsMap);
-                if (nestedParsedSource == null) {
-                    System.out.println("Oops");
-                }
                 if ((nestedParsedSource.get(0) instanceof Map) == false && hasNonNestedParent.test(nestedPath)) {
                     // When one of the parent objects are not nested then XContentMapValues.extractValue(...) extracts the values
                     // from two or more layers resulting in a list of list being returned. This is because nestedPath

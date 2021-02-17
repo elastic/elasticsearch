@@ -67,11 +67,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
-    @Override
-    protected int numberOfShards() {
-        return 1;
-    }
-
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {

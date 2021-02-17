@@ -133,7 +133,6 @@ public final class InnerHitsContext {
         }
 
         public void setRootLookup(SourceLookup rootLookup) {
-            System.out.println("Setting root source lookup " + rootLookup.source());
             this.rootLookup.setSource(rootLookup.source());
             this.rootLookup.setSourceContentType(rootLookup.sourceContentType());
         }

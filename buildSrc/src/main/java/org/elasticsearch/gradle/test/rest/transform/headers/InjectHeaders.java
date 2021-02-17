@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.test.rest.transform.feature.FeatureInjector;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 
 import java.util.Map;
 
@@ -49,6 +50,7 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
     }
 
     @Override
+    @Internal
     public String getKeyToFind() {
         return "do";
     }

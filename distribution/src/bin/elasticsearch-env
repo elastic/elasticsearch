@@ -63,7 +63,7 @@ fi
 
 # warn that we are not observing the value of JAVA_HOME
 if [ ! -z "$JAVA_HOME" ]; then
-  echo "warning: ignoring JAVA_HOME=$JAVA_HOME; using $JAVA_TYPE"
+  echo "warning: ignoring JAVA_HOME=$JAVA_HOME; using $JAVA_TYPE" >&2
 fi
 
 # JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we

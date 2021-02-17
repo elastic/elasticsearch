@@ -66,7 +66,7 @@ if defined JAVA_TOOL_OPTIONS (
 
 rem warn that we are not observing the value of $JAVA_HOME
 if defined JAVA_HOME (
-  echo warning: ignoring JAVA_HOME=%JAVA_HOME%; using %JAVA_TYPE%
+  echo warning: ignoring JAVA_HOME=%JAVA_HOME%; using %JAVA_TYPE% >&2
 )
 
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we

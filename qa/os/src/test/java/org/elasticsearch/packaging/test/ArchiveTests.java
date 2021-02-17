@@ -139,10 +139,6 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
         });
 
-        final Installation.Executables bin = installation.executables();
-        final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
-        assertThat(runResult.stderr, containsString("warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME"));
-
         startElasticsearch();
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
@@ -160,6 +156,10 @@ public class ArchiveTests extends PackagingTestCase {
             final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
             sh.getEnv().put("JAVA_HOME", systemJavaHome1);
         });
+
+        final Installation.Executables bin = installation.executables();
+        final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
+        assertThat(runResult.stderr, containsString("warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME"));
 
         startElasticsearch();
         ServerUtils.runElasticsearchTests();

@@ -136,7 +136,8 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return Collections.singletonList(SystemIndexDescriptor.builder()
-                .setIndexPattern(SYSTEM_INDEX_NAME)
+                .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                .setPrimaryIndex(SYSTEM_INDEX_NAME)
                 .setDescription("Test system index")
                 .setSettings(SETTINGS)
                 .setType(Type.INTERNAL)

@@ -53,9 +53,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -68,13 +66,11 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getPrimaryShardSizes;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getSnapshotState;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.refresh;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.containsString;
@@ -236,23 +232,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias));
 
-        int totalDocs = randomIntBetween(16, 32);
-        for (int i = 0; i < totalDocs; i++) {
-            index(client(), originalIndex, String.valueOf(i), "foo", "bar_" + i);
-        }
-        refresh(client(), originalIndex);
-
-        List<Integer> primaryShardSizes = getPrimaryShardSizes(client(), originalIndex);
-        Integer largest = Collections.max(primaryShardSizes);
+        index(client(), originalIndex, "_id", "foo", "bar");
 
         // create policy
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(
-            null,
-            // the largest size we have from above is index stats size, but that's larger
-            // than the docstats size that we actually evaluate against inside the guts
-            // of rollover, 2048 is a slop factor
-            ByteSizeValue.ofBytes(Long.max(1, largest - 2048)),
-            null, null));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, ByteSizeValue.ofBytes(1), null, null));
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
 

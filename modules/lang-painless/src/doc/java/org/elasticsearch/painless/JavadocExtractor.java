@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class JavadocExtractor {
@@ -43,9 +44,16 @@ public class JavadocExtractor {
     private final JavaClassResolver resolver;
     private final Map<String, ParsedJavaClass> cache = new HashMap<>();
 
-    private static final String GPLv2 = "* This code is free software; you can redistribute it and/or modify it"+
-        "\n * under the terms of the GNU General Public License version 2 only, as"+
-        "\n * published by the Free Software Foundation.";
+    private static final String GPLv2 = "This code is free software; you can redistribute it and/or" +
+        " modify it under the terms of the GNU General Public License version 2 only, as published" +
+        " by the Free Software Foundation.";
+
+    private static final String ESv2 = "Copyright Elasticsearch B.V. and/or licensed to Elasticsearch" +
+        " B.V. under one or more contributor license agreements. Licensed under the Elastic License 2.0" +
+        " and the Server Side Public License, v 1; you may not use this file except in compliance with," +
+        " at your election, the Elastic License 2.0 or the Server Side Public License, v 1.";
+
+    private static final String[] LICENSES = new String[]{GPLv2, ESv2};
 
     public JavadocExtractor(JavaClassResolver resolver) {
         this.resolver = resolver;
@@ -58,7 +66,7 @@ public class JavadocExtractor {
             return parsed;
         }
         InputStream classStream = resolver.openClassFile(className);
-        parsed = new ParsedJavaClass(GPLv2);
+        parsed = new ParsedJavaClass();
         if (classStream != null) {
             ClassFileVisitor visitor = new ClassFileVisitor();
             CompilationUnit cu = StaticJavaParser.parse(classStream);
@@ -69,30 +77,51 @@ public class JavadocExtractor {
     }
 
     public static class ParsedJavaClass {
+        private static final Pattern LICENSE_CLEANUP = Pattern.compile("\\s*\n\\s*\\*");
+
         public final Map<MethodSignature, ParsedMethod> methods;
         public final Map<String, String> fields;
         public final Map<List<String>, ParsedMethod> constructors;
-        private final String license;
+        private final String[] licenses;
         private boolean valid = false;
         private boolean validated = false;
 
-        public ParsedJavaClass(String license) {
+        public ParsedJavaClass(String ... licenses) {
             methods = new HashMap<>();
             fields = new HashMap<>();
             constructors = new HashMap<>();
-            this.license = license;
+            if (licenses.length > 0) {
+                this.licenses = licenses;
+            } else {
+                this.licenses = LICENSES;
+            }
         }
 
         public void validateLicense(Optional<Comment> license) {
             if (validated) {
                 throw new IllegalStateException("Cannot double validate the license");
             }
-            this.valid = license.map(Comment::getContent).orElse("").contains(this.license);
+            String header = license.map(c -> LICENSE_CLEANUP.matcher(c.getContent()).replaceAll("").trim()).orElse("");
+            for (String validLicense : licenses) {
+                valid |= header.contains(validLicense);
+            }
             validated = true;
         }
 
         public ParsedMethod getMethod(String name, List<String> parameterTypes) {
             return methods.get(new MethodSignature(name, parameterTypes));
+        }
+
+        public ParsedMethod getAugmentedMethod(String methodName, String receiverType, List<String> parameterTypes) {
+            List<String> parameterKey = new ArrayList<>(parameterTypes.size() + 1);
+            parameterKey.add(receiverType);
+            parameterKey.addAll(parameterTypes);
+
+            ParsedMethod augmented = getMethod(methodName, parameterKey);
+            if (augmented == null) {
+                return null;
+            }
+            return augmented.asAugmented();
         }
 
         @Override
@@ -112,7 +141,7 @@ public class JavadocExtractor {
                         declaration.getJavadoc().map(JavadocExtractor::clean).orElse(null),
                         declaration.getParameters()
                                 .stream()
-                                .map(p -> p.getName().asString())
+                                .map(p -> stripTypeParameters(p.getName().asString()))
                                 .collect(Collectors.toList())
                 )
             );
@@ -134,26 +163,6 @@ public class JavadocExtractor {
             );
         }
 
-        private static String stripTypeParameters(String type) {
-            int start = 0;
-            int count = 0;
-            for (int i=0; i<type.length(); i++) {
-                char c = type.charAt(i);
-                if (c == '<') {
-                    if (start == 0) {
-                        start = i;
-                    }
-                    count++;
-                } else if (c == '>') {
-                    count--;
-                    if (count == 0) {
-                        return type.substring(0, start);
-                    }
-                }
-            }
-            return type;
-        }
-
         public ParsedMethod getConstructor(List<String> parameterTypes) {
             return constructors.get(parameterTypes);
         }
@@ -172,6 +181,26 @@ public class JavadocExtractor {
         }
     }
 
+    private static String stripTypeParameters(String type) {
+        int start = 0;
+        int count = 0;
+        for (int i=0; i<type.length(); i++) {
+            char c = type.charAt(i);
+            if (c == '<') {
+                if (start == 0) {
+                    start = i;
+                }
+                count++;
+            } else if (c == '>') {
+                count--;
+                if (count == 0) {
+                    return type.substring(0, start);
+                }
+            }
+        }
+        return type;
+    }
+
     public static class MethodSignature {
         public final String name;
         public final List<String> parameterTypes;
@@ -186,7 +215,7 @@ public class JavadocExtractor {
                     declaration.getNameAsString(),
                     declaration.getParameters()
                             .stream()
-                            .map(p -> p.getType().asString())
+                            .map(p -> stripTypeParameters(p.getType().asString()))
                             .collect(Collectors.toList())
             );
         }
@@ -215,6 +244,16 @@ public class JavadocExtractor {
             this.parameterNames = parameterNames;
         }
 
+        public ParsedMethod asAugmented() {
+            if (parameterNames.size() == 0) {
+                throw new IllegalStateException("Cannot augment without receiver: javadoc=" + javadoc);
+            }
+            return new ParsedMethod(
+                javadoc == null ? null : javadoc.asAugmented(parameterNames.get(0)),
+                new ArrayList<>(parameterNames.subList(1, parameterNames.size()))
+            );
+        }
+
         public boolean isEmpty() {
             return (javadoc == null || javadoc.isEmpty()) && parameterNames.isEmpty();
         }
@@ -233,6 +272,17 @@ public class JavadocExtractor {
 
         public ParsedJavadoc(String description) {
             this.description = description;
+        }
+
+        public ParsedJavadoc asAugmented(String receiverName) {
+            if (param == null) {
+                return this;
+            }
+            ParsedJavadoc augmented = new ParsedJavadoc(description);
+            augmented.param.putAll(param);
+            augmented.param.remove(receiverName);
+            augmented.thrws = thrws;
+            return augmented;
         }
 
         public boolean isEmpty() {

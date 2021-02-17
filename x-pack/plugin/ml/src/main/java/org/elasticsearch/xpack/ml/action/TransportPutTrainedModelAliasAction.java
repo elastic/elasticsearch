@@ -126,7 +126,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                 }
                 if (newModel == null) {
                     listener.onFailure(
-                        ExceptionsHelper.badRequestException("cannot find model matching model_id [{}]", request.getModelId())
+                        ExceptionsHelper.missingTrainedModel(request.getModelId())
                     );
                     return;
                 }
@@ -137,17 +137,13 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                 // if old model is null, none of these validations matter
                 // we should still allow reassignment even if the old model was some how deleted and the alias still refers to it
                 if (oldModel != null) {
-                    if (isLicensed.test(oldModel) == false) {
-                        listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
-                        return;
-                    }
-
                     // validate inference configs are the same type. Moving an alias from regression -> classification seems dangerous
                     if (newModel.getInferenceConfig() != null && oldModel.getInferenceConfig() != null) {
                         if (newModel.getInferenceConfig().getName().equals(oldModel.getInferenceConfig().getName()) == false) {
                             listener.onFailure(
                                 ExceptionsHelper.badRequestException(
-                                    "new_model_id [{}] has inference config type [{}] but old_model_id [{}] has type [{}]",
+                                    "cannot reassign model_alias [{}] to model [{}] "
+                                    + "with inference config type [{}] from model [{}] with type [{}]",
                                     newModel.getModelId(),
                                     newModel.getInferenceConfig().getName(),
                                     oldModel.getModelId(),

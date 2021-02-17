@@ -873,7 +873,7 @@ setup:
 ---
 "Test update model alias with model id referring to missing model":
   - do:
-      catch: /cannot find model matching model_id \[missing-model\]/
+      catch: missing
       ml.put_trained_model_alias:
         model_alias: "regression-model"
         model_id: "missing-model"

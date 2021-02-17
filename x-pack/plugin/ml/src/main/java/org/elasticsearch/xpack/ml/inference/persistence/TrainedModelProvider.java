@@ -830,27 +830,25 @@ public class TrainedModelProvider {
                             foundFromDocs.add(idValue.toString());
                         }
                     }
-                    // We should gather ALL model aliases referenced by the given model IDs
-                    // This way the callers have access to them
-                    Map<String, Set<String>> idsToAliases = modelAliasMetadata.modelAliases()
-                            .entrySet()
-                            .stream()
-                            .collect(Collectors.toMap(
-                                entry -> entry.getValue().getModelId(),
-                                entry -> Sets.newHashSet(entry.getKey()),
-                                Sets::union
-                            ));
                     Map<String, Set<String>> allFoundIds = collectIds(pageParams, foundResourceIds, foundFromDocs)
                         .stream()
-                        .collect(Collectors.toMap(Function.identity(), k -> idsToAliases.getOrDefault(k, Collections.emptySet())));
-                    Set<String> matchedTokens = allFoundIds
-                        .entrySet()
-                        .stream()
-                        .flatMap(idAndAliases -> {
-                            Set<String> allAliases = new HashSet<>(idAndAliases.getValue());
-                            allAliases.add(idAndAliases.getKey());
-                            return allAliases.stream();
-                        }).collect(Collectors.toSet());
+                        .collect(Collectors.toMap(Function.identity(), k -> new HashSet<>()));
+
+                    // We technically have matched on model tokens and any reversed referenced aliases
+                    // We may end up with "over matching" on the aliases (matching on an alias that was not provided)
+                    // But the expanded ID matcher does not care.
+                    Set<String> matchedTokens = new HashSet<>(allFoundIds.keySet());
+
+                    // We should gather ALL model aliases referenced by the given model IDs
+                    // This way the callers have access to them
+                    modelAliasMetadata.modelAliases().forEach((alias, modelIdEntry) -> {
+                        final String modelId = modelIdEntry.getModelId();
+                        if (allFoundIds.containsKey(modelId)) {
+                            allFoundIds.get(modelId).add(alias);
+                            matchedTokens.add(alias);
+                        }
+                    });
+
                     // Reverse lookup to see what model aliases were matched by their found trained model IDs
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
                     requiredMatches.filterMatchedIds(matchedTokens);

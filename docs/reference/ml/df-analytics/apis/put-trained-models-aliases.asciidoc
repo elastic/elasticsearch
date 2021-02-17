@@ -36,7 +36,7 @@ For more information, see <<built-in-roles>>, <<security-privileges>>, and
 This API creates a new model alias to refer to trained models, or updates an existing
 trained model's alias.
 
-When updating an existing model alias to a new model ID, this API will return a warning if the models
+When updating an existing model alias to a new model ID, this API will return a error if the models
 are of different inference types. Example, if attempting to put the model alias
 `flights-delay-prediction` from a regression model to a classification model, the API will error.
 

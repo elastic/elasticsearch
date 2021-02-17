@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(path: xpackModule('snapshot-repo-test-kit'), configuration: 'testArtifacts')
+  testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
 }
 
 // TODO we want 3rd-party tests for other repository types too

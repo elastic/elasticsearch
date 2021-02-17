@@ -948,8 +948,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testBinaryFieldFiltering() throws IOException {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("mappings"); {
-            createIndex.startObject("properties"); {
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
                 createIndex.startObject("id").field("type", "long").endObject();
                 createIndex.startObject("binary").field("type", "binary").field("doc_values", true).endObject();
             }
@@ -965,14 +967,16 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         long nullId = randomLong();
         StringBuilder bulk = new StringBuilder();
         bulk.append("{").append(toJson("index")).append(":{}}\n");
-        bulk.append("{"); {
+        bulk.append("{");
+        {
             bulk.append(toJson("id")).append(":").append(nonNullId);
             bulk.append(",");
             bulk.append(toJson("binary")).append(":").append(toJson("U29tZSBiaW5hcnkgYmxvYg=="));
         }
         bulk.append("}\n");
         bulk.append("{").append(toJson("index")).append(":{}}\n");
-        bulk.append("{"); {
+        bulk.append("{");
+        {
             bulk.append(toJson("id")).append(":").append(nullId);
         }
         bulk.append("}\n");

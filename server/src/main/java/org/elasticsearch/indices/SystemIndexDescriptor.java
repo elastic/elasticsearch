@@ -179,6 +179,8 @@ public class SystemIndexDescriptor {
         Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
         if (type.isInternal() && allowedElasticProductOrigins.isEmpty() == false) {
             throw new IllegalArgumentException("Allowed origins are not valid for internal system indices");
+        } else if (type.isExternal() && allowedElasticProductOrigins.isEmpty()) {
+            throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
         }
 
         this.indexPattern = indexPattern;

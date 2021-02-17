@@ -79,20 +79,13 @@ public class SystemIndices {
     }
 
     private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Collection<SystemIndexDescriptor> descriptors) {
-        Map<String, Automaton> map = new HashMap<>();
-        descriptors.stream().filter(SystemIndexDescriptor::isExternal)
-            .forEach(descriptor ->
-                descriptor.getAllowedElasticProductOrigins().forEach(product ->
-                    map.compute(product, (key, automaton) -> {
-                        Automaton built = SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName());
-                        if (automaton != null) {
-                            return Operations.union(automaton, built);
-                        } else {
-                            return built;
-                        }
-                    })
-                )
-            );
+        Map<String, Automaton> map = descriptors.stream()
+            .filter(SystemIndexDescriptor::isExternal)
+            .flatMap(descriptor -> descriptor.getAllowedElasticProductOrigins().stream().map(product -> new Tuple<>(product, descriptor)))
+            .collect(Collectors.toUnmodifiableMap(Tuple::v1, tuple -> {
+                SystemIndexDescriptor descriptor = tuple.v2();
+                return SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName());
+            }, Operations::union));
 
         return map.entrySet().stream()
             .collect(Collectors.toUnmodifiableMap(Entry::getKey, entry ->

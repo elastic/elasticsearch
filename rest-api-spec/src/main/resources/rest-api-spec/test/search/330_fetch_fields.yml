@@ -819,8 +819,8 @@ Test nested field with sibling field resolving to DocValueFetcher:
 ---
 "Test ignores malformed values while returning valid ones":
   - skip:
-      version: ' - 8.0.0'
-      reason:  'Added in 8.0 - change on backport'
+      version: ' - 7.11.99'
+      reason:  'Behaviour changed in 7.12'
   - do:
       indices.create:
         index: test

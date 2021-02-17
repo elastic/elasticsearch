@@ -35,6 +35,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -138,7 +142,13 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testIndexChunksNoData() throws IOException {
-        assertEquals(0, geoIpDownloader.indexChunks("test", new ByteArrayInputStream(new byte[0]), 0));
+        assertEquals(0, geoIpDownloader.indexChunks("test", new ByteArrayInputStream(new byte[0]), 0, "d41d8cd98f00b204e9800998ecf8427e"));
+    }
+
+    public void testIndexChunksMd5Mismatch() {
+        IOException exception = expectThrows(IOException.class, () -> geoIpDownloader.indexChunks("test",
+            new ByteArrayInputStream(new byte[0]), 0, "123123"));
+        assertEquals("md5 checksum mismatch, expected [123123], actual [d41d8cd98f00b204e9800998ecf8427e]", exception.getMessage());
     }
 
     public void testIndexChunks() throws IOException {
@@ -165,7 +175,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             listener.onResponse(mock(IndexResponse.class));
         });
 
-        assertEquals(17, geoIpDownloader.indexChunks("test", new ByteArrayInputStream(bigArray), 15));
+        assertEquals(17, geoIpDownloader.indexChunks("test", new ByteArrayInputStream(bigArray), 15, "a67563dfa8f3cba8b8cff61eb989a749"));
 
         assertEquals(2, chunkIndex.get());
     }
@@ -183,7 +193,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            int indexChunks(String name, InputStream is, int chunk) {
+            int indexChunks(String name, InputStream is, int chunk, String expectedMd5) {
                 assertSame(bais, is);
                 assertEquals(0, chunk);
                 return 11;
@@ -218,7 +228,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            int indexChunks(String name, InputStream is, int chunk) {
+            int indexChunks(String name, InputStream is, int chunk, String expectedMd5) {
                 assertSame(bais, is);
                 assertEquals(9, chunk);
                 return 11;
@@ -255,7 +265,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            int indexChunks(String name, InputStream is, int chunk) {
+            int indexChunks(String name, InputStream is, int chunk, String expectedMd5) {
                 fail();
                 return 0;
             }

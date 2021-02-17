@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -117,7 +119,7 @@ class GeoIpDownloader extends AllocatedPersistentTask {
         String url = databaseInfo.get("url").toString();
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
-            int lastChunk = indexChunks(name, is, firstChunk);
+            int lastChunk = indexChunks(name, is, firstChunk, md5);
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5));
                 updateTaskState();
@@ -155,14 +157,20 @@ class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     //visible for testing
-    int indexChunks(String name, InputStream is, int chunk) throws IOException {
+    int indexChunks(String name, InputStream is, int chunk, String expectedMd5) throws IOException {
+        MessageDigest md = MessageDigests.md5();
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
+            md.update(buf);
             client.prepareIndex(DATABASES_INDEX).setId(name + "_" + chunk)
                 .setSource(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setWaitForActiveShards(ActiveShardCount.ALL)
                 .get();
             chunk++;
+        }
+        String actualMd5 = MessageDigests.toHexString(md.digest());
+        if (Objects.equals(expectedMd5, actualMd5) == false) {
+            throw new IOException("md5 checksum mismatch, expected [" + expectedMd5 + "], actual [" + actualMd5 + "]");
         }
         return chunk;
     }

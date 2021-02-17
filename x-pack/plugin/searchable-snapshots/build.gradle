@@ -1,5 +1,7 @@
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'searchable-snapshots'
   description 'A plugin for the searchable snapshots functionality'
@@ -10,21 +12,7 @@ archivesBaseName = 'x-pack-searchable-snapshots'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}

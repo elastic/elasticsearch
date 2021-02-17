@@ -329,7 +329,7 @@ public class TransformIndexerTests extends ESTestCase {
 
             indexer.start();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertEquals(indexer.getState(), IndexerState.INDEXING);
+            assertThat(indexer.getState(), oneOf(IndexerState.INDEXING, IndexerState.STARTED));
 
             assertBusy(() -> assertEquals(1L, indexer.getLastCheckpoint().getCheckpoint()), 5, TimeUnit.SECONDS);
 

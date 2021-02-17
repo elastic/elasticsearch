@@ -32,6 +32,11 @@ if (project == rootProject) {
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
 version = props.getProperty("elasticsearch")
 
+gradlePlugin {
+  // We already configure publication and we don't need or want the one that comes
+  // with the java-gradle-plugin
+  automatedPublishing = false
+}
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   outputFile = "${buildDir}/version.properties"
   comment = 'Generated version properties'
@@ -238,16 +243,6 @@ if (project != rootProject) {
     onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     it.executable = Jvm.current().getJavaExecutable()
     maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
-  }
-
-  /*
-   * We already configure publication and we don't need or want this one that
-   * comes from the java-gradle-plugin.
-   */
-  afterEvaluate {
-    tasks.named("generatePomFileForPluginMavenPublication").configure {
-      enabled = false
-    }
   }
 
   publishing.publications.named("nebula").configure {

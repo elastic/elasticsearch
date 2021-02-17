@@ -698,9 +698,13 @@ public class FrozenCacheService implements Releasable {
         private final CacheKey cacheKey;
         private final long length;
 
-        public FrozenCacheFile(CacheKey cacheKey, long length) {
+        private FrozenCacheFile(CacheKey cacheKey, long length) {
             this.cacheKey = cacheKey;
             this.length = length;
+        }
+
+        public long getLength() {
+            return length;
         }
 
         public StepListener<Integer> populateAndRead(
@@ -781,7 +785,7 @@ public class FrozenCacheService implements Releasable {
 
         @Override
         public String toString() {
-            return "SharedCacheFile{" + "cacheKey=" + cacheKey + ", length=" + length + '}';
+            return "FrozenCacheFile{" + "cacheKey=" + cacheKey + ", length=" + length + '}';
         }
     }
 

@@ -61,6 +61,6 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
 
     @Override
     public String toString() {
-        return getClass().getName() + "/" + getDescription();
+        return getClass().getName() + "/" + getParentTask();
     }
 }

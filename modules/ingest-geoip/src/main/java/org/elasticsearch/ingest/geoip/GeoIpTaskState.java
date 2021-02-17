@@ -10,41 +10,43 @@ package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 
-public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
+class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
-    private static ParseField DATABASES = new ParseField("databases");
+    private static final ParseField DATABASES = new ParseField("databases");
+
+    static final GeoIpTaskState EMPTY = new GeoIpTaskState(Collections.emptyMap());
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GeoIpTaskState, Void> PARSER =
         new ConstructingObjectParser<>(GEOIP_DOWNLOADER, true,
             args -> {
-                List<Map<String, Metadata>> databases = (List<Map<String, Metadata>>) args[0];
-                GeoIpTaskState geoIpTaskState = new GeoIpTaskState();
-                for (Map<String, Metadata> database : databases) {
-                    geoIpTaskState.databases.putAll(database);
-                }
-                return geoIpTaskState;
+                List<Tuple<String, Metadata>> databases = (List<Tuple<String, Metadata>>) args[0];
+                return new GeoIpTaskState(databases.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
             });
 
     static {
-        PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Map.of(name, Metadata.fromXContent(p)), DATABASES);
+        PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Tuple.tuple(name, Metadata.fromXContent(p)), DATABASES);
     }
 
     public static GeoIpTaskState fromXContent(XContentParser parser) {
@@ -55,24 +57,33 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         }
     }
 
-    private final Map<String, Metadata> databases = new TreeMap<>();
+    private final Map<String, Metadata> databases;
 
-    public GeoIpTaskState() {
+    GeoIpTaskState(Map<String, Metadata> databases) {
+        this.databases = Map.copyOf(databases);
     }
 
-    public GeoIpTaskState(StreamInput input) throws IOException {
-        databases.putAll(input.readMap(StreamInput::readString, in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(),
-            in.readString())));
+    GeoIpTaskState(StreamInput input) throws IOException {
+        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString,
+            in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString())));
+    }
+
+    public GeoIpTaskState put(String name, Metadata metadata) {
+        HashMap<String, Metadata> newDatabases = new HashMap<>(databases);
+        newDatabases.put(name, metadata);
+        return new GeoIpTaskState(newDatabases);
     }
 
     public Map<String, Metadata> getDatabases() {
         return databases;
     }
 
-    public GeoIpTaskState copy() {
-        GeoIpTaskState geoIpTaskState = new GeoIpTaskState();
-        geoIpTaskState.getDatabases().putAll(databases);
-        return geoIpTaskState;
+    public boolean contains(String name) {
+        return databases.containsKey(name);
+    }
+
+    public Metadata get(String name) {
+        return databases.get(name);
     }
 
     @Override
@@ -94,15 +105,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         {
             builder.startObject("databases");
             for (Map.Entry<String, Metadata> e : databases.entrySet()) {
-                builder.startObject(e.getKey());
-                {
-                    Metadata meta = e.getValue();
-                    builder.field("last_update", meta.lastUpdate);
-                    builder.field("first_chunk", meta.firstChunk);
-                    builder.field("last_chunk", meta.lastChunk);
-                    builder.field("md5", meta.md5);
-                }
-                builder.endObject();
+                builder.field(e.getKey(), e.getValue());
             }
             builder.endObject();
         }
@@ -130,14 +133,13 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         });
     }
 
-    public static class Metadata {
+    static class Metadata implements ToXContentObject {
 
-        public static final String NAME = GEOIP_DOWNLOADER + "-metadata";
-
-        private static ParseField LAST_UPDATE = new ParseField("last_update");
-        private static ParseField FIRST_CHUNK = new ParseField("first_chunk");
-        private static ParseField LAST_CHUNK = new ParseField("last_chunk");
-        private static ParseField MD5 = new ParseField("md5");
+        static final String NAME = GEOIP_DOWNLOADER + "-metadata";
+        private static final ParseField LAST_UPDATE = new ParseField("last_update");
+        private static final ParseField FIRST_CHUNK = new ParseField("first_chunk");
+        private static final ParseField LAST_CHUNK = new ParseField("last_chunk");
+        private static final ParseField MD5 = new ParseField("md5");
 
         private static final ConstructingObjectParser<Metadata, Void> PARSER =
             new ConstructingObjectParser<>(NAME, true,
@@ -163,7 +165,7 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         private final int lastChunk;
         private final String md5;
 
-        public Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5) {
+        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5) {
             this.lastUpdate = lastUpdate;
             this.firstChunk = firstChunk;
             this.lastChunk = lastChunk;
@@ -200,6 +202,19 @@ public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWritea
         @Override
         public int hashCode() {
             return Objects.hash(lastUpdate, firstChunk, lastChunk, md5);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field(LAST_UPDATE.getPreferredName(), lastUpdate);
+                builder.field(FIRST_CHUNK.getPreferredName(), firstChunk);
+                builder.field(LAST_CHUNK.getPreferredName(), lastChunk);
+                builder.field(MD5.getPreferredName(), md5);
+            }
+            builder.endObject();
+            return builder;
         }
     }
 }

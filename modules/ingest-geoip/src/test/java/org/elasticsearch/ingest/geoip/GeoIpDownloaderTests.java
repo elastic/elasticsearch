@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.test.ESTestCase;
@@ -172,19 +171,15 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testProcessDatabaseNew() throws IOException {
-        GeoIpTaskState taskState = new GeoIpTaskState();
-
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
 
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
-            boolean updateTaskState(String name) {
-                assertEquals(0, state.getDatabases().get("test").getFirstChunk());
-                assertEquals(10, state.getDatabases().get("test").getLastChunk());
-                assertEquals("test", name);
-                return true;
+            void updateTaskState() {
+                assertEquals(0, state.get("test").getFirstChunk());
+                assertEquals(10, state.get("test").getLastChunk());
             }
 
             @Override
@@ -195,7 +190,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(Map<String, GeoIpTaskState.Metadata> currentDatabases, String name) {
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
                 fail();
             }
 
@@ -206,25 +201,20 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
 
-        geoIpDownloader.setState(taskState);
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY);
         geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     public void testProcessDatabaseUpdate() throws IOException {
-        GeoIpTaskState taskState = new GeoIpTaskState();
-        taskState.getDatabases().put("test", new GeoIpTaskState.Metadata(0, 5, 8, "0"));
-
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
 
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
-            boolean updateTaskState(String name) {
-                assertEquals(9, state.getDatabases().get("test").getFirstChunk());
-                assertEquals(10, state.getDatabases().get("test").getLastChunk());
-                assertEquals("test", name);
-                return true;
+            void updateTaskState() {
+                assertEquals(9, state.get("test").getFirstChunk());
+                assertEquals(10, state.get("test").getLastChunk());
             }
 
             @Override
@@ -235,7 +225,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(Map<String, GeoIpTaskState.Metadata> currentDatabases, String name) {
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata metadata) {
                 fail();
             }
 
@@ -246,25 +236,22 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
 
-        geoIpDownloader.setState(taskState);
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY.put("test", new GeoIpTaskState.Metadata(0, 5, 8, "0")));
         geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
 
     public void testProcessDatabaseSame() throws IOException {
-        GeoIpTaskState taskState = new GeoIpTaskState();
-        Map<String, GeoIpTaskState.Metadata> databases = taskState.getDatabases();
-        databases.put("test", new GeoIpTaskState.Metadata(0, 4, 10, "1"));
-
+        GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(0, 4, 10, "1");
+        GeoIpTaskState taskState = GeoIpTaskState.EMPTY.put("test", metadata);
         ByteArrayInputStream bais = new ByteArrayInputStream(new byte[0]);
         when(httpClient.get("a.b/t1")).thenReturn(bais);
 
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
-            boolean updateTaskState(String name) {
+            void updateTaskState() {
                 fail();
-                return true;
             }
 
             @Override
@@ -274,8 +261,8 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
 
             @Override
-            protected void updateTimestamp(Map<String, GeoIpTaskState.Metadata> currentDatabases, String name) {
-                assertEquals(databases, currentDatabases);
+            protected void updateTimestamp(String name, GeoIpTaskState.Metadata newMetadata) {
+                assertEquals(metadata, newMetadata);
                 assertEquals("test", name);
             }
 
@@ -284,44 +271,41 @@ public class GeoIpDownloaderTests extends ESTestCase {
                 fail();
             }
         };
-
         geoIpDownloader.setState(taskState);
         geoIpDownloader.processDatabase(Map.of("name", "test.gz", "url", "a.b/t1", "md5_hash", "1"));
     }
 
     @SuppressWarnings("unchecked")
     public void testUpdateTaskState() {
-        GeoIpTaskState taskState = new GeoIpTaskState();
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
-                assertSame(taskState, state);
+                assertSame(GeoIpTaskState.EMPTY, state);
                 PersistentTask<?> task = mock(PersistentTask.class);
-                when(task.getState()).thenReturn(taskState);
+                when(task.getState()).thenReturn(GeoIpTaskState.EMPTY);
                 listener.onResponse(task);
             }
         };
-        geoIpDownloader.setState(taskState);
-        assertTrue(geoIpDownloader.updateTaskState("test"));
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY);
+        geoIpDownloader.updateTaskState();
     }
 
     @SuppressWarnings("unchecked")
     public void testUpdateTaskStateError() {
-        AllocatedPersistentTask mock = mock(AllocatedPersistentTask.class);
-        GeoIpTaskState taskState = new GeoIpTaskState();
         geoIpDownloader = new GeoIpDownloader(client, httpClient, clusterService, threadPool, Settings.EMPTY,
             1, "", "", "", EMPTY_TASK_ID, Collections.emptyMap()) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
-                assertSame(taskState, state);
+                assertSame(GeoIpTaskState.EMPTY, state);
                 PersistentTask<?> task = mock(PersistentTask.class);
-                when(task.getState()).thenReturn(taskState);
+                when(task.getState()).thenReturn(GeoIpTaskState.EMPTY);
                 listener.onFailure(new IllegalStateException("test failure"));
             }
         };
-        geoIpDownloader.setState(taskState);
-        assertFalse(geoIpDownloader.updateTaskState("test"));
+        geoIpDownloader.setState(GeoIpTaskState.EMPTY);
+        IllegalStateException exception = expectThrows(IllegalStateException.class, geoIpDownloader::updateTaskState);
+        assertEquals("test failure", exception.getMessage());
     }
 
     public void testUpdateDatabases() throws IOException {

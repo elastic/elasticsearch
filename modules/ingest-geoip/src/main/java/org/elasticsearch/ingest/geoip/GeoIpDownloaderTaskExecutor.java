@@ -31,7 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_V2_FEATURE_FLAG_ENABLED;
 
-public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
+final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("geoip.downloader.enabled", GEOIP_V2_FEATURE_FLAG_ENABLED,
         Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -45,8 +45,8 @@ public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTa
     private final Settings settings;
     private final PersistentTasksService persistentTasksService;
 
-    protected GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool,
-                                          Settings settings) {
+    GeoIpDownloaderTaskExecutor(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool,
+                                Settings settings) {
         super(GEOIP_DOWNLOADER, ThreadPool.Names.GENERIC);
         this.client = client;
         this.httpClient = httpClient;
@@ -77,7 +77,7 @@ public class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTa
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
         GeoIpDownloader downloader = (GeoIpDownloader) task;
-        GeoIpTaskState geoIpTaskState = state == null ? new GeoIpTaskState() : (GeoIpTaskState) state;
+        GeoIpTaskState geoIpTaskState = state == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         downloader.runDownloader();
     }

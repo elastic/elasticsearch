@@ -40,12 +40,10 @@ def useFixture = System.getenv("geoip_use_service") != "true"
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   testFixtures.useFixture(fixture.path, 'geoip-fixture')
-}
 
-task "beforeInternalClusterTest" {
-  dependsOn ':test:fixtures:geoip-fixture:postProcessFixture'
-  doLast {
-    if (useFixture) {
+  task "beforeInternalClusterTest" {
+    dependsOn ':test:fixtures:geoip-fixture:postProcessFixture'
+    doLast {
       int ephemeralPort = fixture.postProcessFixture.ext."test.fixtures.geoip-fixture.tcp.80"
       assert ephemeralPort > 0
       internalClusterTest {
@@ -57,7 +55,9 @@ task "beforeInternalClusterTest" {
 
 internalClusterTest {
   systemProperty "es.geoip_v2_feature_flag_enabled", "true"
-  dependsOn "beforeInternalClusterTest"
+  if (useFixture) {
+    dependsOn "beforeInternalClusterTest"
+  }
 }
 
 tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {

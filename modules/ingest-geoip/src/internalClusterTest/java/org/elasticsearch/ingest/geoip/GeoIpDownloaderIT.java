@@ -83,7 +83,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         GeoIpTaskState state = (GeoIpTaskState) getTask().getState();
         for (String id : List.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb")) {
             assertBusy(() -> {
-                GeoIpTaskState.Metadata metadata = state.getDatabases().get(id);
+                GeoIpTaskState.Metadata metadata = state.get(id);
                 BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
                     .filter(new MatchQueryBuilder("name", id))
                     .filter(new RangeQueryBuilder("chunk")

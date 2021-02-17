@@ -30,13 +30,13 @@ import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 
-public class HttpClient {
+class HttpClient {
 
-    public byte[] getBytes(String url) throws IOException {
+    byte[] getBytes(String url) throws IOException {
         return get(url).readAllBytes();
     }
 
-    public InputStream get(String urlToGet) throws IOException {
+    InputStream get(String urlToGet) throws IOException {
         return doPrivileged(() -> {
             String url = urlToGet;
             HttpURLConnection conn = createConnection(url);

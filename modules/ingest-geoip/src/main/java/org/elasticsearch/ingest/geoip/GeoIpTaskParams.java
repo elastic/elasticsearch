@@ -20,14 +20,14 @@ import java.io.IOException;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 
-public class GeoIpTaskParams implements PersistentTaskParams {
+class GeoIpTaskParams implements PersistentTaskParams {
 
     public static final ObjectParser<GeoIpTaskParams, Void> PARSER = new ObjectParser<>(GEOIP_DOWNLOADER, true, GeoIpTaskParams::new);
 
-    public GeoIpTaskParams() {
+    GeoIpTaskParams() {
     }
 
-    public GeoIpTaskParams(StreamInput in) {
+    GeoIpTaskParams(StreamInput in) {
     }
 
     @Override

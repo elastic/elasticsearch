@@ -288,7 +288,7 @@ public class Realms implements Iterable<Realm> {
 
     private void addUnconfiguredRealmIfNecessary(List<Realm> realms, String type, String name, int order) throws Exception {
         if (false == disabledNativeRealmTypes.contains(type) && false == realms.stream().anyMatch(r -> type.equals(r.type()))) {
-            Realm.Factory factory = factories.get(FileRealmSettings.TYPE);
+            Realm.Factory factory = factories.get(type);
             if (factory != null) {
                 var realmIdentifier = new RealmConfig.RealmIdentifier(type, name);
                 realms.add(factory.create(new RealmConfig(

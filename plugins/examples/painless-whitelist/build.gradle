@@ -22,7 +22,7 @@ dependencies {
 }
 
 testClusters.all {
-  testDistribution = 'oss'
+  testDistribution = 'DEFAULT'
 }
 
 tasks.named("test").configure { enabled = false }

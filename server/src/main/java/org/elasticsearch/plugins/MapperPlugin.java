@@ -35,7 +35,7 @@ public interface MapperPlugin {
     }
 
     /**
-     * Returss the runtime field implementations added by this plugin.
+     * Returns the runtime field implementations added by this plugin.
      * <p>
      * The key of the returned {@link Map} is the unique name for the field type which will be used
      * as the mapping {@code type}, and the value is a {@link RuntimeFieldType.Parser} to parse the

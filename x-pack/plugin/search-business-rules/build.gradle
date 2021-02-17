@@ -11,7 +11,7 @@ archivesBaseName = 'x-pack-searchbusinessrules'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(":test:framework")
 }
 

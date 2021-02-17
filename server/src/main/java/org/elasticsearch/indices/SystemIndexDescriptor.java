@@ -84,7 +84,7 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, null, Type.EXTERNAL_UNMANAGED, List.of());
+        this(indexPattern, null, description, null, null, null, 0, null, null, null, Type.INTERNAL, List.of());
     }
 
     /**

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -117,6 +119,12 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         public static final String SYSTEM_INDEX_NAME = ".test-system-idx";
 
+        public static final Settings SETTINGS = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
+            .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
+            .build();
+
         @Override
         public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                                                  IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
@@ -127,7 +135,13 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "System indices for tests"));
+            return Collections.singletonList(SystemIndexDescriptor.builder()
+                .setIndexPattern(SYSTEM_INDEX_NAME)
+                .setDescription("Test system index")
+                .setSettings(SETTINGS)
+                .setType(Type.INTERNAL)
+                .build()
+            );
         }
 
         @Override

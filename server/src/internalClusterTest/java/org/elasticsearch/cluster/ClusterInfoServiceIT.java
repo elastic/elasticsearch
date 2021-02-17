@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -82,7 +83,18 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+            final Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
+                .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
+                .build();
+            return List.of(SystemIndexDescriptor.builder()
+                .setIndexPattern(TEST_SYSTEM_INDEX_NAME)
+                .setDescription("Test system index")
+                .setSettings(indexSettings)
+                .setType(Type.INTERNAL)
+                .build()
+            );
         }
 
         @Override

@@ -77,7 +77,7 @@ escape event categories that:
 [[eql-syntax-escape-a-field-name]]
 === Escape a field name
 
-Use enclosing enclosing backticks (+++`+++) to escape field names that:
+Use enclosing backticks (+++`+++) to escape field names that:
 
 * Contain a hyphen (`-`)
 * Contain a space
@@ -808,15 +808,24 @@ sub-fields of a `nested` field. However, data streams and indices containing
 {es} EQL differs from the {eql-ref}/index.html[Elastic Endgame EQL syntax] as
 follows:
 
-* Most operators and functions in {es} EQL are case-sensitive by default. For
-case-insensitive equality comparisons, use the `:` operator. To make a function
-case-insensitive, use the `~` operator after the function name. See
-<<eql-case-insensitive-functions>>.
+* In {es} EQL, most operators are case-sensitive. For example,
+`process_name == "cmd.exe"` is not equivalent to 
+`process_name == "Cmd.exe"`.
 
-* Comparisons using the `==` and `!=` operators do not expand wildcard
-characters. For example, `process_name == "cmd*.exe"` interprets `*` as a
-literal asterisk, not a wildcard. For case-sensitive wildcard matching, use the
-<<eql-fn-wildcard,`wildcard`>> function.
+* In {es} EQL, functions are case-sensitive. To make a function
+case-insensitive, use `~`, such as `endsWith~(process_name, ".exe")`.
+
+* For case-insensitive equality comparisons, use the `:` operator. Both `*` and
+`?` are recognized wildcard characters.
+
+* The `==` and `!=` operators do not expand wildcard characters. For example,
+`process_name == "cmd*.exe"` interprets `*` as a literal asterisk, not a
+wildcard.
+
+* For wildcard matching, use the `like` keyword when case-sensitive and
+`like~` when case-insensitive. The `:` operator is equivalent to `like~`.
+
+* For regular expression matching, use `regex` or `regex~`.
 
 * `=` cannot be substituted for the `==` operator.
 

@@ -49,7 +49,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
 import static org.hamcrest.Matchers.containsString;
@@ -1221,11 +1220,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
 
         Map<String, Object> map() {
-            return unmodifiableMap(map);
+            return map;
         }
 
         List<T> values() {
-            return unmodifiableList(values);
+            return values;
         }
 
         String path() {

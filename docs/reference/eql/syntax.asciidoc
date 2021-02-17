@@ -745,8 +745,7 @@ follows:
 `process_name == "cmd.exe"` is not equivalent to 
 `process_name == "Cmd.exe"`.
 
-* In {es} EQL, functions are case-sensitive. To make a function
-case-insensitive, use `~`, such as `endsWith~(process_name, ".exe")`.
+* In {es} EQL, functions are case-sensitive by default.
 
 * For case-insensitive equality comparisons, use the `:` operator. Both `*` and
 `?` are recognized wildcard characters.

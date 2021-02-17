@@ -24,7 +24,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.search.fetch.subphase.highlight.LimitTokenOffsetAnalyzer;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -91,7 +90,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     Predicate<String> fieldMatcher,
                                     int maxAnalyzedOffset,
                                     Integer queryMaxAnalyzedOffset) throws IOException {
-        super(searcher, wrapAnalyzer(analyzer, queryMaxAnalyzedOffset));
+        super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
@@ -103,13 +102,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
-    }
-
-    protected static Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
-        if (maxAnalyzedOffset != null) {
-            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
-        }
-        return analyzer;
     }
 
     /**

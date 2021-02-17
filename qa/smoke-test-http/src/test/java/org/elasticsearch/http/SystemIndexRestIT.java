@@ -139,7 +139,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            try (final XContentBuilder builder = jsonBuilder()) {
+            try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
                 {
                     builder.startObject("_meta");

@@ -221,6 +221,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
             containsString("Cannot delete model ["
                 + MODEL_ID
                 + "] as it has a model_alias [regression_first] that is still referenced by ingest processors"));
+        infer("first_pipeline");
         deletePipeline("first_pipeline");
         waitForStats();
     }
@@ -235,6 +236,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
             containsString("Cannot delete model ["
                 + MODEL_ID
                 + "] as it is still referenced by ingest processors"));
+        infer("first_pipeline");
         deletePipeline("first_pipeline");
         waitForStats();
     }
@@ -339,6 +341,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> updatedStatsMap = null;
             try {
+                ensureGreen(".ml-stats-*");
                 updatedStatsMap = getStats();
             } catch (ResponseException e) {
                 // the search may fail because the index is not ready yet in which case retry
@@ -349,14 +352,9 @@ public class InferenceProcessorIT extends ESRestTestCase {
                 }
             }
 
-            List<Integer> updatedPipelineCount =
-                (List<Integer>) XContentMapValues.extractValue("trained_model_stats.pipeline_count", updatedStatsMap);
-            assertThat(updatedPipelineCount.get(0), equalTo(0));
-
             List<Map<String, Object>> inferenceStats =
                 (List<Map<String, Object>>) XContentMapValues.extractValue("trained_model_stats.inference_stats", updatedStatsMap);
             assertNotNull(inferenceStats);
-            assertThat(inferenceStats, hasSize(1));
         });
     }
 

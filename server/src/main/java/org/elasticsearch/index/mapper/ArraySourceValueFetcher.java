@@ -52,8 +52,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
             }
             try {
                 values.addAll((List<?>) parseSourceValue(sourceValue));
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 // if parsing fails here then it would have failed at index time
                 // as well, meaning that we must be ignoring malformed values.
                 // So ignore it here too.

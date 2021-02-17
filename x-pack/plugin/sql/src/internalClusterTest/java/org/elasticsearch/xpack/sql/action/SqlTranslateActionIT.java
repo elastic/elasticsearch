@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.SortBuilders;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -39,13 +39,12 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         if (columnOrder) {
             expectedFields.add(new FieldAndFormat("data", null));
             expectedFields.add(new FieldAndFormat("count", null));
-            expectedFields.add(new FieldAndFormat("date", "epoch_millis"));
+            expectedFields.add(new FieldAndFormat("date", "strict_date_optional_time_nanos"));
         } else {
-            expectedFields.add(new FieldAndFormat("date", "epoch_millis"));
+            expectedFields.add(new FieldAndFormat("date", "strict_date_optional_time_nanos"));
             expectedFields.add(new FieldAndFormat("data", null));
             expectedFields.add(new FieldAndFormat("count", null));
         }
-        
         assertEquals(expectedFields, actualFields);
         assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
     }

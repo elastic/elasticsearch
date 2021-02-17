@@ -65,8 +65,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                         if (parsedValue != null) {
                             values.add(parsedValue);
                         }
-                    }
-                    catch (Exception e) {
+                    } catch (Exception e) {
                         // if we get a parsing exception here, that means that the
                         // value in _source would have also caused a parsing
                         // exception at index time and the value ignored.

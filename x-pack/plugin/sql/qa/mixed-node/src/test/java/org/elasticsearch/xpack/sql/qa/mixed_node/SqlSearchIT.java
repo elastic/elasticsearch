@@ -69,8 +69,7 @@ public class SqlSearchIT extends ESRestTestCase {
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
         bwcVersion = nodes.getBWCNodes().get(0).getVersion();
         newVersion = nodes.getNewNodes().get(0).getVersion();
-        // TODO: remove the 8.0.0 version check after the code reaches 7.x as well
-        isBwcNodeBeforeFieldsApiInQL = newVersion == Version.V_8_0_0 || bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
+        isBwcNodeBeforeFieldsApiInQL = bwcVersion.before(FIELDS_API_QL_INTRODUCTION);
         isBwcNodeBeforeFieldsApiInES = bwcVersion.before(SWITCH_TO_FIELDS_API_VERSION);
         
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));

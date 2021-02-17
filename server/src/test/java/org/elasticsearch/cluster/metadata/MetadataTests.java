@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -50,6 +51,7 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -1200,7 +1202,6 @@ public class MetadataTests extends ESTestCase {
         validateDataStreams(indicesLookup, dataStreamMetadata);
     }
 
-
     public void testValidateDataStreamsForNullDataStreamMetadata() {
         Metadata metadata = Metadata.builder().put(
             IndexMetadata.builder("foo-index")
@@ -1216,7 +1217,58 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tests for the implementation of data stream snapshot reconciliation are located in {@link DataStreamTests#testSnapshot()}
+     */
+    public void testSnapshot() {
+        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        List<String> indicesInSnapshot = new ArrayList<>();
+        for (var dsName : dataStreamsToSnapshot) {
+            // always include at least one backing index per data stream
+            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
+            indicesInSnapshot.addAll(
+                randomSubsetOf(
+                    randomIntBetween(1, ds.getIndices().size()),
+                    ds.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+                )
+            );
+        }
+        var reconciledMetadata = Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot);
+        assertThat(reconciledMetadata.dataStreams().size(), equalTo(postSnapshotMetadata.dataStreams().size()));
+        for (DataStream ds : reconciledMetadata.dataStreams().values()) {
+            assertThat(ds.getIndices().size(), greaterThanOrEqualTo(1));
+        }
+    }
+
+    public void testSnapshotWithMissingDataStream() {
+        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
+        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
+        List<String> indicesInSnapshot = new ArrayList<>();
+        for (var dsName : dataStreamsToSnapshot) {
+            // always include at least one backing index per data stream
+            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
+            indicesInSnapshot.addAll(
+                randomSubsetOf(
+                    randomIntBetween(1, ds.getIndices().size()),
+                    ds.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+                )
+            );
+        }
+        String missingDataStream = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        dataStreamsToSnapshot.add(missingDataStream);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot)
+        );
+        assertThat(e.getMessage(), containsString("unable to find data stream [" + missingDataStream + "]"));
+    }
+
     public static Metadata randomMetadata() {
+        return randomMetadata(1);
+    }
+
+    public static Metadata randomMetadata(int numDataStreams) {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
             .put(IndexTemplateMetadata.builder("template" + randomAlphaOfLength(3))
@@ -1238,11 +1290,13 @@ public class MetadataTests extends ESTestCase {
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
-        DataStream randomDataStream = DataStreamTestHelper.randomInstance();
-        for (Index index : randomDataStream.getIndices()) {
-            md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+        for (int k = 0; k < numDataStreams; k++) {
+            DataStream randomDataStream = DataStreamTestHelper.randomInstance();
+            for (Index index : randomDataStream.getIndices()) {
+                md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+            }
+            md.put(randomDataStream);
         }
-        md.put(randomDataStream);
 
         return md.build();
     }

@@ -260,6 +260,9 @@ POST /_snapshot/my_unverified_backup/_verify
 
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
+If desired, you can also test a repository more thoroughly using the
+<<repo-analysis-api,Repository analysis API>>.
+
 [discrete]
 [[snapshots-repository-cleanup]]
 === Repository cleanup

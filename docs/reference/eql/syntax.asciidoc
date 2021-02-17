@@ -125,14 +125,13 @@ the value to the right. Otherwise returns `false`.
 
 `==` (equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are equal.
-Otherwise returns `false`. For strings, matching is case-sensitive. Wildcards
-are not supported.
+Otherwise returns `false`. Wildcards are not supported.
 
 `:` (equal, case-insensitive)::
 Returns `true` if strings to the left and right of the operator are equal.
-Otherwise returns `false`. Matching is case-insensitive and can only be used to
-compare strings. Supports <<eql-syntax-wildcards,wildcards>> and
-<<eql-syntax-lookup-operators,list lookups>>.
+Otherwise returns `false`. Can only be used to compare strings. Supports
+<<eql-syntax-wildcards,wildcards>> and <<eql-syntax-lookup-operators,list
+lookups>>.
 
 [IMPORTANT]
 ====
@@ -149,8 +148,7 @@ DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
 
 `!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
-equal. Otherwise returns `false`. For strings, matching is case-sensitive.
-Wildcards are not supported.
+equal. Otherwise returns `false`. Wildcards are not supported.
 
 `>=` (greater than or equal) ::
 Returns `true` if the value to the left of the operator is greater than or equal
@@ -164,13 +162,42 @@ the operator uses a case-sensitive lexicographic order.
 
 NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
-You cannot chain comparison operators. Instead, use a
+[discrete]
+[[eql-syntax-pattern-comparison-keywords]]
+=== Pattern comparison keywords
+
+[source,eql]
+----
+my_field like  "VALUE*"         // case-sensitive wildcard matching
+my_field like~ "value*"         // case-insensitive wildcard matching
+
+my_field regex  "VALUE[^Z].?"   // case-sensitive regex matching
+my_field regex~ "value[^z].?"   // case-insensitive regex matching
+----
+
+`like` (case-sensitive)::
+Returns `true` if the string to the left of the keyword matches a
+<<eql-syntax-wildcards,wildcard pattern>> to the right. Supports
+<<eql-syntax-lookup-operators,list lookups>>. Can only be used to compare
+strings. For case-insensitive matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string to the left of the keyword matches a regular
+expression to the right. For supported regular expression syntax, see
+<<regexp-syntax>>. Supports <<eql-syntax-lookup-operators,list lookups>>. Can
+only be used to compare strings. For case-insensitive matching, use `regex~`.
+
+[discrete]
+[[limitations-for-comparisons]]
+=== Limitations for comparisons
+
+You cannot chain comparisons. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
 example, `foo < bar <= baz` is not supported. However, you can rewrite the
 expression as `foo < bar and bar <= baz`, which is supported.
 
-You also cannot use comparison operators to compare a field to another field.
-This applies even if the fields are changed using a <<eql-functions,function>>.
+You also cannot compare a field to another field, even if the fields are changed
+using a <<eql-functions,function>>.
 
 *Example* +
 The following EQL query compares the `process.parent_name` field
@@ -219,32 +246,43 @@ Returns `true` if the condition to the right is `false`.
 
 [source,eql]
 ----
-user.name in ("Administrator", "SYSTEM", "NETWORK SERVICE")
-user.name in~ ("administrator", "system", "network service")
-user.name not in ("Administrator", "SYSTEM", "NETWORK SERVICE")
-user.name not in~ ("administrator", "system", "network service")
-user.name : ("administrator", "system", "network service")
+my_field in ("Value-1", "VALUE2", "VAL3")                 // case-sensitive
+my_field in~ ("value-1", "value2", "val3")                // case-insensitive
+
+my_field not in ("Value-1", "VALUE2", "VAL3")             // case-sensitive
+my_field not in~ ("value-1", "value2", "val3")            // case-insensitive
+
+my_field : ("value-1", "value2", "val3")                  // case-insensitive
+
+my_field like  ("Value-*", "VALUE2", "VAL?")              // case-sensitive
+my_field like~ ("value-*", "value2", "val?")              // case-insensitive
+
+my_field regex  ("[vV]alue-[0-9]", "VALUE[^2].?", "VAL3") // case-sensitive
+my_field regex~  ("value-[0-9]", "value[^2].?", "val3")   // case-sensitive
 ----
 
 `in` (case-sensitive)::
-Returns `true` if the value is contained in the provided list. For strings,
-matching is case-sensitive.
-
-`in~` (case-insensitive)::
-Returns `true` if the value is contained in the provided list. For strings,
-matching is case-insensitive.
+Returns `true` if the value is contained in the provided list. For
+case-insensitive matching, use `in~`.
 
 `not in` (case-sensitive)::
-Returns `true` if the value is not contained in the provided list. For strings,
-matching is case-sensitive.
-
-`not in~` (case-insensitive)::
-Returns `true` if the value is not contained in the provided list. For strings,
-matching is case-insensitive.
+Returns `true` if the value is not contained in the provided list. For
+case-insensitive matching, use `not in~`.
 
 `:` (case-insensitive)::
-Returns `true` if the value is contained in the provided list. Can only be used
+Returns `true` if the string is contained in the provided list. Can only be used
 to compare strings.
+
+`like` (case-sensitive)::
+Returns `true` if the string matches a <<eql-syntax-wildcards,wildcard pattern>>
+in the provided list. Can only be used to compare strings. For case-insensitive
+matching, use `like~`.
+
+`regex` (case-sensitive)::
+Returns `true` if the string matches a regular expression pattern in the
+provided list. For supported regular expression syntax, see <<regexp-syntax>>.
+Can only be used to compare strings. For case-insensitive matching, use
+`regex~`.
 
 [discrete]
 [[eql-syntax-math-operators]]
@@ -390,32 +428,39 @@ use a regular string with the `\"` escape sequence.
 [[eql-syntax-wildcards]]
 === Wildcards
 
-For string comparisons using the `:` operator, you can use the `*` and `?`
-wildcards to match specific patterns. The `*` wildcard matches zero or more
-characters:
+For string comparisons using the `:` operator or `like` keyword, you can use the
+`*` and `?` wildcards to match specific patterns. The `*` wildcard matches zero
+or more characters:
 
 [source,eql]
 ----
-my_field : "doc*"  // Matches "doc", "docs", or "document" but not "dos"
-my_field : "*doc"  // Matches "adoc" or "asciidoc"
-my_field : "d*c"   // Matches "doc" or "disc"
+my_field : "doc*"     // Matches "doc", "docs", or "document" but not "DOS"
+my_field : "*doc"     // Matches "adoc" or "asciidoc"
+my_field : "d*c"      // Matches "doc" or "disc"
+
+my_field like "DOC*"  // Matches "DOC", "DOCS", "DOCs", or "DOCUMENT" but not "DOS"
+my_field like "D*C"   // Matches "DOC", "DISC", or "DisC"
 ----
 
 The `?` wildcard matches exactly one character:
 
 [source,eql]
 ----
-my_field : "doc?"  // Matches "docs" but not "doc", "document", or "dos"
-my_field : "?doc"  // Matches "adoc" but not "asciidoc"
-my_field : "d?c"   // Matches "doc" but not "disc"
+my_field : "doc?"     // Matches "docs" but not "doc", "document", or "DOS"
+my_field : "?doc"     // Matches "adoc" but not "asciidoc"
+my_field : "d?c"      // Matches "doc" but not "disc"
+
+my_field like "DOC?"  // Matches "DOCS" or "DOCs" but not "DOC", "DOCUMENT", or "DOS"
+my_field like "D?c"   // Matches "DOC" but not "DISC"
 ----
 
-The `:` operator also supports wildcards in <<eql-syntax-lookup-operators,list
-lookups>>:
+The `:` operator and `like` keyword also support wildcards in
+<<eql-syntax-lookup-operators,list lookups>>:
 
 [source,eql]
 ----
 my_field : ("doc*", "f*o", "ba?", "qux")
+my_field like ("Doc*", "F*O", "BA?", "QUX")
 ----
 
 [discrete]
@@ -820,7 +865,7 @@ recent sequence overwrites the older one.
 * If the query includes <<eql-by-keyword,`by` fields>>, the query uses a
 separate state machine for each unique `by` field value.
 
-.*Example* 
+.*Example*
 [%collapsible]
 ====
 A data set contains the following `process` events in ascending chronological
@@ -1030,5 +1075,4 @@ Pending sequence matches move through each machine's states as follows:
 // |  +-----------+     +-----------+     +------------+  |
 // +------------------------------------------------------+
 ----
-
 ====

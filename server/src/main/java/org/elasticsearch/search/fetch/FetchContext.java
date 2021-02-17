@@ -209,8 +209,10 @@ public class FetchContext {
         // the root source is found on the inner hits context.
         if (searchContext instanceof InnerHitSubContext && hitContext.hit().getNestedIdentity() != null) {
             InnerHitSubContext innerHitsContext = (InnerHitSubContext) searchContext;
+            System.out.println("Getting root source lookup from inner hits context");
             return innerHitsContext.getRootLookup();
         } else {
+            System.out.println("Getting root source lookup from hit context");
             return hitContext.valuesLookup().source();
         }
     }

@@ -98,11 +98,14 @@ class RollupShardIndexer {
     private final List<FieldValueFetcher> metricsFieldFetchers;
 
     private final CompressingOfflineSorter sorter;
-    private final Set<String> tmpFiles = new HashSet<>();
 
     private final BulkProcessor bulkProcessor;
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
+
+    // for testing
+    final Set<String> tmpFiles = new HashSet<>();
+    final Set<String> tmpFilesDeleted = new HashSet<>();
 
     RollupShardIndexer(Client client,
                        IndexService indexService,
@@ -130,6 +133,12 @@ class RollupShardIndexer {
                     IndexOutput output = super.createTempOutput(prefix, suffix, context);
                     tmpFiles.add(output.getName());
                     return output;
+                }
+
+                @Override
+                public void deleteFile(String name) throws IOException {
+                    tmpFilesDeleted.add(name);
+                    super.deleteFile(name);
                 }
             };
             this.searchExecutionContext = indexService.newSearchExecutionContext(
@@ -192,21 +201,10 @@ class RollupShardIndexer {
             do {
                 bucket = computeBucket(bucket);
             } while (bucket != null);
-        } finally {
-            assert(checkCleanDirectory(dir, tmpFiles));
         }
         // TODO: check that numIndexed == numSent, otherwise throw an exception
         logger.info("Successfully sent [" + numIndexed.get()  + "], indexed [" + numIndexed.get()  + "]");
         return numIndexed.get();
-    }
-
-    // check that all temporary files are deleted
-    private static boolean checkCleanDirectory(Directory dir, Set<String> tmpFiles) throws IOException {
-        Set<String> allFiles = Arrays.stream(dir.listAll()).collect(Collectors.toSet());
-        for (String tmpFile : tmpFiles) {
-            assert(allFiles.contains(tmpFile) == false);
-        }
-        return true;
     }
 
     private BulkProcessor createBulkProcessor() {

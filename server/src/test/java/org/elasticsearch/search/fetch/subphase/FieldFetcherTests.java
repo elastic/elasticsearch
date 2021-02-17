@@ -97,6 +97,49 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         DocumentField field = fields.get("foo.bar");
         assertThat(field.getValues().size(), equalTo(1));
         assertThat(field.getValue(), equalTo("baz"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.cat", "miau")
+            .endObject();
+
+        doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
+
+        fields = fetchFields(mapperService, source, "foo.cat");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("foo.cat");
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), containsInAnyOrder("meow", "miau"));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .array("foo.cat", "miau", "purr")
+            .endObject();
+
+        doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
+
+        fields = fetchFields(mapperService, source, "foo.cat");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("foo.cat");
+        assertThat(field.getValues().size(), equalTo(3));
+        assertThat(field.getValues(), containsInAnyOrder("meow", "miau", "purr"));
+    }
+
+    public void testMixedDottedObjectSyntax() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("object").field("field", "value").endObject()
+            .field("object.field", "value2")
+            .endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertThat(field.getValues().size(), equalTo(2));
+        assertThat(field.getValues(), containsInAnyOrder("value", "value2"));
     }
 
     public void testNonExistentField() throws IOException {
@@ -244,6 +287,16 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertNotNull(dateField);
         assertThat(dateField.getValues().size(), equalTo(1));
         assertThat(dateField.getValue(), equalTo("1990/12/29"));
+
+        // check that badly formed dates in source are just ignored when fetching
+        source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .array("date_field", "1990-12-29T00:00:00.000Z", "baddate", "1991-12-29T00:00:00.000Z")
+            .endObject();
+        DocumentField dates
+            = fetchFields(mapperService, source, List.of(new FieldAndFormat("date_field", "yyyy/MM/dd"))).get("date_field");
+        assertThat(dates.getValues().size(), equalTo(2));
+        assertThat(dates, containsInAnyOrder(equalTo("1990/12/29"), equalTo("1991/12/29")));
     }
 
     public void testIgnoreAbove() throws IOException {

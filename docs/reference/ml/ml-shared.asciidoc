@@ -619,7 +619,7 @@ The ordered array of custom processors to execute. Must be more than 1.
 end::dfas-feature-processors-multi-proc[]
 
 tag::dfas-feature-processors-ngram[]
-The configuration information necessary to perform ngram encoding. Features 
+The configuration information necessary to perform n-gram encoding. Features 
 written out by this encoder have the following name format: 
 `<feature_prefix>.<ngram><string position>`. For example, if the 
 `feature_prefix` is `f`, the feature name for the second unigram in a string is 
@@ -635,18 +635,18 @@ The name of the text field to encode.
 end::dfas-feature-processors-ngram-field[]
 
 tag::dfas-feature-processors-ngram-length[]
-Specifies the length of the ngram substring. Defaults to `50`. Must be greater 
+Specifies the length of the n-gram substring. Defaults to `50`. Must be greater 
 than `0`.
 end::dfas-feature-processors-ngram-length[]
 
 tag::dfas-feature-processors-ngram-ngrams[]
-Specifies which ngrams to gather. It’s an array of integer values where the 
+Specifies which n-grams to gather. It’s an array of integer values where the 
 minimum value is 1, and a maximum value is 5.
 end::dfas-feature-processors-ngram-ngrams[]
 
 tag::dfas-feature-processors-ngram-start[]
-Specifies the zero-indexed start of the ngram substring. Negative values are 
-allowed for encoding ngram of string suffixes. Defaults to `0`.
+Specifies the zero-indexed start of the n-gram substring. Negative values are 
+allowed for encoding n-grams of string suffixes. Defaults to `0`.
 end::dfas-feature-processors-ngram-start[]
 
 tag::dfas-feature-processors-one-hot[]

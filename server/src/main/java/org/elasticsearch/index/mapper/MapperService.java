@@ -186,7 +186,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMappingSource, incomingMapping);
+                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY);
             }
             String op = previousMapper != null ? "updated" : "added";
@@ -202,13 +202,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper,
-                                          String type,
-                                          CompressedXContent incomingMappingSource,
-                                          Mapping incomingMapping) {
+                                             String type,
+                                             Mapping incomingMapping) {
         Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY);
+        //skip the runtime section or removed runtime fields will make the assertion fail
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
         try {
-            mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, params);
+        } catch (Exception e) {
+            throw new AssertionError("failed to serialize source for type [" + type + "]", e);
+        }
+        CompressedXContent incomingMappingSource;
+        try {
+            incomingMappingSource = new CompressedXContent(incomingMapping, XContentType.JSON, params);
         } catch (Exception e) {
             throw new AssertionError("failed to serialize source for type [" + type + "]", e);
         }

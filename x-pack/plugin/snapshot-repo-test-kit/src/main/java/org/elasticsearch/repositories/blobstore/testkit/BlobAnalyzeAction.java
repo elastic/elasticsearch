@@ -368,20 +368,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                         new ActionListenerResponseHandler<>(new ActionListener<>() {
                             @Override
                             public void onResponse(GetBlobChecksumAction.Response response) {
-                                if (beforeWriteComplete == false && response.isNotFound()) {
-                                    readNodesListener.onFailure(
-                                        new RepositoryVerificationException(
-                                            request.getRepositoryName(),
-                                            "["
-                                                + blobChecksumRequest
-                                                + "] (after write complete) failed on node ["
-                                                + node
-                                                + "]: blob not found"
-                                        )
-                                    );
-                                } else {
-                                    readNodesListener.onResponse(makeNodeResponse(node, beforeWriteComplete, response));
-                                }
+                                readNodesListener.onResponse(makeNodeResponse(node, beforeWriteComplete, response));
                             }
 
                             @Override

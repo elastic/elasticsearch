@@ -6,7 +6,7 @@
 <titleabbrev>Delete {ls} pipeline</titleabbrev>
 ++++
 
-This API deletes a {ls} pipeline used for
+This API deletes a pipeline used for
 {logstash-ref}/logstash-centralized-pipeline-management.html[{ls} Central
 Management].
 

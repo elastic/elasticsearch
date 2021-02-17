@@ -230,7 +230,10 @@ public class RollupShardDecider {
      *
      * @return true if the timezones are compatible, otherwise false
      */
-    private static boolean canMatchTimezone(ZoneId tz1, ZoneId tz2) {
+    static boolean canMatchTimezone(ZoneId tz1, ZoneId tz2) {
+        if (tz1 == null || tz2 == null) {
+            throw new IllegalArgumentException("Timezone cannot be null");
+        }
         return tz1.getRules().equals(tz2.getRules());
     }
 }

@@ -20,7 +20,7 @@ The {es} {security-features} contain an access control feature that allows or
 rejects hosts, domains, or subnets.
 
 You configure IP filtering by specifying the `xpack.security.transport.filter.allow` and
-`xpack.security.transport.filter.deny` settings in in `elasticsearch.yml`. Allow rules
+`xpack.security.transport.filter.deny` settings in `elasticsearch.yml`. Allow rules
 take precedence over the deny rules.
 
 IMPORTANT: Unless explicitly specified, `xpack.security.http.filter.*` settings default to

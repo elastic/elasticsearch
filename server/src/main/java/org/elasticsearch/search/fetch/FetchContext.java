@@ -22,7 +22,6 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.rescore.RescoreContext;
 
@@ -35,14 +34,12 @@ import java.util.List;
 public class FetchContext {
 
     private final SearchContext searchContext;
-    private final SearchLookup searchLookup;
 
     /**
      * Create a FetchContext based on a SearchContext
      */
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
-        this.searchLookup = searchContext.getSearchExecutionContext().lookup();
     }
 
     /**
@@ -57,13 +54,6 @@ public class FetchContext {
      */
     public ContextIndexSearcher searcher() {
         return searchContext.searcher();
-    }
-
-    /**
-     * The {@code SearchLookup} for the this context
-     */
-    public SearchLookup searchLookup() {
-        return searchLookup;
     }
 
     /**

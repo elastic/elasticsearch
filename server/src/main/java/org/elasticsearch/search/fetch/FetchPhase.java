@@ -37,6 +37,7 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.lookup.ValuesLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -102,6 +103,7 @@ public class FetchPhase {
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
+        SearchLookup searchLookup = context.getSearchLookup();
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;
@@ -134,11 +136,11 @@ public class FetchPhase {
                         processor.setNextReader(currentReaderContext);
                     }
                     leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(currentReaderContext);
-                    currentValuesLookup = fetchContext.searchLookup().getLeafSearchLookup(currentReaderContext);
+                    currentValuesLookup = searchLookup.getLeafSearchLookup(currentReaderContext);
                 }
                 assert currentReaderContext != null;
                 assert currentValuesLookup != null;
-                currentValuesLookup.setDocument(docId);
+                currentValuesLookup.setDocument(docId - currentReaderContext.docBase);
                 HitContext hit = prepareHitContext(
                     context,
                     leafNestedDocuments,
@@ -377,9 +379,6 @@ public class FetchPhase {
 
         SearchHit.NestedIdentity nestedIdentity = nestedInfo.nestedIdentity();
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
-        HitContext hitContext = new HitContext(hit, valuesLookup, subReaderContext, nestedInfo.doc());
-
         if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
             // structure with the nested json array object being the actual content. The latter is important, so that
@@ -413,10 +412,10 @@ public class FetchPhase {
                 }
             }
 
-            hitContext.valuesLookup().source().setSource(nestedSourceAsMap);
-            hitContext.valuesLookup().source().setSourceContentType(rootSourceContentType);
+            valuesLookup = ValuesLookup.wrapWithSource(valuesLookup, nestedSourceAsMap, rootSourceContentType);
         }
-        return hitContext;
+        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
+        return new HitContext(hit, valuesLookup, subReaderContext, nestedInfo.doc());
     }
 
     private void loadStoredFields(Function<String, MappedFieldType> fieldTypeLookup,

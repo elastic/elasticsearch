@@ -21,9 +21,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -69,6 +71,7 @@ public final class InnerHitsContext {
         protected final SearchContext context;
         private InnerHitsContext childInnerHits;
         private Weight innerHitQueryWeight;
+        private SearchLookup searchLookup;
 
         private String rootId;
         private final SourceLookup rootLookup = new SourceLookup();
@@ -133,6 +136,15 @@ public final class InnerHitsContext {
             System.out.println("Setting root source lookup " + rootLookup.source());
             this.rootLookup.setSource(rootLookup.source());
             this.rootLookup.setSourceContentType(rootLookup.sourceContentType());
+        }
+
+        @Override
+        public SearchLookup getSearchLookup() {
+            if (this.searchLookup == null) {
+                SearchExecutionContext sec = getSearchExecutionContext();
+                this.searchLookup = new SearchLookup(sec::getFieldType, (f, l) -> sec.getForField(f));
+            }
+            return this.searchLookup;
         }
     }
 

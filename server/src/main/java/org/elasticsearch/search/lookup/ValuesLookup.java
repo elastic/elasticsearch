@@ -9,14 +9,34 @@
 package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
+import java.util.Objects;
 
 public interface ValuesLookup {
 
     SourceLookup source();
 
     LeafDocLookup doc();
+
+    static ValuesLookup wrapWithSource(ValuesLookup in, Map<String, Object> source, XContentType xContentType) {
+        System.out.println("Building independent source: " + source);
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(source);
+        sourceLookup.setSourceContentType(Objects.requireNonNull(xContentType));
+        return new ValuesLookup() {
+            @Override
+            public SourceLookup source() {
+                return sourceLookup;
+            }
+
+            @Override
+            public LeafDocLookup doc() {
+                return in.doc();
+            }
+        };
+    }
 
     static ValuesLookup sourceOnly(BytesReference source) {
         SourceLookup sourceLookup = new SourceLookup();

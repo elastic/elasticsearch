@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -61,12 +60,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@Seed("9E43F62788D47F1E:E99EDE15224E9745")
 public class InnerHitsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
+    }
+
+    @Override
+    protected int numberOfShards() {
+        return 1;
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -197,12 +200,12 @@ public class InnerHitsIT extends ESIntegTestCase {
                     .field("foo", i)
                     .startArray("field1");
             for (int j = 0; j < numInnerObjects; j++) {
-                source.startObject().field("x", "y").endObject();
+                source.startObject().field("x", "y" + i + ":" + j).endObject();
             }
             numInnerObjects = field2InnerObjects[i] = scaledRandomIntBetween(1, numDocs);
             source.endArray().startArray("field2");
             for (int j = 0; j < numInnerObjects; j++) {
-                source.startObject().field("x", "y").endObject();
+                source.startObject().field("p", "q" + i + ":" + j).endObject();
             }
             source.endArray().endObject();
             requestBuilders.add(client().prepareIndex("idx").setId(Integer.toString(i)).setSource(source));

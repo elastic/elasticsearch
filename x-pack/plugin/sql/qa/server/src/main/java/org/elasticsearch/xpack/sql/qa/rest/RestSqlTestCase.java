@@ -49,6 +49,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
 import static org.hamcrest.Matchers.containsString;
@@ -839,7 +840,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     @SuppressWarnings("unchecked")
     public void testMultiValueDifferentPathsWithArraysAndNulls() throws IOException {
         // TODO AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68979")
-        // Supplier<Long> supplier = () -> randomNonNegativeByte() < 30 ? null : randomLong();
+        // Supplier<Long> supplier = () -> rarely() ? null : randomLong();
         Supplier<Long> supplier = ESTestCase::randomLong;
         ExhaustiveMultiPathMapper<Long> mapper = new ExhaustiveMultiPathMapper<>(randomIntBetween(3, 10), supplier);
 
@@ -1220,11 +1221,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
 
         Map<String, Object> map() {
-            return map == null ? null : new HashMap<>(map);
+            return unmodifiableMap(map);
         }
 
         List<T> values() {
-            return values == null ? null : new ArrayList<>(values);
+            return unmodifiableList(values);
         }
 
         String path() {
@@ -1271,8 +1272,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 if (val instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> innerMap = (Map<String, Object>) val;
-                    // assuming a linear distribution of the random non-negative byte values (0-255), multiply roughly 1/4 of the time
-                    if (randomNonNegativeByte() < 60) {
+                    if (usually()) {
                         List<Map<String, Object>> replacementList = new ArrayList<>();
                         int multiplicate = randomIntBetween(1, 5);
                         for (int i = 0; i < multiplicate; i++) {

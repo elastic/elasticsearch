@@ -182,8 +182,7 @@ public class DataLoader {
             list.add(dep);
         });
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(fileName, (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
@@ -270,8 +269,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(filename, (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
@@ -313,8 +311,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(filename, (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
@@ -357,8 +354,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines("library", (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
@@ -424,8 +420,7 @@ public class DataLoader {
             builder.append("}").append("\n");
         });
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         request.setJsonEntity(builder.toString());
         client.performRequest(request); // fails by exception
     }

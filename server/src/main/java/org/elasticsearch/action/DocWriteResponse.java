@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,6 +42,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * A base class for the response of a write operation that involves a single doc
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
+    static final String TYPE_FIELD_NAME = "_type";
 
     private static final String _SHARDS = "_shards";
     private static final String _INDEX = "_index";
@@ -293,6 +295,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (builder.getRestApiCompatibilityVersion() == RestApiCompatibleVersion.V_7) {
+            builder.field(TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+        }
         innerToXContent(builder, params);
         builder.endObject();
         return builder;

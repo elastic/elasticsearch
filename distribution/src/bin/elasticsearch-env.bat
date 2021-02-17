@@ -49,7 +49,7 @@ if defined ES_JAVA_HOME (
 ) else if defined JAVA_HOME (
   rem fallback to JAVA_HOME
   echo "warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME" >&2
-  set JAVA="%ES_JAVA_HOME%\bin\java.exe"
+  set JAVA="%JAVA_HOME%\bin\java.exe"
   set "ES_JAVA_HOME=%JAVA_HOME%"
   set JAVA_TYPE=JAVA_HOME
 ) else (

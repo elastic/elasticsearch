@@ -822,7 +822,7 @@ case-insensitive, use `~`, such as `endsWith~(process_name, ".exe")`.
 `process_name == "cmd*.exe"` interprets `*` as a literal asterisk, not a
 wildcard.
 
-* For wildcard matching, use the `like` keyword when case-sensitive, and
+* For wildcard matching, use the `like` keyword when case-sensitive and
 `like~` when case-insensitive. The `:` operator is equivalent to `like~`.
 
 * For regular expression matching, use `regex` or `regex~`.

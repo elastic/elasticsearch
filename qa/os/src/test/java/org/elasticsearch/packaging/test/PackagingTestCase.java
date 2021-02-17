@@ -161,8 +161,8 @@ public abstract class PackagingTestCase extends Assert {
 
         sh.reset();
         if (distribution().hasJdk == false) {
-            Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
-            Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
+            Platforms.onLinux(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
+            Platforms.onWindows(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
         }
         if (installation != null && distribution.isDocker() == false) {
             setHeap("1g");

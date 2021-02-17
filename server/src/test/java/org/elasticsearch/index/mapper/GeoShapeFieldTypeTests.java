@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -43,5 +44,14 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         sourceValue = List.of(wktLineString, wktPoint);
         assertEquals(List.of(jsonLineString, jsonPoint), fetchSourceValue(mapper, sourceValue, null));
         assertEquals(List.of(wktLineString, wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+    }
+
+    public void testFetchMalformedValue() throws IOException {
+
+        MappedFieldType mapper
+            = new GeoShapeFieldMapper.Builder("field", true, true).build(new ContentPath()).fieldType();
+
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", "foo");
+        assertEquals(Collections.emptyList(), fetchSourceValue(mapper, jsonPoint, null));
     }
 }

@@ -120,6 +120,25 @@ The `runtime` section can be any of these data types:
 Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
 
+If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
+`dynamic` parameter is set to `runtime`, new fields are automatically added to
+the index mapping as runtime fields:
+
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "dynamic": "runtime",
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+----
+
 [[runtime-fields-scriptless]]
 ==== Define runtime fields without a script
 You can define a runtime field in the mapping definition without a
@@ -135,25 +154,6 @@ PUT my-index/
     "runtime": {
       "model_number": {
         "type": "keyword"
-      }
-    }
-  }
-}
-----
-
-If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
-`dynamic` parameter is set to `runtime`, new fields are automatically added to
-the index mapping as runtime fields:
-
-[source,console]
-----
-PUT my-index
-{
-  "mappings": {
-    "dynamic": "runtime",
-    "properties": {
-      "timestamp": {
-        "type": "date"
       }
     }
   }

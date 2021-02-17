@@ -79,6 +79,9 @@ teardown:
 
 ---
 "Test setting upgrade_mode to false when it is already false":
+  - skip:
+      version: all
+      reason: Bug fix url https://github.com/elastic/elasticsearch/issues/65947
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -105,6 +108,9 @@ teardown:
 
 ---
 "Setting upgrade_mode to enabled":
+  - skip:
+      version: all
+      reason: Bug fix url https://github.com/elastic/elasticsearch/issues/65947
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -154,6 +160,9 @@ teardown:
 
 ---
 "Setting upgrade mode to disabled from enabled":
+  - skip:
+      version: all
+      reason: Bug fix url https://github.com/elastic/elasticsearch/issues/65947
   - do:
       ml.start_datafeed:
         datafeed_id: set-upgrade-mode-job-datafeed
@@ -226,6 +235,9 @@ teardown:
 
 ---
 "Attempt to open job when upgrade_mode is enabled":
+  - skip:
+      version: all
+      reason: Bug fix url https://github.com/elastic/elasticsearch/issues/65947
   - do:
       ml.put_job:
         job_id: failing-set-upgrade-mode-job

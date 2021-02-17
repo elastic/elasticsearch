@@ -14,6 +14,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -83,6 +84,15 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   testImplementation project(':test:fixtures:azure-fixture')
+}
+
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
 }
 
 restResources {
@@ -368,18 +378,3 @@ tasks.register("azureThirdPartyTest", Test) {
   }
 }
 tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
-
-// test jar is exported by the integTestArtifacts configuration to be used in the encrypted Azure repository test
-configurations {
-  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
-  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
-}
-
-def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
-  appendix 'internalClusterTest'
-  from sourceSets.internalClusterTest.output
-}
-
-artifacts {
-  internalClusterTestArtifacts internalClusterTestJar
-}

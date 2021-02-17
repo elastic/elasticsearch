@@ -71,9 +71,46 @@ To get the first page of results, submit a search request with a `sort`
 argument. If using a PIT, specify the PIT ID in the `pit.id` parameter and omit
 the target data stream or index from the request path.
 
-IMPORTANT: We recommend you include a tiebreaker field in your `sort`. This
-tiebreaker field should contain a unique value for each document. If you don't
-include a tiebreaker field, your paged results could miss or duplicate hits.
+IMPORTANT: All PIT search requests add an implicit sort tiebreaker field called `_shard_doc`,
+which can also be provided explicitly.
+If you cannot use a PIT, we recommend that you include a tiebreaker field
+in your `sort`. This tiebreaker field should contain a unique value for each document.
+If you don't include a tiebreaker field, your paged results could miss or duplicate hits.
+
+NOTE: Search after requests have optimizations that make them faster when the sort
+order is `_shard_doc` and total hits are not tracked. If you want to iterate over all documents regardless of the
+order, this is the most efficient option.
+
+[source,console]
+----
+GET /_search
+{
+  "size": 10000,
+  "query": {
+    "match" : {
+      "user.id" : "elkbee"
+    }
+  },
+  "pit": {
+	    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+	    "keep_alive": "1m"
+  },
+  "sort": [ <2>
+    {"@timestamp": "asc"}
+  ]
+}
+----
+// TEST[catch:missing]
+
+<1> PIT ID for the search.
+<2> Sorts hits for the search with an implicit tiebreak on `_shard_doc` ascending.
+
+The search response includes an array of `sort` values for each hit. If you used
+a PIT, a tiebreaker is included as the last `sort` values for each hit.
+This tiebreaker called `_shard_doc` is added automically on every search requests that use a PIT.
+The `_shard_doc` value is the combination of the shard index within the PIT and the Lucene's internal doc ID,
+it is unique per document and constant within a PIT.
+You can also add the tiebreaker explicitly in the search request to customize the order:
 
 [source,console]
 ----
@@ -91,17 +128,15 @@ GET /_search
   },
   "sort": [ <2>
     {"@timestamp": "asc"},
-    {"tie_breaker_id": "asc"}
+    {"_shard_doc": "desc"}
   ]
 }
 ----
 // TEST[catch:missing]
 
 <1> PIT ID for the search.
-<2> Sorts hits for the search.
+<2> Sorts hits for the search with an explicit tiebreak on `_shard_doc` descending.
 
-The search response includes an array of `sort` values for each hit. If you used
-a PIT, the response's `pit_id` parameter contains an updated PIT ID.
 
 [source,console-result]
 ----
@@ -122,7 +157,7 @@ a PIT, the response's `pit_id` parameter contains an updated PIT ID.
         "_source" : ...,
         "sort" : [                                <2>
           4098435132000,
-          "FaslK3QBySSL_rrj9zM5"
+          4294967298                              <3>
         ]
       }
     ]
@@ -133,9 +168,10 @@ a PIT, the response's `pit_id` parameter contains an updated PIT ID.
 
 <1> Updated `id` for the point in time.
 <2> Sort values for the last returned hit.
+<3> The tiebreaker value, unique per document within the `pit_id`.
 
 To get the next page of results, rerun the previous search using the last hit's
-sort values as the `search_after` argument. If using a PIT, use the latest PIT
+sort values (including the tiebreaker) as the `search_after` argument. If using a PIT, use the latest PIT
 ID in the `pit.id` parameter. The search's `query` and `sort` arguments must
 remain unchanged. If provided, the `from` argument must be `0` (default) or `-1`.
 
@@ -154,19 +190,20 @@ GET /_search
 	    "keep_alive": "1m"
   },
   "sort": [
-    {"@timestamp": "asc"},
-    {"tie_breaker_id": "asc"}
+    {"@timestamp": "asc"}
   ],
   "search_after": [                                <2>
     4098435132000,
-    "FaslK3QBySSL_rrj9zM5"
-  ]
+    4294967298
+  ],
+  "track_total_hits": false                        <3>
 }
 ----
 // TEST[catch:missing]
 
 <1> PIT ID returned by the previous search.
 <2> Sort values from the previous search's last hit.
+<3> Disable the tracking of total hits to speed up pagination.
 
 You can repeat this process to get additional pages of results. If using a PIT,
 you can extend the PIT's retention period using the

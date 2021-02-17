@@ -72,6 +72,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xpack.core.termenum.action.TermEnumRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -536,6 +537,15 @@ final class RequestConverters {
         request.setEntity(createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
+    
+    static Request termEnum(TermEnumRequest termEnumRequest) throws IOException {
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(termEnumRequest.indices(), Strings.EMPTY_ARRAY, "_terms"));
+
+        Params params = new Params();
+        params.withIndicesOptions(termEnumRequest.indicesOptions());
+        request.setEntity(createEntity(termEnumRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }    
 
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         return prepareReindexRequest(reindexRequest, true);

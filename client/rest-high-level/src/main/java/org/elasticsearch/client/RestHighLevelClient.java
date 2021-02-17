@@ -189,6 +189,8 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.xpack.core.termenum.action.TermEnumRequest;
+import org.elasticsearch.xpack.core.termenum.action.TermEnumResponse;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1423,6 +1425,19 @@ public class RestHighLevelClient implements Closeable {
         return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
                 emptySet());
     }
+    
+    /**
+     * Executes a request using the TermEnum API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/term-enum.html">Term enum API
+     * on elastic.co</a>
+     * @param termEnumRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final TermEnumResponse terms(TermEnumRequest termEnumRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(termEnumRequest, RequestConverters::termEnum, options, TermEnumResponse::fromXContent,
+                emptySet());
+    }    
 
 
     /**
@@ -1463,6 +1478,22 @@ public class RestHighLevelClient implements Closeable {
     public final Cancellable rankEvalAsync(RankEvalRequest rankEvalRequest, RequestOptions options,
                                            ActionListener<RankEvalResponse> listener) {
         return performRequestAsyncAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options,
+            RankEvalResponse::fromXContent, listener,
+                emptySet());
+    }
+    
+    /**
+     * Asynchronously executes a request using the TermEnum API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/term-enum.html">Term enum API
+     * on elastic.co</a>
+     * @param termEnumRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public final Cancellable termEnumAsync(TermEnumRequest termEnumRequest, RequestOptions options,
+                                           ActionListener<RankEvalResponse> listener) {
+        return performRequestAsyncAndParseEntity(termEnumRequest, RequestConverters::termEnum, options,
             RankEvalResponse::fromXContent, listener,
                 emptySet());
     }

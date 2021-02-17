@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * A request to gather terms for a given field matching a pattern
+ * A request to gather terms for a given field matching a string prefix
  */
 public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implements ToXContentObject {
 
@@ -87,8 +87,8 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
     /**
      * The string required in matching field values
      */
-    public void string(String pattern) {
-        this.string = pattern;
+    public void string(String string) {
+        this.string = string;
     }
 
     /**
@@ -171,7 +171,7 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "] field[" + field + "], pattern[" + string + "] "  + " size=" + size + " timeout="
+        return "[" + Arrays.toString(indices) + "] field[" + field + "], string[" + string + "] "  + " size=" + size + " timeout="
             + timeout().getMillis()  + " sort_by_popularity = " + sortByPopularity + " case_insensitive="
             + caseInsensitive + " indexFilter = "+ indexFilter;
     }
@@ -180,7 +180,7 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("field", field);
-        builder.field("pattern", string);
+        builder.field("string", string);
         builder.field("size", size);
         builder.field("timeout", timeout().getMillis());
         builder.field("case_insensitive", caseInsensitive);

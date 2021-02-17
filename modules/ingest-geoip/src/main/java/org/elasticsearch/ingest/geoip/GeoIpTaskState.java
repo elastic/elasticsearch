@@ -49,17 +49,13 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Tuple.tuple(name, Metadata.fromXContent(p)), DATABASES);
     }
 
-    public static GeoIpTaskState fromXContent(XContentParser parser) {
-        try {
-            return PARSER.parse(parser, null);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public static GeoIpTaskState fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     private final Map<String, Metadata> databases;
 
-    GeoIpTaskState(Map<String, Metadata> databases) {
+    private GeoIpTaskState(Map<String, Metadata> databases) {
         this.databases = Map.copyOf(databases);
     }
 

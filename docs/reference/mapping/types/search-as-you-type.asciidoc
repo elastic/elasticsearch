@@ -206,7 +206,7 @@ the same way.
     Whether field-length should be taken into account when scoring queries.
     Accepts `true` or `false`. This option configures the root field
     and shingle subfields, where its default is `true`. It does not configure
-    the prefix subfield, where it it `false`.
+    the prefix subfield, where it is `false`.
 
 <<mapping-store,`store`>>::
 

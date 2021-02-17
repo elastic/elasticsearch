@@ -21,14 +21,13 @@ import java.nio.file.Path
 
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
-    private static final Path specIntermediateDir = YamlRestCompatTestPlugin.API_INTERMEDIATE_DIR_NAME
-    private static final Path testIntermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME
-    private static final String transformTask  = ":" + YamlRestCompatTestPlugin.TRANSFORM_TASK_NAME
-    private static final YAMLFactory YAML_FACTORY = new YAMLFactory()
-    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY)
-    private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class)
-    private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class)
-
+    def compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1
+    def specIntermediateDir = "restResources/v${compatibleVersion}/yamlSpecs"
+    def testIntermediateDir = "restResources/v${compatibleVersion}/yamlTests"
+    def transformTask  = ":transformV${compatibleVersion}RestTests"
+    def YAML_FACTORY = new YAMLFactory()
+    def MAPPER = new ObjectMapper(YAML_FACTORY)
+    def READER = MAPPER.readerFor(ObjectNode.class)
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:

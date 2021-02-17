@@ -16,6 +16,8 @@ import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
@@ -45,8 +47,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
-
 /**
  * A task to transform REST tests for use in REST API compatibility before they are executed.
  */
@@ -60,6 +60,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     private static final Map<String, String> headers = new LinkedHashMap<>();
 
+    private final int compatibleVersion;
     private final DirectoryProperty sourceDirectory;
     private final DirectoryProperty outputDirectory;
     private final PatternFilterable testPatternSet;
@@ -67,13 +68,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     @Inject
     public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory, ObjectFactory objectFactory) {
+        this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
         this.sourceDirectory = objectFactory.directoryProperty();
         this.outputDirectory = objectFactory.directoryProperty();
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers
-        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
-        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
+        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
+        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         transformations.add(new InjectHeaders(headers));
     }
 

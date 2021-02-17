@@ -45,9 +45,6 @@ import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
  */
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
-
-    public static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
-    public static final String TRANSFORM_TASK_NAME = "transformV" + COMPATIBLE_VERSION + "RestTests";
     public static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
     public static final String SOURCE_SET_NAME = "yamlRestCompatTest";
     private static final Path RELATIVE_API_PATH = Path.of("rest-api-spec/api");
@@ -55,12 +52,13 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
-    private static final Path COMPAT_REST_RESOURCES_DIRECTORY = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
-    private static final Path API_INTERMEDIATE_DIR_NAME = COMPAT_REST_RESOURCES_DIRECTORY.resolve("yamlSpecs");
-    private static final Path TEST_INTERMEDIATE_DIR_NAME = COMPAT_REST_RESOURCES_DIRECTORY.resolve("yamlTests");
 
     @Override
     public void apply(Project project) {
+        final int compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
+        final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + compatibleVersion);
+        final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
+        final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
 
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
@@ -93,7 +91,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestApi().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestApi().getIncludeXpack());
-                task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir(API_INTERMEDIATE_DIR_NAME.toString()));
+                task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir(compatSpecsDir.toString()));
                 task.setSourceResourceDir(
                     yamlCompatTestSourceSet.getResources()
                         .getSrcDirs()
@@ -131,8 +129,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
                 task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
-                task.getOutputResourceDir()
-                    .set(project.getLayout().getBuildDirectory().dir(TEST_INTERMEDIATE_DIR_NAME.resolve("original").toString()));
+                task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
                 task.setCoreConfigToFileTree(
                     config -> project.fileTree(
                         config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
@@ -155,13 +152,13 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
-            .register(TRANSFORM_TASK_NAME, RestCompatTestTransformTask.class, task -> {
+            .register("transformV" + compatibleVersion + "RestTests", RestCompatTestTransformTask.class, task -> {
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(
                         project.getLayout()
                             .getBuildDirectory()
-                            .dir(TEST_INTERMEDIATE_DIR_NAME.resolve("transformed").resolve(RELATIVE_TEST_PATH).toString())
+                            .dir(compatTestsDir.resolve("transformed").resolve(RELATIVE_TEST_PATH).toString())
                     );
 
                 task.onlyIf(t -> isEnabled(project));

@@ -103,7 +103,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (final RepositoryMetadata repo : repos) {
             final String repoName = repo.name();
             getSingleRepoSnapshotInfo(snapshotsInProgress, repoName, snapshots, ignoreUnavailable, verbose,
-                    ActionListener.delegateResponse(groupedActionListener, (groupedListener, e) -> {
+                    groupedActionListener.delegateResponse((groupedListener, e) -> {
                         if (e instanceof ElasticsearchException) {
                             groupedListener.onResponse(GetSnapshotsResponse.Response.error(repoName, (ElasticsearchException) e));
                         } else {

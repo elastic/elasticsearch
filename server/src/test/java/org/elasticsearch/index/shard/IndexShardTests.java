@@ -387,7 +387,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(false);
         expectThrows(IndexShardNotStartedException.class, () ->
             randomReplicaOperationPermitAcquisition(indexShard, indexShard.getPendingPrimaryTerm() + randomIntBetween(1, 100),
-                UNASSIGNED_SEQ_NO, randomNonNegativeLong(), null, ""));
+                UNASSIGNED_SEQ_NO, randomNonNegativeLong(), PlainActionFuture.newFuture(), ""));
         closeShards(indexShard);
     }
 

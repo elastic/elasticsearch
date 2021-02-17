@@ -225,11 +225,6 @@ public class AggregatorFactories {
         };
     }
 
-    // TODO(talevy) check aggregator factories
-    public AggregatorFactory[] factories() {
-        return factories;
-    }
-
     /**
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.

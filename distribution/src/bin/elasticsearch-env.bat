@@ -43,10 +43,10 @@ if "%1" == "nojava" (
 rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching ES
 rem by setting JAVA_HOME=
-if not "%~ES_JAVA_HOME%" == "" (
+if defined ES_JAVA_HOME (
   set JAVA="%ES_JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=ES_JAVA_HOME
-) else if not "%~JAVA_HOME%" == "" (
+) else if defined JAVA_HOME (
   rem fallback to JAVA_HOME
   echo "warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME" >&2
   set JAVA="%ES_JAVA_HOME%\bin\java.exe"

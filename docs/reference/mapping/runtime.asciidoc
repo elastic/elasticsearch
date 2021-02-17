@@ -152,7 +152,7 @@ PUT my-index/
 {
   "mappings": {
     "runtime": {
-      "model_number": {
+      "day_of_week": {
         "type": "keyword"
       }
     }
@@ -163,9 +163,10 @@ PUT my-index/
 [[runtime-updating-scripts]]
 ==== Updating and removing runtime fields
 
-You can update or remove runtime fields at any time. To replace an existing runtime field,
-add a new runtime field to the mappings with the same name. To remove a runtime field
-from the mappings, set the value of the runtime field to `null`:
+You can update or remove runtime fields at any time. To replace an existing
+runtime field, add a new runtime field to the mappings with the same name. To
+remove a runtime field from the mappings, set the value of the runtime field to
+`null`:
 
 [source,console]
 ----
@@ -176,6 +177,7 @@ PUT my-index/_mapping
  }
 }
 ----
+//TEST[continued]
 
 .Downstream impacts
 ****

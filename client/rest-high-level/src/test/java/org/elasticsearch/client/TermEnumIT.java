@@ -9,8 +9,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.xpack.core.termenum.action.TermEnumRequest;
-import org.elasticsearch.xpack.core.termenum.action.TermEnumResponse;
+import org.elasticsearch.client.termenum.TermEnumRequest;
+import org.elasticsearch.client.termenum.TermEnumResponse;
 import org.junit.Before;
 
 import java.io.IOException;

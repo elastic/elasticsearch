@@ -388,7 +388,8 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                 threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl =
                 indicesAccessControl.getIndexPermissions(indexName);
-            //TODO remove FLS check (the reader does that anyway)
+            //TODO There was a suggestion we could remove FLS check because the reader does that filtering anyway - didn't
+            // turn out that way when I tested it.
             // TODO remove DLS  check by getting a new security feature to filter at coordinating node the choice of indices
             // based on if ANY DLS is present on an index.
             if (indexAccessControl != null) {

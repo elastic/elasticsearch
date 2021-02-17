@@ -12,6 +12,8 @@ setup:
           properties:
             foo:
               type : keyword
+            timestamp:
+              type : date
 - do:
     indices.create:
       index: test_ck
@@ -27,6 +29,8 @@ setup:
               value: bar_ck
             other:
               type : text
+            timestamp:
+              type : date
 - do:
     indices.create:
       index: test_f
@@ -39,6 +43,8 @@ setup:
           properties:
             foo:
               type : flattened
+            timestamp:
+              type : date
 
 ---
 "Test basic term enumeration":
@@ -46,19 +52,19 @@ setup:
       index:
           index:  test_k
           id:     1
-          body:   { foo: "bar_k" }
+          body:   { foo: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
 
   - do:
       index:
           index:  test_ck
           id:     2
-          body:   { other: "foo" }
+          body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
 
   - do:
       index:
           index:  test_f
           id:     3
-          body:   { foo: { bar: "bar_f" } }
+          body:   { foo: { bar: "bar_f" }, "timestamp":"2019-01-01T01:01:01.000Z" }
 
   - do:
       indices.refresh: {}
@@ -79,4 +85,10 @@ setup:
       termsenum:
         index:  test_*
         body:  {"field": "foo.bar", "string":"b"}
+  - length: {terms: 1}
+
+  - do:
+      termsenum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b", "index_filter":{"range":{"timestamp":{"gte":"2021-01-01T01:01:01.000Z"}}}}
   - length: {terms: 1}

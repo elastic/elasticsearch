@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalSetup;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformGlobalTeardown;
+import org.gradle.api.tasks.Internal;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
@@ -73,6 +74,7 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
      *       features: allowed_warnings
      * </pre>
      */
+    @Internal
     public abstract String getSkipFeatureName();
 
     private boolean hasFeature(ArrayNode skipParent) {

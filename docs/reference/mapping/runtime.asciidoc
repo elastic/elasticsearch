@@ -139,13 +139,32 @@ PUT my-index
 }
 ----
 
-[[runtime-updating-scripts]]
+[[runtime-fields-scriptless]]
+==== Define runtime fields without a script
+You can define a runtime field in the mapping definition without a
+script. At query time, {es} looks in `_source` for a field with the same name
+and returns a value if one exists. If a field with the same name doesn’t
+exist, the response doesn't include any values for that runtime field.
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "runtime": {
+      "day_of_week": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+
 .Updating runtime scripts
 ****
-
-Updating a script while a dependent query is running can return
-inconsistent results. Each shard might have access to different versions of the
-script, depending on when the mapping change takes effect.
+Updating a script while a dependent query is running can
+return inconsistent results. Each shard might have access to different versions
+of the script, depending on when the mapping change takes effect.
 
 Existing queries or visualizations in {kib} that rely on runtime fields can
 fail if you change the field type. For example, a bar chart visualization
@@ -200,27 +219,6 @@ a runtime field in the index mapping. That consistency means you can promote a
 runtime field from a search request to the index mapping by moving the field
 definition from `runtime_mappings` in the search request to the `runtime`
 section of the index mapping.
-
-[[runtime-fields-scriptless]]
-==== Define runtime fields without a script
-You can define a runtime field in the mapping definition without a
-script. At query time, {es} looks in `_source` for a field with the same name
-and returns a value if one exists. If a field with the same name doesn’t
-exist, the response doesn't include any values for that runtime field.
-
-[source,console]
-----
-PUT my-index/
-{
-  "mappings": {
-    "runtime": {
-      "model_number": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-----
 
 [[runtime-override-values]]
 === Override field values at query time

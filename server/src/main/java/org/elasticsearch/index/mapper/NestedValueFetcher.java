@@ -84,7 +84,6 @@ public class NestedValueFetcher implements ValueFetcher {
 
     @Override
     public void setNextReader(LeafReaderContext context) {
-        this.currentContext = context;
         this.nestedFieldFetcher.setNextReader(context);
     }
 }

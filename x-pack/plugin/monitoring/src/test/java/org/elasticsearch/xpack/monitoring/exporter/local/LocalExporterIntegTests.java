@@ -301,7 +301,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         }
     }
 
-    private static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
+    public static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {
         final MonitoredSystem system = randomFrom(BEATS, KIBANA, LOGSTASH);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference source;

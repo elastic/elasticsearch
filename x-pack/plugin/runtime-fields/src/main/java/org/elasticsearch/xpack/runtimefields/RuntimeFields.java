@@ -20,31 +20,21 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.runtimefields.mapper.BooleanFieldScript;
-import org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript;
-import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
-import org.elasticsearch.xpack.runtimefields.mapper.GeoPointFieldScript;
-import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
-import org.elasticsearch.xpack.runtimefields.mapper.LongFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.NamedGroupExtractor;
 import org.elasticsearch.xpack.runtimefields.mapper.NamedGroupExtractor.GrokHelper;
-import org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin, ActionPlugin {
+public final class RuntimeFields extends Plugin implements ActionPlugin {
 
     static final Setting<TimeValue> GROK_WATCHDOG_INTERVAL = Setting.timeSetting(
         "runtime_fields.grok.watchdog.interval",
@@ -69,19 +59,6 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(GROK_WATCHDOG_INTERVAL, GROK_WATCHDOG_MAX_EXECUTION_TIME);
-    }
-
-    @Override
-    public List<ScriptContext<?>> getContexts() {
-        return List.of(
-            BooleanFieldScript.CONTEXT,
-            DateFieldScript.CONTEXT,
-            DoubleFieldScript.CONTEXT,
-            GeoPointFieldScript.CONTEXT,
-            IpFieldScript.CONTEXT,
-            LongFieldScript.CONTEXT,
-            StringFieldScript.CONTEXT
-        );
     }
 
     @Override

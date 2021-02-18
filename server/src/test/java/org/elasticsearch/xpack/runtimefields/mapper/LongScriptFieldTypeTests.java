@@ -293,7 +293,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(LongFieldScript.CONTEXT);
+                        return Set.of();
                     }
 
                     @Override

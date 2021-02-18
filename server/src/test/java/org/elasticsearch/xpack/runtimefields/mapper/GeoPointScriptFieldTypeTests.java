@@ -229,7 +229,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(StringFieldScript.CONTEXT, GeoPointFieldScript.CONTEXT);
+                        return Set.of();
                     }
 
                     @Override

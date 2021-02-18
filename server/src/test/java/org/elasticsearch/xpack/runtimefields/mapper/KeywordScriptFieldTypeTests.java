@@ -391,7 +391,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(StringFieldScript.CONTEXT);
+                        return Set.of();
                     }
 
                     @Override

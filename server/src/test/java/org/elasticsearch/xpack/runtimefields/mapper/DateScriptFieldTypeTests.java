@@ -485,7 +485,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DateFieldScript.CONTEXT);
+                        return Set.of();
                     }
 
                     @Override

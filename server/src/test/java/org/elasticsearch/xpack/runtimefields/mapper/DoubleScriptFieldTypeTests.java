@@ -259,7 +259,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DoubleFieldScript.CONTEXT);
+                        return Set.of();
                     }
 
                     @Override

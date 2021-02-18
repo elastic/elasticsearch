@@ -417,7 +417,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
                     @Override
                     public Set<ScriptContext<?>> getSupportedContexts() {
-                        return Set.of(DoubleFieldScript.CONTEXT);
+                        return Set.of();
                     }
 
                     @Override
@@ -456,7 +456,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                                 return (fieldName, params, lookup) -> {
                                     // Indicate that this script wants the field call "test", which *is* the name of this field
                                     lookup.forkAndTrackFieldReferences("test");
-                                    throw new IllegalStateException("shoud have thrown on the line above");
+                                    throw new IllegalStateException("should have thrown on the line above");
                                 };
                             default:
                                 throw new IllegalArgumentException("unsupported script [" + code + "]");

@@ -147,3 +147,34 @@ setup:
   - match: { aggregations.composite_agg.buckets.2.key.num_terms: 500 }
   - match: { aggregations.composite_agg.buckets.2.doc_count: 11 }
 
+---
+"Test filters agg with doc_count":
+  - skip:
+      version: " - 7.99.99"
+      reason: "fixed in 8.0.0 to be backported to 7.11.2"
+  - do:
+      search:
+        body:
+          profile: true
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  abc:
+                    match:
+                      str: abc
+                  foo:
+                    match:
+                      str: foo
+                  xyz:
+                    match:
+                      str: xyz
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.f.buckets: 3 }
+  - match: { aggregations.f.buckets.abc.doc_count: 11 }
+  - match: { aggregations.f.buckets.foo.doc_count: 8 }
+  - match: { aggregations.f.buckets.xyz.doc_count: 5 }
+  - match: { profile.shards.0.aggregations.0.type: FiltersAggregator.FilterByFilter }
+  - gte: { profile.shards.0.aggregations.0.debug.segments_with_doc_count: 1 }

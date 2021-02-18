@@ -633,6 +633,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(delegate.get("delegate"), equalTo("FiltersAggregator.FilterByFilter"));
             Map<?, ?> delegateDebug = (Map<?, ?>) delegate.get("delegate_debug");
             assertThat(delegateDebug, hasEntry("segments_with_deleted_docs", 0));
+            assertThat(delegateDebug, hasEntry("segments_with_doc_count", 0));
             assertThat(delegateDebug, hasEntry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
             assertThat(delegateDebug, hasEntry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
             assertThat((long) delegateDebug.get("estimate_cost_time"), greaterThanOrEqualTo(0L));  // ~1,276,734 nanos is normal

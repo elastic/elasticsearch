@@ -28,6 +28,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -85,6 +86,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ShardStats shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task) {
+        assert task instanceof CancellableTask;
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet

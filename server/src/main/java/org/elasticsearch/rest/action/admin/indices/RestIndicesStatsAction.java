@@ -16,6 +16,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -119,7 +120,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
-        return channel -> client.admin().indices().stats(indicesStatsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
+                .admin().indices().stats(indicesStatsRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

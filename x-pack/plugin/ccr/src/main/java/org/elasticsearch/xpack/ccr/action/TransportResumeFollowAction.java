@@ -179,7 +179,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             final IndexMetadata followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
-        FollowParameters parameters = request.getParameters();
 
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {

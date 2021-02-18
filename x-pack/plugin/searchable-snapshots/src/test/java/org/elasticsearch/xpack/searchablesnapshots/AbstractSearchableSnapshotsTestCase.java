@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.ByteBuffersIndexInput;
+import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -16,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +33,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -48,6 +56,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -59,6 +68,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.TimeUnit;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
@@ -304,5 +314,23 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             }
         }
         return cacheFiles;
+    }
+
+    public static Tuple<String, byte[]> randomChecksumBytes(int length) throws IOException {
+        return randomChecksumBytes(randomUnicodeOfLength(length).getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static Tuple<String, byte[]> randomChecksumBytes(byte[] bytes) throws IOException {
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        try (IndexOutput output = new ByteBuffersIndexOutput(out, "randomChecksumBytes()", "randomChecksumBytes()")) {
+            CodecUtil.writeHeader(output, randomAsciiLettersOfLengthBetween(0, 127), randomNonNegativeByte());
+            output.writeBytes(bytes, bytes.length);
+            CodecUtil.writeFooter(output);
+        }
+        final String checksum;
+        try (IndexInput input = new ByteBuffersIndexInput(out.toDataInput(), "checksumEntireFile()")) {
+            checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
+        }
+        return Tuple.tuple(checksum, out.toArrayCopy());
     }
 }

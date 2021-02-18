@@ -25,10 +25,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryOperation;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.snapshots.InFlightShardSnapshotStates;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -41,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
 
 /**
  * Meta data about snapshots that are currently executing
@@ -82,12 +85,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * will be in state {@link State#SUCCESS} right away otherwise it will be in state {@link State#STARTED}.
      */
     public static Entry startedEntry(Snapshot snapshot, boolean includeGlobalState, boolean partial, List<IndexId> indices,
-                                     List<String> dataStreams, long startTime, long repositoryStateId,
-                                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Map<String, Object> userMetadata,
-                                     Version version) {
+        List<String> dataStreams, long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+        Map<String, Object> userMetadata, Version version, List<SnapshotFeatureInfo> featureStates) {
         return new SnapshotsInProgress.Entry(snapshot, includeGlobalState, partial,
                 completed(shards.values()) ? State.SUCCESS : State.STARTED,
-                indices, dataStreams, startTime, repositoryStateId, shards, null, userMetadata, version);
+                indices, dataStreams, featureStates, startTime, repositoryStateId, shards, null, userMetadata, version);
     }
 
     /**
@@ -104,8 +106,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     public static Entry startClone(Snapshot snapshot, SnapshotId source, List<IndexId> indices, long startTime,
                                    long repositoryStateId, Version version) {
         return new SnapshotsInProgress.Entry(snapshot, true, false, State.STARTED, indices, Collections.emptyList(),
-                startTime, repositoryStateId, ImmutableOpenMap.of(), null, Collections.emptyMap(), version, source,
-                ImmutableOpenMap.of());
+            Collections.emptyList(), startTime, repositoryStateId, ImmutableOpenMap.of(), null, Collections.emptyMap(), version, source,
+            ImmutableOpenMap.of());
     }
 
     public static class Entry implements Writeable, ToXContent, RepositoryOperation {
@@ -119,6 +121,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
         private final List<IndexId> indices;
         private final List<String> dataStreams;
+        private final List<SnapshotFeatureInfo> featureStates;
         private final long startTime;
         private final long repositoryStateId;
         // see #useShardGenerations
@@ -141,24 +144,25 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         // visible for testing, use #startedEntry and copy constructors in production code
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     List<String> dataStreams, long startTime, long repositoryStateId,
+                     List<String> dataStreams, List<SnapshotFeatureInfo> featureStates, long startTime, long repositoryStateId,
                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
                      Version version) {
-            this(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards, failure,
-                    userMetadata, version, null, ImmutableOpenMap.of());
+            this(snapshot, includeGlobalState, partial, state, indices, dataStreams, featureStates, startTime, repositoryStateId, shards,
+                failure, userMetadata, version, null, ImmutableOpenMap.of());
         }
 
         private Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     List<String> dataStreams, long startTime, long repositoryStateId,
-                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
-                     Version version, @Nullable SnapshotId source,
-                     @Nullable ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
+                      List<String> dataStreams, List<SnapshotFeatureInfo> featureStates, long startTime, long repositoryStateId,
+                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
+                      Version version, @Nullable SnapshotId source,
+                      @Nullable ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> clones) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
             this.partial = partial;
             this.indices = indices;
             this.dataStreams = dataStreams;
+            this.featureStates = Collections.unmodifiableList(featureStates);
             this.startTime = startTime;
             this.shards = shards;
             this.repositoryStateId = repositoryStateId;
@@ -195,6 +199,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source = null;
                 clones = ImmutableOpenMap.of();
             }
+            if (in.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+                featureStates = Collections.unmodifiableList(in.readList(SnapshotFeatureInfo::new));
+            } else {
+                featureStates = Collections.emptyList();
+            }
         }
 
         private static boolean assertShardsConsistent(SnapshotId source, State state, List<IndexId> indices,
@@ -229,8 +238,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Entry withRepoGen(long newRepoGen) {
             assert newRepoGen > repositoryStateId : "Updated repository generation [" + newRepoGen
                     + "] must be higher than current generation [" + repositoryStateId + "]";
-            return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, newRepoGen, shards, failure,
-                    userMetadata, version, source, clones);
+            return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, featureStates, startTime, newRepoGen,
+                shards, failure, userMetadata, version, source, clones);
         }
 
         public Entry withClones(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> updatedClones) {
@@ -239,8 +248,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             return new Entry(snapshot, includeGlobalState, partial,
                     completed(updatedClones.values()) ? (hasFailures(updatedClones) ? State.FAILED : State.SUCCESS) :
-                            state, indices, dataStreams, startTime, repositoryStateId, shards, failure, userMetadata, version, source,
-                    updatedClones);
+                            state, indices, dataStreams, featureStates, startTime, repositoryStateId, shards, failure, userMetadata,
+                            version, source, updatedClones);
         }
 
         /**
@@ -276,8 +285,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Entry fail(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, State state, String failure) {
-            return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards,
-                    failure, userMetadata, version, source, clones);
+            return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, featureStates, startTime,
+                repositoryStateId, shards, failure, userMetadata, version, source, clones);
         }
 
         /**
@@ -290,8 +299,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         public Entry withShardStates(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             if (completed(shards.values())) {
-                return new Entry(snapshot, includeGlobalState, partial, State.SUCCESS, indices, dataStreams, startTime, repositoryStateId,
-                        shards, failure, userMetadata, version);
+                return new Entry(snapshot, includeGlobalState, partial, State.SUCCESS, indices, dataStreams, featureStates,
+                    startTime, repositoryStateId, shards, failure, userMetadata, version);
             }
             return withStartedShards(shards);
         }
@@ -302,7 +311,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         public Entry withStartedShards(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             final SnapshotsInProgress.Entry updated = new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams,
-                    startTime, repositoryStateId, shards, failure, userMetadata, version);
+                featureStates, startTime, repositoryStateId, shards, failure, userMetadata, version);
             assert updated.state().completed() == false && completed(updated.shards().values()) == false
                     : "Only running snapshots allowed but saw [" + updated + "]";
             return updated;
@@ -347,6 +356,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public List<String> dataStreams() {
             return dataStreams;
+        }
+
+        public List<SnapshotFeatureInfo> featureStates() {
+            return featureStates;
         }
 
         @Override
@@ -399,6 +412,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (version.equals(entry.version) == false) return false;
             if (Objects.equals(source, ((Entry) o).source) == false) return false;
             if (clones.equals(((Entry) o).clones) == false) return false;
+            if (featureStates.equals(entry.featureStates) == false) return false;
 
             return true;
         }
@@ -419,6 +433,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + version.hashCode();
             result = 31 * result + (source == null ? 0 : source.hashCode());
             result = 31 * result + clones.hashCode();
+            result = 31 * result + featureStates.hashCode();
             return result;
         }
 
@@ -458,6 +473,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                         builder.field(NODE, status.nodeId());
                     }
                     builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.startArray(FEATURE_STATES);
+            {
+                for (SnapshotFeatureInfo featureState : featureStates) {
+                    featureState.toXContent(builder, params);
                 }
             }
             builder.endArray();
@@ -502,6 +524,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (out.getVersion().onOrAfter(SnapshotsService.CLONE_SNAPSHOT_VERSION)) {
                 out.writeOptionalWriteable(source);
                 out.writeMap(clones);
+            }
+            if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
+                out.writeList(featureStates);
             }
         }
 
@@ -804,6 +829,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     private static final String INDEX = "index";
     private static final String SHARD = "shard";
     private static final String NODE = "node";
+    private static final String FEATURE_STATES = "feature_states";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

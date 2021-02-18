@@ -521,7 +521,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                         logger.debug("Aborted opening job [{}] as it has been closed", job.getId());
                         return;
                     }
-                    // We check again after the process state is locked, but doing a which `isClosing` check here
+                    // We check again after the process state is locked to ensure no race conditions are hit.
                     if (processContext.getJobTask().isClosing()) {
                         logger.debug("Aborted opening job [{}] as it is being closed", job.getId());
                         jobTask.markAsCompleted();

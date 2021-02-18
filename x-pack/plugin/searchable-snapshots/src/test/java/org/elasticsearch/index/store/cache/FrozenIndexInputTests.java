@@ -10,6 +10,7 @@ package org.elasticsearch.index.store.cache;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -23,13 +24,13 @@ import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -44,18 +45,21 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testRandomReads() throws IOException {
         final String fileName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        final byte[] fileData = randomUnicodeOfLength(randomIntBetween(1, 100_000)).getBytes(StandardCharsets.UTF_8);
+        final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
+
+        final byte[] fileData = bytes.v2();
+        final String checksum = bytes.v1();
 
         final Path tempDir = createTempDir().resolve(SHARD_ID.getIndex().getUUID()).resolve(String.valueOf(SHARD_ID.getId()));
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(10),
-            new StoreFileMetadata(fileName, fileData.length, "_na", Version.CURRENT.luceneVersion),
+            new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion),
             new ByteSizeValue(fileData.length)
         );
 
         final ByteSizeValue rangeSize;
         if (rarely()) {
-            rangeSize = FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
+            rangeSize = SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
             rangeSize = new ByteSizeValue(
                 randomLongBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(), ByteSizeValue.ofKb(8L).getBytes())
@@ -68,7 +72,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final ByteSizeValue regionSize;
         if (rarely()) {
-            regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
+            regionSize = SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
             regionSize = new ByteSizeValue(randomLongBetween(ByteSizeValue.ofKb(1L).getBytes(), ByteSizeValue.ofKb(8L).getBytes()));
         } else {
@@ -83,9 +87,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-            .put(FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
+            .put(SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
@@ -99,7 +103,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         ) {
             directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
 
-            // TODO does not test the checksum shortcut, does not test using the recovery range size
+            // TODO does not test using the recovery range size
             final IndexInput indexInput = directory.openInput(fileName, newIOContext(random()));
             assertThat(indexInput, instanceOf(FrozenIndexInput.class));
             assertEquals(fileData.length, indexInput.length());

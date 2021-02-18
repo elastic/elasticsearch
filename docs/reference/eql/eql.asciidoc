@@ -567,6 +567,28 @@ complete.
 // TESTRESPONSE[s/"took": 2000/"took": $body.took/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
+Another more lightweight way to check the progress of an async search is to use
+the <<get-async-eql-status-api,get async EQL status API>> with the search ID.
+
+[source,console]
+----
+GET /_eql/search/status/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=
+----
+// TEST[skip: no access to search ID]
+
+[source,console-result]
+----
+{
+  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_running": false,
+  "is_partial": false,
+  "expiration_time_in_millis" : 1611690295000,
+  "completion_status": 200
+}
+----
+// TESTRESPONSE[s/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=/$body.id/]
+// TESTRESPONSE[s/"expiration_time_in_millis": 1611690295000/"expiration_time_in_millis": $body.expiration_time_in_millis/]
+
 [discrete]
 [[eql-search-store-async-eql-search]]
 === Change the search retention period
@@ -659,6 +681,9 @@ GET /_eql/search/FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUTo
 
 Saved synchronous searches are still subject to the `keep_alive` parameter's
 retention period. When this period ends, the search and its results are deleted.
+
+You can also check only the status of the saved synchronous search without
+results by using <<get-async-eql-status-api,get async EQL status API>>.
 
 You can also manually delete saved synchronous searches using the
 <<delete-async-eql-search-api,delete async EQL search API>>.

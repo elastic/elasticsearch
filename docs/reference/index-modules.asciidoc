@@ -223,6 +223,7 @@ specific index module:
     The maximum number of tokens that can be produced using _analyze API.
     Defaults to `10000`.
 
+[[index-max-analyzed-offset]]
  `index.highlight.max_analyzed_offset`::
 
      The maximum number of characters that will be analyzed for a highlight request.

@@ -58,7 +58,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.MatchQuery;
+import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
@@ -696,9 +696,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(q5,
             is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        MatchQuery matchQuery = new MatchQuery(searchExecutionContext);
-        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-        Query q6 = matchQuery.parse(MatchQuery.Type.PHRASE, "synfield", "motor dogs");
+        MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+        matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+        Query q6 = matchQueryParser.parse(MatchQueryParser.Type.PHRASE, "synfield", "motor dogs");
         assertThat(q6, is(new MultiPhraseQuery.Builder()
             .add(new Term[]{
                 new Term("synfield._index_phrase", "motor dogs"),
@@ -717,8 +717,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                 return new TokenStreamComponents(reader -> {}, cts);
             }
         };
-        matchQuery.setAnalyzer(synonymAnalyzer);
-        Query q7 = matchQuery.parse(MatchQuery.Type.BOOLEAN, "synfield", "foo");
+        matchQueryParser.setAnalyzer(synonymAnalyzer);
+        Query q7 = matchQueryParser.parse(MatchQueryParser.Type.BOOLEAN, "synfield", "foo");
         assertThat(q7, is(new BooleanQuery.Builder().add(new BooleanQuery.Builder()
             .add(new TermQuery(new Term("synfield", "foo")), BooleanClause.Occur.SHOULD)
             .add(new PhraseQuery.Builder()
@@ -953,9 +953,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQuery matchQuery = new MatchQuery(searchExecutionContext);
-            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "motor dogs");
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "motor dogs");
             Query expected = new SpanNearQuery.Builder("synfield", true)
                 .addClause(new SpanTermQuery(new Term("synfield", "motor")))
                 .addClause(
@@ -973,10 +973,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
 
         {
-            MatchQuery matchQuery = new MatchQuery(searchExecutionContext);
-            matchQuery.setPhraseSlop(1);
-            matchQuery.setAnalyzer(new MockSynonymAnalyzer());
-            Query q = matchQuery.parse(MatchQuery.Type.PHRASE_PREFIX, "synfield", "two dogs");
+            MatchQueryParser matchQueryParser = new MatchQueryParser(searchExecutionContext);
+            matchQueryParser.setPhraseSlop(1);
+            matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+            Query q = matchQueryParser.parse(MatchQueryParser.Type.PHRASE_PREFIX, "synfield", "two dogs");
             MultiPhrasePrefixQuery mpq = new MultiPhrasePrefixQuery("synfield");
             mpq.setSlop(1);
             mpq.add(new Term("synfield", "two"));

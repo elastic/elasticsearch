@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
@@ -54,6 +56,12 @@ public class ResizeRequestTests extends ESTestCase {
             ResizeRequest request = new ResizeRequest("target", "source");
             String actualRequestBody = Strings.toString(request);
             assertEquals("{\"settings\":{},\"aliases\":{}}", actualRequestBody);
+        }
+        {
+            ResizeRequest request = new ResizeRequest("target", "source");
+            request.setMaxSinglePrimarySize(new ByteSizeValue(100, ByteSizeUnit.MB));
+            String actualRequestBody = Strings.toString(request);
+            assertEquals("{\"settings\":{},\"aliases\":{},\"max_single_primary_size\":\"100mb\"}", actualRequestBody);
         }
         {
             ResizeRequest request = new ResizeRequest();

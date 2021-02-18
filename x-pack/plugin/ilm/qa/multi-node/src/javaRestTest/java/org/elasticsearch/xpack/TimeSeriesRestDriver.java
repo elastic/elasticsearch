@@ -169,7 +169,7 @@ public final class TimeSeriesRestDriver {
     public static void createFullPolicy(RestClient client, String policyName, TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, 1L));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
@@ -200,8 +200,9 @@ public final class TimeSeriesRestDriver {
         client.performRequest(request);
     }
 
-    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase, @Nullable Phase warmPhase,
-                                    @Nullable Phase coldPhase, @Nullable Phase deletePhase) throws IOException {
+    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
+                                    @Nullable Phase warmPhase, @Nullable Phase coldPhase,
+                                    @Nullable Phase frozenPhase, @Nullable Phase deletePhase) throws IOException {
         if (hotPhase == null && warmPhase == null && coldPhase == null && deletePhase == null) {
             throw new IllegalArgumentException("specify at least one phase");
         }
@@ -214,6 +215,9 @@ public final class TimeSeriesRestDriver {
         }
         if (coldPhase != null) {
             phases.put("cold", coldPhase);
+        }
+        if (frozenPhase != null) {
+            phases.put("frozen", frozenPhase);
         }
         if (deletePhase != null) {
             phases.put("delete", deletePhase);

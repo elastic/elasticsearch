@@ -9,9 +9,8 @@
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackModule('core'))
-  javaRestTestImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 testClusters.all {

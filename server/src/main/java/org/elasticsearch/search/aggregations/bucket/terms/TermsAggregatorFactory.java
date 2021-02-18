@@ -371,7 +371,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         /*
                          * We don't check the estimated cost here because we're
                          * fairly sure that any field that has global ordinals
-                         * is going to be able to query fairly quickly.
+                         * is going to be able to query fairly quickly. Mostly
+                         * checking the cost is a defense against runtime fields
+                         * which *have* queries but they are slow and have high
+                         * cost. But runtime fields don't have global ords
+                         * so we won't have got here anyway.
                          */
                         return adapted;
                     }

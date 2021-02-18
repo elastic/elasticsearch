@@ -50,6 +50,11 @@ See <<tls-active-directory,Encrypting communications between {es} and Active Dir
 
 See <<secure-cluster,Secure the Elastic Stack>>.
 
+[role="exclude",id="get-started-enable-security"]
+=== Enable {es} {security-features}
+
+See <<security-minimal-setup,Set up minimal security for {es}>>.
+
 [role="exclude",id="ssl-tls"]
 === Set up TLS on a cluster
 

@@ -32,17 +32,21 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
 
     static RolloverAction randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-        Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
-        return new RolloverAction(maxSize, maxAge, maxDocs);
+        ByteSizeValue maxSize = randomBoolean()
+            ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue maxSinglePrimarySize = randomBoolean()
+            ? null : new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
+        TimeValue maxAge = randomBoolean()
+            ? null : TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        Long maxDocs = (maxSize == null && maxSinglePrimarySize == null && maxAge == null || randomBoolean())
+            ? randomNonNegativeLong() : null;
+        return new RolloverAction(maxSize, maxSinglePrimarySize, maxAge, maxDocs);
     }
 
     public void testNoConditions() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new RolloverAction(null, null, null));
+            () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 }

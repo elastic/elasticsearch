@@ -8,6 +8,8 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lease.Releasable;
 
@@ -67,7 +69,11 @@ public final class TcpTransportChannel implements TransportChannel {
         if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
             breakerRelease.close();
+
+            logger.info(new ParameterizedMessage("--> releasing bytes for [{}][{}]", requestId, action), new ElasticsearchException("stack trace"));
+
         } else if (isExceptionResponse == false) {
+            logger.error(new ParameterizedMessage("--> double-relase of bytes for [{}][{}]", requestId, action), new ElasticsearchException("stack trace"));
             // only fail if we are not sending an error - we might send the error triggered by the previous
             // sendResponse call
             throw new IllegalStateException("reserved bytes are already released", releaseBy);

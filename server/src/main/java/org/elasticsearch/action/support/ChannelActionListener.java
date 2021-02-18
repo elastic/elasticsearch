@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -15,6 +17,8 @@ import org.elasticsearch.transport.TransportResponse;
 
 public final class ChannelActionListener<
     Response extends TransportResponse, Request extends TransportRequest> implements ActionListener<Response> {
+
+    private static final Logger logger = LogManager.getLogger(ChannelActionListener.class);
 
     private final TransportChannel channel;
     private final Request request;
@@ -31,6 +35,7 @@ public final class ChannelActionListener<
         try {
             channel.sendResponse(response);
         } catch (Exception e) {
+            logger.warn("channel.sendResponse threw exception responding to [" + actionName + "]", e);
             onFailure(e);
         }
     }

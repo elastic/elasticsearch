@@ -8,6 +8,7 @@ include::update-dfanalytics.asciidoc[leveloffset=+2]
 //DELETE
 include::delete-dfanalytics.asciidoc[leveloffset=+2]
 include::delete-trained-models.asciidoc[leveloffset=+2]
+include::delete-trained-models-aliases.asciidoc[leveloffset=+2]
 //EVALUATE
 include::evaluate-dfanalytics.asciidoc[leveloffset=+2]
 //ESTIMATE_MEMORY_USAGE

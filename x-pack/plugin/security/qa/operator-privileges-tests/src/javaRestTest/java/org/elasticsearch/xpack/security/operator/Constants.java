@@ -135,6 +135,7 @@ public class Constants {
         "cluster:admin/xpack/ml/filters/update",
         "cluster:admin/xpack/ml/inference/delete",
         "cluster:admin/xpack/ml/inference/put",
+        "cluster:admin/xpack/ml/inference/model_aliases/put",
         "cluster:admin/xpack/ml/job/close",
         "cluster:admin/xpack/ml/job/data/post",
         "cluster:admin/xpack/ml/job/delete",

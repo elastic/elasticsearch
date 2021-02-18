@@ -77,7 +77,7 @@ public class Packages {
     public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
         }
         final Result result = runPackageManager(distribution, sh, PackageManagerCommand.INSTALL);
         if (result.exitCode != 0) {
@@ -87,7 +87,7 @@ public class Packages {
         Installation installation = Installation.ofPackage(sh, distribution);
 
         if (distribution.hasJdk == false) {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
         return installation;
     }

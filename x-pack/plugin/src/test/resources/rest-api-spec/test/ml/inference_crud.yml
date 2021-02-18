@@ -561,30 +561,6 @@ setup:
       ml.delete_trained_model:
         model_id: "missing-trained-model"
 ---
-"Test delete given used trained model":
-  - do:
-      ingest.put_pipeline:
-        id: "regression-model-pipeline"
-        body:  >
-          {
-            "processors": [
-              {
-                "inference" : {
-                  "model_id" : "a-regression-model-0",
-                  "inference_config": {"regression": {}},
-                  "target_field": "regression_field",
-                  "field_map": {}
-                }
-              }
-            ]
-          }
-  - match: { acknowledged: true }
-
-  - do:
-      catch: conflict
-      ml.delete_trained_model:
-        model_id: "a-regression-model-0"
----
 "Test get pre-packaged trained models":
   - do:
       ml.get_trained_models:
@@ -851,3 +827,89 @@ setup:
         model_id: "a-regression-model-1"
         include_model_definition: true
         decompress_definition: false
+---
+"Test put model model aliases":
+
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-1"
+  - do:
+      ml.get_trained_models:
+        model_id: "regression-model,a-classification-model"
+
+  - match: { count: 2 }
+  - length: { trained_model_configs: 2 }
+  - match: { trained_model_configs.0.model_id: "a-classification-model" }
+  - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
+
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"
+        reassign: true
+  - do:
+      ml.get_trained_models:
+        model_id: "regression-model,a-classification-model"
+
+  - match: { count: 2 }
+  - length: { trained_model_configs: 2 }
+  - match: { trained_model_configs.0.model_id: "a-classification-model" }
+  - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
+
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model-again"
+        model_id: "a-regression-model-0"
+  - do:
+      ml.get_trained_models:
+        model_id: "a-regression-model-*"
+        size: 1
+
+  - length: { trained_model_configs: 1 }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
+  - match: { trained_model_configs.0.metadata.model_aliases.0: "regression-model" }
+  - match: { trained_model_configs.0.metadata.model_aliases.1: "regression-model-again" }
+---
+"Test update model alias with model id referring to missing model":
+  - do:
+      catch: missing
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "missing-model"
+---
+"Test update model alias with bad alias":
+  - do:
+      catch: /must start with alphanumeric and cannot end with numbers/
+      ml.put_trained_model_alias:
+        model_alias: "regression-model-123123"
+        model_id: "regression-model-123123"
+  - do:
+      catch: bad_request
+      ml.put_trained_model_alias:
+        model_alias: "z-classification-model"
+        model_id: "z-classification-model"
+---
+"Test update model alias where alias exists but old model id is different inference type":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"
+  - do:
+      catch: bad_request
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-classification-model"
+        reassign: true
+---
+"Test update model alias where alias exists but reassign is false":
+  - do:
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-0"
+  - do:
+      catch: bad_request
+      ml.put_trained_model_alias:
+        model_alias: "regression-model"
+        model_id: "a-regression-model-1"
+        reassign: false

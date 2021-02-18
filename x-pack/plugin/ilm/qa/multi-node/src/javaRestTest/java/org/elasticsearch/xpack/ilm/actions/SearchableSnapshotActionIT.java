@@ -220,7 +220,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     public void testCreateInvalidPolicy() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10)))),
             new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null))),
             new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction())),
@@ -235,7 +235,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     public void testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(snapshotRepo))),
             new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
             null, null, null
@@ -290,7 +290,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // let's create a data stream, rollover it and convert the first generation backing index into a searchable snapshot
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
                 SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo))),
             new Phase("warm", TimeValue.timeValueDays(30), Map.of(SetPriorityAction.NAME, new SetPriorityAction(999))),
             null, null, null
@@ -375,11 +375,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null
         );
 
-        createIndex(index, Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .build());
+        createIndex(index, Settings.EMPTY);
         ensureGreen(index);
         indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
         final String searchableSnapMountedIndexName = (storage == MountSearchableSnapshotRequest.Storage.FULL_COPY ?
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX : SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX) + index;
@@ -425,11 +427,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null
         );
 
-        createIndex(index, Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-            .build());
+        createIndex(index, Settings.EMPTY);
         ensureGreen(index);
         indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
 
         final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX +
             SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
@@ -470,7 +474,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 Map.of(
                     SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
                     MountSearchableSnapshotRequest.Storage.SHARED_CACHE),
-                    RolloverAction.NAME, new RolloverAction(null, null, 1L))),
+                    RolloverAction.NAME, new RolloverAction(null, null, null, 1L))),
             null, null,
             new Phase("frozen", TimeValue.ZERO,
                 singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(),
@@ -542,7 +546,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     public void testSearchableSnapshotActionOverridesMigrateAction() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
                 SearchableSnapshotAction.NAME, new SearchableSnapshotAction(
                     snapshotRepo, randomBoolean(), MountSearchableSnapshotRequest.Storage.FULL_COPY))
             ),

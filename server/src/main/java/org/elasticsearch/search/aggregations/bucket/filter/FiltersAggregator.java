@@ -15,11 +15,12 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -275,6 +277,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          */
         private BulkScorer[][] scorers;
         private int segmentsWithDeletedDocs;
+        /**
+         * Count of segments with documents have consult the {@code doc_count}
+         * field.
+         */
+        private int segmentsWithDocCount;
 
         private FilterByFilter(
             String name,
@@ -354,6 +361,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 weights = buildWeights(topLevelQuery(), filters);
             }
             Bits live = ctx.reader().getLiveDocs();
+            Counter counter = new Counter(docCountProvider);
+            if (false == docCountProvider.alwaysOne()) {
+                segmentsWithDocCount++;
+            }
             for (int filterOrd = 0; filterOrd < filters.length; filterOrd++) {
                 BulkScorer scorer;
                 if (scorers == null) {
@@ -367,9 +378,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     // the filter doesn't match any docs
                     continue;
                 }
-                TotalHitCountCollector collector = new TotalHitCountCollector();
-                scorer.score(collector, live);
-                incrementBucketDocCount(filterOrd, collector.getTotalHits());
+                scorer.score(counter, live);
+                incrementBucketDocCount(filterOrd, counter.readAndReset(ctx));
             }
             // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
             throw new CollectionTerminatedException();
@@ -379,12 +389,41 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         public void collectDebugInfo(BiConsumer<String, Object> add) {
             super.collectDebugInfo(add);
             add.accept("segments_with_deleted_docs", segmentsWithDeletedDocs);
+            add.accept("segments_with_doc_count", segmentsWithDocCount);
             if (estimatedCost != -1) {
                 // -1 means we didn't estimate it.
                 add.accept("estimated_cost", estimatedCost);
                 add.accept("max_cost", maxCost);
                 add.accept("estimate_cost_time", estimateCostTime);
             }
+        }
+
+        /**
+         * Counts collected documents, delegating to {@link DocCountProvider} for
+         * how many documents each search hit is "worth".
+         */
+        private static class Counter implements LeafCollector {
+            private final DocCountProvider docCount;
+            private long count;
+
+            Counter(DocCountProvider docCount) {
+                this.docCount = docCount;
+            }
+
+            public long readAndReset(LeafReaderContext ctx) throws IOException {
+                long result = count;
+                count = 0;
+                docCount.setLeafReaderContext(ctx);
+                return result;
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                count += docCount.getDocCount(doc);
+            }
+
+            @Override
+            public void setScorer(Scorable scorer) throws IOException {}
         }
     }
 

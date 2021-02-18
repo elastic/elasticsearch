@@ -83,7 +83,7 @@ public class PackageTests extends PackagingTestCase {
     private void assertRunsWithJavaHome() throws Exception {
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
             runElasticsearchTests();
             stopElasticsearch();

@@ -21,7 +21,6 @@ dependencies {
 restResources {
   restApi {
     includeCore '*'
-    includeXpack '*'
   }
 }
 

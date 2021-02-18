@@ -6,47 +6,43 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.test.rest.transform.headers;
+package org.elasticsearch.gradle.test.rest.transform.warnings;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.test.rest.transform.feature.FeatureInjector;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 
-import java.util.Map;
+import java.util.List;
 
 /**
- * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section
- * as well as adding headers as a features to the "setup" and "teardown" sections.
+ * A transformation to inject an allowed warning.
  */
-public class InjectHeaders extends FeatureInjector implements RestTestTransformByParentObject {
+public class InjectAllowedWarnings extends FeatureInjector implements RestTestTransformByParentObject {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-    private final Map<String, String> headers;
+    private final List<String> allowedWarnings;
 
     /**
-     * @param headers The headers to inject
+     * @param allowedWarnings The allowed warnings to inject
      */
-    public InjectHeaders(Map<String, String> headers) {
-        this.headers = headers;
+    public InjectAllowedWarnings(List<String> allowedWarnings) {
+        this.allowedWarnings = allowedWarnings;
     }
 
     @Override
     public void transformTest(ObjectNode doNodeParent) {
         ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
-        ObjectNode headersNode = (ObjectNode) doNodeValue.get("headers");
-        if (headersNode == null) {
-            headersNode = new ObjectNode(jsonNodeFactory);
+        ArrayNode arrayWarnings = (ArrayNode) doNodeValue.get("allowed_warnings");
+        if (arrayWarnings == null) {
+            arrayWarnings = new ArrayNode(jsonNodeFactory);
+            doNodeValue.set("allowed_warnings", arrayWarnings);
         }
-        for (Map.Entry<String, String> entry : headers.entrySet()) {
-            headersNode.set(entry.getKey(), TextNode.valueOf(entry.getValue()));
-        }
-        doNodeValue.set("headers", headersNode);
+        allowedWarnings.forEach(arrayWarnings::add);
     }
 
     @Override
@@ -58,11 +54,11 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
     @Override
     @Internal
     public String getSkipFeatureName() {
-        return "headers";
+        return "allowed_warnings";
     }
 
     @Input
-    public Map<String, String> getHeaders() {
-        return headers;
+    public List<String> getAllowedWarnings() {
+        return allowedWarnings;
     }
 }

@@ -34,7 +34,6 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     }
 
     /**
-     * @param fieldName The name of the field.
      * @param context The query shard context
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
@@ -59,11 +58,22 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             while (queue.isEmpty() == false) {
                 Object value = queue.poll();
                 if (value instanceof List) {
-                    queue.addAll((List<?>) value);
+                    for (Object o : (List<?>) value) {
+                        if (o != null) {
+                            queue.add(o);
+                        }
+                    }
                 } else {
-                    Object parsedValue = parseSourceValue(value);
-                    if (parsedValue != null) {
-                        values.add(parsedValue);
+                    try {
+                        Object parsedValue = parseSourceValue(value);
+                        if (parsedValue != null) {
+                            values.add(parsedValue);
+                        }
+                    } catch (Exception e) {
+                        // if we get a parsing exception here, that means that the
+                        // value in _source would have also caused a parsing
+                        // exception at index time and the value ignored.
+                        // so ignore it here as well
                     }
                 }
             }

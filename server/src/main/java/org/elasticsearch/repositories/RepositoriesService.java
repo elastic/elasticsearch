@@ -158,15 +158,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
             // Finally respond to the outer listener with the response from the original cluster state update
             updateRepoUuidStep.whenComplete(
-                    ignored -> acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure),
+                    ignored -> acknowledgementStep.addListener(listener),
                     listener::onFailure);
 
         } else {
-            acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure);
+            acknowledgementStep.addListener(listener);
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
             new AckedClusterStateUpdateTask(request, acknowledgementStep) {
+
+                private boolean found = false;
+                private boolean changed = false;
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -174,7 +177,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-                    boolean found = false;
                     List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
                     for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                         if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
@@ -189,13 +191,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                     }
                     if (found == false) {
-                        logger.info("put repository [{}]", request.name());
                         repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
-                    } else {
-                        logger.info("update repository [{}]", request.name());
                     }
                     repositories = new RepositoriesMetadata(repositoriesMetadata);
                     mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
+                    changed = true;
                     return ClusterState.builder(currentState).metadata(mdBuilder).build();
                 }
 
@@ -214,6 +214,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (changed) {
+                        if (found) {
+                            logger.info("updated repository [{}]", request.name());
+                        } else {
+                            logger.info("put repository [{}]", request.name());
+                        }
+                    }
                     publicationStep.onResponse(null);
                 }
             });
@@ -288,6 +295,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         clusterService.submitStateUpdateTask("delete_repository [" + request.name() + "]",
             new AckedClusterStateUpdateTask(request, listener) {
 
+                private final List<String> deletedRepositories = new ArrayList<>();
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     Metadata metadata = currentState.metadata();
@@ -299,7 +308,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                             if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
                                 ensureRepositoryNotInUse(currentState, repositoryMetadata.name());
-                                logger.info("delete repository [{}]", repositoryMetadata.name());
+                                deletedRepositories.add(repositoryMetadata.name());
                                 changed = true;
                             } else {
                                 repositoriesMetadata.add(repositoryMetadata);
@@ -315,6 +324,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         return currentState;
                     }
                     throw new RepositoryMissingException(request.name());
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (deletedRepositories.isEmpty() == false) {
+                        logger.info("deleted repositories [{}]", deletedRepositories);
+                    }
                 }
 
                 @Override
@@ -364,7 +380,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         });
     }
 
-    static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
+    public static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
         return roles.contains(DiscoveryNodeRole.MASTER_ROLE) && roles.contains(DiscoveryNodeRole.DATA_ROLE) == false &&
             roles.stream().anyMatch(role -> role.roleName().equals("voting_only"));
     }

@@ -17,11 +17,8 @@
   - match:
       $body:
         size: 1000
-        _source:
-          includes:
-            - int
-            - str
-          excludes: []
+        _source: false
+        fields: [ {"field" : "int" }, {"field" : "str" } ]
         sort:
           - int:
               order: asc

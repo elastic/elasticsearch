@@ -19,7 +19,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -42,7 +41,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("10.0", conversion.convert(10.0));
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals("1973-11-29T21:33:09.101Z", conversion.convert(asDateTime(123456789101L)));
             assertEquals("1966-02-02T02:26:50.899Z", conversion.convert(asDateTime(-123456789101L)));
@@ -77,7 +76,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(0L, conversion.convert(false));
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(123456789101L, conversion.convert(asDateTime(123456789101L)));
             assertEquals(-123456789101L, conversion.convert(asDateTime(-123456789101L)));
@@ -141,7 +140,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
             // double check back and forth conversion
             ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
-            Converter forward = converterFor(randomFrom(DATETIME, DATETIME_NANOS), KEYWORD);
+            Converter forward = converterFor(DATETIME, KEYWORD);
             Converter back = converterFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
@@ -172,7 +171,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(0.0f, (float) conversion.convert(false), 0);
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(1.23456789101E11f, (float) conversion.convert(asDateTime(123456789101L)), 0);
             assertEquals(-1.23456789101E11f, (float) conversion.convert(asDateTime(-123456789101L)), 0);
@@ -212,7 +211,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(0.0, (double) conversion.convert(false), 0);
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(1.23456789101E11, (double) conversion.convert(asDateTime(123456789101L)), 0);
             assertEquals(-1.23456789101E11, (double) conversion.convert(asDateTime(-123456789101L)), 0);
@@ -261,7 +260,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(false, conversion.convert(0.0d));
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(asDateTime(123456789101L)));
             assertEquals(true, conversion.convert(asDateTime(-123456789101L)));
@@ -303,7 +302,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals(12345678, conversion.convert(asDateTime(12345678L)));
             assertEquals(223456789, conversion.convert(asDateTime(223456789L)));
@@ -327,7 +326,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals((short) 12345, conversion.convert(asDateTime(12345L)));
             assertEquals((short) -12345, conversion.convert(asDateTime(-12345L)));
@@ -351,7 +350,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("[" + Short.MAX_VALUE + "] out of [byte] range", e.getMessage());
         }
         {
-            Converter conversion = converterFor(randomFrom(DATETIME, DATETIME_NANOS), to);
+            Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals((byte) 123, conversion.convert(asDateTime(123L)));
             assertEquals((byte) -123, conversion.convert(asDateTime(-123L)));
@@ -392,9 +391,6 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
         assertEquals(FLOAT, commonType(FLOAT, INTEGER));
         assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
-
-        assertEquals(DATETIME, commonType(DATETIME, DATETIME_NANOS));
-        assertEquals(DATETIME, commonType(DATETIME_NANOS, DATETIME));
 
         // strings
         assertEquals(TEXT, commonType(TEXT, KEYWORD));

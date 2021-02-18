@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
-import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
@@ -75,7 +74,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCond
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -389,49 +387,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
     }
 
-    public void testReadOnly() throws Exception {
-        createIndexWithSettings(client(), index, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        createNewSingletonPolicy(client(), policy, "warm", new ReadOnlyAction());
-        updatePolicy(client(), index, policy);
-        assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
-            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.getKey()), nullValue());
-        });
-    }
-
-    public void testReadOnlyInTheHotPhase() throws Exception {
-        String originalIndex = index + "-000001";
-
-        // add a policy
-        Map<String, LifecycleAction> hotActions = Map.of(
-            RolloverAction.NAME, new RolloverAction(null, null, 1L),
-            ReadOnlyAction.NAME, new ReadOnlyAction());
-        Map<String, Phase> phases = Map.of(
-            "hot", new Phase("hot", TimeValue.ZERO, hotActions));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
-        Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
-        createPolicyRequest.setJsonEntity("{ \"policy\":" + Strings.toString(lifecyclePolicy) + "}");
-        client().performRequest(createPolicyRequest);
-
-        // then create the index and index a document to trigger rollover
-        createIndexWithSettings(client(), originalIndex, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.lifecycle.rollover_alias", alias)
-            .put("index.lifecycle.name", policy));
-        index(client(), originalIndex, "_id", "foo", "bar");
-
-        assertBusy(() -> {
-            Map<String, Object> settings = getOnlyIndexSettings(client(), originalIndex);
-            assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
-        });
-    }
-
     public void forceMergeActionWithCodec(String codec) throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -442,7 +397,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             client().performRequest(request);
         }
 
-        assertThat(getNumberOfSegments(client(), index), greaterThan(1));
+        assertThat(getNumberOfSegments(client(), index), greaterThanOrEqualTo(1));
         createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, codec));
         updatePolicy(client(), index, policy);
 
@@ -992,13 +947,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index + "-1"), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
 
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-indexing-complete"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-follow-shard-tasks"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "pause-follower-index"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "close-follower-index"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "unfollow-follower-index"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "open-follower-index"), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "wait-for-index-color"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "check-rollover-ready"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "attempt-rollover"), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertHistoryIsPresent(policy, index + "-1", true, "set-indexing-complete"), 30, TimeUnit.SECONDS);
@@ -1179,7 +1127,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             randomBoolean());
 
         String[] snapshotName = new String[1];
-        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + this.index;
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + this.index;
         assertTrue(waitUntil(() -> {
             try {
                 Map<String, Object> explainIndex = explainIndex(client(), index);

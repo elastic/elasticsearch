@@ -355,7 +355,7 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
     void ensureHealth() throws AssertionError {
         boolean timerIsAlive = timerThread.isAlive();
         Throwable cause = error.get();
-        if (cause != null || !timerIsAlive) {
+        if (cause != null || timerIsAlive == false) {
             throw new AssertionError("The quota aware filesystem has failed", cause);
         }
     }

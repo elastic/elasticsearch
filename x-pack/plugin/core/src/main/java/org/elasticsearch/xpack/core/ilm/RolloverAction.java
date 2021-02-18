@@ -84,7 +84,7 @@ public class RolloverAction implements LifecycleAction {
         } else {
             maxSize = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()) {
             maxSinglePrimarySize = new ByteSizeValue(in);
         } else {
             maxSinglePrimarySize = null;
@@ -100,7 +100,7 @@ public class RolloverAction implements LifecycleAction {
         if (hasMaxSize) {
             maxSize.writeTo(out);
         }
-        if (out.getVersion().onOrAfter((Version.V_8_0_0))) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             boolean hasMaxSinglePrimarySize = maxSinglePrimarySize != null;
             out.writeBoolean(hasMaxSinglePrimarySize);
             if (hasMaxSinglePrimarySize) {

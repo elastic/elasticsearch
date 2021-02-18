@@ -1149,6 +1149,10 @@ tag::model-id[]
 The unique identifier of the trained model.
 end::model-id[]
 
+tag::model-id-or-alias[]
+The unique identifier of the trained model or a model alias.
+end::model-id-or-alias[]
+
 tag::model-memory-limit[]
 The approximate maximum amount of memory resources that are required for
 analytical processing. Once this limit is approached, data pruning becomes

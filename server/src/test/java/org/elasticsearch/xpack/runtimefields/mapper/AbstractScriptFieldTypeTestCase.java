@@ -30,7 +30,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -315,7 +314,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new RuntimeFields(Settings.EMPTY), new TestScriptPlugin());
+        return List.of(new TestScriptPlugin());
     }
 
     private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -348,6 +347,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                     throw new IllegalArgumentException("Unsupported context: " + context);
                 }
 
+                @Override
                 public Set<ScriptContext<?>> getSupportedContexts() {
                     return Set.copyOf(new RuntimeFields(Settings.EMPTY).getContexts());
                 }

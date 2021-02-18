@@ -9,23 +9,14 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 
 public class DynamicRuntimeTests extends MapperServiceTestCase {
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singletonList(new RuntimeFields(Settings.EMPTY));
-    }
 
     public void testDynamicLeafFields() throws IOException {
         DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", ObjectMapper.Dynamic.RUNTIME)));

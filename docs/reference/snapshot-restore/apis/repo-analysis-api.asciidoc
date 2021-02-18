@@ -542,13 +542,13 @@ was not found.
 
 `throttled`::
 (string)
-The length of time time spent waiting due to the `max_restore_bytes_per_sec` or
+The length of time spent waiting due to the `max_restore_bytes_per_sec` or
 `indices.recovery.max_bytes_per_sec` throttles during the read of this blob.
 Omitted if the blob was not found.
 
 `throttled_nanos`::
 (long)
-The length of time time spent waiting due to the `max_restore_bytes_per_sec` or
+The length of time spent waiting due to the `max_restore_bytes_per_sec` or
 `indices.recovery.max_bytes_per_sec` throttles during the read of this blob, in
 nanoseconds. Omitted if the blob was not found.
 

@@ -201,7 +201,7 @@ See the {ref}/indices-forcemerge.html[force merge API].
 // tag::freeze-def-short[]
 Make an index read-only and minimize its memory footprint.
 // end::freeze-def-short[]
-Frozen indices can be searched without incurring the overhead of of re-opening a closed index,
+Frozen indices can be searched without incurring the overhead of re-opening a closed index,
 but searches are throttled and might be slower.
 You can freeze indices to reduce the overhead of keeping older indices searchable
 before you are ready to archive or delete them.

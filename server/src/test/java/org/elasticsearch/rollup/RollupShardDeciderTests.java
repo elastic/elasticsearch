@@ -8,10 +8,14 @@
 
 package org.elasticsearch.rollup;
 
+import org.elasticsearch.cluster.metadata.RollupIndexMetadata;
+import org.elasticsearch.common.time.WriteableZoneId;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.ZoneId;
+import java.util.Collections;
+import java.util.Map;
 
 public class RollupShardDeciderTests extends ESTestCase {
 
@@ -41,5 +45,20 @@ public class RollupShardDeciderTests extends ESTestCase {
         assertTrue(RollupShardDecider.canMatchTimezone(ZoneId.of("Europe/Paris"), ZoneId.of("Europe/Paris")));
         assertFalse(RollupShardDecider.canMatchTimezone(ZoneId.of("Europe/Paris"), ZoneId.of("Europe/Athens")));
         assertFalse(RollupShardDecider.canMatchTimezone(ZoneId.of("UTC"), ZoneId.of("+01:00")));
+    }
+
+    public void testFindOptimalIntervalIndex() {
+        final WriteableZoneId UTC = WriteableZoneId.of("UTC");
+        Map<String, RollupIndexMetadata> rollupGroup = Map.of(
+            "hourly", new RollupIndexMetadata(DateHistogramInterval.HOUR, UTC, Collections.emptyMap()),
+            "daily", new RollupIndexMetadata(DateHistogramInterval.DAY, UTC, Collections.emptyMap()),
+            "monthly", new RollupIndexMetadata(DateHistogramInterval.MONTH, UTC, Collections.emptyMap())
+        );
+        assertEquals("hourly", RollupShardDecider.findOptimalIntervalIndex(rollupGroup, DateHistogramInterval.HOUR));
+        assertEquals("daily", RollupShardDecider.findOptimalIntervalIndex(rollupGroup, DateHistogramInterval.DAY));
+        assertEquals("daily", RollupShardDecider.findOptimalIntervalIndex(rollupGroup, DateHistogramInterval.WEEK));
+        assertEquals("monthly", RollupShardDecider.findOptimalIntervalIndex(rollupGroup, DateHistogramInterval.MONTH));
+        assertEquals("monthly", RollupShardDecider.findOptimalIntervalIndex(rollupGroup, DateHistogramInterval.YEAR));
+        assertEquals("monthly", RollupShardDecider.findOptimalIntervalIndex(rollupGroup, null));
     }
 }

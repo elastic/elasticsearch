@@ -111,7 +111,10 @@ public class RollupShardDecider {
             return false;
         }
 
-        // TODO(csoulios): Add check for runtime fields in the request
+        // If runtime fields are used in the query, rollup indices should not match
+        if (request.getRuntimeMappings().isEmpty() == false) {
+            return false;
+        }
         return true;
     }
 
@@ -144,9 +147,13 @@ public class RollupShardDecider {
      */
     public static String findOptimalIndex(Map<String, RollupIndexMetadata> rollupGroup, AggregatorFactories.Builder aggregations) {
         DateHistogramAggregationBuilder dateHistogramBuilder = getDateHistogramAggregationBuilder(aggregations);
-        return findOptimalIntervalIndex(rollupGroup, dateHistogramBuilder);
+        DateHistogramInterval sourceInterval = dateHistogramBuilder != null ? dateHistogramBuilder.getCalendarInterval() : null;
+        return findOptimalIntervalIndex(rollupGroup, sourceInterval);
     }
 
+    /**
+     * Parse the aggregator factories and return a date_histogram {@link AggregationBuilder} for the aggregation on rollups
+     */
     private static DateHistogramAggregationBuilder getDateHistogramAggregationBuilder(AggregatorFactories.Builder aggFactoryBuilders) {
         DateHistogramAggregationBuilder dateHistogramBuilder = null;
         for (AggregationBuilder builder : aggFactoryBuilders.getAggregatorFactories()) {
@@ -158,17 +165,16 @@ public class RollupShardDecider {
     }
 
     /**
-     * Find the index that best matches the date histogram interval requested in the date_histogram
-     * aggregation source. If there are more than one rollup indices, we always try to find the largest
+     * Find the rollup index that best matches the date histogram interval requested in the date_histogram
+     * aggregation source. If there are more than one indices, we always try to find the largest
      * interval that matches the aggregation. If no rollup index matches the interval, we return the
      * original index.
      *
-     * @param rollupGroup The group of rollup indices that are candidates
-     * @param source The source of the aggregation in the request
+     * @param rollupGroup The group of candidate rollup indices to find the best matching index.
+     * @param sourceInterval The source of the aggregation in the request. If sourceInterval is null,
      * @return the name of the optimal (maximum interval) index that matches the query
      */
-    static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramAggregationBuilder source) {
-        DateHistogramInterval sourceInterval = source != null ? source.getCalendarInterval() : null;
+    static String findOptimalIntervalIndex(Map<String, RollupIndexMetadata> rollupGroup, DateHistogramInterval sourceInterval) {
         String optimalIndex = null;
         DateHistogramInterval maxInterval = null;
         for (Map.Entry<String, RollupIndexMetadata> entry : rollupGroup.entrySet()) {
@@ -192,7 +198,7 @@ public class RollupShardDecider {
      * that the base unit (1h, 1d, 1M etc) of the candidate interval must be smaller or equal to the base unit
      * of the required interval.
      *
-     * @param requiredInterval  the required interval to match
+     * @param requiredInterval  the required interval to match. If null, all candidateIntervals will match.
      * @param candidateInterval the candidate inteval to validate
      * @return true if the candidate interval can match the required interval, otherwise false
      */

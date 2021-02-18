@@ -58,6 +58,19 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals("docValuesType=SORTED_NUMERIC<message_length:17>", lengthFields[1].toString());
     }
 
+    public void testDocAccess() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("long_field").field("type", "long").endObject();
+            b.startObject("long_field_plus_two");
+            b.field("type", "long");
+            b.field("script", "plus_two");
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("long_field", 4)));
+        assertEquals(doc.rootDoc().getField("long_field_plus_two").numericValue(), 6L);
+    }
+
     public void testSerialization() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("message").field("type", "text").endObject();
@@ -69,7 +82,7 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
         assertEquals(
             "{\"_doc\":{\"properties\":{\"message\":{\"type\":\"text\"}," +
                 "\"message_length\":{\"type\":\"long\",\"script\":{\"source\":\"length\",\"lang\":\"painless\"}}}}}",
-            Strings.toString(mapper));
+            Strings.toString(mapper.mapping()));
     }
 
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -106,6 +119,14 @@ public class CalculatedFieldTests extends MapperServiceTestCase {
                                     for (Object v : source.extractRawValues("message")) {
                                         emit(Objects.toString(v).length());
                                     }
+                                }
+                            };
+                        case "plus_two":
+                            return () -> new NumberFieldMapper.NumberScript() {
+                                @Override
+                                public void execute() {
+                                    long input = (long) getDoc().get("long_field").get(0);
+                                    emit(input + 2);
                                 }
                             };
                         default:

@@ -1158,7 +1158,9 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public void doPostParse(ParseContext context, IndexTimeScriptParams params) {
-        script.execute(params, v -> indexValue(context, v));
+        if (this.script != null) {
+            script.execute(params, v -> indexValue(context, v));
+        }
     }
 
     public static final ScriptContext<ScriptFactory> SCRIPT_CONTEXT = new ScriptContext<>(

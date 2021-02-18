@@ -110,7 +110,7 @@ final class DocumentParser {
             parseObjectOrNested(context, root);
         }
 
-        root.postParse(context, new IndexTimeScriptParams(context.sourceToParse().source(), context.rootDoc()));
+        root.postParse(context, new IndexTimeScriptParams(context));
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);

@@ -17,7 +17,7 @@ TIP: Audit logs are only available on certain subscription levels.
 For more information, see {subscriptions}.
 --
 
-To enable enable audit logging:
+To enable audit logging:
 
 . Set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
 . Restart {es}.

@@ -603,7 +603,7 @@ APIs require authentication and the necessary authorization level for the authen
 user. For this reason, a Service Account user needs to be created and assigned a role
 that gives them the `manage_oidc` cluster privilege. The use of the `manage_token`
 cluster privilege will be necessary after the authentication takes place, so that the
-the user can maintain access or be subsequently logged out.
+user can maintain access or be subsequently logged out.
 
 [source,console]
 --------------------------------------------------

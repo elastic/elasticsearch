@@ -99,6 +99,13 @@ public class TextSearchInfo {
     }
 
     /**
+     * @return whether or not this field uses the terms index
+     */
+    public boolean hasTerms() {
+        return luceneFieldType.indexOptions() != IndexOptions.NONE;
+    }
+
+    /**
      * @return whether or not this field supports positional queries
      */
     public boolean hasPositions() {

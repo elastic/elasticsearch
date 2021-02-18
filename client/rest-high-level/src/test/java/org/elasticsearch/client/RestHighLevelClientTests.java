@@ -855,7 +855,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         deprecatedMethods.add("multi_search");
         deprecatedMethods.add("search_scroll");
 
-        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("/rest-api-spec/api");
+        ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load("rest-api-spec/api");
         Set<String> apiSpec = restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toSet());
         Set<String> apiUnsupported = new HashSet<>(apiSpec);
         Set<String> apiNotFound = new HashSet<>();
@@ -918,6 +918,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
                                 apiName.startsWith("text_structure.") == false &&
+                                apiName.startsWith("searchable_snapshots.") == false &&
                                 apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&

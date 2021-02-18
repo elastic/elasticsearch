@@ -531,7 +531,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Gets the bytes representing the sort builders for this request.
+     * Sets the sort builders for this request.
+     */
+    public SearchSourceBuilder sort(List<SortBuilder<?>> sorts) {
+        this.sorts = sorts;
+        return this;
+    }
+
+    /**
+     * Gets the sort builders for this request.
      */
     public List<SortBuilder<?>> sorts() {
         return sorts;

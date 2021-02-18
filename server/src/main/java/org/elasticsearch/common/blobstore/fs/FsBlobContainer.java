@@ -37,6 +37,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -88,7 +89,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         Map<String, BlobMetadata> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
+        try (DirectoryStream<Path> stream = newDirectoryStreamIfFound(blobNamePrefix)) {
             for (Path file : stream) {
                 final BasicFileAttributes attrs;
                 try {
@@ -103,6 +104,34 @@ public class FsBlobContainer extends AbstractBlobContainer {
             }
         }
         return unmodifiableMap(builder);
+    }
+
+    private DirectoryStream<Path> newDirectoryStreamIfFound(String blobNamePrefix) throws IOException {
+        try {
+            return Files.newDirectoryStream(path, blobNamePrefix + "*");
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            // a nonexistent directory contains no blobs
+            return new DirectoryStream<>() {
+                @Override
+                public Iterator<Path> iterator() {
+                    return new Iterator<>() {
+                        @Override
+                        public boolean hasNext() {
+                            return false;
+                        }
+
+                        @Override
+                        public Path next() {
+                            return null;
+                        }
+                    };
+                }
+
+                @Override
+                public void close() {
+                }
+            };
+        }
     }
 
     @Override

@@ -79,6 +79,7 @@ import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -382,6 +383,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .prepareCreateSnapshot(repositoryName, snapshot)
                 .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
                 .setWaitForCompletion(true)
+                .setFeatureStates(NO_FEATURE_STATES_VALUE) // Exclude all feature states to ensure only specified indices are included
                 .get();
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
@@ -437,9 +439,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 Collections.emptyList(), Collections.emptyList(),
-                SnapshotState.FAILED, "failed on purpose",
-                SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L,0L, 0, 0, Collections.emptyList(),
-                randomBoolean(), metadata);
+                Collections.emptyList(), "failed on purpose", SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L, 0L, 0, 0, Collections.emptyList(),
+                randomBoolean(), metadata, SnapshotState.FAILED
+        );
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));

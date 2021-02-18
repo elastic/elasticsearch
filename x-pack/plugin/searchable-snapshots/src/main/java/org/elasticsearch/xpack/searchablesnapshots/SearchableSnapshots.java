@@ -54,9 +54,12 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -229,6 +232,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         }
     }
 
+    public static BlobStoreRepository getSearchableRepository(Repository repository) {
+        if (repository instanceof SourceOnlySnapshotRepository) {
+            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
+        }
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
+        }
+        if (repository.getMetadata().type().equals(BlobStoreRepository.URL_REPOSITORY_TYPE)) {
+            throw new IllegalArgumentException(
+                "Searchable snapshots are not supported on URL repositories [" + repository.getMetadata().name() + "]"
+            );
+        }
+        return (BlobStoreRepository) repository;
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
@@ -250,9 +268,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
-            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
-            FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING,
+            SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING,
+            SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
+            SnapshotsService.SHARED_CACHE_RANGE_SIZE_SETTING,
             FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
@@ -332,6 +350,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 .setVersionMetaKey("version")
                 .build()
         );
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "searchable_snapshots";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages caches and configuration for searchable snapshots";
     }
 
     @Override

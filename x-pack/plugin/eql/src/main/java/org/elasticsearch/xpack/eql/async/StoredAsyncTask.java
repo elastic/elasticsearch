@@ -19,14 +19,13 @@ import org.elasticsearch.xpack.core.async.AsyncTask;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 
 public abstract class StoredAsyncTask<Response extends ActionResponse> extends CancellableTask implements AsyncTask {
 
     private final AsyncExecutionId asyncExecutionId;
     private final Map<String, String> originHeaders;
-    private final AtomicLong expirationTimeMillis;
+    private volatile long expirationTimeMillis;
     private final List<ActionListener<Response>> completionListeners;
 
     public StoredAsyncTask(long id, String type, String action, String description, TaskId parentTaskId,
@@ -35,7 +34,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         super(id, type, action, description, parentTaskId, headers);
         this.asyncExecutionId = asyncExecutionId;
         this.originHeaders = originHeaders;
-        this.expirationTimeMillis = new AtomicLong(getStartTime() + keepAlive.getMillis());
+        this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.completionListeners = new ArrayList<>();
     }
 
@@ -53,12 +52,12 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void extendExpirationTime(long newExpirationTimeMillis) {
-        this.expirationTimeMillis.updateAndGet(curr -> Math.max(curr, newExpirationTimeMillis));
+    public void setExpirationTime(long expirationTimeMillis) {
+        this.expirationTimeMillis = expirationTimeMillis;
     }
 
     public long getExpirationTimeMillis() {
-        return expirationTimeMillis.get();
+        return expirationTimeMillis;
     }
 
     public synchronized void addCompletionListener(ActionListener<Response> listener) {

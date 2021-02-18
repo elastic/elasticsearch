@@ -12,15 +12,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.containsString;
@@ -28,10 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataStreamsTransportActionTests extends ESTestCase {
 
-    private final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(
-        new ThreadContext(Settings.EMPTY),
-        new SystemIndices(Map.of())
-    );
+    private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";

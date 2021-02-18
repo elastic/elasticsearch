@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -129,7 +129,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     static class MyResolver extends IndexNameExpressionResolver {
         MyResolver() {
-            super(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of()));
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         }
 
         @Override

@@ -7,15 +7,13 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -34,7 +32,6 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -62,8 +59,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
-        jobResultsProvider = new JobResultsProvider(client(), settings,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of())));
+        jobResultsProvider = new JobResultsProvider(client(), settings, TestIndexNameExpressionResolver.newInstance());
         jobResultsPersister = new JobResultsPersister(
             originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), clusterService));
     }

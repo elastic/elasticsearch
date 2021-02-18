@@ -25,10 +25,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -37,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.time.Instant;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.any;
@@ -50,8 +48,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
     public void testVerifyIndicesExistAndPrimaryShardsAreActive() {
         String aliasName = MlStatsIndex.writeAlias();
         String concreteIndex = ".ml-stats-000001";
-        IndexNameExpressionResolver resolver =
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of()));
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
         {
             Metadata.Builder metadata = Metadata.builder();
@@ -140,8 +137,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
     public void testUpdateStatsUpgradeMode() {
         String aliasName = MlStatsIndex.writeAlias();
         String concreteIndex = ".ml-stats-000001";
-        IndexNameExpressionResolver resolver =
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of()));
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
 
         // create a valid index routing so persistence will occur
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

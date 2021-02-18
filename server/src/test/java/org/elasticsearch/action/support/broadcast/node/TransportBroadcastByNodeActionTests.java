@@ -42,7 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -171,9 +171,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
     }
 
-    class MyResolver extends IndexNameExpressionResolver {
+    static class MyResolver extends IndexNameExpressionResolver {
         MyResolver() {
-            super(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of()));
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         }
 
         @Override

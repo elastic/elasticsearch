@@ -22,10 +22,9 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -35,15 +34,13 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive;
 
 public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
-        final IndexNameExpressionResolver resolver =
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of()));
+        final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);

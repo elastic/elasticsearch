@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -38,7 +38,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -71,7 +70,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     protected IndexNameExpressionResolver createIndexNameExpressionResolver(ThreadContext threadContext) {
-        return new IndexNameExpressionResolver(threadContext, new SystemIndices(Map.of()));
+        return TestIndexNameExpressionResolver.newInstance(threadContext);
     }
 
     @Override

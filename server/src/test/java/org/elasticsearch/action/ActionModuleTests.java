@@ -20,8 +20,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -39,7 +38,6 @@ import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -100,7 +98,7 @@ public class ActionModuleTests extends ESTestCase {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(settings.getSettings(),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(Map.of())),
+            TestIndexNameExpressionResolver.newInstance(),
             settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
             null, usageService, null);
         actionModule.initRestHandlers(null);
@@ -140,7 +138,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(),
-                new IndexNameExpressionResolver(threadPool.getThreadContext(), new SystemIndices(Map.of())),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
                 singletonList(dupsMainAction), null, null, usageService, null);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -175,7 +173,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(),
-                new IndexNameExpressionResolver(threadPool.getThreadContext(), new SystemIndices(Map.of())),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
                 singletonList(registersFakeHandler), null, null, usageService, null);
             actionModule.initRestHandlers(null);

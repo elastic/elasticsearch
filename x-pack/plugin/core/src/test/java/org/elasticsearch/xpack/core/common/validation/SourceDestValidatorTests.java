@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
@@ -104,7 +104,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
     private final IngestService ingestService = mock(IngestService.class);
     private final IndexNameExpressionResolver indexNameExpressionResolver =
-        new IndexNameExpressionResolver(threadPool.getThreadContext(), new SystemIndices(Map.of()));
+        TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
 
     private final SourceDestValidator simpleNonRemoteValidator = new SourceDestValidator(
         indexNameExpressionResolver,

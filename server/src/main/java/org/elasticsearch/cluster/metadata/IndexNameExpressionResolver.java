@@ -72,6 +72,7 @@ public class IndexNameExpressionResolver {
         this.threadContext = Objects.requireNonNull(threadContext, "Thread Context must not be null");
         this.systemIndices = Objects.requireNonNull(systemIndices, "System Indices must not be null");
     }
+
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
      * are encapsulated in the specified request.

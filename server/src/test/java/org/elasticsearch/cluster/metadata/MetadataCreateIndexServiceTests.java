@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -445,7 +446,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                new SystemIndices(Collections.emptyMap()),
+                EmptySystemIndices.INSTANCE,
                 false
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);

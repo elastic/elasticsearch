@@ -52,7 +52,6 @@ public class NestedValueFetcher implements ValueFetcher {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
             SourceLookup nestedSourceLookup = new SourceLookup();
-            nestedSourceLookup.setSegmentAndDocument(this.currentContext, lookup.docId());
             nestedSourceLookup.setSource(filteredSource);
 
             Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup);

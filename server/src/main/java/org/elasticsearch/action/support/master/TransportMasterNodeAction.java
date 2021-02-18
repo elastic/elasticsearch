@@ -128,7 +128,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             retry(clusterState, blockException, newState -> {
                                 try {
                                     ClusterBlockException newException = checkBlock(request, newState);
-                                    return (newException == null || !newException.retryable());
+                                    return (newException == null || newException.retryable() == false);
                                 } catch (Exception e) {
                                     // accept state as block will be rechecked by doStart() and listener.onFailure() then called
                                     logger.debug("exception occurred during cluster block checking, accepting state", e);

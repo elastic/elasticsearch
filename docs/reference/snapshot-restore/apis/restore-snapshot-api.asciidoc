@@ -129,20 +129,32 @@ indices.
 +
 --
 (Optional, Boolean)
-If `false`, the cluster state is not restored. Defaults to `false`.
+If `false`, the global state is not restored. Defaults to `false`.
 
-If `true`, the current cluster state is included in the restore operation.
+If `true`, the current global state is included in the restore operation.
 
-The cluster state includes:
+The global state includes:
 
 * Persistent cluster settings
 * Index templates
 * Legacy index templates
 * Ingest pipelines
 * {ilm-init} lifecycle policies
+* For snapshots taken after 7.12.0, data stored in system indices, such as Watches and task records, replacing any existing configuration (configurable via `feature_states`)
 --
 +
 IMPORTANT: By default, the entire restore operation will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<restore-snapshot-api-partial,`partial`>> to `true`.
+
+[[restore-snapshot-api-feature-states]]
+`feature_states`::
+(Optional, array of strings)
+A comma-separated list of feature states you wish to restore. Each feature state contains one or more system indices. The list of feature states
+available in a given snapshot are returned by the <<get-snapshot-api-feature-states, Get Snapshot API>>. Note that feature
+states restored this way will completely replace any existing configuration, rather than returning an error if the system index already exists.
+Providing an empty array will restore no feature states, regardless of the value of `include_global_state`.
++
+By default, all available feature states will be restored if `include_global_state` is `true`, and no feature states will be restored if
+`include_global_state` is `false`.
 
 [[restore-snapshot-api-index-settings]]
 `index_settings`::

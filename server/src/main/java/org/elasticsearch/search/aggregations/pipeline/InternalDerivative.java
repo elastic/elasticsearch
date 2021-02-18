@@ -76,7 +76,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
         super.doXContentBody(builder, params);
 
         if (normalizationFactor > 0) {
-            boolean hasValue = !(Double.isInfinite(normalizedValue()) || Double.isNaN(normalizedValue()));
+            boolean hasValue = (Double.isInfinite(normalizedValue()) || Double.isNaN(normalizedValue())) == false;
             builder.field("normalized_value", hasValue ? normalizedValue() : null);
             if (hasValue && format != DocValueFormat.RAW) {
                 builder.field("normalized_value_as_string", format.format(normalizedValue()));

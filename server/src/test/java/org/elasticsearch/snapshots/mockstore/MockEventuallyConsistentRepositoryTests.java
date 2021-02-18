@@ -148,7 +148,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
                 // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
                 repository.finalizeSnapshot(ShardGenerations.EMPTY, RepositoryData.EMPTY_REPO_GEN, Metadata.EMPTY_METADATA,
                     new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
-                        0L, null, 1L, 5, Collections.emptyList(), true, Collections.emptyMap()),
+                        Collections.emptyList(), null, 1L, 5, Collections.emptyList(), true, Collections.emptyMap(), 0L),
                     Version.CURRENT, Function.identity(), f));
 
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
@@ -156,7 +156,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
                 () -> PlainActionFuture.<RepositoryData, Exception>get(f ->
                     repository.finalizeSnapshot(ShardGenerations.EMPTY, 0L, Metadata.EMPTY_METADATA,
                         new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
-                            0L, null, 1L, 6, Collections.emptyList(), true, Collections.emptyMap()),
+                            Collections.emptyList(), null, 1L, 6, Collections.emptyList(), true, Collections.emptyMap(), 0L),
                         Version.CURRENT, Function.identity(), f)));
             assertThat(assertionError.getMessage(), equalTo("\nExpected: <6>\n     but: was <5>"));
 
@@ -165,7 +165,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             PlainActionFuture.<RepositoryData, Exception>get(f ->
                 repository.finalizeSnapshot(ShardGenerations.EMPTY, 0L, Metadata.EMPTY_METADATA,
                     new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
-                        0L, null, 2L, 5, Collections.emptyList(), true, Collections.emptyMap()),
+                        Collections.emptyList(), null, 2L, 5, Collections.emptyList(), true, Collections.emptyMap(), 0L),
                     Version.CURRENT, Function.identity(), f));
         }
     }

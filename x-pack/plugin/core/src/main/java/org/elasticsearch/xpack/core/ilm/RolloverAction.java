@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -34,6 +35,7 @@ public class RolloverAction implements LifecycleAction {
     public static final String NAME = "rollover";
     public static final String INDEXING_COMPLETE_STEP_NAME = "set-indexing-complete";
     public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
+    public static final ParseField MAX_SINGLE_PRIMARY_SIZE_FIELD = new ParseField("max_single_primary_size");
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
     public static final String LIFECYCLE_ROLLOVER_ALIAS = "index.lifecycle.rollover_alias";
@@ -41,16 +43,23 @@ public class RolloverAction implements LifecycleAction {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));
+        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3]));
+
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()), MAX_SIZE_FIELD, ValueType.VALUE);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()),
+            MAX_SIZE_FIELD, ValueType.VALUE);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()), MAX_AGE_FIELD, ValueType.VALUE);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_PRIMARY_SIZE_FIELD.getPreferredName()),
+            MAX_SINGLE_PRIMARY_SIZE_FIELD, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_AGE_FIELD.getPreferredName()),
+            MAX_AGE_FIELD, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
     }
 
     private final ByteSizeValue maxSize;
+    private final ByteSizeValue maxSinglePrimarySize;
     private final Long maxDocs;
     private final TimeValue maxAge;
 
@@ -58,11 +67,13 @@ public class RolloverAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverAction(@Nullable ByteSizeValue maxSize, @Nullable TimeValue maxAge, @Nullable Long maxDocs) {
-        if (maxSize == null && maxAge == null && maxDocs == null) {
+    public RolloverAction(@Nullable ByteSizeValue maxSize, @Nullable ByteSizeValue maxSinglePrimarySize, @Nullable TimeValue maxAge,
+                          @Nullable Long maxDocs) {
+        if (maxSize == null && maxSinglePrimarySize == null && maxAge == null && maxDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
         this.maxSize = maxSize;
+        this.maxSinglePrimarySize = maxSinglePrimarySize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
     }
@@ -73,12 +84,13 @@ public class RolloverAction implements LifecycleAction {
         } else {
             maxSize = null;
         }
-        maxAge = in.readOptionalTimeValue();
-        if (in.readBoolean()) {
-            maxDocs = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean()) {
+            maxSinglePrimarySize = new ByteSizeValue(in);
         } else {
-            maxDocs = null;
+            maxSinglePrimarySize = null;
         }
+        maxAge = in.readOptionalTimeValue();
+        maxDocs = in.readOptionalVLong();
     }
 
     @Override
@@ -88,12 +100,15 @@ public class RolloverAction implements LifecycleAction {
         if (hasMaxSize) {
             maxSize.writeTo(out);
         }
-        out.writeOptionalTimeValue(maxAge);
-        boolean hasMaxDocs = maxDocs != null;
-        out.writeBoolean(hasMaxDocs);
-        if (hasMaxDocs) {
-            out.writeVLong(maxDocs);
+        if (out.getVersion().onOrAfter((Version.V_8_0_0))) {
+            boolean hasMaxSinglePrimarySize = maxSinglePrimarySize != null;
+            out.writeBoolean(hasMaxSinglePrimarySize);
+            if (hasMaxSinglePrimarySize) {
+                maxSinglePrimarySize.writeTo(out);
+            }
         }
+        out.writeOptionalTimeValue(maxAge);
+        out.writeOptionalVLong(maxDocs);
     }
 
     @Override
@@ -103,6 +118,10 @@ public class RolloverAction implements LifecycleAction {
 
     public ByteSizeValue getMaxSize() {
         return maxSize;
+    }
+
+    public ByteSizeValue getMaxSinglePrimarySize() {
+        return maxSinglePrimarySize;
     }
 
     public TimeValue getMaxAge() {
@@ -118,6 +137,9 @@ public class RolloverAction implements LifecycleAction {
         builder.startObject();
         if (maxSize != null) {
             builder.field(MAX_SIZE_FIELD.getPreferredName(), maxSize.getStringRep());
+        }
+        if (maxSinglePrimarySize != null) {
+            builder.field(MAX_SINGLE_PRIMARY_SIZE_FIELD.getPreferredName(), maxSinglePrimarySize.getStringRep());
         }
         if (maxAge != null) {
             builder.field(MAX_AGE_FIELD.getPreferredName(), maxAge.getStringRep());
@@ -145,7 +167,7 @@ public class RolloverAction implements LifecycleAction {
         StepKey setIndexingCompleteStepKey = new StepKey(phase, NAME, INDEXING_COMPLETE_STEP_NAME);
 
         WaitForRolloverReadyStep waitForRolloverReadyStep = new WaitForRolloverReadyStep(waitForRolloverReadyStepKey, rolloverStepKey,
-            client, maxSize, maxAge, maxDocs);
+            client, maxSize, maxSinglePrimarySize, maxAge, maxDocs);
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, waitForActiveShardsKey, client);
         WaitForActiveShardsStep waitForActiveShardsStep = new WaitForActiveShardsStep(waitForActiveShardsKey, updateDateStepKey);
         UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, setIndexingCompleteStepKey,
@@ -157,7 +179,7 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxSize, maxAge, maxDocs);
+        return Objects.hash(maxSize, maxSinglePrimarySize, maxAge, maxDocs);
     }
 
     @Override
@@ -170,8 +192,9 @@ public class RolloverAction implements LifecycleAction {
         }
         RolloverAction other = (RolloverAction) obj;
         return Objects.equals(maxSize, other.maxSize) &&
-                Objects.equals(maxAge, other.maxAge) &&
-                Objects.equals(maxDocs, other.maxDocs);
+            Objects.equals(maxSinglePrimarySize, other.maxSinglePrimarySize) &&
+            Objects.equals(maxAge, other.maxAge) &&
+            Objects.equals(maxDocs, other.maxDocs);
     }
 
     @Override

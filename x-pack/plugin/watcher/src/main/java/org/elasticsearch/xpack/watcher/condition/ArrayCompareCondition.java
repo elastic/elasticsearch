@@ -155,7 +155,7 @@ public final class ArrayCompareCondition extends AbstractCompareCondition {
         Object configuredValue = resolveConfiguredValue(resolvedValues, model, value);
 
         Object object = ObjectPath.eval(arrayPath, model);
-        if (object != null && !(object instanceof List)) {
+        if (object != null && (object instanceof List) == false) {
             throw new IllegalStateException("array path " + arrayPath + " did not evaluate to array, was " + object);
         }
 

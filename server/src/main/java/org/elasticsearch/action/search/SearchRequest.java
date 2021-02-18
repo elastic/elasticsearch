@@ -19,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -26,11 +28,14 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,7 +53,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class SearchRequest extends ActionRequest implements IndicesRequest.Replaceable, Rewriteable<SearchRequest> {
 
     public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
@@ -639,6 +644,35 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     public int resolveTrackTotalHitsUpTo() {
         return resolveTrackTotalHitsUpTo(scroll, source);
+    }
+
+    @Override
+    public SearchRequest rewrite(QueryRewriteContext ctx) throws IOException {
+        if (source == null) {
+            return this;
+        }
+
+        SearchSourceBuilder source = this.source.rewrite(ctx);
+        boolean hasChanged = source != this.source;
+
+        // add a sort tiebreaker for PIT search requests if not explicitly set
+        Object[] searchAfter = source.searchAfter();
+        if (source.pointInTimeBuilder() != null
+                && source.sorts() != null
+                && source.sorts().isEmpty() == false
+                // skip the tiebreaker if it is not provided in the search after values
+                && (searchAfter == null || searchAfter.length == source.sorts().size()+1)) {
+            SortBuilder<?> lastSort = source.sorts().get(source.sorts().size() - 1);
+            if (lastSort instanceof FieldSortBuilder == false
+                    || FieldSortBuilder.SHARD_DOC_FIELD_NAME.equals(((FieldSortBuilder) lastSort).getFieldName()) == false) {
+                List<SortBuilder<?>> newSorts = new ArrayList<>(source.sorts());
+                newSorts.add(SortBuilders.pitTiebreaker().unmappedType("long"));
+                source = source.shallowCopy().sort(newSorts);
+                hasChanged = true;
+            }
+        }
+
+        return hasChanged ? new SearchRequest(this).source(source) : this;
     }
 
     public static int resolveTrackTotalHitsUpTo(Scroll scroll, SearchSourceBuilder source) {

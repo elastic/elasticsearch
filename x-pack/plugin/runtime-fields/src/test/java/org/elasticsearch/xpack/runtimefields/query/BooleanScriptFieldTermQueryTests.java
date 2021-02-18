@@ -39,7 +39,7 @@ public class BooleanScriptFieldTermQueryTests extends AbstractBooleanScriptField
                 fieldName += "modified";
                 break;
             case 2:
-                term = !term;
+                term = term == false;
                 break;
             default:
                 fail();

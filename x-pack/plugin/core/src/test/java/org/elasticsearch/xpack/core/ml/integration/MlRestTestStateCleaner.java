@@ -14,11 +14,14 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class MlRestTestStateCleaner {
 
+    private static final Set<String> NOT_DELETED_TRAINED_MODELS = Collections.singleton("lang_ident_model_1");
     private final Logger logger;
     private final RestClient adminClient;
 
@@ -28,10 +31,32 @@ public class MlRestTestStateCleaner {
     }
 
     public void clearMlMetadata() throws IOException {
+        deleteAllTrainedModels();
         deleteAllDatafeeds();
         deleteAllJobs();
         deleteAllDataFrameAnalytics();
         // indices will be deleted by the ESRestTestCase class
+    }
+
+    @SuppressWarnings("unchecked")
+    private void deleteAllTrainedModels() throws IOException {
+        final Request getTrainedModels = new Request("GET", "/_ml/trained_models");
+        getTrainedModels.addParameter("size", "10000");
+        final Response trainedModelsResponse = adminClient.performRequest(getTrainedModels);
+        final List<Map<String, Object>> models = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "trained_model_configs",
+            ESRestTestCase.entityAsMap(trainedModelsResponse)
+        );
+        if (models == null || models.isEmpty()) {
+            return;
+        }
+        for (Map<String, Object> model : models) {
+            String modelId = (String) model.get("model_id");
+            if (NOT_DELETED_TRAINED_MODELS.contains(modelId)) {
+                continue;
+            }
+            adminClient.performRequest(new Request("DELETE", "/_ml/trained_models/" + modelId));
+        }
     }
 
     @SuppressWarnings("unchecked")

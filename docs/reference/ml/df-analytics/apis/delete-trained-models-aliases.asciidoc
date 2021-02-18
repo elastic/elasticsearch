@@ -1,13 +1,13 @@
 [role="xpack"]
 [testenv="platinum"]
 [[delete-trained-models-aliases]]
-= Delete Trained Models Aliases API
+= Delete Trained Model Aliases API
 [subs="attributes"]
 ++++
-<titleabbrev>Delete Trained Models Aliases</titleabbrev>
+<titleabbrev>Delete Trained Model Aliases</titleabbrev>
 ++++
 
-Deletes a trained models alias.
+Deletes a trained model alias.
 
 beta::[]
 
@@ -31,7 +31,7 @@ For more information, see <<built-in-roles>>, <<security-privileges>>, and
 [[ml-delete-trained-models-aliases-desc]]
 == {api-description-title}
 
-This API deletes an existing model alias that refers to trained models.
+This API deletes an existing model alias that refers to a trained model.
 
 If the model alias is missing or refers to a model other than the one identified by
 the `model_id`, this API will return an error.

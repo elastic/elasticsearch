@@ -54,16 +54,20 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public static DeprecationLogger getLogger(String name) {
-        return new DeprecationLogger(getDeprecatedLoggerForName(name));
+        return new DeprecationLogger(name);
     }
 
-    private static Logger getDeprecatedLoggerForName(String name) {
+    private DeprecationLogger(String parentLoggerName) {
+        this.logger = LogManager.getLogger(getLoggerName(parentLoggerName));
+    }
+
+    private static String getLoggerName(String name) {
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
         } else {
             name = "deprecation." + name;
         }
-        return LogManager.getLogger(name);
+        return name;
     }
 
     private static String toLoggerName(final Class<?> cls) {
@@ -75,23 +79,14 @@ public class DeprecationLogger {
      * Logs a message at the {@link #DEPRECATION} level. The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLoggerBuilder deprecate(
+    public DeprecationLogger deprecate(
         final DeprecationCategory category,
         final String key,
         final String msg,
         final Object... params
     ) {
-        return new DeprecationLoggerBuilder().withDeprecation(category, key, msg, params);
-    }
-
-    public class DeprecationLoggerBuilder {
-
-        public DeprecationLoggerBuilder withDeprecation(DeprecationCategory category, String key, String msg, Object[] params) {
-            ESLogMessage deprecationMessage = new DeprecatedMessage(category, key, HeaderWarning.getXOpaqueId(), msg, params);
-
-            logger.log(DEPRECATION, deprecationMessage);
-
-            return this;
-        }
+        ESLogMessage deprecationMessage = new DeprecatedMessage(category, key, HeaderWarning.getXOpaqueId(), msg, params);
+        logger.log(DEPRECATION, deprecationMessage);
+        return this;
     }
 }

@@ -12,18 +12,22 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.JDBCType;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -1049,6 +1053,155 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 assertResponse(expected, runSql(query));
             }
         }
+    }
+
+    /*
+     * From a randomly created mapping using "object" field types and "nested" field types like the one below, we look at
+     * extracting the values from the deepest "nested" field type.
+     * The query to use for the mapping below would be "SELECT HETeC.fdeuk.oDwgT FROM test"
+     * {
+     *    "mappings" : {
+     *      "properties" : {
+     *        "HETeC" : {
+     *          "type" : "nested",
+     *          "properties" : {
+     *            "iBtgB" : {
+     *              "type" : "keyword"
+     *            },
+     *            "fdeuk" : {
+     *              "type" : "nested",
+     *              "properties" : {
+     *                "oDwgT" : {
+     *                  "type" : "keyword"
+     *                },
+     *                "biXlb" : {
+     *                  "properties" : {
+     *                    "AlkJR" : {
+     *                      "type" : "keyword"
+     *                    }
+     *                  }
+     *                }
+     *              }
+     *            }
+     *          }
+     *        }
+     *      }
+     *    }
+     *  }
+     */
+    public void testNestedField() throws IOException {
+        final int minDepth = 2;
+        final int maxDepth = 6;
+        final int depth = between(minDepth, maxDepth);
+
+        Request request = new Request("PUT", "/test");
+        XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
+        List<Tuple<String, NestedFieldType>> path = new ArrayList<>(depth);
+        StringBuilder bulkContent = new StringBuilder();
+        Holder<String> randomValue = new Holder<>("");
+        index.startObject("mappings");
+        {
+            index.startObject("properties");
+            {
+                addField(index, false, depth, path, bulkContent, randomValue);
+            }
+            index.endObject();
+        }
+        index.endObject();
+        index.endObject();
+
+        request.setJsonEntity(Strings.toString(index));
+        client().performRequest(request);
+        index("{" + bulkContent.toString() + "}");
+
+        // the path ends with either a NESTED field or an OBJECT field (both having a leaf field as a sub-field)
+        // if it's nested, we use this field
+        // if it's object, we need to strip every field starting from the end until we reach a nested field
+        int endOfPathIndex = path.size() - 2; // -1 because we skip the leaf field at the end and another -1 because it's 0-based
+        while (path.get(endOfPathIndex--).v2() != NestedFieldType.NESTED) {} // find the first nested field starting from the end
+
+        StringBuilder stringPath = new StringBuilder(path.get(0).v1()); // the path we will ask for in the sql query
+        for (int i = 1; i <= endOfPathIndex + 2; i++) { // +2 because the index is now at the [index_of_a_nested_field]-1
+            if (path.get(i).v2() != NestedFieldType.LEAF || i == endOfPathIndex + 2) {
+                stringPath.append(".");
+                stringPath.append(path.get(i).v1());
+            }
+        }
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            singletonList(columnInfo("plain", stringPath.toString(), "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE))
+        );
+        expected.put("rows", singletonList(singletonList(randomValue.get())));
+        assertResponse(expected, runSql("SELECT " + stringPath.toString() + " FROM test"));
+    }
+
+    private enum NestedFieldType {
+        NESTED, OBJECT, LEAF;
+    }
+
+    private void addField(XContentBuilder index, boolean nestedFieldAdded, int remainingFields, List<Tuple<String, NestedFieldType>> path,
+        StringBuilder bulkContent, Holder<String> randomValue) throws IOException {
+        String fieldName = randomAlphaOfLength(5);
+        String leafFieldName = randomAlphaOfLength(5);
+
+        // we need to make sure we add at least one nested field to the mapping, otherwise the test is not about nested fields
+        if (shouldAddNestedField() || (nestedFieldAdded == false && remainingFields == 1)) {
+            path.add(new Tuple<String, NestedFieldType>(fieldName, NestedFieldType.NESTED));
+            path.add(new Tuple<String, NestedFieldType>(leafFieldName, NestedFieldType.LEAF));
+            index.startObject(fieldName);
+            {
+                index.field("type", "nested");
+                index.startObject("properties");
+                {
+                    // A nested field always has a leaf field, even if not all nested fields in a path will have this value
+                    // indexed. We will index only the "leaf" field of the last nested field in the path, because this is the
+                    // one we will ask back from ES
+                    index.startObject(leafFieldName);
+                    {
+                        index.field("type", "keyword");
+                    }
+                    index.endObject();
+                    randomValue.set(randomAlphaOfLength(10));
+                    bulkContent.append("\"" + fieldName + "\":{\"" + leafFieldName + "\":\"" + randomValue.get() + "\"");
+                    if (remainingFields > 1) {
+                        bulkContent.append(",");
+                        addField(index, true, remainingFields - 1, path, bulkContent, randomValue);
+                    }
+                    bulkContent.append("}");
+                }
+                index.endObject();
+            }
+            index.endObject();
+        } else {
+            path.add(new Tuple<String, NestedFieldType>(fieldName, NestedFieldType.OBJECT));
+            index.startObject(fieldName);
+            index.startObject("properties");
+            {
+                bulkContent.append("\"" + fieldName + "\":{");
+                // if this is the last field in the mapping and it's non-nested, add a keyword to it, otherwise the mapping
+                // is incomplete and an error will be thrown at mapping creation time
+                if (remainingFields == 1) {
+                    path.add(new Tuple<String, NestedFieldType>(leafFieldName, NestedFieldType.LEAF));
+                    index.startObject(leafFieldName);
+                    {
+                        index.field("type", "keyword");
+                    }
+                    index.endObject();
+                    bulkContent.append("\"" + leafFieldName + "\":\"" + randomAlphaOfLength(10) + "\"");
+                } else {
+                    addField(index, nestedFieldAdded, remainingFields - 1, path, bulkContent, randomValue);
+                }
+                bulkContent.append("}");
+            }
+            index.endObject();
+            index.endObject();
+        }
+    }
+
+    private boolean shouldAddNestedField() {
+        return randomBoolean();
     }
 
     private void expectSourceDisabledError(String query) {

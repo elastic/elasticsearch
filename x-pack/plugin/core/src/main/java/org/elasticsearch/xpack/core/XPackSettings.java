@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core;
@@ -32,6 +33,12 @@ import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+    private static final boolean IS_DARWIN_AARCH64;
+    static {
+        final String name = System.getProperty("os.name");
+        final String arch = System.getProperty("os.arch");
+        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
+    }
 
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -52,8 +59,15 @@ public class XPackSettings {
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
-            Setting.Property.NodeScope);
+    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
+        "xpack.ml.enabled",
+        IS_DARWIN_AARCH64 == false,
+        value -> {
+            if (value && IS_DARWIN_AARCH64) {
+                throw new IllegalArgumentException("[xpack.ml.enabled] can not be set to [true] on [Mac OS X/aarch64]");
+            }
+        },
+        Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting("xpack.security.audit.enabled", false,

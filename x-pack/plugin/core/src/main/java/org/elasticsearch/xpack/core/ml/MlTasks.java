@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml;
@@ -26,10 +27,12 @@ public final class MlTasks {
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
     public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
+    public static final String JOB_SNAPSHOT_UPGRADE_TASK_NAME = "xpack/ml/job/snapshot/upgrade";
 
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
+    public static final String JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX = "job-snapshot-upgrade-";
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE =
         new PersistentTasksCustomMetadata.Assignment(null,
@@ -46,6 +49,10 @@ public final class MlTasks {
         return JOB_TASK_ID_PREFIX + jobId;
     }
 
+    public static String jobId(String jobTaskId) {
+        return jobTaskId.substring(JOB_TASK_ID_PREFIX.length());
+    }
+
     /**
      * Namespaces the task ids for datafeeds.
      * A job id can be used as a datafeed id, because they are stored separately in cluster state.
@@ -54,11 +61,19 @@ public final class MlTasks {
         return DATAFEED_TASK_ID_PREFIX + datafeedId;
     }
 
+    public static String snapshotUpgradeTaskId(String jobId, String snapshotId) {
+        return JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX + jobId + "-" + snapshotId;
+    }
+
     /**
      * Namespaces the task ids for data frame analytics.
      */
     public static String dataFrameAnalyticsTaskId(String id) {
         return DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + id;
+    }
+
+    public static String dataFrameAnalyticsId(String taskId) {
+        return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
     @Nullable
@@ -76,6 +91,13 @@ public final class MlTasks {
     public static PersistentTasksCustomMetadata.PersistentTask<?> getDataFrameAnalyticsTask(String analyticsId,
                                                                                             @Nullable PersistentTasksCustomMetadata tasks) {
         return tasks == null ? null : tasks.getTask(dataFrameAnalyticsTaskId(analyticsId));
+    }
+
+    @Nullable
+    public static PersistentTasksCustomMetadata.PersistentTask<?> getSnapshotUpgraderTask(String jobId,
+                                                                                          String snapshotId,
+                                                                                          @Nullable PersistentTasksCustomMetadata tasks) {
+        return tasks == null ? null : tasks.getTask(snapshotUpgradeTaskId(jobId, snapshotId));
     }
 
     /**

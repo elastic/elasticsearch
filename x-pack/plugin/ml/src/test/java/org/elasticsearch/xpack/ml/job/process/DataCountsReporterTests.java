@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +60,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
     public void testComplexConstructor() {
         DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, 6L, 7L, 8L,
-                new Date(), new Date(), new Date(), new Date(), new Date());
+                new Date(), new Date(), new Date(), new Date(), new Date(), Instant.now());
 
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, counts, jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
@@ -251,7 +253,7 @@ public class DataCountsReporterTests extends ESTestCase {
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
         Date now = new Date();
         DataCounts dc = new DataCounts(job.getId(), 2L, 5L, 0L, 10L, 0L, 1L, 0L, 0L, 0L, 0L, new Date(2000), new Date(3000),
-                now, (Date) null, (Date) null);
+                now, (Date) null, (Date) null, (Instant) null);
         dataCountsReporter.reportRecordWritten(5, 2000);
         dataCountsReporter.reportRecordWritten(5, 3000);
         dataCountsReporter.reportMissingField();

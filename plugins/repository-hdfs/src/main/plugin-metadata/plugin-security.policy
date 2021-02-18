@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 grant {
@@ -33,9 +22,6 @@ grant {
   // org.apache.hadoop.util.StringUtils clinit
   permission java.util.PropertyPermission "*", "read,write";
 
-  // org.apache.hadoop.util.ShutdownHookManager clinit
-  permission java.lang.RuntimePermission "shutdownHooks";
-  
   // JAAS is used by Hadoop for authentication purposes
   // The Hadoop Login JAAS module modifies a Subject's private credentials and principals
   // The Hadoop RPC Layer must be able to read these credentials, and initiate Kerberos connections
@@ -71,7 +57,7 @@ grant {
   permission java.security.SecurityPermission "putProviderProperty.SaslPlainServer";
 
   // org.apache.hadoop.security.SaslPlainServer.SecurityProvider.SecurityProvider init
-  permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
+  permission java.security.SecurityPermission "insertProvider";
 
   // org.apache.hadoop.security.SaslRpcClient.getServerPrincipal -> KerberosPrincipal init
   permission javax.security.auth.kerberos.ServicePermission "*", "initiate";

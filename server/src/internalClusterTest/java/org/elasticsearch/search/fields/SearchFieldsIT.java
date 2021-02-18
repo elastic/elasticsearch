@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fields;
@@ -422,44 +411,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
             assertThat(fields, equalTo(singleton("id")));
-            assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
-        }
-
-        response = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("num1", SortOrder.ASC)
-                .setSize(numDocs)
-                .addScriptField("type",
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
-                .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits().value, equalTo((long)numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(singleton("type")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("_doc"));
-        }
-
-        response = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("num1", SortOrder.ASC)
-                .setSize(numDocs)
-                .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
-                .addScriptField("type",
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
-                .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits().value, equalTo((long)numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(newHashSet("type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("_doc"));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }
     }

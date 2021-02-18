@@ -150,7 +150,7 @@ break.
 --
 
 `ignore_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, stop word matching is case insensitive. For example, if `true`, a
 stop word of `the` matches and removes `The`, `THE`, or `the`. Defaults to
 `false`.
@@ -158,7 +158,7 @@ stop word of `the` matches and removes `The`, `THE`, or `the`. Defaults to
 `remove_trailing`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the last token of a stream is removed if it's a stop word. Defaults
 to `true`.
 

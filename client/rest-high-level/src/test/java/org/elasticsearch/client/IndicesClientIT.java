@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -969,15 +958,17 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
+            rolloverRequest.addMaxSinglePrimarySizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertTrue(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
             Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
-            assertEquals(3, conditionStatus.size());
+            assertEquals(4, conditionStatus.size());
             assertTrue(conditionStatus.get("[max_docs: 1]"));
             assertTrue(conditionStatus.get("[max_age: 1ms]"));
             assertFalse(conditionStatus.get("[max_size: 1mb]"));
+            assertFalse(conditionStatus.get("[max_single_primary_size: 1mb]"));
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
@@ -1579,7 +1570,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}");
         Template template = new Template(null, mappings, null);
         ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList(dataStreamName), template,
-            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate());
+            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate(), null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name("ds-template").create(true).indexTemplate(indexTemplate);
         AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
@@ -1623,7 +1614,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(backingIndices, equalTo(1));
         ByteSizeValue byteSizeValue = dataStreamsStatsResponse.getTotalStoreSize();
         assertThat(byteSizeValue, notNullValue());
-        assertThat(byteSizeValue.getBytes(), not(equalTo(0L)));
         Map<String, DataStreamStats> dataStreamsStats = dataStreamsStatsResponse.getDataStreams();
         assertThat(dataStreamsStats, notNullValue());
         assertThat(dataStreamsStats.size(), equalTo(1));
@@ -1658,7 +1648,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
         ComposableIndexTemplate indexTemplate =
-            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
 
@@ -1705,7 +1695,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
         ComposableIndexTemplate indexTemplate =
-            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
 
@@ -1716,7 +1706,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
         ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(pattern, new Template(null, null,
-            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>(), null);
+            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest newIndexTemplateReq =
             new PutComposableIndexTemplateRequest().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
         newIndexTemplateReq.indexTemplate(simulationTemplate);

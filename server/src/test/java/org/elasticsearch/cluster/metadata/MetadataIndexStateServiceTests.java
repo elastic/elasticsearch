@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -397,8 +386,10 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final SnapshotsInProgress.Entry entry =
             new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
-                Collections.singletonList(new IndexId(index, index)), Collections.emptyList(), randomNonNegativeLong(), randomLong(),
-                    shardsBuilder.build(), null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
+                Collections.singletonList(new IndexId(index, index)), Collections.emptyList(), Collections.emptyList(),
+                randomNonNegativeLong(), randomLong(), shardsBuilder.build(), null, SnapshotInfoTests.randomUserMetadata(),
+                VersionUtils.randomVersion(random())
+            );
         return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(List.of(entry))).build();
     }
 

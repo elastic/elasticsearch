@@ -129,12 +129,18 @@ teardown:
       indices.refresh:
         index: simple-data-stream1
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   # should succeed since the search request is on the data stream itself
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
         rest_total_hits_as_int: true
-        index: simple-data-stream1
+        index: $idx0name
 
   - match: { hits.total: 1 }
 
@@ -143,7 +149,7 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
         rest_total_hits_as_int: true
-        index: .ds-simple-data-stream1-000001
+        index: $idx0name
 
   - match: { hits.total: 1 }
 
@@ -151,7 +157,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        index:  .ds-simple-data-stream1-000001
+        index:  $idx0name
         id: 1
         if_seq_no: $seqno
         if_primary_term: $primary_term
@@ -239,12 +245,18 @@ teardown:
         index:  create-doc-data-stream1
         body:   { bar: baz, "@timestamp": "2000-12-12" }
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: create-doc-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
 # unmapped new field on backing index when update with create_doc privilege is not allowed
   - do:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        index:  .ds-create-doc-data-stream1-000001
+        index:  $idx0name
         id:       1
         op_type:  index
         if_seq_no: $seqno
@@ -263,11 +275,18 @@ teardown:
   - set: { _seq_no: seqno }
   - set: { _primary_term: primary_term }
 
-# unmapped new field on backing index update when write is allowed
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: write-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx1name }
+
+
+  # unmapped new field on backing index update when write is allowed
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        index:  .ds-write-data-stream1-000001
+        index:  $idx1name
         id:       2
         op_type:  index
         if_seq_no: $seqno

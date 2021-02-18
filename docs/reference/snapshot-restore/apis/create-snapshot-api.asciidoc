@@ -34,6 +34,13 @@ PUT /_snapshot/my_repository/my_snapshot
 
 `POST /_snapshot/<repository>/<snapshot>`
 
+[[create-snapshot-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`create_snapshot` or `manage` <<privileges-list-cluster,cluster privilege>> to
+use this API.
+
 [[create-snapshot-api-desc]]
 ==== {api-description-title}
 
@@ -75,7 +82,7 @@ Name of the snapshot to create. This name must be unique in the snapshot reposit
 ==== {api-request-body-title}
 
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the request returns an error for any data stream or index that is missing or closed. Defaults to `false`.
 +
 If `true`, the request ignores data streams and indices in `indices` that are missing or closed.
@@ -91,20 +98,35 @@ argument is provided, the snapshot only includes the specified data streams and 
 `include_global_state`::
 +
 --
-(Optional, boolean)
-If `true`, the current cluster state is included in the snapshot.
+(Optional, Boolean)
+If `true`, the current global state is included in the snapshot.
 Defaults to `true`.
 
-The cluster state includes:
+The global state includes:
 
 * Persistent cluster settings
 * Index templates
 * Legacy index templates
 * Ingest pipelines
 * {ilm-init} lifecycle policies
+* Data stored in system indices, such as Watches and task records (configurable via `feature_states`)
 --
 +
 IMPORTANT: By default, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<create-snapshot-api-partial,`partial`>> to `true`.
+
+[[create-snapshot-api-feature-states]]
+`feature_states`::
+(Optional, array of strings)
+A list of feature states to be included in this snapshot. A list of features
+available for inclusion in the snapshot and their descriptions be can be
+retrieved using the <<get-snapshottable-features-api,get snapshottable features API>>.
+Each feature state includes one or more system indices containing data necessary
+for the function of that feature. Providing an empty array will include no feature
+states in the snapshot, regardless of the value of `include_global_state`.
++
+By default, all available feature states will be included in the snapshot if
+`include_global_state` is `true`, or no feature states if `include_global_state`
+is `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
@@ -114,13 +136,13 @@ Attaches arbitrary metadata to the snapshot, such as a record of who took the sn
 
 [[create-snapshot-api-partial]]
 `partial`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, the entire snapshot will fail if one or more indices included in the snapshot do not have all primary shards available. Defaults to `false`.
 +
 If `true`, allows taking a partial snapshot of indices with unavailable shards.
 
 `wait_for_completion`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the request returns a response when the snapshot is complete.
 If `false`, the request returns a response when the snapshot initializes.
 Defaults to `false`.
@@ -156,6 +178,7 @@ The API returns the following response:
     "version": <version>,
     "indices": [],
     "data_streams": [],
+    "feature_states": [],
     "include_global_state": false,
     "metadata": {
       "taken_by": "user123",

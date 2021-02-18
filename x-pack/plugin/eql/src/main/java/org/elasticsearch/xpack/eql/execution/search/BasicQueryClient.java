@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
@@ -32,7 +33,9 @@ import java.util.Map;
 import java.util.StringJoiner;
 
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.multiSearchLogListener;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchLogListener;
 
 public class BasicQueryClient implements QueryClient {
 
@@ -54,8 +57,8 @@ public class BasicQueryClient implements QueryClient {
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
 
-        SearchRequest search = prepareRequest(client, searchSource, false, indices);
-        search(search, new BasicListener(listener));
+        SearchRequest search = prepareRequest(searchSource, false, indices);
+        search(search, searchLogListener(listener, log));
     }
 
     protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
@@ -85,7 +88,7 @@ public class BasicQueryClient implements QueryClient {
             log.trace("About to execute multi-queries {} on {}", sj, indices);
         }
 
-        client.multiSearch(search, listener);
+        client.multiSearch(search, multiSearchLogListener(listener, log));
     }
 
     @Override
@@ -135,7 +138,7 @@ public class BasicQueryClient implements QueryClient {
                 // NB:this is different from mget
                 .size(idQuery.ids().size());
 
-            SearchRequest search = prepareRequest(client, builder, false, entry.getKey());
+            SearchRequest search = prepareRequest(builder, false, entry.getKey());
             multiSearchBuilder.add(search);
         }
 

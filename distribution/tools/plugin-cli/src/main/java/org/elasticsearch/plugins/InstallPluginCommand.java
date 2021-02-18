@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
@@ -38,6 +27,8 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProv
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.bootstrap.PluginPolicyInfo;
+import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -263,6 +254,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 throw installProblem;
             }
         }
+        terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
     }
 
     Build.Flavor buildFlavor() {
@@ -720,7 +712,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)
-                if (!Files.isSymbolicLink(targetFile.getParent())) {
+                if (Files.isSymbolicLink(targetFile.getParent()) == false) {
                     Files.createDirectories(targetFile.getParent());
                 }
                 if (entry.isDirectory() == false) {
@@ -744,19 +736,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private Path stagingDirectory(Path pluginsDir) throws IOException {
         try {
             return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(PLUGIN_DIR_PERMS));
-        } catch (IllegalArgumentException e) {
-            // Jimfs throws an IAE where it should throw an UOE
-            // remove when google/jimfs#30 is integrated into Jimfs
-            // and the Jimfs test dependency is upgraded to include
-            // this pull request
-            final StackTraceElement[] elements = e.getStackTrace();
-            if (elements.length >= 1
-                && elements[0].getClassName().equals("com.google.common.jimfs.AttributeService")
-                && elements[0].getMethodName().equals("setAttributeInternal")) {
-                return stagingDirectoryWithoutPosixPermissions(pluginsDir);
-            } else {
-                throw e;
-            }
         } catch (UnsupportedOperationException e) {
             return stagingDirectoryWithoutPosixPermissions(pluginsDir);
         }
@@ -848,15 +827,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private PluginInfo installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env, List<Path> deleteOnFailure)
         throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
-        // read optional security policy (extra permissions), if it exists, confirm or warn the user
-        Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
-        final Set<String> permissions;
-        if (Files.exists(policy)) {
-            permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
-        } else {
-            permissions = Collections.emptySet();
+        checkCanInstallationProceed(terminal, Build.CURRENT.flavor(), info);
+        PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
+        if (pluginPolicy != null) {
+            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
+            PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
         }
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);
@@ -1005,4 +981,24 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
     }
 
+    static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
+        if (info.isLicensed() == false) {
+            return;
+        }
+
+        if (flavor == Build.Flavor.DEFAULT) {
+            return;
+        }
+
+        List.of(
+            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+            "@            ERROR: This is a licensed plugin             @",
+            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+            "",
+            "This plugin is covered by the Elastic license, but this",
+            "installation of Elasticsearch is: [" + flavor + "]."
+        ).forEach(terminal::errorPrintln);
+
+        throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
+    }
 }

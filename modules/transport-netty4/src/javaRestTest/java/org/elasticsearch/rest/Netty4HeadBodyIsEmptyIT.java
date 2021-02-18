@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
@@ -123,6 +112,16 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             builder.endObject();
 
             Request request = new Request("PUT", "/_template/template");
+            if (inFipsJvm()) {
+                request.setOptions(expectWarnings(
+                    "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +
+                    "[.deprecation-indexing-template,.slm-history,.triggered_watches,.watch-history-14,.watches,ilm-history,logs," +
+                    "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation-elasticsearch]," +
+                    ".slm-history => [.slm-history-5*],.triggered_watches => [.triggered_watches*]," +
+                    ".watch-history-14 => [.watcher-history-14*],.watches => [.watches*],ilm-history => [ilm-history-5*]," +
+                    "logs => [logs-*-*],metrics => [metrics-*-*],synthetics => [synthetics-*-*]" +
+                    "); this template [template] may be ignored in favor of a composable template at index creation time"));
+            }
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
             headTestCase("/_template/template", emptyMap(), greaterThan(0));

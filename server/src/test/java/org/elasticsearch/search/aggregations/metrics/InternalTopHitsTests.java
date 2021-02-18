@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -68,10 +57,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     @Override
     protected InternalTopHits createTestInstance(String name, Map<String, Object> metadata) {
         if (randomBoolean()) {
-            return createTestInstanceSortedByFields(name, metadata, ESTestCase::randomFloat,
+            return createTestInstanceSortedByFields(name, between(1, 40), metadata, ESTestCase::randomFloat,
                 randomSortFields(), InternalTopHitsTests::randomOfType);
         }
-        return createTestInstanceSortedScore(name, metadata, ESTestCase::randomFloat);
+        return createTestInstanceSortedScore(name, between(1, 40), metadata, ESTestCase::randomFloat);
     }
 
     @Override
@@ -86,6 +75,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             usedScores.add(score);
             return score;
         };
+        int requestedSize = between(1, 40);
         Supplier<InternalTopHits> supplier;
         if (randomBoolean()) {
             SortField[] sortFields = randomSortFields();
@@ -95,16 +85,16 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
                 usedSortFieldValues.add(value);
                 return value;
             };
-            supplier = () -> createTestInstanceSortedByFields(name, null, scoreSupplier, sortFields, sortFieldValueSuppier);
+            supplier = () -> createTestInstanceSortedByFields(name, requestedSize, null, scoreSupplier, sortFields, sortFieldValueSuppier);
         } else {
-            supplier = () -> createTestInstanceSortedScore(name, null, scoreSupplier);
+            supplier = () -> createTestInstanceSortedScore(name, requestedSize, null, scoreSupplier);
         }
         return Stream.generate(supplier).limit(size).collect(toList());
     }
 
-    private InternalTopHits createTestInstanceSortedByFields(String name, Map<String, Object> metadata,
+    private InternalTopHits createTestInstanceSortedByFields(String name, int requestedSize, Map<String, Object> metadata,
             Supplier<Float> scoreSupplier, SortField[] sortFields, Function<SortField.Type, Object> sortFieldValueSupplier) {
-        return createTestInstance(name, metadata, scoreSupplier,
+        return createTestInstance(name, metadata, scoreSupplier, requestedSize,
             (docId, score) -> {
                 Object[] fields = new Object[sortFields.length];
                 for (int f = 0; f < sortFields.length; f++) {
@@ -117,15 +107,20 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             sortFieldsComparator(sortFields));
     }
 
-    private InternalTopHits createTestInstanceSortedScore(String name, Map<String, Object> metadata, Supplier<Float> scoreSupplier) {
-        return createTestInstance(name, metadata, scoreSupplier, ScoreDoc::new, TopDocs::new, scoreComparator());
+    private InternalTopHits createTestInstanceSortedScore(
+        String name,
+        int requestedSize,
+        Map<String, Object> metadata,
+        Supplier<Float> scoreSupplier
+    ) {
+        return createTestInstance(name, metadata, scoreSupplier, requestedSize, ScoreDoc::new, TopDocs::new, scoreComparator());
     }
 
-    private InternalTopHits createTestInstance(String name, Map<String, Object> metadata, Supplier<Float> scoreSupplier, 
+    private InternalTopHits createTestInstance(String name, Map<String, Object> metadata, Supplier<Float> scoreSupplier,
+            int requestedSize,
             BiFunction<Integer, Float, ScoreDoc> docBuilder,
             BiFunction<TotalHits, ScoreDoc[], TopDocs> topDocsBuilder, Comparator<ScoreDoc> comparator) {
         int from = 0;
-        int requestedSize = between(1, 40);
         int actualSize = between(0, requestedSize);
 
         float maxScore = Float.NEGATIVE_INFINITY;
@@ -232,7 +227,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         if (sortedByFields) {
             dataNodeComparator = sortFieldsComparator(((TopFieldDocs) inputs.get(0).getTopDocs().topDocs).fields);
         } else {
-            dataNodeComparator = scoreComparator(); 
+            dataNodeComparator = scoreComparator();
         }
         Comparator<ScoreDoc> reducedComparator = dataNodeComparator.thenComparing(s -> s.shardIndex);
         SearchHits actualHits = reduced.getHits();

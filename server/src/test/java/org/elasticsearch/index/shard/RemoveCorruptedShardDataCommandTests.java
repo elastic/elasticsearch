@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -26,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cli.MockTerminal;
@@ -126,19 +116,12 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
 
         // Adding rollover info to IndexMetadata to check that NamedXContentRegistry is properly configured
-        Condition rolloverCondition;
-
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                rolloverCondition = new MaxDocsCondition(randomNonNegativeLong());
-                break;
-            case 1:
-                rolloverCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-                break;
-            default:
-                rolloverCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
-                break;
-        }
+        Condition rolloverCondition = randomFrom(
+            new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
+            new MaxDocsCondition(randomNonNegativeLong()),
+            new MaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()))
+        );
 
         final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())
             .settings(settings)

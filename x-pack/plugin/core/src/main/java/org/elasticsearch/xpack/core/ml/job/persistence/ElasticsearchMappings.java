@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
@@ -97,7 +98,7 @@ public class ElasticsearchMappings {
     private ElasticsearchMappings() {
     }
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, MappingMetadata> currentMapping = state.metadata().findMappings(concreteIndices,
@@ -156,19 +157,13 @@ public class ElasticsearchMappings {
         String[] concreteIndices = indexAbstraction.getIndices().stream().map(IndexMetadata::getIndex).map(Index::getName)
             .toArray(String[]::new);
 
-        String[] indicesThatRequireAnUpdate;
-        try {
-            indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
-
+        final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
         if (indicesThatRequireAnUpdate.length > 0) {
             try {
                 String mapping = mappingSupplier.get();
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                 putMappingRequest.source(mapping, XContentType.JSON);
+                putMappingRequest.origin(ML_ORIGIN);
                 executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
                     ActionListener.wrap(response -> {
                         if (response.isAcknowledged()) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitterFactory;
-import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.Arrays;
@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DataFrameDataExtractorFactory {
 
@@ -94,8 +95,13 @@ public class DataFrameDataExtractorFactory {
 
     private static TrainTestSplitterFactory createTrainTestSplitterFactory(Client client, DataFrameAnalyticsConfig config,
                                                                            ExtractedFields extractedFields) {
-        return new TrainTestSplitterFactory(client, config,
-            extractedFields.getAllFields().stream().map(ExtractedField::getName).collect(Collectors.toList()));
+        return new TrainTestSplitterFactory(
+            client,
+            config,
+            Stream.concat(
+                Arrays.stream(extractedFields.extractOrganicFeatureNames()),
+                Arrays.stream(extractedFields.extractProcessedFeatureNames())
+            ).collect(Collectors.toList()));
     }
 
     /**

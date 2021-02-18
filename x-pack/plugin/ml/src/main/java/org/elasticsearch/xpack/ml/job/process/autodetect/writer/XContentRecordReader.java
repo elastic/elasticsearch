@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
@@ -70,7 +71,7 @@ class XContentRecordReader {
         clearNestedLevel();
 
         XContentParser.Token token = tryNextTokenOrReadToEndOnError();
-        while (!(token == XContentParser.Token.END_OBJECT && nestedLevel == 0)) {
+        while ((token == XContentParser.Token.END_OBJECT && nestedLevel == 0) == false) {
             if (token == null) {
                 break;
             }

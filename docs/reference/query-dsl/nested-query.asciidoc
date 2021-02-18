@@ -109,7 +109,7 @@ Add together the relevance scores of all matching child objects.
 `ignore_unmapped`::
 +
 --
-(Optional, boolean) Indicates whether to ignore an unmapped `path` and not
+(Optional, Boolean) Indicates whether to ignore an unmapped `path` and not
 return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `path` is an unmapped field.

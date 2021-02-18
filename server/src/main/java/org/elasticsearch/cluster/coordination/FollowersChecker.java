@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -42,6 +31,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -84,8 +74,6 @@ public class FollowersChecker {
     public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING =
         Setting.intSetting("cluster.fault_detection.follower_check.retry_count", 3, 1, Setting.Property.NodeScope);
 
-    private final Settings settings;
-
     private final TimeValue followerCheckInterval;
     private final TimeValue followerCheckTimeout;
     private final int followerCheckRetryCount;
@@ -103,7 +91,6 @@ public class FollowersChecker {
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
                             BiConsumer<DiscoveryNode, String> onNodeFailure, NodeHealthService nodeHealthService) {
-        this.settings = settings;
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
@@ -298,15 +285,11 @@ public class FollowersChecker {
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
 
             transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
-                TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
-                new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+                TransportRequestOptions.of(followerCheckTimeout, Type.PING),
+                new TransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (running() == false) {
                             logger.trace("{} no longer running", FollowerChecker.this);
                             return;
@@ -344,12 +327,6 @@ public class FollowersChecker {
                         }
 
                         failNode(reason);
-                    }
-
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
                     }
                 });
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -58,6 +60,7 @@ public class JobDataCountsPersister {
      * @param counts The counts
      */
     public void persistDataCounts(String jobId, DataCounts counts) {
+        counts.setLogTime(Instant.now());
         try {
             resultsPersisterService.indexWithRetry(jobId,
                 AnomalyDetectorsIndex.resultsWriteAlias(jobId),
@@ -67,11 +70,12 @@ public class JobDataCountsPersister {
                 DataCounts.documentId(jobId),
                 true,
                 () -> true,
-                (msg) -> auditor.warning(jobId, "Job data_counts " + msg));
+                retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage));
         } catch (IOException ioe) {
             logger.error(() -> new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId), ioe);
         } catch (Exception ex) {
             logger.error(() -> new ParameterizedMessage("[{}] Failed persisting data_counts stats", jobId), ex);
+            auditor.error(jobId, "Failed persisting data_counts stats: " + ex.getMessage());
         }
     }
 
@@ -86,10 +90,12 @@ public class JobDataCountsPersister {
      * @param listener ActionType response listener
      */
     public void persistDataCountsAsync(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
+        counts.setLogTime(Instant.now());
         try (XContentBuilder content = serialiseCounts(counts)) {
             final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
                 .id(DataCounts.documentId(jobId))
                 .setRequireAlias(true)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(content);
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request, new ActionListener<>() {
                 @Override

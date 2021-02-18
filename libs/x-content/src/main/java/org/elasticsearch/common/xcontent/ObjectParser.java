@@ -1,30 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -99,7 +90,9 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     private static <Value, Context> UnknownFieldParser<Value, Context> errorOnUnknown() {
         return (op, f, l, p, v, c) -> {
-            throw new XContentParseException(l, ErrorOnUnknown.IMPLEMENTATION.errorMessage(op.name, f, op.fieldParserMap.keySet()));
+            throw new XContentParseException(l, ErrorOnUnknown.IMPLEMENTATION.errorMessage(op.name, f,
+                op.fieldParserMap.getOrDefault(p.getRestApiCompatibleVersion(), Collections.emptyMap())
+                .keySet()));
         };
     }
 
@@ -148,7 +141,9 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             try {
                 o = parser.namedObject(categoryClass, field, context);
             } catch (NamedObjectNotFoundException e) {
-                Set<String> candidates = new HashSet<>(objectParser.fieldParserMap.keySet());
+                Set<String> candidates = new HashSet<>(objectParser.fieldParserMap
+                    .getOrDefault(parser.getRestApiCompatibleVersion(), Collections.emptyMap())
+                    .keySet());
                 e.getCandidates().forEach(candidates::add);
                 String message = ErrorOnUnknown.IMPLEMENTATION.errorMessage(objectParser.name, field, candidates);
                 throw new XContentParseException(location, message, e);
@@ -157,7 +152,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         };
     }
 
-    private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
+    private final Map<RestApiCompatibleVersion, Map<String, FieldParser>> fieldParserMap = new HashMap<>();
     private final String name;
     private final Function<Context, Value> valueBuilder;
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
@@ -288,7 +283,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 currentPosition = parser.getTokenLocation();
-                fieldParser = fieldParserMap.get(currentFieldName);
+                fieldParser = fieldParserMap.getOrDefault(parser.getRestApiCompatibleVersion(), Collections.emptyMap())
+                    .get(currentFieldName);
             } else {
                 if (currentFieldName == null) {
                     throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
@@ -370,8 +366,16 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
-            fieldParserMap.putIfAbsent(fieldValue, fieldParser);
+            if (parseField.getRestApiCompatibleVersions().contains(RestApiCompatibleVersion.minimumSupported())) {
+                fieldParserMap.putIfAbsent(RestApiCompatibleVersion.minimumSupported(), new HashMap<>());
+                fieldParserMap.get(RestApiCompatibleVersion.minimumSupported()).putIfAbsent(fieldValue, fieldParser);
+            }
+            if (parseField.getRestApiCompatibleVersions().contains(RestApiCompatibleVersion.currentVersion())) {
+                fieldParserMap.putIfAbsent(RestApiCompatibleVersion.currentVersion(), new HashMap<>());
+                fieldParserMap.get(RestApiCompatibleVersion.currentVersion()).putIfAbsent(fieldValue, fieldParser);
+            }
         }
+
     }
 
     @Override
@@ -632,6 +636,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         INT(VALUE_NUMBER, VALUE_STRING),
         INT_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         BOOLEAN(VALUE_BOOLEAN, VALUE_STRING),
+        BOOLEAN_OR_NULL(VALUE_BOOLEAN, VALUE_STRING, VALUE_NULL),
         STRING_ARRAY(START_ARRAY, VALUE_STRING),
         FLOAT_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
         DOUBLE_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
@@ -667,7 +672,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     public String toString() {
         return "ObjectParser{" +
                 "name='" + name + '\'' +
-                ", fields=" + fieldParserMap.values() +
+                ", fields=" + fieldParserMap +
                 '}';
     }
 }

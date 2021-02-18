@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-geodistance-aggregation]]
-=== Geo Distance Aggregation
+=== Geo-distance aggregation
+++++
+<titleabbrev>Geo-distance</titleabbrev>
+++++
 
 A multi-bucket aggregation that works on `geo_point` fields and conceptually works very similar to the <<search-aggregations-bucket-range-aggregation,range>> aggregation. The user can define a point of origin and a set of distance range buckets. The aggregation evaluate the distance of each document value from the origin point and determines the buckets it belongs to based on the ranges (a document belongs to a bucket if the distance between the document and the origin falls within the distance range of the bucket).
 

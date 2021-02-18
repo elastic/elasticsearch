@@ -29,6 +29,17 @@ PUT /my-index-000001/_mapping
 
 `PUT /_mapping`
 
+[[put-mapping-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
++
+deprecated:[7.9] If the request targets an index or index alias, you can also
+update its mapping with the `create`, `create_doc`, `index`, or `write` index
+privilege.
+
 
 [[put-mapping-api-path-params]]
 ==== {api-path-parms-title}
@@ -58,7 +69,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `write_index_only`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the mappings are applied only to the current write index for the target.
 Defaults to `false`.

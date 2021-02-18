@@ -60,7 +60,7 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
 == {api-query-parms-title}
 
 `enabled`::
-  (Optional, boolean) When `true`, this enables `upgrade_mode`. Defaults to
+  (Optional, Boolean) When `true`, this enables `upgrade_mode`. Defaults to
   `false`.
 
 `timeout`::

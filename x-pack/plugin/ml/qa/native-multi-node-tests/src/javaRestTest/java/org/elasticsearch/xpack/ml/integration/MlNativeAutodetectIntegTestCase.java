@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -299,7 +300,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
             assertThat(forecastRequestStats.getStatus(), in(status));
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {

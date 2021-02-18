@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
@@ -454,7 +455,8 @@ public class TrainedModelProvider {
 
         ActionListener<TrainedModelConfig.Builder> getTrainedModelListener = ActionListener.wrap(
             modelBuilder -> {
-                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()) == false) {
+                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()
+                  || includes.isIncludeHyperparameters()) == false) {
                     finalListener.onResponse(modelBuilder.build());
                     return;
                 }
@@ -467,6 +469,9 @@ public class TrainedModelProvider {
                             }
                             if (includes.isIncludeFeatureImportanceBaseline()) {
                                 modelBuilder.setBaselineFeatureImportance(modelMetadata.getFeatureImportanceBaselines());
+                            }
+                            if (includes.isIncludeHyperparameters()) {
+                                modelBuilder.setHyperparameters(modelMetadata.getHyperparameters());
                             }
                         }
                         finalListener.onResponse(modelBuilder.build());
@@ -605,7 +610,8 @@ public class TrainedModelProvider {
 
         ActionListener<List<TrainedModelConfig.Builder>> getTrainedModelListener = ActionListener.wrap(
             modelBuilders -> {
-                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()) == false) {
+                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()
+                  || includes.isIncludeHyperparameters()) == false) {
                     finalListener.onResponse(modelBuilders.stream()
                         .map(TrainedModelConfig.Builder::build)
                         .sorted(Comparator.comparing(TrainedModelConfig::getModelId))
@@ -624,6 +630,10 @@ public class TrainedModelProvider {
                                     if (includes.isIncludeFeatureImportanceBaseline()) {
                                         builder.setBaselineFeatureImportance(modelMetadata.getFeatureImportanceBaselines());
                                     }
+                                    if (includes.isIncludeHyperparameters()) {
+                                        builder.setHyperparameters(modelMetadata.getHyperparameters());
+                                    }
+
                                 }
                                 return builder.build();
                             })
@@ -685,7 +695,10 @@ public class TrainedModelProvider {
 
     public void deleteTrainedModel(String modelId, ActionListener<Boolean> listener) {
         if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
-            listener.onFailure(ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_MODEL, modelId)));
+            listener.onFailure(ExceptionsHelper.badRequestException(Messages.getMessage(
+                Messages.INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL,
+                modelId
+            )));
             return;
         }
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);

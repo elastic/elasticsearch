@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.service;
@@ -24,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -33,6 +23,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -189,7 +180,7 @@ public class MasterServiceTests extends ESTestCase {
             final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
             final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
 
-            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            master.submitStateUpdateTask("test", new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, masterTimeout), null) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertTrue(threadPool.getThreadContext().isSystemContext());
@@ -220,20 +211,6 @@ public class MasterServiceTests extends ESTestCase {
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
                     latch.countDown();
-                }
-
-                @Override
-                protected Void newResponse(boolean acknowledged) {
-                    return null;
-                }
-
-                public TimeValue ackTimeout() {
-                    return ackTimeout;
-                }
-
-                @Override
-                public TimeValue timeout() {
-                    return masterTimeout;
                 }
 
                 @Override
@@ -464,7 +441,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             public void execute() {
-                if (!state.compareAndSet(false, true)) {
+                if (state.compareAndSet(false, true) == false) {
                     throw new IllegalStateException();
                 } else {
                     counter.incrementAndGet();
@@ -927,20 +904,10 @@ public class MasterServiceTests extends ESTestCase {
                 publisherRef.set((clusterChangedEvent, publishListener, ackListener) ->
                     publishListener.onFailure(new FailedToCommitClusterStateException("mock exception")));
 
-                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask(ackedRequest(TimeValue.ZERO, null), null) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return ClusterState.builder(currentState).build();
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return TimeValue.ZERO;
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return null;
                     }
 
                     @Override
@@ -949,7 +916,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    protected Void newResponse(boolean acknowledged) {
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
                         fail();
                         return null;
                     }
@@ -982,20 +949,10 @@ public class MasterServiceTests extends ESTestCase {
                     ackListener.onNodeAck(node3, null);
                 });
 
-                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask<Void>(null, null) {
+                masterService.submitStateUpdateTask("test2", new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, null), null) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return ClusterState.builder(currentState).build();
-                    }
-
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return ackTimeout;
-                    }
-
-                    @Override
-                    public TimeValue timeout() {
-                        return null;
                     }
 
                     @Override
@@ -1004,7 +961,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    protected Void newResponse(boolean acknowledged) {
+                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
                         fail();
                         return null;
                     }
@@ -1030,6 +987,23 @@ public class MasterServiceTests extends ESTestCase {
      */
     public static ClusterState discoveryState(MasterService masterService) {
         return masterService.state();
+    }
+
+    /**
+     * Returns a plain {@link AckedRequest} that does not implement any functionality outside of the timeout getters.
+     */
+    public static AckedRequest ackedRequest(TimeValue ackTimeout, TimeValue masterNodeTimeout) {
+        return new AckedRequest() {
+            @Override
+            public TimeValue ackTimeout() {
+                return ackTimeout;
+            }
+
+            @Override
+            public TimeValue masterNodeTimeout() {
+                return masterNodeTimeout;
+            }
+        };
     }
 
 }

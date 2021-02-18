@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -15,7 +18,9 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -25,9 +30,13 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.io.BufferedReader;
@@ -51,7 +60,10 @@ import java.util.Map;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.junit.Assert.assertEquals;
@@ -116,6 +128,18 @@ public final class TestUtils {
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+    public static FieldAttribute fieldAttribute() {
+        return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataTypes.types()));
+    }
+
+    public static FieldAttribute fieldAttribute(String name, DataType type) {
+        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+    }
+
+    public static EsRelation relation() {
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), randomBoolean());
     }
 
     //
@@ -201,7 +225,7 @@ public final class TestUtils {
             }
             // normal file access
             else if (Files.isDirectory(path)) {
-                Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<Path>() {
+                Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (Regex.simpleMatch(filePattern, file.toString())) {
@@ -243,5 +267,37 @@ public final class TestUtils {
             }
         }
         return new Tuple<>(folder, file);
+    }
+
+    public static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        TestNodes nodes = new TestNodes();
+        for (String id : nodesAsMap.keySet()) {
+            nodes.add(
+                new TestNode(
+                    id,
+                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
+                )
+            );
+        }
+        return nodes;
+    }
+
+    public static String readResource(InputStream input) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+            String line = reader.readLine();
+            while (line != null) {
+                if (line.trim().startsWith("//") == false) {
+                    builder.append(line);
+                    builder.append('\n');
+                }
+                line = reader.readLine();
+            }
+            return builder.toString();
+        }
     }
 }

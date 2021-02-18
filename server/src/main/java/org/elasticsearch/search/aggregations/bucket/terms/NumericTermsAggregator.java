@@ -1,24 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -42,9 +30,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.LongFil
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds.BucketOrdsEnum;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForLong;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,7 +58,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         DocValueFormat format,
         BucketOrder order,
         BucketCountThresholds bucketCountThresholds,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         SubAggCollectionMode subAggCollectMode,
         IncludeExclude.LongFilter longFilter,
@@ -79,11 +66,11 @@ public class NumericTermsAggregator extends TermsAggregator {
         Map<String, Object> metadata
     )
         throws IOException {
-        super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
+        super(name, factories, context, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
@@ -307,7 +294,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 return;
             }
             // we need to fill-in the blanks
-            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                 SortedNumericDocValues values = getValues(ctx);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
                     if (values.advanceExact(docId)) {
@@ -501,10 +488,10 @@ public class NumericTermsAggregator extends TermsAggregator {
             SignificanceHeuristic significanceHeuristic,
             CardinalityUpperBound cardinality
         ) {
-            backgroundFrequencies = significanceLookup.longLookup(context.bigArrays(), cardinality);
+            backgroundFrequencies = significanceLookup.longLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
-            subsetSizes = context.bigArrays().newLongArray(1, true);
+            subsetSizes = bigArrays().newLongArray(1, true);
         }
 
         @Override
@@ -523,7 +510,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     super.collect(doc, owningBucketOrd);
-                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes = bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
                 }
             };
@@ -587,9 +574,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         @Override
         SignificantLongTerms buildEmptyResult() {
             // We need to account for the significance of a miss in our global stats - provide corpus size as context
-            ContextIndexSearcher searcher = context.searcher();
-            IndexReader topReader = searcher.getIndexReader();
-            int supersetSize = topReader.numDocs();
+            int supersetSize = searcher().getIndexReader().numDocs();
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),

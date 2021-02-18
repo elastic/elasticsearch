@@ -33,6 +33,13 @@ GET /_snapshot/my_repository
 
 `GET /_snapshot`
 
+[[get-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[get-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -48,7 +55,7 @@ cluster, omit this parameter or use `*` or `_all`.
 ==== {api-query-parms-title}
 
 `local`::
-(Optional, boolean) If `true`, the request gets information from the local node
+(Optional, Boolean) If `true`, the request gets information from the local node
 only. If `false`, the request gets information from the master node. Defaults to
 `false`.
 
@@ -124,9 +131,11 @@ The API returns the following response:
 {
   "my_repository" : {
     "type" : "fs",
+    "uuid" : "0JLknrXbSUiVPuLakHjBrQ",
     "settings" : {
       "location" : "my_backup_location"
     }
   }
 }
 ----
+// TESTRESPONSE[s/"uuid" : "0JLknrXbSUiVPuLakHjBrQ"/"uuid" : $body.my_repository.uuid/]

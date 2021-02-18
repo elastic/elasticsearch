@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-min-aggregation]]
-=== Min Aggregation
+=== Min aggregation
+++++
+<titleabbrev>Min</titleabbrev>
+++++
 
 A `single-value` metrics aggregation that keeps track and returns the minimum
 value among numeric values extracted from the aggregated documents. These

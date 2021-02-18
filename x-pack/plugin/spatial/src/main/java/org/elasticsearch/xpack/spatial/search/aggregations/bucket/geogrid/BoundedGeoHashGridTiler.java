@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
@@ -10,7 +11,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 public class BoundedGeoHashGridTiler extends GeoHashGridTiler {
     private final double boundsTop;
@@ -47,7 +48,7 @@ public class BoundedGeoHashGridTiler extends GeoHashGridTiler {
     }
 
     @Override
-    protected int setValue(GeoShapeCellValues docValues, MultiGeoShapeValues.GeoShapeValue geoValue, MultiGeoShapeValues.BoundingBox bounds,
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds,
                            int precision) {
         String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
         GeoRelation relation = relateTile(geoValue, hash);
@@ -60,7 +61,7 @@ public class BoundedGeoHashGridTiler extends GeoHashGridTiler {
     }
 
     @Override
-    protected GeoRelation relateTile(MultiGeoShapeValues.GeoShapeValue geoValue, String hash) {
+    protected GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) {
         Rectangle rectangle = Geohash.toBoundingBox(hash);
         if (cellIntersectsGeoBoundingBox(rectangle)) {
             return geoValue.relate(rectangle);

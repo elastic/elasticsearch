@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.engine;
 
@@ -12,7 +13,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.SuppressForbidden;
@@ -61,9 +61,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
             this.docsStats = docsStats(reader);
-            final DirectoryReader wrappedReader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
-                new RewriteCachingDirectoryReader(directory, wrappedReader.leaves()), config.getShardId());
+                new RewriteCachingDirectoryReader(directory, reader.leaves()), config.getShardId());
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -192,6 +191,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
             @Override
             protected void doClose() {
                 store.decRef();
+            }
+
+            @Override
+            public String getSearcherId() {
+                return commitId;
             }
         };
     }

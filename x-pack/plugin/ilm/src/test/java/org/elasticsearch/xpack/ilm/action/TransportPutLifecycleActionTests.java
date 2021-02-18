@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -161,10 +162,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
 
         assertThat(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, phaseDef, "phase"),
             contains(
+                new Step.StepKey("phase", "freeze", FreezeAction.CONDITIONAL_SKIP_FREEZE_STEP),
                 new Step.StepKey("phase", "freeze", CheckNotDataStreamWriteIndexStep.NAME),
                 new Step.StepKey("phase", "freeze", FreezeAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocateAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocationRoutedStep.NAME),
+                new Step.StepKey("phase", "forcemerge", ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP),
                 new Step.StepKey("phase", "forcemerge", CheckNotDataStreamWriteIndexStep.NAME),
                 new Step.StepKey("phase", "forcemerge", ReadOnlyAction.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.NAME),

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -123,7 +112,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.ofEntries(
                 Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-                Map.entry("other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
+                Map.entry("other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+                Map.entry("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new LowercaseNormalizer()))
             ),
             Map.of(
                 "lowercase",
@@ -169,7 +159,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
             m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((KeywordFieldMapper)m).ignoreAbove()));
+            m -> assertEquals(256, ((KeywordFieldMapper)m).fieldType().ignoreAbove()));
         checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
 
@@ -339,6 +329,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
     }
 
+    public void testNormalizerNamedDefault() throws IOException {
+        // you can call a normalizer 'default' but it won't be applied unless you specifically ask for it
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("field2").field("type", "keyword").field("normalizer", "default").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("field", "FOO");
+            b.field("field2", "FOO");
+        }));
+        assertEquals(new BytesRef("FOO"), doc.rootDoc().getField("field").binaryValue());
+        assertEquals(new BytesRef("foo"), doc.rootDoc().getField("field2").binaryValue());
+    }
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
@@ -423,6 +427,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             ft.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] { "hello", "world" }
         );
+        Analyzer q = ft.getTextSearchInfo().getSearchQuoteAnalyzer();
+        assertTokenStreamContents(q.tokenStream("", "Hello World"), new String[] { "hello world" });
 
         mapperService = createMapperService(mapping(b -> {
             b.startObject("field").field("type", "keyword").field("split_queries_on_whitespace", true).endObject();

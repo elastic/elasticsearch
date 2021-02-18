@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.flattened.mapper;
@@ -22,7 +23,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -52,8 +52,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
             indicesService.getCircuitBreakerService(),
             indexService.mapperService());
 
-        Mapper.BuilderContext ctx = new Mapper.BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(ctx);
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(new ContentPath(1));
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {

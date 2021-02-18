@@ -477,14 +477,18 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggMadScalars]
 [source, sql]
 --------------------------------------------------
 PERCENTILE(
-    field_name,  <1>
-    numeric_exp) <2>
+    field_name,         <1>
+    percentile[,        <2>
+    method[,            <3>
+    method_parameter]]) <4>
 --------------------------------------------------
 
 *Input*:
 
 <1> a numeric field
 <2> a numeric expression (must be a constant and not based on a field)
+<3> optional string literal for the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal that configures the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
 
 *Output*: `double` numeric value
 
@@ -503,6 +507,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentile]
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileScalars]
 --------------------------------------------------
 
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileWithPercentileConfig]
+--------------------------------------------------
+
 [[sql-functions-aggs-percentile-rank]]
 ==== `PERCENTILE_RANK`
 
@@ -510,14 +519,19 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileScalars]
 [source, sql]
 --------------------------------------------------
 PERCENTILE_RANK(
-    field_name,  <1>
-    numeric_exp) <2>
+    field_name,         <1>
+    value[,             <2>
+    method[,            <3>
+    method_parameter]]) <4>
 --------------------------------------------------
 
 *Input*:
 
 <1> a numeric field
 <2> a numeric expression (must be a constant and not based on a field)
+<3> optional string literal for the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Possible values: `tdigest` or `hdr`. Defaults to `tdigest`.
+<4> optional numeric literal that configures the <<search-aggregations-metrics-percentile-aggregation-approximation,percentile algorithm>>. Configures `compression` for `tdigest` or `number_of_significant_value_digits` for `hdr`. The default is the same as that of the backing algorithm.
+
 
 *Output*: `double` numeric value
 
@@ -534,6 +548,11 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRank]
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRankScalars]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRankWithPercentileConfig]
 --------------------------------------------------
 
 [[sql-functions-aggs-skewness]]

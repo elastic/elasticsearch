@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -67,13 +69,13 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     public OneHotEncoding(String field, Map<String, String> hotMap, Boolean custom) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
-        this.hotMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(hotMap, HOT_MAP));
-        this.custom = custom == null ? false : custom;
+        this.hotMap = Collections.unmodifiableMap(new TreeMap<>(ExceptionsHelper.requireNonNull(hotMap, HOT_MAP)));
+        this.custom = custom != null && custom;
     }
 
     public OneHotEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
-        this.hotMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        this.hotMap = Collections.unmodifiableMap(new TreeMap<>(in.readMap(StreamInput::readString, StreamInput::readString)));
         this.custom = in.readBoolean();
     }
 

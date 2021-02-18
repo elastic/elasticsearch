@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -50,7 +51,7 @@ import java.util.List;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.hamcrest.Matchers.containsString;
@@ -523,7 +524,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(new Metadata.Builder()
-                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index), 1L))
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index)))
                 .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
                 .putCustom(MlMetadata.TYPE, mlMetadata)
                 .put(indexMetadata, false))

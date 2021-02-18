@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -48,9 +37,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -72,14 +60,12 @@ class TopHitsAggregator extends MetricsAggregator {
         }
     }
 
-    private final FetchPhase fetchPhase;
     private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
 
-    TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
+    TopHitsAggregator(SubSearchContext subSearchContext, String name, AggregationContext context,
             Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
     }
@@ -99,7 +85,7 @@ class TopHitsAggregator extends MetricsAggregator {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
-        // replaced with the next leaf readers and then post collection pushes docids of the previous segement, which
+        // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
         // then causes assertions to trip or incorrect top docs to be computed.
         final LongObjectHashMap<LeafCollector> leafCollectors = new LongObjectHashMap<>(1);
         return new LeafBucketCollectorBase(sub, null) {
@@ -122,7 +108,7 @@ class TopHitsAggregator extends MetricsAggregator {
                     SortAndFormats sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
                     if (sort == null) {
-                        for (RescoreContext rescoreContext : context.rescore()) {
+                        for (RescoreContext rescoreContext : subSearchContext.rescore()) {
                             topN = Math.max(rescoreContext.getWindowSize(), topN);
                         }
                     }
@@ -167,9 +153,9 @@ class TopHitsAggregator extends MetricsAggregator {
         TopDocs topDocs = topDocsCollector.topDocs();
         float maxScore = Float.NaN;
         if (subSearchContext.sort() == null) {
-            for (RescoreContext ctx : context().rescore()) {
+            for (RescoreContext ctx : subSearchContext.rescore()) {
                 try {
-                    topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
+                    topDocs = ctx.rescorer().rescore(topDocs, searcher(), ctx);
                 } catch (IOException e) {
                     throw new ElasticsearchException("Rescore TopHits Failed", e);
                 }
@@ -188,8 +174,8 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-        fetchPhase.execute(subSearchContext);
+        subSearchContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
+        subSearchContext.fetchPhase().execute(subSearchContext);
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
         for (int i = 0; i < internalHits.length; i++) {

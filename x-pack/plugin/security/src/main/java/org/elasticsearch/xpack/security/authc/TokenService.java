@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc;
@@ -34,6 +35,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -42,7 +44,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -254,7 +255,7 @@ public final class TokenService {
      * {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security tokens index for later versions.
      */
     public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
-                                   boolean includeRefreshToken, ActionListener<Tuple<String, String>> listener) {
+                                   boolean includeRefreshToken, ActionListener<CreateTokenResult> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
@@ -273,7 +274,7 @@ public final class TokenService {
     //public for testing
     public void createOAuth2Tokens(String accessToken, String refreshToken, Authentication authentication,
                                    Authentication originatingClientAuth,
-                            Map<String, Object> metadata, ActionListener<Tuple<String, String>> listener) {
+                            Map<String, Object> metadata, ActionListener<CreateTokenResult> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
@@ -306,12 +307,13 @@ public final class TokenService {
      * @param authentication The authentication object representing the user for which the tokens are created
      * @param originatingClientAuth The authentication object representing the client that called the related API
      * @param metadata A map with metadata to be stored in the token document
-     * @param listener The listener to call upon completion with a {@link Tuple} containing the
-     *                 serialized access token and serialized refresh token as these will be returned to the client
+     * @param listener The listener to call upon completion with a {@link CreateTokenResult} containing the
+     *                 serialized access token, serialized refresh token and authentication for which the token is created
+     *                 as these will be returned to the client
      */
     private void createOAuth2Tokens(String accessToken, String refreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
                                     Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
-                                    ActionListener<Tuple<String, String>> listener) {
+                                    ActionListener<CreateTokenResult> listener) {
         assert accessToken.length() == TOKEN_LENGTH : "We assume token ids have a fixed length for nodes of a certain version."
             + " When changing the token length, be careful that the inferences about its length still hold.";
         ensureEnabled();
@@ -351,12 +353,13 @@ public final class TokenService {
                                         final String versionedRefreshToken = refreshToken != null
                                             ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
                                             : null;
-                                        listener.onResponse(new Tuple<>(versionedAccessToken, versionedRefreshToken));
+                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, versionedRefreshToken,
+                                            authentication));
                                     } else {
                                         // prior versions of the refresh token are not version-prepended, as nodes on those
                                         // versions don't expect it.
                                         // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                        listener.onResponse(new Tuple<>(versionedAccessToken, refreshToken));
+                                        listener.onResponse(new CreateTokenResult(versionedAccessToken, refreshToken,authentication));
                                     }
                                 } else {
                                     listener.onFailure(traceLog("create token",
@@ -655,9 +658,15 @@ public final class TokenService {
                     } else if (searchHits.getHits().length > 1) {
                         listener.onFailure(new IllegalStateException("multiple tokens share the same refresh token"));
                     } else {
-                        final Tuple<UserToken, String> parsedTokens =
-                            parseTokensFromDocument(searchHits.getAt(0).getSourceAsMap(), null);
-                        indexInvalidation(Collections.singletonList(parsedTokens.v1()), backoff, "refresh_token", null, listener);
+                        final Tuple<UserToken, RefreshTokenStatus> parsedTokens =
+                            parseTokenAndRefreshStatus(searchHits.getAt(0).getSourceAsMap());
+                        final UserToken userToken = parsedTokens.v1();
+                        final RefreshTokenStatus refresh = parsedTokens.v2();
+                        if (refresh.isInvalidated()) {
+                            listener.onResponse(new TokensInvalidationResult(List.of(), List.of(userToken.getId()), null, RestStatus.OK));
+                        } else {
+                            indexInvalidation(Collections.singletonList(userToken), backoff, "refresh_token", null, listener);
+                        }
                     }
                 }, e -> {
                     if (e instanceof IndexNotFoundException || e instanceof IndexClosedException) {
@@ -859,10 +868,11 @@ public final class TokenService {
      * Called by the transport action in order to start the process of refreshing a token.
      *
      * @param refreshToken The refresh token as provided by the client
-     * @param listener The listener to call upon completion with a {@link Tuple} containing the
-     *                 serialized access token and serialized refresh token as these will be returned to the client
+     * @param listener The listener to call upon completion with a {@link CreateTokenResult} containing the
+     *                 serialized access token, serialized refresh token and authentication for which the token is created
+     *                 as these will be returned to the client
      */
-    public void refreshToken(String refreshToken, ActionListener<Tuple<String, String>> listener) {
+    public void refreshToken(String refreshToken, ActionListener<CreateTokenResult> listener) {
         ensureEnabled();
         final Instant refreshRequested = clock.instant();
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
@@ -995,7 +1005,7 @@ public final class TokenService {
      */
     private void innerRefresh(String refreshToken, String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm,
                               Authentication clientAuth, Iterator<TimeValue> backoff, Instant refreshRequested,
-                              ActionListener<Tuple<String, String>> listener) {
+                              ActionListener<CreateTokenResult> listener) {
         logger.debug("Attempting to refresh token stored in token document [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
         final Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkRefreshResult;
@@ -1014,7 +1024,9 @@ public final class TokenService {
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document was generated. Reusing that result.",
                 tokenDocId);
-            decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, listener);
+            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
+            Authentication authentication = parsedTokens.v1().getAuthentication();
+            decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, refreshedTokenIndex, authentication, listener);
         } else {
             final String newAccessTokenString = UUIDs.randomBase64UUID();
             final String newRefreshTokenString = UUIDs.randomBase64UUID();
@@ -1126,11 +1138,13 @@ public final class TokenService {
      * @param refreshTokenStatus The {@link RefreshTokenStatus} containing information about the superseding tokens as retrieved from the
      *                           index
      * @param tokensIndex        the manager for the index where the tokens are stored
-     * @param listener           The listener to call upon completion with a {@link Tuple} containing the
-     *                           serialized access token and serialized refresh token as these will be returned to the client
+     * @param authentication     The authentication object representing the user for which the tokens are created
+     * @param listener The listener to call upon completion with a {@link CreateTokenResult} containing the
+     *                 serialized access token, serialized refresh token and authentication for which the token is created
+     *                 as these will be returned to the client
      */
     void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus, SecurityIndexManager tokensIndex,
-                                           ActionListener<Tuple<String, String>> listener) {
+                                           Authentication authentication, ActionListener<CreateTokenResult> listener) {
 
         final byte[] iv = Base64.getDecoder().decode(refreshTokenStatus.getIv());
         final byte[] salt = Base64.getDecoder().decode(refreshTokenStatus.getSalt());
@@ -1165,9 +1179,13 @@ public final class TokenService {
                     public void onResponse(GetResponse response) {
                         if (response.isExists()) {
                             try {
+                                logger.debug("Found superseding document: index=[{}] id=[{}] primTerm=[{}] seqNo=[{}]",
+                                    response.getIndex(), response.getId(), response.getPrimaryTerm(), response.getSeqNo());
                                 listener.onResponse(
-                                    new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), decryptedTokens[0]),
-                                        prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1])));
+                                    new CreateTokenResult(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(),
+                                        decryptedTokens[0]),
+                                        prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1]),
+                                        authentication));
                             } catch (GeneralSecurityException | IOException e) {
                                 logger.warn("Could not format stored superseding token values", e);
                                 onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -1249,9 +1267,7 @@ public final class TokenService {
      */
     private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(
         Instant refreshRequested, Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
-        final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
-        final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
-        refreshTokenStatus.setVersion(userToken.getVersion());
+        final RefreshTokenStatus refreshTokenStatus = parseTokenAndRefreshStatus(source).v2();
         final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(refreshRequested, source).orElseGet(() -> {
             if (refreshTokenStatus.isInvalidated()) {
                 return invalidGrantException("token has been invalidated");
@@ -1261,6 +1277,13 @@ public final class TokenService {
             }
         });
         return new Tuple<>(refreshTokenStatus, Optional.ofNullable(validationException));
+    }
+
+    private static Tuple<UserToken, RefreshTokenStatus> parseTokenAndRefreshStatus(Map<String, Object> source) {
+        final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
+        final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
+        refreshTokenStatus.setVersion(userToken.getVersion());
+        return new Tuple<>(userToken, refreshTokenStatus);
     }
 
     /**
@@ -1475,12 +1498,18 @@ public final class TokenService {
 
     private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,
                                                @Nullable Authentication originatingClientAuth) {
+            final Instant creationTime = getCreationTime(userToken.getExpirationTime());
+        return createTokenDocument(userToken, refreshToken, originatingClientAuth, creationTime);
+    }
+
+    static BytesReference createTokenDocument(UserToken userToken, String refreshToken, Authentication originatingClientAuth,
+                                              Instant creationTime) {
         assert refreshToken == null || originatingClientAuth != null : "non-null refresh token " + refreshToken
             + " requires non-null client authn " + originatingClientAuth;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field("doc_type", TOKEN_DOC_TYPE);
-            builder.field("creation_time", getCreationTime(userToken.getExpirationTime()).toEpochMilli());
+            builder.field("creation_time", creationTime.toEpochMilli());
             if (refreshToken != null) {
                 builder.startObject("refresh_token")
                     .field("token", refreshToken)
@@ -1631,7 +1660,18 @@ public final class TokenService {
                                 }
                             }
                         } else {
-                            onFailure.accept(new IllegalStateException("token document is missing and must be present"));
+                            // This shouldn't happen (if we have a valid `UserToken` object, then should mean that we loaded it from the
+                            // index in a prior operation (e.g. #getUserTokenFromId), however this error can happen if either:
+                            // 1. The document was deleted just after we read it
+                            // 2. This Get used a different replica to the previous one, and they were out of sync.
+                            logger.warn(
+                                "Could not find token document (index=[{}] id=[{}]) in order to validate user token [{}] for [{}]",
+                                response.getIndex(),
+                                response.getId(),
+                                userToken.getId(),
+                                userToken.getAuthentication().getUser().principal());
+                            onFailure.accept(traceLog("validate token", userToken.getId(),
+                                new IllegalStateException("token document is missing and must be present")));
                         }
                     }, e -> {
                         // if the index or the shard is not there / available we assume that
@@ -1910,6 +1950,30 @@ public final class TokenService {
         return expiredTokenRemover.isExpirationInProgress();
     }
 
+    public static final class CreateTokenResult {
+        private final String accessToken;
+        private final String refreshToken;
+        private final Authentication authentication;
+
+        public CreateTokenResult(String accessToken, String refreshToken, Authentication authentication) {
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.authentication = authentication;
+        }
+
+        public String getAccessToken() {
+            return accessToken;
+        }
+
+        public String getRefreshToken() {
+            return refreshToken;
+        }
+
+        public Authentication getAuthentication() {
+            return authentication;
+        }
+    }
+
     private class KeyComputingRunnable extends AbstractRunnable {
 
         private final BytesKey decodedSalt;
@@ -2073,7 +2137,7 @@ public final class TokenService {
         return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
     }
 
-    void rotateKeysOnMaster(ActionListener<ClusterStateUpdateResponse> listener) {
+    void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
         logger.info("rotate keys on master");
         TokenMetadata tokenMetadata = generateSpareKey();
         clusterService.submitStateUpdateTask("publish next key to prepare key rotation",
@@ -2089,11 +2153,11 @@ public final class TokenService {
                 }, listener::onFailure)));
     }
 
-    private final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
+    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask {
 
         private final TokenMetadata tokenMetadata;
 
-        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<ClusterStateUpdateResponse> listener) {
+        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<AcknowledgedResponse> listener) {
             super(new AckedRequest() {
                 @Override
                 public TimeValue ackTimeout() {
@@ -2117,12 +2181,6 @@ public final class TokenService {
             }
             return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, tokenMetadata).build();
         }
-
-        @Override
-        protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-            return new ClusterStateUpdateResponse(acknowledged);
-        }
-
     }
 
     private void initialize(ClusterService clusterService) {

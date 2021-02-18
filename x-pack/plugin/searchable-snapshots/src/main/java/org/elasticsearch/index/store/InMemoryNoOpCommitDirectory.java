@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.store;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 
@@ -75,6 +77,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ensureMutable(name);
+        assert notOverwritingRealSegmentsFile(name) : name;
         return super.createOutput(name, context);
     }
 
@@ -82,6 +85,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     public void rename(String source, String dest) throws IOException {
         ensureMutable(source);
         ensureMutable(dest);
+        assert notOverwritingRealSegmentsFile(dest) : dest;
         super.rename(source, dest);
     }
 
@@ -119,7 +123,16 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
             || name.startsWith("pending_segments_")
             || name.matches("^recovery\\..*\\.segments_.*$")) == false) {
 
-            throw new IllegalArgumentException("file [" + name + "] is not mutable");
+            throw new ImmutableDirectoryException("file [" + name + "] is not mutable");
         }
+    }
+
+    private boolean notOverwritingRealSegmentsFile(String name) throws IOException {
+        return name.startsWith("segments_") == false || Arrays.stream(realDirectory.listAll()).noneMatch(s -> s.equals(name));
+    }
+
+    @Override
+    public String toString() {
+        return "InMemoryNoOpCommitDirectory(" + "real=" + realDirectory + ", delegate=" + in + '}';
     }
 }

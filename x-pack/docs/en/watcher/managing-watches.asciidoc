@@ -28,9 +28,8 @@ For example, the following returns the first 100 watches:
 
 [source,console]
 --------------------------------------------------
-GET .watches/_search
+GET /_watcher/_query/watches
 {
   "size" : 100
 }
 --------------------------------------------------
-// TEST[skip:deprecation warning]

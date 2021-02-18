@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -81,7 +70,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
- * their tests can use them. Most methods run in the listener thread pool because the are meant to be fast and don't expect to block.
+ * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>,
     Action extends TransportAction<Request, ?>> {
@@ -102,7 +91,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final AtomicLong startTime = new AtomicLong(-1);
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    private final ParentTaskAssigningClient client;
+    private final ParentTaskAssigningClient searchClient;
+    private final ParentTaskAssigningClient bulkClient;
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
@@ -119,16 +109,25 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                                     boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                     ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
                                     @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
+        this(task, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, logger, client, client, threadPool, mainRequest,
+            listener, scriptService, sslConfig);
+    }
+    AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
+                                    boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient searchClient,
+                                    ParentTaskAssigningClient bulkClient, ThreadPool threadPool, Request mainRequest,
+                                    ActionListener<BulkByScrollResponse> listener, @Nullable ScriptService scriptService,
+                                    @Nullable ReindexSslConfig sslConfig) {
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
-        if (!task.isWorker()) {
+        if (task.isWorker() == false) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
         this.worker = task.getWorkerState();
 
         this.logger = logger;
-        this.client = client;
+        this.searchClient = searchClient;
+        this.bulkClient = bulkClient;
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.listener = listener;
@@ -214,7 +213,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
         return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
-            this::onScrollResponse, this::finishHim, client,
+            this::onScrollResponse, this::finishHim, searchClient,
                 mainRequest.getSearchRequest());
     }
 
@@ -348,7 +347,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        bulkRetry.withBackoff(client::bulk, request, new ActionListener<BulkResponse>() {
+        bulkRetry.withBackoff(bulkClient::bulk, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 onBulkResponse(response, onSuccess);
@@ -450,7 +449,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         RefreshRequest refresh = new RefreshRequest();
         refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
         logger.debug("[{}]: refreshing", task.getId());
-        client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
+        bulkClient.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse response) {
                 finishHim(null, indexingFailures, searchFailures, timedOut);

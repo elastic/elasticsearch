@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -31,6 +20,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -49,8 +39,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -108,7 +99,15 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             clusters.put(clusterAlias, cluster);
         }
         clusterGroup = new ClusterGroup(clusters);
-        configureRemoteClusters();
+        configureAndConnectsToRemoteClusters();
+    }
+
+    @After
+    public void assertAfterTest() throws Exception {
+        for (InternalTestCluster cluster : clusters().values()) {
+            cluster.wipe(Set.of());
+            cluster.assertAfterTest();
+        }
     }
 
     @AfterClass
@@ -117,35 +116,49 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         clusterGroup = null;
     }
 
-    private void configureRemoteClusters() throws Exception {
-        Map<String, List<String>> seedNodes = new HashMap<>();
+    protected void disconnectFromRemoteClusters() throws Exception {
+        Settings.Builder settings = Settings.builder();
+        final Set<String> clusterAliases = clusterGroup.clusterAliases();
+        for (String clusterAlias : clusterAliases) {
+            if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
+                settings.putNull("cluster.remote." + clusterAlias + ".seeds");
+            }
+        }
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        assertBusy(() -> {
+            for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
+                assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), empty());
+            }
+        });
+    }
+
+    protected void configureAndConnectsToRemoteClusters() throws Exception {
         for (String clusterAlias : clusterGroup.clusterAliases()) {
             if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
                 final InternalTestCluster cluster = clusterGroup.getCluster(clusterAlias);
                 final String[] allNodes = cluster.getNodeNames();
-                final List<String> selectedNodes = randomSubsetOf(randomIntBetween(1, Math.min(3, allNodes.length)), allNodes);
-                seedNodes.put(clusterAlias, selectedNodes);
+                final List<String> seedNodes = randomSubsetOf(randomIntBetween(1, Math.min(3, allNodes.length)), allNodes);
+                configureRemoteCluster(clusterAlias, seedNodes);
             }
         }
-        if (seedNodes.isEmpty()) {
-            return;
-        }
+    }
+
+    protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
         Settings.Builder settings = Settings.builder();
-        for (Map.Entry<String, List<String>> entry : seedNodes.entrySet()) {
-            final String clusterAlias = entry.getKey();
-            final String seeds = entry.getValue().stream()
-                .map(node -> cluster(clusterAlias).getInstance(TransportService.class, node).boundAddress().publishAddress().toString())
-                .collect(Collectors.joining(","));
-            settings.put("cluster.remote." + clusterAlias + ".seeds", seeds);
-        }
+        final String seed = seedNodes.stream()
+            .map(node -> {
+                final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
+                return transportService.boundAddress().publishAddress().toString();
+            })
+            .collect(Collectors.joining(","));
+        settings.put("cluster.remote." + clusterAlias + ".seeds", seed);
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         assertBusy(() -> {
             List<RemoteConnectionInfo> remoteConnectionInfos = client()
                 .execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet().getInfos()
-                .stream().filter(RemoteConnectionInfo::isConnected)
+                .stream().filter(c -> c.isConnected() && c.getClusterAlias().equals(clusterAlias))
                 .collect(Collectors.toList());
-            final long totalConnections = seedNodes.values().stream().map(List::size).count();
-            assertThat(remoteConnectionInfos, hasSize(Math.toIntExact(totalConnections)));
+            assertThat(remoteConnectionInfos, not(empty()));
         });
     }
 

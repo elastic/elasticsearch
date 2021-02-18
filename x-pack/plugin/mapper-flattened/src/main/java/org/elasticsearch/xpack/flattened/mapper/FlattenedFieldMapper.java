@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.flattened.mapper;
@@ -28,18 +29,18 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -94,7 +95,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         return ((FlattenedFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Integer> depthLimit
             = Parameter.intParam("depth_limit", true, m -> builder(m).depthLimit.get(), Defaults.DEPTH_LIMIT)
@@ -135,8 +136,8 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public FlattenedFieldMapper build(BuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+        public FlattenedFieldMapper build(ContentPath contentPath) {
+            MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
@@ -145,7 +146,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                buildFullName(context), indexed.get(), hasDocValues.get(), meta.get(), splitQueriesOnWhitespace.get());
+                buildFullName(contentPath), indexed.get(), hasDocValues.get(), meta.get(), splitQueriesOnWhitespace.get());
             if (eagerGlobalOrdinals.get()) {
                 ft.setEagerGlobalOrdinals(true);
             }
@@ -167,7 +168,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
         }
 
@@ -185,7 +185,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
         }
@@ -195,7 +195,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
                                 Object upperTerm,
                                 boolean includeLower,
                                 boolean includeUpper,
-                                QueryShardContext context) {
+                                SearchExecutionContext context) {
 
             // We require range queries to specify both bounds because an unbounded query could incorrectly match
             // values from other keys. For example, a query on the 'first' key with only a lower bound would become
@@ -211,14 +211,14 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions, QueryShardContext context) {
+                                boolean transpositions, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                                 MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[regexp] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
@@ -227,13 +227,13 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         public Query wildcardQuery(String value,
                                    MultiTermQuery.RewriteMethod method,
                                    boolean caseInsensitive,
-                                   QueryShardContext context) {
+                                   SearchExecutionContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
         }
 
@@ -253,12 +253,13 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, CoreValuesSourceType.BYTES);
+            return new KeyedFlattenedFieldData.Builder(name(), key, CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            throw new UnsupportedOperationException();
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            // This is an internal field but it can match a field pattern so we return an empty list.
+            return lookup -> List.of();
         }
     }
 
@@ -379,7 +380,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
             super(name, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -399,12 +399,12 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
     }
 
@@ -414,7 +414,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     private FlattenedFieldMapper(String simpleName,
                                  MappedFieldType mappedFieldType,
                                  Builder builder) {
-        super(simpleName, mappedFieldType, CopyTo.empty());
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), keyedFieldName(),
             mappedFieldType, builder.depthLimit.get(), builder.ignoreAbove.get(), builder.nullValue.get());
@@ -423,11 +423,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected FlattenedFieldMapper clone() {
-        return (FlattenedFieldMapper) super.clone();
     }
 
     int depthLimit() {
@@ -472,7 +467,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

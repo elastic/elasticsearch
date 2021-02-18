@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -25,6 +26,11 @@ public class LifecycleSettings {
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
     public static final String SLM_RETENTION_DURATION = "slm.retention_duration";
+    public static final String SLM_MINIMUM_INTERVAL = "slm.minimum_interval";
+
+    // This is not a setting configuring ILM per se, but certain ILM actions need to validate the managed index is not
+    // already mounted as a searchable snapshot. Those ILM actions will check if the index has this setting name configured.
+    public static final String SNAPSHOT_INDEX_NAME = "index.store.snapshot.index_name";
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), TimeValue.timeValueSeconds(1), Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -60,4 +66,7 @@ public class LifecycleSettings {
     }, Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<TimeValue> SLM_RETENTION_DURATION_SETTING = Setting.timeSetting(SLM_RETENTION_DURATION,
         TimeValue.timeValueHours(1), TimeValue.timeValueMillis(500), Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> SLM_MINIMUM_INTERVAL_SETTING =
+        Setting.positiveTimeSetting(SLM_MINIMUM_INTERVAL, TimeValue.timeValueMinutes(15), Setting.Property.Dynamic,
+            Setting.Property.NodeScope);
 }

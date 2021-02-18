@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -482,6 +471,33 @@ public final class IngestDocument {
             String valueStr = (String) value;
             if (valueStr.isEmpty()) {
                 return;
+            }
+        }
+
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), value, false);
+    }
+
+    /**
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
+     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param value The value to put in for the path key
+     * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
+     * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
+     * item identified by the provided path.
+     */
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
+        Map<String, Object> model = createTemplateModel();
+        if (ignoreEmptyValue) {
+            if (value == null) {
+                return;
+            }
+            if (value instanceof String){
+                String valueStr = (String) value;
+                if (valueStr.isEmpty()) {
+                    return;
+                }
             }
         }
 

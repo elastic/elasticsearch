@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.mapper;
@@ -27,7 +28,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -116,7 +117,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -125,7 +126,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.GeoPoints points = (ScriptDocValues.GeoPoints) getDoc().get("test");
@@ -151,16 +152,16 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    public void testRangeQuery() throws IOException {
+    public void testRangeQuery() {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> simpleMappedFieldType().rangeQuery("0.0", "45.0", false, false, null, null, null, mockContext())
         );
-        assertThat(e.getMessage(), equalTo("Field [test] of type [runtime] does not support range queries"));
+        assertThat(e.getMessage(), equalTo("Runtime field [test] of type [" + typeName() + "] does not support range queries"));
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         throw new IllegalArgumentException("Unsupported");
     }
 
@@ -174,7 +175,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         throw new IllegalArgumentException("Unsupported");
     }
 
@@ -193,8 +194,8 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
-        return ft.termsQuery(randomList(100, () -> GeometryTestUtils.randomPoint()), mockContext());
+    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
+        return ft.termsQuery(randomList(100, GeometryTestUtils::randomPoint), mockContext());
     }
 
     @Override
@@ -208,7 +209,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     }
 
     @Override
-    protected String runtimeType() {
+    protected String typeName() {
         return "geo_point";
     }
 
@@ -249,7 +250,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                                 return (fieldName, params, lookup) -> (ctx) -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
                                     @Override
                                     public void execute() {
-                                        Map<?, ?> foo = (Map<?, ?>) getSource().get("foo");
+                                        Map<?, ?> foo = (Map<?, ?>) lookup.source().get("foo");
                                         emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
                                     }
                                 };
@@ -266,10 +267,10 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 };
             }
         };
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields(Settings.EMPTY)));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             GeoPointFieldScript.Factory factory = scriptService.compile(script, GeoPointFieldScript.CONTEXT);
-            return new GeoPointScriptFieldType("test", script, factory, emptyMap());
+            return new GeoPointScriptFieldType("test", factory, script, emptyMap(), (b, d) -> {});
         }
     }
 }

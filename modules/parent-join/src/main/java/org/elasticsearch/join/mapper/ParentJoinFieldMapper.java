@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.join.mapper;
@@ -34,13 +23,12 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -62,7 +50,7 @@ import java.util.function.Supplier;
  * This field is only used to ensure that there is a single parent-join field defined in the mapping and
  * cannot be used to index or query any data.
  */
-public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
+public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
@@ -96,7 +84,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         return (ParentJoinFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true,
             m -> toType(m).eagerGlobalOrdinals, true);
@@ -121,15 +109,15 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ParentJoinFieldMapper build(BuilderContext context) {
-            checkObjectOrNested(context.path(), name);
+        public ParentJoinFieldMapper build(ContentPath contentPath) {
+            checkObjectOrNested(contentPath, name);
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get().stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             MetaJoinFieldMapper unique = new MetaJoinFieldMapper(name);
             Joiner joiner = new Joiner(name(), relations.get());
-            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(context), joiner, meta.get()),
+            return new ParentJoinFieldMapper(name, new JoinFieldType(buildFullName(contentPath), joiner, meta.get()),
                 unique, Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
         }
     }
@@ -145,7 +133,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
         private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.joiner = joiner;
         }
 
@@ -160,12 +147,12 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.identity(name(), mapperService, format);
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         @Override
@@ -195,7 +182,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     Map<String, ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals, List<Relations> relations) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
@@ -205,11 +192,6 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected ParentJoinFieldMapper clone() {
-        return (ParentJoinFieldMapper) super.clone();
     }
 
     @Override
@@ -312,7 +294,7 @@ public final class ParentJoinFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 

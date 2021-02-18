@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util;
 
@@ -85,24 +74,9 @@ public class CancellableThreads {
      * @param interruptible code to run
      */
     public void execute(Interruptible interruptible) {
-        try {
-            executeIO(interruptible);
-        } catch (IOException e) {
-            assert false : "the passed interruptible can not result in an IOException";
-            throw new RuntimeException("unexpected IO exception", e);
-        }
-    }
-    /**
-     * run the Interruptible, capturing the executing thread. Concurrent calls to {@link #cancel(String)} will interrupt this thread
-     * causing the call to prematurely return.
-     *
-     * @param interruptible code to run
-     */
-    public void executeIO(IOInterruptible interruptible) throws IOException {
         boolean wasInterrupted = add();
         boolean cancelledByExternalInterrupt = false;
         RuntimeException runtimeException = null;
-        IOException ioException = null;
 
         try {
             interruptible.run();
@@ -111,11 +85,9 @@ public class CancellableThreads {
             assert cancelled : "Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead";
             // we can only reach here if assertions are disabled. If we reach this code and cancelled is false, this means that we've
             // been interrupted externally (which we don't support).
-            cancelledByExternalInterrupt = !cancelled;
+            cancelledByExternalInterrupt = cancelled == false;
         } catch (RuntimeException t) {
             runtimeException = t;
-        } catch (IOException e) {
-            ioException = e;
         } finally {
             remove();
         }
@@ -127,11 +99,7 @@ public class CancellableThreads {
             // clear the flag interrupted flag as we are checking for failure..
             Thread.interrupted();
         }
-        checkForCancel(ioException != null ? ioException : runtimeException);
-        if (ioException != null) {
-            // if we're not canceling, we throw the original exception
-            throw ioException;
-        }
+        checkForCancel(runtimeException);
         if (runtimeException != null) {
             // if we're not canceling, we throw the original exception
             throw runtimeException;
@@ -141,9 +109,7 @@ public class CancellableThreads {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead");
         }
-
     }
-
 
     private synchronized void remove() {
         threads.remove(Thread.currentThread());
@@ -166,12 +132,8 @@ public class CancellableThreads {
     }
 
 
-    public interface Interruptible extends IOInterruptible {
+    public interface Interruptible {
         void run() throws InterruptedException;
-    }
-
-    public interface IOInterruptible {
-        void run() throws IOException, InterruptedException;
     }
 
     public static class ExecutionCancelledException extends ElasticsearchException {

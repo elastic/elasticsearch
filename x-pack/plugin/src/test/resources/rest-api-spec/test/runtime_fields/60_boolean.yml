@@ -8,18 +8,9 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            properties:
-              timestamp:
-                type: date
-              temperature:
-                type: long
-              voltage:
-                type: double
-              node:
-                type: keyword
+            runtime:
               over_v:
-                type: runtime
-                runtime_type: boolean
+                type: boolean
                 script:
                   source: |
                     for (def v : doc['voltage']) {
@@ -29,15 +20,13 @@ setup:
                     min_v: 5.0
               # Test fetching from _source
               over_v_from_source:
-                type: runtime
-                runtime_type: boolean
+                type: boolean
                 script:
                   source: |
                     emit(params._source.voltage >= 5.0);
               # Test many booleans
               big_vals:
-                type: runtime
-                runtime_type: boolean
+                type: boolean
                 script:
                   source: |
                     for (def v : doc['temperature']) {
@@ -46,6 +35,15 @@ setup:
                     for (def v : doc['voltage']) {
                       emit(v >= 5.0);
                     }
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
 
   - do:
       bulk:
@@ -70,15 +68,14 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.over_v.type: runtime }
-  - match: {sensor.mappings.properties.over_v.runtime_type: boolean }
+  - match: {sensor.mappings.runtime.over_v.type: boolean }
   - match:
-      sensor.mappings.properties.over_v.script.source: |
+      sensor.mappings.runtime.over_v.script.source: |
         for (def v : doc['voltage']) {
           emit(v >= params.min_v);
         }
-  - match: {sensor.mappings.properties.over_v.script.params: {min_v: 5.0} }
-  - match: {sensor.mappings.properties.over_v.script.lang: painless }
+  - match: {sensor.mappings.runtime.over_v.script.params: {min_v: 5.0} }
+  - match: {sensor.mappings.runtime.over_v.script.lang: painless }
 
 ---
 "fetch fields":

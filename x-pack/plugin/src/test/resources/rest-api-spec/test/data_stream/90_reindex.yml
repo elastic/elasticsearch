@@ -50,7 +50,7 @@ teardown:
         index: logs-barbaz
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: .ds-logs-barbaz-000001 }
+  - match: { hits.hits.0._index: "/\\.ds-logs-barbaz-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { hits.hits.0._source.foo: 'bar' }
 
 ---
@@ -83,7 +83,7 @@ teardown:
         index: logs-foobar
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: .ds-logs-foobar-000001 }
+  - match: { hits.hits.0._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { hits.hits.0._source.foo: 'bar' }
 
 ---

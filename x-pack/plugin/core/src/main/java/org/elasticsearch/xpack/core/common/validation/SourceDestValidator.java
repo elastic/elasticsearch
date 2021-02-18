@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.common.validation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -31,10 +32,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static java.util.Map.Entry.comparingByValue;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.validateIndexOrAliasName;
 
@@ -61,6 +66,8 @@ public final class SourceDestValidator {
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
     public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
+    public static final String REMOTE_CLUSTERS_TOO_OLD =
+        "remote clusters are expected to run at least version [{0}], but cluster [{1}] had version [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -416,6 +423,46 @@ public final class SourceDestValidator {
                 context.addValidationError(UNKNOWN_REMOTE_CLUSTER_LICENSE, context.getLicense(), remoteAliases, e.getMessage());
                 listener.onResponse(context);
             }));
+        }
+    }
+
+    public static class RemoteClusterMinimumVersionValidation implements SourceDestValidation {
+
+        private final Version minExpectedVersion;
+
+        public RemoteClusterMinimumVersionValidation(Version minExpectedVersion) {
+            this.minExpectedVersion = minExpectedVersion;
+        }
+
+        @Override
+        public void validate(Context context, ActionListener<Context> listener) {
+            Set<String> remoteClusterNames = context.getRemoteClusterService().getRegisteredRemoteClusterNames();
+            Map<String, Version> remoteClusterVersions;
+            try {
+                remoteClusterVersions =
+                    remoteClusterNames.stream()
+                        .collect(toMap(
+                            cluster -> cluster,
+                            cluster -> context.getRemoteClusterService().getConnection(cluster).getVersion()));
+            } catch (NoSuchRemoteClusterException e) {
+                context.addValidationError(e.getMessage());
+                listener.onResponse(context);
+                return;
+            } catch (Exception e) {
+                context.addValidationError(ERROR_REMOTE_CLUSTER_SEARCH, e.getMessage());
+                listener.onResponse(context);
+                return;
+            }
+            Optional<Map.Entry<String, Version>> minRemoteClusterVersion =
+                remoteClusterVersions.entrySet().stream().min(comparingByValue(Version::compareTo));
+            if (minRemoteClusterVersion.isPresent()) {
+                if (minRemoteClusterVersion.get().getValue().before(minExpectedVersion)) {
+                    context.addValidationError(
+                        REMOTE_CLUSTERS_TOO_OLD,
+                        minExpectedVersion, minRemoteClusterVersion.get().getKey(), minRemoteClusterVersion.get().getValue());
+                }
+            }
+            listener.onResponse(context);
         }
     }
 

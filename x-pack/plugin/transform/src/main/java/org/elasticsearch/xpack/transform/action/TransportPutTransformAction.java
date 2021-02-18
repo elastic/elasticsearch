@@ -206,12 +206,21 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
+        List<SourceDestValidator.SourceDestValidation> validations;
+        if (request.isDeferValidation()) {
+            validations = SourceDestValidations.NON_DEFERABLE_VALIDATIONS;
+        } else if (config.getMinRemoteClusterVersion().isPresent()) {
+            validations = new ArrayList<>(SourceDestValidations.ALL_VALIDATIONS);
+            validations.add(new SourceDestValidator.RemoteClusterMinimumVersionValidation(config.getMinRemoteClusterVersion().get()));
+        } else {
+            validations = SourceDestValidations.ALL_VALIDATIONS;
+        }
         sourceDestValidator.validate(
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
+            validations,
             ActionListener.wrap(
                 validationResponse -> {
                     // Early check to verify that the user can create the destination index and can read from the source

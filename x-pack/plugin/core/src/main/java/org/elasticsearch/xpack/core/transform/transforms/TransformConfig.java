@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -45,6 +46,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
+    /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
+    private static final Version FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION = Version.V_7_12_0;
 
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
@@ -302,6 +305,19 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     @Nullable
     public RetentionPolicyConfig getRetentionPolicyConfig() {
         return retentionPolicyConfig;
+    }
+
+    /**
+     * Determines the minimum version of a cluster in multi-cluster setup that is needed to successfully run this transform config.
+     *
+     * @return version
+     */
+    public Optional<Version> getMinRemoteClusterVersion() {
+        if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
+            return Optional.of(FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION);
+        } else {
+            return Optional.empty();
+        }
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {

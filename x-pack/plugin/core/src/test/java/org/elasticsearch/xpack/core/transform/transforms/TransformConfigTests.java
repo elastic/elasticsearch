@@ -30,10 +30,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -528,6 +530,51 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.V_7_11_0, transformConfigRewritten.getVersion());
+    }
+
+    public void testGetMinRemoteClusterVersion_WithNoRuntimeMappings() throws IOException {
+        String transformWithRuntimeMappings = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        TransformConfig transformConfig = createTransformConfigFromString(transformWithRuntimeMappings, "body_id", true);
+        assertThat(transformConfig.getMinRemoteClusterVersion(), isEmpty());
+    }
+
+    public void testGetMinRemoteClusterVersion_WithRuntimeMappings() throws IOException {
+        String json = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {"
+            + "   \"index\":\"src\","
+            + "   \"runtime_mappings\":{ \"some-field\": \"some-value\" }"
+            + "},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
+        assertThat(transformConfig.getMinRemoteClusterVersion().get(), is(equalTo(Version.V_7_12_0)));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

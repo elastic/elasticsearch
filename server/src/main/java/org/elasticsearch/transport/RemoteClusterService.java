@@ -50,7 +50,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
-public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
+public class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
     private final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 

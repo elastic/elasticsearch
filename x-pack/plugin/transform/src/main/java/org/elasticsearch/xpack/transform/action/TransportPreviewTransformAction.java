@@ -121,13 +121,19 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         ClusterState clusterState = clusterService.state();
 
         final TransformConfig config = request.getConfig();
-
+        List<SourceDestValidator.SourceDestValidation> validations;
+        if (config.getMinRemoteClusterVersion().isPresent()) {
+            validations = new ArrayList<>(SourceDestValidations.PREVIEW_VALIDATIONS);
+            validations.add(new SourceDestValidator.RemoteClusterMinimumVersionValidation(config.getMinRemoteClusterVersion().get()));
+        } else {
+            validations = SourceDestValidations.PREVIEW_VALIDATIONS;
+        }
         sourceDestValidator.validate(
             clusterState,
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.PREVIEW_VALIDATIONS,
+            validations,
             ActionListener.wrap(r -> {
                 // create the function for validation
                 final Function function = FunctionFactory.create(config);

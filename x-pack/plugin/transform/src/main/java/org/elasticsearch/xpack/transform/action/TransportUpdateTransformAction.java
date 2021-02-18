@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -232,12 +233,21 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 updateListener = listener;
             }
 
+            List<SourceDestValidator.SourceDestValidation> validations;
+            if (request.isDeferValidation()) {
+                validations = SourceDestValidations.NON_DEFERABLE_VALIDATIONS;
+            } else if (config.getMinRemoteClusterVersion().isPresent()) {
+                validations = new ArrayList<>(SourceDestValidations.ALL_VALIDATIONS);
+                validations.add(new SourceDestValidator.RemoteClusterMinimumVersionValidation(config.getMinRemoteClusterVersion().get()));
+            } else {
+                validations = SourceDestValidations.ALL_VALIDATIONS;
+            }
             sourceDestValidator.validate(
                 clusterState,
                 updatedConfig.getSource().getIndex(),
                 updatedConfig.getDestination().getIndex(),
                 updatedConfig.getDestination().getPipeline(),
-                request.isDeferValidation() ? SourceDestValidations.NON_DEFERABLE_VALIDATIONS : SourceDestValidations.ALL_VALIDATIONS,
+                validations,
                 ActionListener.wrap(
                     validationResponse -> {
                         checkPriviledgesAndUpdateTransform(request, clusterState, updatedConfig, configAndVersion.v2(), updateListener);

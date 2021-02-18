@@ -54,7 +54,9 @@ import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -252,12 +254,19 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             );
             transformConfigHolder.set(config);
 
+            List<SourceDestValidator.SourceDestValidation> validations;
+            if (config.getMinRemoteClusterVersion().isPresent()) {
+                validations = new ArrayList<>(SourceDestValidations.ALL_VALIDATIONS);
+                validations.add(new SourceDestValidator.RemoteClusterMinimumVersionValidation(config.getMinRemoteClusterVersion().get()));
+            } else {
+                validations = SourceDestValidations.ALL_VALIDATIONS;
+            }
             sourceDestValidator.validate(
                 clusterService.state(),
                 config.getSource().getIndex(),
                 config.getDestination().getIndex(),
                 config.getDestination().getPipeline(),
-                SourceDestValidations.ALL_VALIDATIONS,
+                validations,
                 validationListener
             );
         }, listener::onFailure);

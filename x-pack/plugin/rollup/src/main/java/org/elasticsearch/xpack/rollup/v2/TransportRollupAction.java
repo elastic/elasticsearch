@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RollupGroup;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.WriteableZoneId;
@@ -84,7 +86,15 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     protected void masterOperation(Task task, RollupAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String originalIndexName = request.getSourceIndex();
-        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
+
+        final String rollupIndexName;
+        if (request.getRollupIndex() == null) {
+            rollupIndexName = "rollup-" + originalIndexName + "-" + UUIDs.randomBase64UUID(Randomness.get());
+        } else {
+            rollupIndexName = request.getRollupIndex();
+        }
+
+        String tmpIndexName = ".rolluptmp-" + rollupIndexName;
 
         final XContentBuilder mapping;
         try {
@@ -118,7 +128,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         if (updateSettingsResponse.isAcknowledged()) {
                             client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
                                 if (resizeResponse.isAcknowledged()) {
-                                    publishMetadata(request, originalIndexName, tmpIndexName, listener);
+                                    publishMetadata(request.getRollupConfig(), originalIndexName, tmpIndexName, rollupIndexName, listener);
                                 } else {
                                     deleteTmpIndex(originalIndexName, tmpIndexName, listener,
                                         new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]"));
@@ -197,7 +207,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return builder.endObject();
     }
 
-    private void publishMetadata(RollupAction.Request request, String originalIndexName, String tmpIndexName,
+    private void publishMetadata(RollupActionConfig config, String originalIndexName, String tmpIndexName, String rollupIndexName,
                                  ActionListener<AcknowledgedResponse> listener) {
         // update Rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
@@ -209,12 +219,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                String rollupIndexName = request.getRollupIndex();
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
-                // TODO(talevy): find better spot to get the original index name
-                // extract created rollup index original index name to be used as metadata key
-                String originalIndexName = request.getSourceIndex();
                 Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
                     .getCustomData(RollupMetadata.TYPE);
                 String rollupGroupKeyName = (idxMetadata == null) ?
@@ -228,7 +234,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 } else {
                     rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
                 }
-                RollupActionDateHistogramGroupConfig dateConfig = request.getRollupConfig().getGroupConfig().getDateHistogram();
+                RollupActionDateHistogramGroupConfig dateConfig = config.getGroupConfig().getDateHistogram();
                 WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
                 if (rollupGroups.containsKey(rollupGroupKeyName)) {
                     RollupGroup group = rollupGroups.get(rollupGroupKeyName);

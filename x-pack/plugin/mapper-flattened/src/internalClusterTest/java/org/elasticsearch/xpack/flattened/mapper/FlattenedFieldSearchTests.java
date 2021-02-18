@@ -411,6 +411,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         SearchResponse response = client().prepareSearch("test")
             .addDocValueField("flattened")
             .addDocValueField("flattened.key")
+            .addDocValueField("flattened.other_key")
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
@@ -424,6 +425,10 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         DocumentField keyedField = fields.get("flattened.key");
         assertEquals("flattened.key", keyedField.getName());
         assertEquals("value", keyedField.getValue());
+
+        DocumentField otherKeyedField = fields.get("flattened.other_key");
+        assertEquals("flattened.other_key", otherKeyedField.getName());
+        assertEquals("other_value", otherKeyedField.getValue());
     }
 
     public void testFieldSort() throws Exception {

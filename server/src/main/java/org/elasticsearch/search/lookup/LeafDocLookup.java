@@ -69,14 +69,10 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         }
     }
 
-    public ScriptDocValues<?> get(String field, DocValueFormat format) {
-        FormatKey key = new FormatKey(field, format);
+    public ScriptDocValues<?> get(MappedFieldType fieldType, DocValueFormat format) {
+        FormatKey key = new FormatKey(fieldType.name(), format);
         ScriptDocValues<?> scriptValues = localCacheFormattedData.get(key);
         if (scriptValues == null) {
-            final MappedFieldType fieldType = fieldTypeLookup.apply(field);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + field + "] in mapping");
-            }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc
             scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {

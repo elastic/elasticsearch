@@ -8,12 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.ValuesLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -21,17 +19,16 @@ import java.util.List;
  */
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;
-    private final String field;
+    private final MappedFieldType fieldType;
 
-    public DocValueFetcher(DocValueFormat format, String field) {
+    public DocValueFetcher(DocValueFormat format, MappedFieldType fieldType) {
         this.format = format;
-        this.field = field;
+        this.fieldType = fieldType;
     }
 
     @Override
     public List<Object> fetchValues(ValuesLookup lookup) throws IOException {
-        ScriptDocValues<?> dv = lookup.doc().get(field, format);
-        return new ArrayList<>(dv);
+        return lookup.docValues(fieldType, format);
     }
 
 }

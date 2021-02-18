@@ -305,7 +305,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
         }, iw -> {
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup);
-            ValueFetcher valueFetcher = new DocValueFetcher(format, ft.name());
+            ValueFetcher valueFetcher = new DocValueFetcher(format, ft);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             LeafSearchLookup leaf = lookup.getLeafSearchLookup(context);

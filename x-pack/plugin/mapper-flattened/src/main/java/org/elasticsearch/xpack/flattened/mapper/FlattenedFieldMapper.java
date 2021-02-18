@@ -11,11 +11,16 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -53,9 +58,12 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -162,17 +170,19 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
      */
     public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
+        private final String root;
 
-        public KeyedFlattenedFieldType(String name, boolean indexed, boolean hasDocValues, String key,
+        public KeyedFlattenedFieldType(String root, boolean indexed, boolean hasDocValues, String key,
                                        boolean splitQueriesOnWhitespace, Map<String, String> meta) {
-            super(name, indexed, false, hasDocValues,
+            super(root + "." + key, indexed, false, hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
                 meta);
             this.key = key;
+            this.root = root;
         }
 
-        private KeyedFlattenedFieldType(String name, String key, RootFlattenedFieldType ref) {
-            this(name, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+        private KeyedFlattenedFieldType(String root, String key, RootFlattenedFieldType ref) {
+            this(root, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -186,7 +196,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
+            Term term = new Term(root, FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
         }
 
@@ -205,8 +215,15 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
                     "] fields must include both an upper and a lower bound.");
             }
 
-            return super.rangeQuery(lowerTerm, upperTerm,
-                includeLower, includeUpper, context);
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            }
+            failIfNotIndexed();
+            return new TermRangeQuery(root,
+                indexedValueForSearch(lowerTerm),
+                indexedValueForSearch(upperTerm),
+                includeLower, includeUpper);
         }
 
         @Override
@@ -234,7 +251,51 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+            return AutomatonQueries.caseInsensitiveTermQuery(new Term(root, indexedValueForSearch(value)));
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            failIfNotIndexed();
+            return new TermQuery(new Term(root, indexedValueForSearch(value)));
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexed();
+            BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+            return new TermInSetQuery(root, bytesRefs);
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
+                    "fields please enable [index_prefixes].");
+            }
+            failIfNotIndexed();
+            if (caseInsensitive) {
+                AutomatonQuery query = AutomatonQueries.caseInsensitivePrefixQuery((new Term(root, indexedValueForSearch(value))));
+                if (method != null) {
+                    query.setRewriteMethod(method);
+                }
+                return query;
+
+            }
+            PrefixQuery query = new PrefixQuery(new Term(root, indexedValueForSearch(value)));
+            if (method != null) {
+                query.setRewriteMethod(method);
+            }
+            return query;
+        }
+
+        @Override
+        protected void failIfNotIndexed() {
+            if (isIndexed == false) {
+                // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+                throw new IllegalArgumentException("Cannot search on field [" + root + "] since it is not indexed.");
+            }
         }
 
         @Override
@@ -253,7 +314,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, CoreValuesSourceType.KEYWORD);
+            return new KeyedFlattenedFieldData.Builder(root + "._keyed", key, CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -440,7 +501,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     public KeyedFlattenedFieldType keyedFieldType(String key) {
-        return new KeyedFlattenedFieldType(keyedFieldName(), key, fieldType());
+        return new KeyedFlattenedFieldType(name(), key, fieldType());
     }
 
     public String keyedFieldName() {

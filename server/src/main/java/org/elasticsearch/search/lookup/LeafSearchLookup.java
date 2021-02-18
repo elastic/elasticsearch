@@ -9,7 +9,11 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,6 +53,11 @@ public class LeafSearchLookup implements ValuesLookup {
 
     public LeafDocLookup doc() {
         return this.docMap;
+    }
+
+    @Override
+    public List<Object> docValues(MappedFieldType fieldType, DocValueFormat format) {
+        return new ArrayList<>(this.docMap.get(fieldType, format));
     }
 
     public void setDocument(int docId) {

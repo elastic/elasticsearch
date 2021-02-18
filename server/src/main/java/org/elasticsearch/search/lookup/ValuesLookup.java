@@ -10,7 +10,10 @@ package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,7 +30,7 @@ public interface ValuesLookup {
     /**
      * Returns a LeafDocLookup positioned on the current document
      */
-    LeafDocLookup doc();
+    List<Object> docValues(MappedFieldType fieldType, DocValueFormat format);
 
     /**
      * Override the source exposed by a ValuesLookup
@@ -43,8 +46,8 @@ public interface ValuesLookup {
             }
 
             @Override
-            public LeafDocLookup doc() {
-                return in.doc();
+            public List<Object> docValues(MappedFieldType fieldType, DocValueFormat format) {
+                return in.docValues(fieldType, format);
             }
         };
     }
@@ -62,7 +65,7 @@ public interface ValuesLookup {
             }
 
             @Override
-            public LeafDocLookup doc() {
+            public List<Object> docValues(MappedFieldType fieldType, DocValueFormat format) {
                 throw new UnsupportedOperationException("FieldData is not available from a source-only lookup");
             }
         };
@@ -81,7 +84,7 @@ public interface ValuesLookup {
             }
 
             @Override
-            public LeafDocLookup doc() {
+            public List<Object> docValues(MappedFieldType fieldType, DocValueFormat format) {
                 throw new UnsupportedOperationException("FieldData is not available from a source-only lookup");
             }
         };

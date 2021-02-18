@@ -459,8 +459,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             indexAnalyzers,
             indexSettings,
-            () -> true,
-            false
+            () -> true
         ));
         return mapperService;
     }

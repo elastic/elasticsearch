@@ -349,7 +349,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
                 @Override
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.copyOf(new RuntimeFields(Settings.EMPTY).getContexts());
+                    //TODO return Set.copyOf(new RuntimeFields(Settings.EMPTY).getContexts());
+                    return Collections.emptySet();
                 }
             };
         }

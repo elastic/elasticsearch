@@ -114,6 +114,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        ensureNoInitializingShards();
         super.tearDown();
         assertAcked(
             client().admin().indices().prepareDelete("*")
@@ -324,7 +325,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
     }
 
-
     /**
      * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
@@ -353,6 +353,22 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     protected boolean forbidPrivateIndexSettings() {
         return true;
+    }
+
+
+    /**
+     * waits until all shard initialization is completed.
+     *
+     * @throws IOException
+     */
+    protected void ensureNoInitializingShards() throws IOException {
+        ClusterHealthResponse actionGet = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest("_all").timeout(TimeValue.timeValueSeconds(70)).waitForNoInitializingShards(true))
+            .actionGet();
+
+        assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());
+        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
 }

@@ -523,8 +523,8 @@ in the <<glossary-mapping,mapping>>.
 A runtime field is a field that is evaluated at query time. You access runtime
 fields from the search API like any other field, and {es} sees runtime fields
 no differently. You can define runtime fields in the
-<<runtime-mapping-fields,index mapping>> or in the
-<<runtime-search-request,search request>>.
+{ref}/runtime-mapping-fields.html[index mapping] or in the
+{ref}/runtime-search-request.html[search request].
 // end::runtime-fields-def[]
 
 [[glossary-searchable-snapshot]] searchable snapshot ::

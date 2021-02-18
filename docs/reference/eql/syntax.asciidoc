@@ -777,7 +777,7 @@ another field. This applies even if the fields are changed using a
 ==== Text fields are not supported
 
 EQL searches do not support <<text,`text`>> fields. To a search a `text` field,
-use the EQL search API's <<eql-search-filter-query-dsl,query DSL `filter`>>
+use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
 parameter.
 
 [discrete]

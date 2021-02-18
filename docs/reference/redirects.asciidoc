@@ -5,6 +5,26 @@ The following pages have moved or been deleted.
 
 // [START] Security redirects
 
+[role="exclude",id="encrypting-communications-certificates"]
+=== Generate certificates
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode-communications"]
+=== Tutorial: Encrypting communications
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="encrypting-internode"]
+=== Encrypting internode communication
+
+See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
+
+[role="exclude",id="security-getting-started"]
+=== Tutorial: Getting started with security
+
+See <<secure-cluster,Secure the Elastic Stack>>.
+
 [role="exclude",id="saml-guide"]
 === Configure SAML single-sign on
 

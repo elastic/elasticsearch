@@ -154,7 +154,8 @@ ensure that communication between the nodes is encrypted.
 Now that you've generated a certificate authority and certificates, you'll
 update your cluster to use these files.
 
-NOTE: Complete the following steps for each node in your cluster.
+NOTE: Complete the following steps for each node in your cluster. To join the
+same cluster, all nodes must share the same `cluster.name` value.
 
 .  Open the `ES_PATH_CONF/elasticsearch.yml` file and make the following
 changes:

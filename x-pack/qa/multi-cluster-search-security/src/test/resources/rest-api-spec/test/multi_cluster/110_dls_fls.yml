@@ -1,0 +1,48 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      xpack.security.put_user:
+        username: "dls_fls_user"
+        body:  >
+          {
+            "password": "s3krit-password",
+            "roles" : [ "dls_fls_role" ]
+          }
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "dls_fls_user"
+        ignore: 404
+
+---
+"Search with document and field level security":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        request_cache: true
+        index: my_remote_cluster:shared_index
+
+  - match: { hits.total: 2}
+  - length: { hits.hits.0._source: 3 }
+  - match: { hits.hits.0._source.secret: "sesame" }
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX2Zsc191c2VyOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        request_cache: true
+        index: my_remote_cluster:shared_index
+
+  - match: { hits.total: 1}
+  - length: { hits.hits.0._source: 2 }
+  - is_true: hits.hits.0._source.public
+  - match: { hits.hits.0._source.name: "doc 1" }

@@ -148,6 +148,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     @TaskAction
     public void transform() throws IOException {
         RestTestTransformer transformer = new RestTestTransformer();
+        // TODO: instead of flattening the FileTree here leverage FileTree.visit() so we can preserve folder hierarchy in a more robust way
         for (File file : getTestFiles().getFiles()) {
             YAMLParser yamlParser = YAML_FACTORY.createParser(file);
             List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
@@ -157,7 +158,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
             if (testFileParts.length != 2) {
                 throw new IllegalArgumentException("could not split " + file + " into expected parts");
             }
-            File output = new File(outputDirectory.get().getAsFile(), testFileParts[1]);
+            File output = new File(outputDirectory.get().dir(REST_TEST_PREFIX).getAsFile(), testFileParts[1]);
             output.getParentFile().mkdirs();
             try (SequenceWriter sequenceWriter = WRITER.writeValues(output)) {
                 for (ObjectNode transformedTest : transformRestTests) {

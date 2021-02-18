@@ -22,6 +22,9 @@ import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
+import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
+import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
@@ -38,10 +41,12 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
 
@@ -126,6 +131,31 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void addMatch(String subKey, Object value, String testName) {
         transformations.add(new AddMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+    }
+
+    /**
+     * Adds one or more warnings to the given test
+     * @param testName the test name to add the warning
+     * @param warnings the warning(s) to add
+     */
+    public void addWarning(String testName, String... warnings) {
+        transformations.add(new InjectWarnings(Arrays.asList(warnings), testName));
+    }
+
+    /**
+     * Removes one or more warnings
+     * @param warnings the warning(s) to remove
+     */
+    public void removeWarning(String... warnings) {
+        transformations.add(new RemoveWarnings(Set.copyOf(Arrays.asList(warnings))));
+    }
+
+    /**
+     * Adds one or more allowed warnings
+     * @param allowedWarnings the warning(s) to add
+     */
+    public void addAllowedWarning(String... allowedWarnings) {
+        transformations.add(new InjectAllowedWarnings(Arrays.asList(allowedWarnings)));
     }
 
     @OutputDirectory

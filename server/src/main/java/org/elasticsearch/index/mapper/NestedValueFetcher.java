@@ -29,7 +29,6 @@ public class NestedValueFetcher implements ValueFetcher {
     // the name of the nested field without the full path, i.e. in foo.bar.baz it would be baz
     private final String nestedFieldName;
     private final String[] nestedPathParts;
-    private LeafReaderContext currentContext;
 
     public NestedValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher) {
         assert nestedField != null && nestedField.isEmpty() == false;

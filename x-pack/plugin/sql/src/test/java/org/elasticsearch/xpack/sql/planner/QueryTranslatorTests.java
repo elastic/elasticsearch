@@ -1334,6 +1334,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(20.0, gq.lat(), 0.00001);
         assertEquals(10.0, gq.lon(), 0.00001);
         assertEquals(25.0, gq.distance(), 0.00001);
+        optimizeAndPlan(p);
     }
 
     public void testTranslateStXY() {

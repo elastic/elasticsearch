@@ -37,6 +37,10 @@ public class SqlTranslatorHandler implements TranslatorHandler {
     @Override
     public Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
         if (field instanceof StDistance && querySupplier.get() instanceof GeoDistanceQuery) {
+            if (true) {
+                throw new RuntimeException("If this code is not dead, QueryTranslatorTests.testTranslateStDistanceToQuery should " +
+                    "trigger this Exception");
+            }
             return ExpressionTranslator.wrapIfNested(querySupplier.get(), ((StDistance) field).left());
         }
         if (field instanceof FieldAttribute) {

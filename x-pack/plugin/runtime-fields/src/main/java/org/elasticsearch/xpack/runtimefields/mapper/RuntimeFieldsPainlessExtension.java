@@ -19,7 +19,8 @@ import java.util.List;
 import java.util.Map;
 
 public class RuntimeFieldsPainlessExtension implements PainlessExtension {
-    private final Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(AbstractFieldScript.class, "common_whitelist.txt");
+    private final Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(
+        RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
 
     private final Whitelist grokWhitelist;
 
@@ -43,7 +44,7 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     }
 
     private List<Whitelist> load(String path) {
-        return List.of(commonWhitelist, grokWhitelist, WhitelistLoader.loadFromResourceFiles(AbstractFieldScript.class, path));
+        return List.of(commonWhitelist, grokWhitelist);
     }
 
     @Override

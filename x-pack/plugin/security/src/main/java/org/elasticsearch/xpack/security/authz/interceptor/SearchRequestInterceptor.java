@@ -11,6 +11,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -25,14 +27,26 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     @Override
     public void disableFeatures(IndicesRequest indicesRequest, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled,
                                 ActionListener<Void> listener) {
-        final SearchRequest request = (SearchRequest) indicesRequest;
-        request.requestCache(false);
+
+        assert indicesRequest instanceof SearchRequest || indicesRequest instanceof ShardSearchTransportRequest
+            : "request must be either SearchRequest or ShardSearchTransportRequest";
+
+        final SearchSourceBuilder source;
+        if (indicesRequest instanceof SearchRequest) {
+            final SearchRequest request = (SearchRequest) indicesRequest;
+            request.requestCache(false);
+            source = request.source();
+        } else {
+            final ShardSearchTransportRequest request = (ShardSearchTransportRequest) indicesRequest;
+            request.requestCache(false);
+            source = request.source();
+        }
 
         if (documentLevelSecurityEnabled) {
-            if (request.source() != null && request.source().suggest() != null) {
+            if (source != null && source.suggest() != null) {
                 listener.onFailure(new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
                         RestStatus.BAD_REQUEST));
-            } else if (request.source() != null && request.source().profile()) {
+            } else if (source != null && source.profile()) {
                 listener.onFailure(new ElasticsearchSecurityException("A search request cannot be profiled if document level security " +
                     "is enabled", RestStatus.BAD_REQUEST));
             } else {
@@ -45,6 +59,6 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
     @Override
     public boolean supports(IndicesRequest request) {
-        return request instanceof SearchRequest;
+        return request instanceof SearchRequest || request instanceof ShardSearchTransportRequest;
     }
 }

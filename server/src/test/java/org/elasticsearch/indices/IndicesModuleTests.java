@@ -19,9 +19,9 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -169,7 +169,12 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testDuplicateRuntimeFieldPlugin() {
-        TestRuntimeField.Plugin plugin = new TestRuntimeField.Plugin();
+        MapperPlugin plugin = new MapperPlugin() {
+            @Override
+            public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+                return Map.of("test", (name, node, parserContext) -> null);
+            }
+        };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));

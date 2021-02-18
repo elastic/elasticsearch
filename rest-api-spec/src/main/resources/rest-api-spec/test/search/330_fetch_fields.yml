@@ -850,9 +850,9 @@ Test nested field with sibling field resolving to DocValueFetcher:
   - match: { hits.hits.0.fields.number.3 : 5 }
   - match: { hits.hits.0.fields.number.4 : 6 }
 ---
-Test nested field inside token_count:
+Test token_count inside nested field doesn't fail:
   - skip:
-      version: ' - 8.0.0'
+      version: ' - 7.99.99'
       reason:  'Added in 8.0 - change on backport'
   -  do:
         indices.create:
@@ -886,9 +886,3 @@ Test nested field inside token_count:
            body:
               _source: false
               fields: [ "*" ]
-# at this point we only want this to not fail, but if 68983 is fixed the following should work
-#  - length: { hits.hits.0.fields : 1 }
-#  - match:
-#        hits.hits.0.fields.user.0: { "name" : ["Ann Marie Smith"], "name.length" : [3]}
-#  - match:
-#        hits.hits.0.fields.user.1: { "name" : ["James Brown"], "name.length" : [2]}

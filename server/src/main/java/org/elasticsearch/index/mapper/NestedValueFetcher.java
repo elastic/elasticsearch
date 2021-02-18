@@ -29,6 +29,7 @@ public class NestedValueFetcher implements ValueFetcher {
     // the name of the nested field without the full path, i.e. in foo.bar.baz it would be baz
     private final String nestedFieldName;
     private final String[] nestedPathParts;
+    private LeafReaderContext currentContext;
 
     public NestedValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher) {
         assert nestedField != null && nestedField.isEmpty() == false;
@@ -50,14 +51,8 @@ public class NestedValueFetcher implements ValueFetcher {
         for (Object entry : nestedValues) {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
-            SourceLookup nestedSourceLookup = new SourceLookup() {
-                @Override
-                public int docId() {
-                    // TODO instead of the original docId from the main doc, we probably need the ones for nested docs here
-                    // but this at least positions the docId somewhere other than -1, which would lead to NPE later
-                    return lookup.docId();
-                }
-            };
+            SourceLookup nestedSourceLookup = new SourceLookup();
+            nestedSourceLookup.setSegmentAndDocument(this.currentContext, lookup.docId());
             nestedSourceLookup.setSource(filteredSource);
 
             Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup);
@@ -91,6 +86,7 @@ public class NestedValueFetcher implements ValueFetcher {
 
     @Override
     public void setNextReader(LeafReaderContext context) {
+        this.currentContext = context;
         this.nestedFieldFetcher.setNextReader(context);
     }
 }

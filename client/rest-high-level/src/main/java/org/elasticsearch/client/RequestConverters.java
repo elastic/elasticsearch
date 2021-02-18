@@ -44,7 +44,6 @@ import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
-import org.elasticsearch.client.termenum.TermEnumRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -538,15 +537,6 @@ final class RequestConverters {
         return request;
     }
     
-    static Request termEnum(TermEnumRequest termEnumRequest) throws IOException {
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(termEnumRequest.indices(), Strings.EMPTY_ARRAY, "_terms"));
-
-        Params params = new Params();
-        params.withIndicesOptions(termEnumRequest.indicesOptions());
-        request.setEntity(createEntity(termEnumRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }    
-
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
         return prepareReindexRequest(reindexRequest, true);
     }

@@ -60,8 +60,6 @@ import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
-import org.elasticsearch.client.termenum.TermEnumRequest;
-import org.elasticsearch.client.termenum.TermEnumResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
@@ -1427,20 +1425,6 @@ public class RestHighLevelClient implements Closeable {
     }
     
     /**
-     * Executes a request using the TermEnum API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/term-enum.html">Term enum API
-     * on elastic.co</a>
-     * @param termEnumRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final TermEnumResponse terms(TermEnumRequest termEnumRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(termEnumRequest, RequestConverters::termEnum, options, TermEnumResponse::fromXContent,
-                emptySet());
-    }    
-
-
-    /**
      * Executes a request using the Multi Search Template API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/multi-search-template.html">Multi Search Template API
@@ -1482,22 +1466,6 @@ public class RestHighLevelClient implements Closeable {
                 emptySet());
     }
     
-    /**
-     * Asynchronously executes a request using the TermEnum API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/term-enum.html">Term enum API
-     * on elastic.co</a>
-     * @param termEnumRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public final Cancellable termEnumAsync(TermEnumRequest termEnumRequest, RequestOptions options,
-                                           ActionListener<RankEvalResponse> listener) {
-        return performRequestAsyncAndParseEntity(termEnumRequest, RequestConverters::termEnum, options,
-            RankEvalResponse::fromXContent, listener,
-                emptySet());
-    }
-
     /**
      * Executes a request using the Field Capabilities API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -268,6 +269,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     logger.trace("Unassigning task {} with allocation id {}", taskId, taskAllocationId);
                     return update(currentState, tasksInProgress.reassignTask(taskId, unassignedAssignment(reason)));
                 } else {
+                    Requests.clusterHealthRequest("foo").waitForNoInitializingShards()
                     throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
             }

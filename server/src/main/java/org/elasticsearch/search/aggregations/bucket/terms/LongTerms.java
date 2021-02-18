@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,6 +17,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -148,7 +150,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         boolean unsignedLongFormat = false;
         boolean rawFormat = false;
         for (InternalAggregation agg : aggregations) {
-            if (agg instanceof DoubleTerms) {
+            if (agg instanceof DoubleTerms || agg instanceof StringTerms) {
                 return agg.reduce(aggregations, reduceContext);
             }
             if (agg instanceof LongTerms) {
@@ -191,6 +193,26 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
                 longTerms.showTermDocCountError ? bucket.getDocCountError() : 0, decimalFormat));
         }
         return new DoubleTerms(longTerms.getName(), longTerms.reduceOrder, longTerms.order, longTerms.requiredSize,
+            longTerms.minDocCount,
+            longTerms.metadata, longTerms.format, longTerms.shardSize,
+            longTerms.showTermDocCountError, longTerms.otherDocCount,
+            newBuckets, longTerms.docCountError);
+    }
+
+    /**
+     * Converts a {@link LongTerms} into a {@link StringTerms}, returning the value of the specified long terms as strings.
+     */
+    static StringTerms convertLongTermsToString(LongTerms longTerms, DocValueFormat decimalFormat) {
+        List<LongTerms.Bucket> buckets = longTerms.getBuckets();
+        List<StringTerms.Bucket> newBuckets = new ArrayList<>();
+        for (Terms.Bucket bucket : buckets) {
+            BytesRef key = new BytesRef(bucket.getKeyAsString().getBytes(StandardCharsets.UTF_8));
+            newBuckets.add(new StringTerms.Bucket(key,
+                bucket.getDocCount(), (InternalAggregations) bucket.getAggregations(), longTerms.showTermDocCountError,
+                longTerms.showTermDocCountError ? bucket.getDocCountError() : 0, decimalFormat));
+        }
+
+        return new StringTerms(longTerms.getName(), longTerms.reduceOrder, longTerms.order, longTerms.requiredSize,
             longTerms.minDocCount,
             longTerms.metadata, longTerms.format, longTerms.shardSize,
             longTerms.showTermDocCountError, longTerms.otherDocCount,

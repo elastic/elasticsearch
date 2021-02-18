@@ -13,9 +13,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -132,6 +134,34 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
     protected StringTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
         return new StringTerms(name, reduceOrder, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
+    }
+
+    @Override
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        boolean promoteToString = false;
+        for (InternalAggregation agg : aggregations) {
+            if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
+                /*
+                 * this terms agg mixes longs and strings, we must promote longs to strings to make the internal aggs
+                 * compatible
+                 */
+                promoteToString = true;
+                break;
+            }
+        }
+        if (promoteToString == false) {
+            return super.reduce(aggregations, reduceContext);
+        }
+        List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
+        for (InternalAggregation agg : aggregations) {
+            if (agg instanceof LongTerms) {
+                StringTerms stringTerms = LongTerms.convertLongTermsToString((LongTerms) agg, format);
+                newAggs.add(stringTerms);
+            } else {
+                newAggs.add(agg);
+            }
+        }
+        return newAggs.get(0).reduce(newAggs, reduceContext);
     }
 
     @Override

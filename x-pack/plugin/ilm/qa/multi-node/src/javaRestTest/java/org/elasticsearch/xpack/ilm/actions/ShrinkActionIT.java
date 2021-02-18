@@ -161,7 +161,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // add a policy
         Map<String, LifecycleAction> hotActions = org.elasticsearch.common.collect.Map.of(
-            RolloverAction.NAME, new RolloverAction(null, null, 1L),
+            RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
             ShrinkAction.NAME, new ShrinkAction(expectedFinalShards, null));
         Map<String, Phase> phases = org.elasticsearch.common.collect.Map.of(
             "hot", new Phase("hot", TimeValue.ZERO, hotActions));

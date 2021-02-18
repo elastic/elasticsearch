@@ -144,6 +144,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                                 ExceptionsHelper.badRequestException(
                                     "cannot reassign model_alias [{}] to model [{}] "
                                     + "with inference config type [{}] from model [{}] with type [{}]",
+                                    request.getModelAlias(),
                                     newModel.getModelId(),
                                     newModel.getInferenceConfig().getName(),
                                     oldModel.getModelId(),

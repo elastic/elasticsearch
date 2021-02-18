@@ -178,11 +178,6 @@ public final class DefBootstrap {
             final MethodType type = type();
             final ClassValue<MethodHandle> megamorphicCache = new ClassValue<MethodHandle>() {
                 @Override
-                public MethodHandle get(Class<?> receiverType) {
-                    return super.get(receiverType);
-                }
-
-                @Override
                 protected MethodHandle computeValue(Class<?> receiverType) {
                     // it's too stupid that we cannot throw checked exceptions... (use rethrow puzzler):
                     try {

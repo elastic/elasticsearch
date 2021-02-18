@@ -989,7 +989,7 @@ public class MLRequestConvertersTests extends ESTestCase {
             )
         );
         if (putTrainedModelAliasRequest.getReassign() != null) {
-            assertThat(request.getParameters().get("reassign"), equalTo(putTrainedModelAliasRequest.getReassign()));
+            assertThat(request.getParameters().get("reassign"), equalTo(putTrainedModelAliasRequest.getReassign().toString()));
         } else {
             assertThat(request.getParameters(), not(hasKey("reassign")));
         }

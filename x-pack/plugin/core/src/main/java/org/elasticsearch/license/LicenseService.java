@@ -78,11 +78,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         License.LicenseType.GOLD, License.LicenseType.PLATINUM, License.LicenseType.ENTERPRISE, License.LicenseType.TRIAL);
 
     /**
-     * Duration of grace period after a license has expired
-     */
-    static final TimeValue GRACE_PERIOD_DURATION = days(7);
-
-    /**
      * Period before the license expires when warning starts being added to the response header
      */
     static final TimeValue LICENSE_EXPIRATION_WARNING_PERIOD = days(7);
@@ -192,16 +187,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 logExpirationWarning(license.expiryDate(), false);
             }
         });
-        expirationCallbacks.add(new ExpirationCallback.Pre(days(0), days(7), TimeValue.timeValueMinutes(10)) {
-            @Override
-            public void on(License license) {
-                logExpirationWarning(license.expiryDate(), false);
-            }
-        });
         expirationCallbacks.add(new ExpirationCallback.Post(days(0), null, TimeValue.timeValueMinutes(10)) {
             @Override
             public void on(License license) {
-                // logged when grace period begins
                 logExpirationWarning(license.expiryDate(), true);
             }
         });
@@ -486,22 +474,16 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
         if (license != null) {
             long time = clock.millis();
-            boolean active;
+            final boolean active;
             if (license.expiryDate() == BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
                 active = true;
             } else {
-                // We subtract the grace period from the current time to avoid overflowing on an expiration
-                // date that is near Long.MAX_VALUE
-                active = time >= license.issueDate() && time - GRACE_PERIOD_DURATION.getMillis() < license.expiryDate();
+                active = time >= license.issueDate() && time < license.expiryDate();
             }
             licenseState.update(license.operationMode(), active, license.expiryDate(), mostRecentTrialVersion);
 
             if (active) {
-                if (time < license.expiryDate()) {
-                    logger.debug("license [{}] - valid", license.uid());
-                } else {
-                    logger.warn("license [{}] - grace", license.uid());
-                }
+                logger.debug("license [{}] - valid", license.uid());
             } else {
                 logger.warn("license [{}] - expired", license.uid());
             }
@@ -552,8 +534,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 return license.issueDate();
             } else if (time < license.expiryDate()) {
                 return license.expiryDate();
-            } else if (time < license.expiryDate() + GRACE_PERIOD_DURATION.getMillis()) {
-                return license.expiryDate() + GRACE_PERIOD_DURATION.getMillis();
             }
             return -1; // license is expired, no need to check again
         };

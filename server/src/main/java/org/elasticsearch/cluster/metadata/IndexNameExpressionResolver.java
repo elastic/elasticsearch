@@ -125,6 +125,11 @@ public class IndexNameExpressionResolver {
         return concreteIndexNames(context, request.indices());
     }
 
+    public String[] concreteIndexNamesWithSystemIndexAccess(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        Context context = new Context(state, options, true);
+        return concreteIndexNames(context, indexExpressions);
+    }
+
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         // Allow system index access - they'll be filtered out below as there's no such thing (yet) as system data streams
         Context context = new Context(state, options, false, false, true, true, true);
@@ -200,7 +205,9 @@ public class IndexNameExpressionResolver {
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
-        final boolean failNoIndices = indexExpressions.length == 1 ? !options.allowNoIndices() : !options.ignoreUnavailable();
+        final boolean failNoIndices = indexExpressions.length == 1
+            ? options.allowNoIndices() == false
+            : options.ignoreUnavailable() == false;
         List<String> expressions = Arrays.asList(indexExpressions);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);

@@ -52,10 +52,10 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
                 break;
             case 2:
-                onlyErrors = !onlyErrors;
+                onlyErrors = onlyErrors == false;
                 break;
             case 3:
-                onlyManaged = !onlyManaged;
+                onlyManaged = onlyManaged == false;
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

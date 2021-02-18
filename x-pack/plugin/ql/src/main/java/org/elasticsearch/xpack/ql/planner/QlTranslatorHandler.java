@@ -41,11 +41,6 @@ public class QlTranslatorHandler implements TranslatorHandler {
     }
 
     @Override
-    public String dateFormat(Expression e) {
-        return null;
-    }
-
-    @Override
     public Object convert(Object value, DataType dataType) {
         return DataTypeConverter.convert(value, dataType);
     }

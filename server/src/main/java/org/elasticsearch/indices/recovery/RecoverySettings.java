@@ -43,9 +43,8 @@ public class RecoverySettings {
                     // if the node is not a data node, this value doesn't matter, use the default
                     return defaultMaxBytesPerSec.getStringRep();
                 }
-                if ((dataRoles.size() > 1 || dataRoles.get(0).roleName().equals("data_cold") == false) ||
-                    roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
-                    // if the node is not a dedicated cold node, use the default
+                if (dataRoles.stream().allMatch(dn -> dn.roleName().equals("data_cold") || dn.roleName().equals("data_frozen")) == false) {
+                    // the node is not a dedicated cold and/or frozen node, use the default
                     return defaultMaxBytesPerSec.getStringRep();
                 }
                 /*

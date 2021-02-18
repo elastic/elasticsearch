@@ -1,8 +1,8 @@
 ---
 "Rollover with max_single_primary_size condition":
   - skip:
-      version: " - 7.99.99"
-      reason: max_single_primary_size condition was introduced in 8.0.0
+      version: " - 7.11.99"
+      reason: max_single_primary_size condition was introduced in 7.12.0
 
   # create index with alias and replica
   - do:

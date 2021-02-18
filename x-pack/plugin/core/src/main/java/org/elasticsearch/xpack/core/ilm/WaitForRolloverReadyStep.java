@@ -35,13 +35,15 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     public static final String NAME = "check-rollover-ready";
 
     private final ByteSizeValue maxSize;
+    private final ByteSizeValue maxSinglePrimarySize;
     private final TimeValue maxAge;
     private final Long maxDocs;
 
-    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client, ByteSizeValue maxSize, TimeValue maxAge,
-                                    Long maxDocs) {
+    public WaitForRolloverReadyStep(StepKey key, StepKey nextStepKey, Client client,
+                                    ByteSizeValue maxSize, ByteSizeValue maxSinglePrimarySize, TimeValue maxAge, Long maxDocs) {
         super(key, nextStepKey, client);
         this.maxSize = maxSize;
+        this.maxSinglePrimarySize = maxSinglePrimarySize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
     }
@@ -139,11 +141,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (maxAge != null) {
-            rolloverRequest.addMaxIndexAgeCondition(maxAge);
-        }
         if (maxSize != null) {
             rolloverRequest.addMaxIndexSizeCondition(maxSize);
+        }
+        if (maxSinglePrimarySize != null) {
+            rolloverRequest.addMaxSinglePrimarySizeCondition(maxSinglePrimarySize);
+        }
+        if (maxAge != null) {
+            rolloverRequest.addMaxIndexAgeCondition(maxAge);
         }
         if (maxDocs != null) {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);
@@ -157,6 +162,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         return maxSize;
     }
 
+    ByteSizeValue getMaxSinglePrimarySize() {
+        return maxSinglePrimarySize;
+    }
+
     TimeValue getMaxAge() {
         return maxAge;
     }
@@ -167,7 +176,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode(), maxSize, maxSinglePrimarySize, maxAge, maxDocs);
     }
 
     @Override
@@ -181,6 +190,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
         return super.equals(obj) &&
             Objects.equals(maxSize, other.maxSize) &&
+            Objects.equals(maxSinglePrimarySize, other.maxSinglePrimarySize) &&
             Objects.equals(maxAge, other.maxAge) &&
             Objects.equals(maxDocs, other.maxDocs);
     }

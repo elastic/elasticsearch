@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -49,12 +50,16 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeValue maxSize = randomBoolean() ? null :
+            new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue maxSinglePrimarySize = randomBoolean() ? null :
+            new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxAge, maxDocs);
+        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxSinglePrimarySize, maxAge, maxDocs);
     }
 
     @Override
@@ -62,10 +67,11 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Step.StepKey key = instance.getKey();
         Step.StepKey nextKey = instance.getNextStepKey();
         ByteSizeValue maxSize = instance.getMaxSize();
+        ByteSizeValue maxSinglePrimarySize = instance.getMaxSinglePrimarySize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
 
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0:
                 key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
@@ -79,21 +85,27 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 });
                 break;
             case 3:
-                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
+                maxSinglePrimarySize = randomValueOtherThan(maxSinglePrimarySize, () -> {
+                    ByteSizeUnit maxSinglePrimarySizeUnit = randomFrom(ByteSizeUnit.values());
+                    return new ByteSizeValue(randomNonNegativeLong() / maxSinglePrimarySizeUnit.toBytes(1), maxSinglePrimarySizeUnit);
+                });
                 break;
             case 4:
+                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
+                break;
+            case 5:
                 maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxAge, maxDocs);
+        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxSinglePrimarySize, maxAge, maxDocs);
     }
 
     @Override
     protected WaitForRolloverReadyStep copyInstance(WaitForRolloverReadyStep instance) {
         return new WaitForRolloverReadyStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getMaxSize(), instance.getMaxAge(), instance.getMaxDocs());
+            instance.getMaxSize(), instance.getMaxSinglePrimarySize(), instance.getMaxAge(), instance.getMaxDocs());
     }
 
     private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget, Set<Condition<?>> expectedConditions) {
@@ -219,11 +231,14 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxSinglePrimarySize() != null) {
+                expectedConditions.add(new MaxSinglePrimarySizeCondition(step.getMaxSinglePrimarySize()));
+            }
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
@@ -388,11 +403,14 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxSinglePrimarySize() != null) {
+                expectedConditions.add(new MaxSinglePrimarySizeCondition(step.getMaxSinglePrimarySize()));
+            }
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
@@ -439,11 +457,14 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
             Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
             if (step.getMaxSize() != null) {
                 expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxSinglePrimarySize() != null) {
+                expectedConditions.add(new MaxSinglePrimarySizeCondition(step.getMaxSinglePrimarySize()));
+            }
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
             }
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));

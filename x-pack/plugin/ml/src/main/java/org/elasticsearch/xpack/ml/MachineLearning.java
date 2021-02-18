@@ -1124,13 +1124,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
-                new ParseField(ModelAliasMetadata.NAME),
-                ModelAliasMetadata::fromXContent
-            )
-        );
         return namedXContent;
     }
 

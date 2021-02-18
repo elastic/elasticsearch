@@ -50,7 +50,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     private static final long DISTINCT_BUCKETS = 21;
     /**
-     * Number of distinct values to add to values wit buckets.
+     * Number of distinct values to add to values within buckets.
      */
     private static final long DISTINCT_VALUES_IN_BUCKETS = 10;
 
@@ -157,34 +157,34 @@ public class LongKeyedBucketOrdsBenchmark {
     @Benchmark
     public void singleBucketIntoMulti(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
-            for (long i = 0; i < LIMIT; i++) {
-                ords.add(0, i % DISTINCT_VALUES);
-            }
-            if (ords.size() != DISTINCT_VALUES) {
-                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
-            }
+            singleBucketIntoMultiSmall(ords);
             bh.consume(ords);
         }
     }
 
     /**
-     * Emulates an aggregation that collects from a single bucket "by accident".
-     * This can happen if an aggregation is under, say, a {@code terms}
-     * aggregation and there is only a single value for that term in the index
-     * but we can't tell that up front.
+     * Emulates an aggregation that collects from a single bucket "by accident"
+     * and gets a "small" bucket ords. This can happen to a {@code terms} inside
+     * of another {@code terms} when the "inner" terms only even has a single
+     * bucket.
      */
     @Benchmark
     public void singleBucketIntoMultiSmall(Blackhole bh) {
         try (LongKeyedBucketOrds ords = new LongKeyedBucketOrds.FromManySmall(bigArrays, 60)) {
-            for (long i = 0; i < LIMIT; i++) {
-                ords.add(0, i % DISTINCT_VALUES);
-            }
-            if (ords.size() != DISTINCT_VALUES) {
-                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
-            }
+            singleBucketIntoMultiSmall(ords);
             bh.consume(ords);
         }
     }
+
+    private void singleBucketIntoMultiSmall(LongKeyedBucketOrds ords) {
+        for (long i = 0; i < LIMIT; i++) {
+            ords.add(0, i % DISTINCT_VALUES);
+        }
+        if (ords.size() != DISTINCT_VALUES) {
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+        }
+    }
+
 
     /**
      * Emulates an aggregation that collects from many buckets with a known

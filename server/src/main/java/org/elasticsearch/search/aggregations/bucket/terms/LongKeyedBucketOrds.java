@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import java.util.Locale;
 
 /**
- * Maps long bucket keys to bucket ordinals.
+ * Maps owning bucket ordinals and long bucket keys to bucket ordinals.
  */
 public abstract class LongKeyedBucketOrds implements Releasable {
     /**
@@ -31,7 +31,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * Build a {@link LongKeyedBucketOrds} who's values have known bounds.
      */
     public static LongKeyedBucketOrds buildForValueRange(BigArrays bigArrays, CardinalityUpperBound cardinality, long min, long max) {
-        return cardinality.map(cardinalityUpperBound -> {
+        return cardinality.map((int cardinalityUpperBound) -> {
             if (cardinalityUpperBound < 2) {
                 return new FromSingle(bigArrays);
             }
@@ -42,7 +42,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             int owningBucketOrdShift = Long.numberOfLeadingZeros(cardinalityUpperBound);
             int maxBits = 64 - Long.numberOfLeadingZeros(max);
             if (maxBits < owningBucketOrdShift) {
-                // There is enough space in a long to contain both the owning bucket or and the 
+                // There is enough space in a long to contain both the owning bucket and the entire range of values
                 return new FromManySmall(bigArrays, owningBucketOrdShift);
             }
             return new FromMany(bigArrays);
@@ -73,7 +73,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
    public abstract long find(long owningBucketOrd, long value);
 
     /**
-     * Returns the value currently associated with the bucket ordinal
+     * Returns the value currently associated with the bucket ordinal.
      */
     public abstract long get(long ordinal);
 
@@ -314,6 +314,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         }
     }
 
+    /**
+     * Implementation that packs the {@code owningbucketOrd} into the top
+     * bits of a {@code long} and uses the bottom bits for the value.
+     */
     public static class FromManySmall extends LongKeyedBucketOrds {
         private final LongHash ords;
         private final int owningBucketOrdShift;
@@ -326,7 +330,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         }
 
         private long encode(long owningBucketOrd, long value) {
-            // This is in the critical path for collecting lots of aggs. Be careful of performance.
+            // This is in the critical path for collecting some aggs. Be careful of performance.
             return (owningBucketOrd << owningBucketOrdShift) | value;
         }
 

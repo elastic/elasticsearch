@@ -3,10 +3,10 @@
 = Configuring {anomaly-detect} alerts
 
 {anomaly-detect-cap} alerts run scheduled checks on an {anomaly-job} or a group 
-of jobs to detect anomalies with certain conditions. If an {anomaly} meets the 
+of jobs to detect anomalies with certain conditions. If an anomaly meets the 
 conditions, the alert triggers the defined action. For example, you can create 
-an alert that checks an {anomaly-job} in every fifteen minutes for critical 
-anomalies and notify you in an email. This page helps you to configure an 
+an alert that checks an {anomaly-job} every fifteen minutes for critical 
+anomalies and notifies you in an email. This page helps you to configure an 
 {anomaly-detect} alert. To learn more about alerts in the {stack}, refer to 
 {kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
 
@@ -14,8 +14,8 @@ anomalies and notify you in an email. This page helps you to configure an
 [[creating-anomaly-alerts]]
 == Creating an alert
 
-{anomaly-detect-cap} alerts can be created in the {anomaly-job} wizard, from the 
-job list or under **Stack management > Alerts and Actions**. On the *Create 
+You can create {anomaly-detect} alerts in the {anomaly-job} wizard, from the 
+job list or under **{stack-manage-app} > {alerts-ui}**. On the *Create 
 alert* template, select *{anomaly-detect-cap} alert* under the {ml-cap} section, 
 then give a name to the alert and optionally provide tags.
 
@@ -39,8 +39,8 @@ alert. If you assign additional jobs to the group, the alert automatically
 checks the new jobs the next time when it runs.
 
 You can select the result type of the {anomaly-job} that triggers the alert. 
-{anomaly-detect-cap} produces three types of results: bucket, record, and 
-influencer. Bucket result type is selected by default.
+In particular, you can create alerts based on bucket, record, or 
+influencer results.
 
 [role="screenshot"]
 image::images/ml-anomaly-alert-severity.jpg["Selecting result type, severity, and test interval"]
@@ -55,8 +55,8 @@ providing a valid interval in the pertinent field. The generated preview
 contains the number of potentially created alert instances during the relative 
 time range you defined.
 
-NOTE: {anomaly-detect-cap} alert handles duplications. If you set an interval 
-that makes the alert to check the same bucket multiple times and the bucket 
+NOTE: {anomaly-detect-cap} alerts handle duplications. If you set an interval 
+that makes the alert check the same bucket multiple times and the bucket 
 contains an anomaly that meets the alert conditions, then the configured action 
 is triggered only once.
 

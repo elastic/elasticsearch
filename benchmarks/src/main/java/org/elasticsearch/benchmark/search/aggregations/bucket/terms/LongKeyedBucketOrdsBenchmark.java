@@ -185,7 +185,6 @@ public class LongKeyedBucketOrdsBenchmark {
         }
     }
 
-
     /**
      * Emulates an aggregation that collects from many buckets with a known
      * bounds on the values.

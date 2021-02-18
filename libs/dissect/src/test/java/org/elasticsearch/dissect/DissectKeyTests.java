@@ -112,7 +112,7 @@ public class DissectKeyTests extends ESTestCase {
     public void testMultipleLeftModifiers() {
         String keyName = randomAlphaOfLengthBetween(1, 10);
         List<String> validModifiers = EnumSet.allOf(DissectKey.Modifier.class).stream()
-            .filter(m -> !m.equals(DissectKey.Modifier.NONE))
+            .filter(m -> m.equals(DissectKey.Modifier.NONE) == false)
             .map(DissectKey.Modifier::toString)
             .collect(Collectors.toList());
         String modifier1 = randomFrom(validModifiers);

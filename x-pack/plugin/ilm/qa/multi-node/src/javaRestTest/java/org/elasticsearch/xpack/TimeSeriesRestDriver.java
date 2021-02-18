@@ -180,10 +180,14 @@ public final class TimeSeriesRestDriver {
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2," +
             "javaRestTest-3"), null, null));
+        Map<String, LifecycleAction> frozenActions = new HashMap<>();
+        frozenActions.put(SetPriorityAction.NAME, new SetPriorityAction(2));
+        frozenActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", ""), null, null));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
+        phases.put("frozen", new Phase("frozen", TimeValue.ZERO, frozenActions));
         phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
         // PUT policy
@@ -196,8 +200,9 @@ public final class TimeSeriesRestDriver {
         client.performRequest(request);
     }
 
-    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase, @Nullable Phase warmPhase,
-                                    @Nullable Phase coldPhase, @Nullable Phase deletePhase) throws IOException {
+    public static void createPolicy(RestClient client, String policyName, @Nullable Phase hotPhase,
+                                    @Nullable Phase warmPhase, @Nullable Phase coldPhase,
+                                    @Nullable Phase frozenPhase, @Nullable Phase deletePhase) throws IOException {
         if (hotPhase == null && warmPhase == null && coldPhase == null && deletePhase == null) {
             throw new IllegalArgumentException("specify at least one phase");
         }
@@ -210,6 +215,9 @@ public final class TimeSeriesRestDriver {
         }
         if (coldPhase != null) {
             phases.put("cold", coldPhase);
+        }
+        if (frozenPhase != null) {
+            phases.put("frozen", frozenPhase);
         }
         if (deletePhase != null) {
             phases.put("delete", deletePhase);

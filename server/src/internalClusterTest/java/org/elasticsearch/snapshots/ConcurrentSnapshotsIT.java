@@ -142,7 +142,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final PlainActionFuture<Collection<AcknowledgedResponse>> allDeletesDone = new PlainActionFuture<>();
         final ActionListener<AcknowledgedResponse> deletesListener = new GroupedActionListener<>(allDeletesDone, deleteFutures.size());
         for (StepListener<AcknowledgedResponse> deleteFuture : deleteFutures) {
-            deleteFuture.whenComplete(deletesListener::onResponse, deletesListener::onFailure);
+            deleteFuture.addListener(deletesListener);
         }
         allDeletesDone.get();
 
@@ -823,8 +823,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete("index-two"));
         unblockNode(repoName, masterNode);
 
-        assertThat(snapshotThree.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
-        assertThat(snapshotFour.get().getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+        assertThat(snapshotThree.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        assertThat(snapshotFour.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
         assertAcked(deleteFuture.get());
     }
 

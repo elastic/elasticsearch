@@ -130,6 +130,14 @@ getting or searching for a document.
 // end::document-def[]
 --
 
+[[glossary-eql]]
+Event Query Language (EQL) ::
+// tag::eql-def[]
+A query language for event-based time series data, such as logs, metrics, and
+traces. EQL supports matching for event sequences. In the {security-app}, you
+use EQL to write event correlation rules. See {ref}/eql.html[EQL].
+// end::eql-def[]
+
 [[glossary-field]] field ::
 +
 --
@@ -193,7 +201,7 @@ See the {ref}/indices-forcemerge.html[force merge API].
 // tag::freeze-def-short[]
 Make an index read-only and minimize its memory footprint.
 // end::freeze-def-short[]
-Frozen indices can be searched without incurring the overhead of of re-opening a closed index,
+Frozen indices can be searched without incurring the overhead of re-opening a closed index,
 but searches are throttled and might be slower.
 You can freeze indices to reduce the overhead of keeping older indices searchable
 before you are ready to archive or delete them.
@@ -206,6 +214,19 @@ An index reduced to a low overhead state that still enables occasional searches.
 Frozen indices use a memory-efficient shard implementation and throttle searches to conserve resources.
 Searching a frozen index is lower overhead than re-opening a closed index to enable searching.
 // end::frozen-index-def[]
+
+[[glossary-frozen-phase]] frozen phase ::
+// tag::frozen-phase-def[]
+The fourth possible phase in the <<glossary-index-lifecycle,index lifecycle>>.
+In the frozen phase, an index is no longer updated and queried rarely.
+The information still needs to be searchable, but it’s okay if those queries are extremely slow.
+// end::frozen-phase-def[]
+
+[[glossary-frozen-tier]] frozen tier::
+// tag::frozen-tier-def[]
+A <<glossary-data-tier, data tier>> that contains nodes that hold time series data
+that is accessed rarely and not normally updated.
+// end::frozen-tier-def[]
 
 [[glossary-hidden-index]] hidden index ::
 // tag::hidden-index-def[]

@@ -39,7 +39,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME_NANOS;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -114,9 +113,6 @@ public final class SqlDataTypeConverter {
             if (isInterval(left)) {
                 return DATETIME;
             }
-        }
-        if (isDateTime(left) && isDateTime(right)) {
-            return DATETIME_NANOS;
         }
 
         // Interval * integer is a valid operation

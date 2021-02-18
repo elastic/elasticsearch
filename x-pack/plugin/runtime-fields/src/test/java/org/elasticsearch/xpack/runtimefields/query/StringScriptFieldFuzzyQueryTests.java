@@ -69,7 +69,7 @@ public class StringScriptFieldFuzzyQueryTests extends AbstractStringScriptFieldQ
                 prefixLength += 1;
                 break;
             case 5:
-                transpositions = !transpositions;
+                transpositions = transpositions == false;
                 break;
             default:
                 fail();

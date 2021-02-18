@@ -397,10 +397,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     public void testJobRelocationIsMemoryAware() throws Exception {
-
-        // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
-
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();
 

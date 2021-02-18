@@ -14,10 +14,14 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -189,6 +193,26 @@ public class SystemIndexDescriptor {
     }
 
     /**
+     * Retrieves a list of all indices which match this descriptor's pattern.
+     *
+     * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
+     * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
+     *
+     * @param metadata The current metadata to get the list of matching indices from
+     * @return A list of index names that match this descriptor
+     */
+    public List<String> getMatchingIndices(Metadata metadata) {
+        ArrayList<String> matchingIndices = new ArrayList<>();
+        metadata.indices().keysIt().forEachRemaining(indexName -> {
+            if (matchesIndexPattern(indexName)) {
+                matchingIndices.add(indexName);
+            }
+        });
+
+        return Collections.unmodifiableList(matchingIndices);
+    }
+
+    /**
      * @return A short description of the purpose of this system index.
      */
     public String getDescription() {
@@ -265,7 +289,7 @@ public class SystemIndexDescriptor {
         private String indexPattern;
         private String primaryIndex;
         private String description;
-        private XContentBuilder mappingsBuilder = null;
+        private String mappings = null;
         private Settings settings = null;
         private String aliasName = null;
         private int indexFormat = 0;
@@ -291,7 +315,12 @@ public class SystemIndexDescriptor {
         }
 
         public Builder setMappings(XContentBuilder mappingsBuilder) {
-            this.mappingsBuilder = mappingsBuilder;
+            mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
+            return this;
+        }
+
+        public Builder setMappings(String mappings) {
+            this.mappings = mappings;
             return this;
         }
 
@@ -330,7 +359,6 @@ public class SystemIndexDescriptor {
          * @return a populated descriptor.
          */
         public SystemIndexDescriptor build() {
-            String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
             return new SystemIndexDescriptor(
                 indexPattern,

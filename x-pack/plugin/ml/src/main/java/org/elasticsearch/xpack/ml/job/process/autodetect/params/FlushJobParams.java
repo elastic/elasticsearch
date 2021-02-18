@@ -194,7 +194,7 @@ public class FlushJobParams {
         }
 
         private boolean isValidTimeRange(TimeRange timeRange) {
-            return !timeRange.getStart().isEmpty() || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
+            return timeRange.getStart().isEmpty() == false || (timeRange.getStart().isEmpty() && timeRange.getEnd().isEmpty());
         }
     }
 }

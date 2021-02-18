@@ -51,6 +51,13 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.xpack.runtimefields.mapper.BooleanScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.DateScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.DoubleScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.IpScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.KeywordScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.LongScriptFieldType;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -131,6 +138,14 @@ public class IndicesModule extends AbstractModule {
 
     private static Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
         Map<String, RuntimeFieldType.Parser> runtimeParsers = new LinkedHashMap<>();
+        runtimeParsers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER);
+        runtimeParsers.put(NumberFieldMapper.NumberType.DOUBLE.typeName(), DoubleScriptFieldType.PARSER);
+        runtimeParsers.put(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER);
+        runtimeParsers.put(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER);
+        runtimeParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER);
+        runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
+
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
                 if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {

@@ -58,12 +58,12 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         String indexName = "test-000001";
         // create policy_1 and policy_2
         Map<String, Phase> phases1 = new HashMap<>();
-        phases1.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, 1L))));
+        phases1.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L))));
         phases1.put("warm", new Phase("warm", TimeValue.ZERO,
                 singletonMap(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "foobarbaz"), null, null))));
         LifecyclePolicy lifecyclePolicy1 = new LifecyclePolicy("policy_1", phases1);
         Map<String, Phase> phases2 = new HashMap<>();
-        phases2.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, 1000L))));
+        phases2.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L))));
         phases2.put("warm", new Phase("warm", TimeValue.ZERO,
                 singletonMap(AllocateAction.NAME,
                     new AllocateAction(1, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"),

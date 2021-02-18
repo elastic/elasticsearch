@@ -35,23 +35,17 @@ if "%ES_BUNDLED_JDK%" == "false" (
 
 cd /d "%ES_HOME%"
 
-rem now set the path to java, pass "nojava" arg to skip setting JAVA_HOME and JAVA
+rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
 if "%1" == "nojava" (
    exit /b
 )
 
 rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching ES
-rem by setting JAVA_HOME=
+rem by setting ES_JAVA_HOME=
 if defined ES_JAVA_HOME (
   set JAVA="%ES_JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=ES_JAVA_HOME
-) else if defined JAVA_HOME (
-  rem fallback to JAVA_HOME
-  echo "warning: usage of JAVA_HOME is deprecated, use ES_JAVA_HOME" >&2
-  set JAVA="%JAVA_HOME%\bin\java.exe"
-  set "ES_JAVA_HOME=%JAVA_HOME%"
-  set JAVA_TYPE=JAVA_HOME
 ) else (
   rem use the bundled JDK (default)
   set JAVA="%ES_HOME%\jdk\bin\java.exe"
@@ -68,6 +62,11 @@ rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if defined JAVA_TOOL_OPTIONS (
   echo warning: ignoring JAVA_TOOL_OPTIONS=%JAVA_TOOL_OPTIONS%
   set JAVA_TOOL_OPTIONS=
+)
+
+rem warn that we are not observing the value of $JAVA_HOME
+if defined JAVA_HOME (
+  echo warning: ignoring JAVA_HOME=%JAVA_HOME%; using %JAVA_TYPE% >&2
 )
 
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we

@@ -1254,9 +1254,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final String failure = entry.failure();
             final Snapshot snapshot = entry.snapshot();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
+            final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
+            final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList());
+            final Set<String> indexNames = new HashSet<>(finalIndices);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
                 ShardId shardId = shardStatus.key;
+                if (indexNames.contains(shardId.getIndexName()) == false) {
+                    assert entry.partial() : "only ignoring shard failures for concurrently deleted indices for partial snapshots";
+                    continue;
+                }
                 ShardSnapshotStatus status = shardStatus.value;
                 final ShardState state = status.state();
                 if (state.failed()) {
@@ -1267,7 +1274,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     assert state == ShardState.SUCCESS;
                 }
             }
-            final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
             final String repository = snapshot.getRepository();
             final StepListener<Metadata> metadataListener = new StepListener<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
@@ -1297,9 +1303,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             metadataListener.whenComplete(meta -> {
                         final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
-                        final List<String> finalIndices = shardGenerations.indices().stream()
-                            .map(IndexId::getName)
-                            .collect(Collectors.toList());
                         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
                                 finalIndices,
                                 entry.partial() ? entry.dataStreams().stream()

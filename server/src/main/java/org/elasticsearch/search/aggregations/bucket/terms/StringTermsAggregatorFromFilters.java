@@ -68,6 +68,9 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
+            return null;
+        }
         List<String> keys = new ArrayList<>();
         List<Query> filters = new ArrayList<>();
         TermsEnum terms = values.termsEnum();
@@ -94,7 +97,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         StringTermsAggregatorFromFilters adapted = new StringTermsAggregatorFromFilters(
             parent,
             factories,
-            subAggs -> FiltersAggregator.buildFilterOrderOrNull(
+            subAggs -> FiltersAggregator.buildFilterByFilter(
                 name,
                 subAggs,
                 keys.toArray(String[]::new),

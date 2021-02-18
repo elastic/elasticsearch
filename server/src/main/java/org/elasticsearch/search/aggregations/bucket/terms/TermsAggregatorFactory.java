@@ -59,6 +59,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * aggregating it "filter by filter". "Filter by filter" aggregation is
      * generally faster when possible but takes more memory because we have
      * to build the filters.
+     * <p>
+     * The value that we have here is a fairly wild guess. At the time of
+     * writing we figure each filter clause takes a couple of kb worth of
+     * accounting so this is in the neighborhood of one megabyte of memory.
+     * <p>
+     * Secondly, this is a fairly crude heuristic. If the terms agg was going
+     * to take up nearly as much memory anyway it might be worth it to use
+     * filters. More experiment is required.
      */
     static final long MAX_ORDS_TO_TRY_FILTERS = 1000;
 

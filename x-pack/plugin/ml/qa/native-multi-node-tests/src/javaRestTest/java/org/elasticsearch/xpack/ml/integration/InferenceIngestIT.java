@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This is a {@link ESRestTestCase} because the cleanup code in {@link ExternalTestCluster#ensureEstimatedStats()} causes problems
@@ -233,7 +234,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             assertThat(responseString, containsString("\"model_id\":\"test_regression_2\""));
         }, 30, TimeUnit.SECONDS);
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
         }
 
@@ -245,20 +246,24 @@ public class InferenceIngestIT extends ESRestTestCase {
             QueryBuilders.boolQuery()
                 .filter(
                     QueryBuilders.existsQuery("ml.inference.regression.predicted_value"))));
-        // Verify we have 15 documents that contain a predicted value for regression
-        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":15"));
+        // Verify we have 20 documents that contain a predicted value for regression
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":20"));
 
+
+        // Since this is a multi-node cluster, the model could be loaded and cached on one ingest node but not the other
+        // Consequently, we should only verify that some of the documents refer to the first regression model
+        // and some refer to the second.
         searchResponse = client().performRequest(searchRequest("index_for_inference_test",
             QueryBuilders.boolQuery()
                 .filter(
                     QueryBuilders.termQuery("ml.inference.regression.model_id.keyword", regressionModelId))));
-        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), not(containsString("\"value\":0")));
 
         searchResponse = client().performRequest(searchRequest("index_for_inference_test",
             QueryBuilders.boolQuery()
                 .filter(
                     QueryBuilders.termQuery("ml.inference.regression.model_id.keyword", regressionModelId2))));
-        assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":5"));
+        assertThat(EntityUtils.toString(searchResponse.getEntity()), not(containsString("\"value\":0")));
 
         assertBusy(() -> {
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, client().performRequest(new Request("GET",

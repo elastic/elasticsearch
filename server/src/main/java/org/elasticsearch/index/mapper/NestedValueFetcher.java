@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
@@ -79,5 +80,10 @@ public class NestedValueFetcher implements ValueFetcher {
             next = newMap;
         }
         return next;
+    }
+
+    @Override
+    public void setNextReader(LeafReaderContext context) {
+        this.nestedFieldFetcher.setNextReader(context);
     }
 }

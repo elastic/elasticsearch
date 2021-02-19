@@ -20,8 +20,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -48,7 +50,12 @@ public final class FrozenEngine extends ReadOnlyEngine {
     private final ElasticsearchDirectoryReader canMatchReader;
 
     public FrozenEngine(EngineConfig config, boolean requireCompleteHistory) {
-        super(config, null, null, true, Function.identity(), requireCompleteHistory);
+        this(config, null, null, true, Function.identity(), requireCompleteHistory);
+    }
+
+    public FrozenEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
+                        Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory) {
+        super(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory);
 
         boolean success = false;
         Directory directory = store.directory();

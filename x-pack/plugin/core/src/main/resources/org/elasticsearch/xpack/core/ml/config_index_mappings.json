@@ -464,6 +464,10 @@
           "query" : {
             "type" : "object",
             "enabled" : false
+          },
+          "runtime_mappings" : {
+            "type" : "object",
+            "enabled" : false
           }
         }
       },

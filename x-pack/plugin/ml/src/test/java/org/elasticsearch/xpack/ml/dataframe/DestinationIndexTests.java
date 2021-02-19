@@ -463,7 +463,7 @@ public class DestinationIndexTests extends ESTestCase {
     private static DataFrameAnalyticsConfig createConfig(DataFrameAnalysis analysis) {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(ANALYTICS_ID)
-            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null))
+            .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null, null, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
             .setAnalysis(analysis)
             .build();

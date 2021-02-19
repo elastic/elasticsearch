@@ -64,7 +64,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(new DataFrameAnalyticsConfig.Builder()
             .setId("analytics-with-stats")
             .setModelMemoryLimit(ByteSizeValue.ofGb(1))
-            .setSource(new DataFrameAnalyticsSource(new String[]{"foo"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[]{"foo"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("bar", null))
             .setAnalysis(new Regression("prediction"))
             .build());

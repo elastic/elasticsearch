@@ -65,6 +65,14 @@ public final class ByteRange implements Comparable<ByteRange> {
         return start >= range.start() && end <= range.end();
     }
 
+    public boolean contains(long start, long end) {
+        return start() <= start && end <= end();
+    }
+
+    public ByteRange withOffset(long offset) {
+        return ByteRange.of(offset + start(), offset + end());
+    }
+
     @Override
     public int hashCode() {
         return 31 * Long.hashCode(start) + Long.hashCode(end);

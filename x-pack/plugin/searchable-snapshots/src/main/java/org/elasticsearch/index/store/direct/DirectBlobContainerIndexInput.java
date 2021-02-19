@@ -18,6 +18,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
+import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -25,6 +27,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -67,7 +70,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private static final int COPY_BUFFER_SIZE = 8192;
 
     public DirectBlobContainerIndexInput(
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -76,7 +79,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     ) {
         this(
             "DirectBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
-            blobContainer,
+            directory,
             fileInfo,
             context,
             stats,
@@ -84,14 +87,15 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             0L,
             fileInfo.length(),
             sequentialReadSize,
-            bufferSize
+            bufferSize,
+            blobCacheByteRanges(fileInfo.physicalName(), fileInfo.length())
         );
         stats.incrementOpenCount();
     }
 
     private DirectBlobContainerIndexInput(
         String resourceDesc,
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -99,9 +103,10 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long offset,
         long length,
         long sequentialReadSize,
-        int bufferSize
+        int bufferSize,
+        List<ByteRange> blobCacheByteRanges
     ) {
-        super(logger, resourceDesc, blobContainer, fileInfo, context, stats, offset, length);
+        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, blobCacheByteRanges);
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
@@ -189,6 +194,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         return read;
     }
 
+    @Override
+    protected void onReadComplete(long position, int length) {}
+
     private void closeStreamForSequentialReads() throws IOException {
         try {
             IOUtils.close(streamForSequentialReads);
@@ -271,7 +279,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     public DirectBlobContainerIndexInput clone() {
         final DirectBlobContainerIndexInput clone = new DirectBlobContainerIndexInput(
             "clone(" + this + ")",
-            blobContainer,
+            directory,
             fileInfo,
             context,
             stats,
@@ -281,7 +289,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // Clones might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
             // solution: do not optimize sequential reads on clones.
             NO_SEQUENTIAL_READ_OPTIMIZATION,
-            getBufferSize()
+            getBufferSize(),
+            blobCacheByteRanges
         );
         clone.isClone = true;
         return clone;
@@ -292,7 +301,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
             final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
                 getFullSliceDescription(sliceDescription),
-                blobContainer,
+                directory,
                 fileInfo,
                 context,
                 stats,
@@ -302,7 +311,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
                 // solution: do not optimize sequential reads on slices.
                 NO_SEQUENTIAL_READ_OPTIMIZATION,
-                getBufferSize()
+                getBufferSize(),
+                getBlobCacheByteRangesForSlice(sliceDescription, offset, length)
             );
             slice.isClone = true;
             slice.seek(0L);

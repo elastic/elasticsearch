@@ -333,4 +333,35 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         }
         return Tuple.tuple(checksum, out.toArrayCopy());
     }
+
+    public static String randomFileExtension() {
+        return randomFrom(
+            ".cfe",
+            ".cfs",
+            ".dii",
+            ".dim",
+            ".doc",
+            ".dvd",
+            ".dvm",
+            ".fdt",
+            ".fdx",
+            ".fdm",
+            ".fnm",
+            ".kdd",
+            ".kdi",
+            ".kdm",
+            ".liv",
+            ".nvd",
+            ".nvm",
+            ".pay",
+            ".pos",
+            ".tim",
+            ".tip",
+            ".tmd",
+            ".tvd",
+            ".tvx",
+            ".vec",
+            ".vem"
+        );
+    }
 }

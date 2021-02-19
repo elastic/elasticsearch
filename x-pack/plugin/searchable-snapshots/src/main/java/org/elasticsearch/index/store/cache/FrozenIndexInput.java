@@ -13,12 +13,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
-import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -34,6 +30,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -48,7 +45,6 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
     private static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
 
-    private final SearchableSnapshotDirectory directory;
     private final FrozenCacheFile frozenCacheFile;
     private final int defaultRangeSize;
     private final int recoveryRangeSize;
@@ -76,9 +72,9 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             fileInfo.length(),
             directory.getFrozenCacheFile(fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
-            recoveryRangeSize
+            recoveryRangeSize,
+            blobCacheByteRanges(fileInfo.physicalName(), fileInfo.length())
         );
-        assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
         stats.incrementOpenCount();
     }
 
@@ -92,10 +88,10 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         long length,
         FrozenCacheFile frozenCacheFile,
         int rangeSize,
-        int recoveryRangeSize
+        int recoveryRangeSize,
+        List<ByteRange> blobCacheByteRanges
     ) {
-        super(logger, resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
-        this.directory = directory;
+        super(logger, resourceDesc, directory, fileInfo, context, stats, offset, length, blobCacheByteRanges);
         this.frozenCacheFile = frozenCacheFile;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
@@ -124,7 +120,7 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
     @Override
     protected void doReadInternal(ByteBuffer b) throws IOException {
         ensureContext(ctx -> ctx != CACHE_WARMING_CONTEXT);
-        final long position = getFilePointer() + this.offset;
+        final long position = getAbsolutePosition();
         final int length = b.remaining();
 
         final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
@@ -144,132 +140,44 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
         logger.trace("readInternal: read [{}-{}] ([{}] bytes) from [{}]", position, position + length, length, this);
 
         try {
-            // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
-
-            final StepListener<Integer> waitingForRead = frozenCacheFile.readIfAvailableOrPending(
-                ByteRange.of(position, position + length),
-                (channel, pos, relativePos, len) -> {
-                    final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
-                    assert read <= length : read + " vs " + length;
-                    return read;
-                }
-            );
-
-            if (waitingForRead != null) {
-                final Integer read = waitingForRead.asFuture().get();
-                assert read == length;
-                assert luceneByteBufLock.getReadHoldCount() == 0;
-                preventAsyncBufferChanges.run();
-                b.position(read); // mark all bytes as accounted for
-                readComplete(position, length);
-                return;
-            }
-
-            // Requested data is not on disk, so try the cache index next.
-
+            // Are we trying to read data that should be present in blob cache index?
             final ByteRange indexCacheMiss; // null if not a miss
-
-            // We try to use the cache index if:
-            // - the file is small enough to be fully cached
-            final boolean canBeFullyCached = fileInfo.length() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE * 2;
-            // - we're reading the first N bytes of the file
-            final boolean isStartOfFile = (position + length <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
-
-            if (canBeFullyCached || isStartOfFile) {
-                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), 0L, length);
-
-                if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
-                    // We would have liked to find a cached entry but we did not find anything: the cache on the disk will be requested
-                    // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
-                    // {start, end} where positions are relative to the whole file.
-
-                    if (canBeFullyCached) {
-                        // if the index input is smaller than twice the size of the blob cache, it will be fully indexed
-                        indexCacheMiss = ByteRange.of(0L, fileInfo.length());
-                    } else {
-                        // the index input is too large to fully cache, so just cache the initial range
-                        indexCacheMiss = ByteRange.of(0L, (long) BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE);
-                    }
-
-                    // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
-                    // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
-                } else {
-                    logger.trace(
-                        "reading [{}] bytes of file [{}] at position [{}] using cache index",
-                        length,
-                        fileInfo.physicalName(),
-                        position
-                    );
-                    stats.addIndexCacheBytesRead(cachedBlob.length());
-
-                    preventAsyncBufferChanges.run();
-
-                    final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(toIntBytes(position), length).iterator();
-                    int copiedBytes = 0;
-                    BytesRef bytesRef;
-                    while ((bytesRef = cachedBytesIterator.next()) != null) {
-                        b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                        copiedBytes += bytesRef.length;
-                    }
-                    assert copiedBytes == length : "copied " + copiedBytes + " but expected " + length;
-
-                    try {
-                        final ByteRange cachedRange = ByteRange.of(cachedBlob.from(), cachedBlob.to());
-                        frozenCacheFile.populateAndRead(
-                            cachedRange,
-                            cachedRange,
-                            (channel, channelPos, relativePos, len) -> Math.toIntExact(len),
-                            (channel, channelPos, relativePos, len, progressUpdater) -> {
-                                assert len <= cachedBlob.to() - cachedBlob.from();
-                                final long startTimeNanos = stats.currentTimeNanos();
-                                final BytesRefIterator iterator = cachedBlob.bytes()
-                                    .slice(toIntBytes(relativePos), toIntBytes(len))
-                                    .iterator();
-                                long writePosition = channelPos;
-                                long bytesCopied = 0L;
-                                BytesRef current;
-                                while ((current = iterator.next()) != null) {
-                                    final ByteBuffer byteBuffer = ByteBuffer.wrap(current.bytes, current.offset, current.length);
-                                    while (byteBuffer.remaining() > 0) {
-                                        final long bytesWritten = positionalWrite(channel, writePosition, byteBuffer);
-                                        bytesCopied += bytesWritten;
-                                        writePosition += bytesWritten;
-                                        progressUpdater.accept(bytesCopied);
-                                    }
-                                }
-                                long channelTo = channelPos + len;
-                                assert writePosition == channelTo : writePosition + " vs " + channelTo;
-                                final long endTimeNanos = stats.currentTimeNanos();
-                                stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
-                                logger.trace(
-                                    "copied bytes [{}-{}] of file [{}] from cache index to disk",
-                                    relativePos,
-                                    relativePos + len,
-                                    fileInfo
-                                );
-                            },
-                            directory.cacheFetchAsyncExecutor()
-                        );
-                    } catch (Exception e) {
-                        logger.debug(
-                            new ParameterizedMessage(
-                                "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
-                                cachedBlob.from(),
-                                cachedBlob.to(),
-                                fileInfo
-                            ),
-                            e
-                        );
-                        // oh well, no big deal, at least we can return them to the caller.
-                    }
-
-                    readComplete(position, length);
-
-                    return;
-                }
+            if (tryReadFromBlobCache()) {
+                indexCacheMiss = getBlobCacheByteRange(position, length);
             } else {
                 // requested range is not eligible for caching
                 indexCacheMiss = null;
+
+                // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
+
+                final StepListener<Integer> waitingForRead = frozenCacheFile.readIfAvailableOrPending(
+                    ByteRange.of(position, position + length),
+                    (channel, pos, relativePos, len) -> {
+                        final int read = readCacheFile(
+                            channel,
+                            pos,
+                            relativePos,
+                            len,
+                            b,
+                            position,
+                            true,
+                            luceneByteBufLock,
+                            stopAsyncReads
+                        );
+                        assert read <= length : read + " vs " + length;
+                        return read;
+                    }
+                );
+
+                if (waitingForRead != null) {
+                    final Integer read = waitingForRead.asFuture().get();
+                    assert read == length;
+                    assert luceneByteBufLock.getReadHoldCount() == 0;
+                    preventAsyncBufferChanges.run();
+                    b.position(read); // mark all bytes as accounted for
+                    onReadComplete(position, length);
+                    return;
+                }
             }
 
             // Requested data is also not in the cache index, so we must visit the blob store to satisfy both the target range and any
@@ -316,11 +224,12 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
                 final int indexCacheMissLength = toIntBytes(indexCacheMiss.length());
+                // Revisit this:
                 // We assume that we only cache small portions of blobs so that we do not need to:
                 // - use a BigArrays for allocation
                 // - use an intermediate copy buffer to read the file in sensibly-sized chunks
                 // - release the buffer once the indexing operation is complete
-                assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
+                // assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
 
                 final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
 
@@ -395,10 +304,11 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             // already a rare case caused by an overfull/undersized cache.
         }
 
-        readComplete(position, length);
+        onReadComplete(position, length);
     }
 
-    private void readComplete(long position, int length) {
+    @Override
+    protected void onReadComplete(long position, int length) {
         stats.incrementBytesRead(lastReadPosition, position, length);
         lastReadPosition = position + length;
         lastSeekPosition = lastReadPosition;
@@ -642,7 +552,8 @@ public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
             length,
             frozenCacheFile,
             defaultRangeSize,
-            recoveryRangeSize
+            recoveryRangeSize,
+            getBlobCacheByteRangesForSlice(sliceDescription, offset, length)
         );
         slice.isClone = true;
         return slice;

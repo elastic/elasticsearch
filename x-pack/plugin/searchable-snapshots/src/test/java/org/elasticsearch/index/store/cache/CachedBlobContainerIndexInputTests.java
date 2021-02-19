@@ -63,7 +63,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             ShardId shardId = new ShardId("_name", "_uuid", 0);
 
             for (int i = 0; i < 5; i++) {
-                final String fileName = randomAlphaOfLength(10);
+                final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
 
                 final byte[] input = bytes.v2();
@@ -178,7 +178,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             IndexId indexId = new IndexId("_name", "_uuid");
             ShardId shardId = new ShardId("_name", "_uuid", 0);
 
-            final String fileName = randomAlphaOfLength(10);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
             final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 1000));
 
             final byte[] input = bytes.v2();

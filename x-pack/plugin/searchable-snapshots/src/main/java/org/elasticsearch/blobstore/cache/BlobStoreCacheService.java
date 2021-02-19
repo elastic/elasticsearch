@@ -10,6 +10,7 @@ package org.elasticsearch.blobstore.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -24,14 +25,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -40,8 +43,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORI
 public class BlobStoreCacheService {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
-
-    public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(4);
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -154,5 +155,71 @@ public class BlobStoreCacheService {
             logger.warn(new ParameterizedMessage("cache fill failure: [{}]", CachedBlob.generateId(repository, name, path, offset)), e);
             listener.onFailure(e);
         }
+    }
+
+    private static Set<String> METADATA_FILES_EXTENSIONS = Set.of(
+        "cfe", // compound file's entry table
+        "dvm", // doc values metadata file
+        "fdm", // stored fields metadata file
+        "fnm", // field names metadata file
+        "kdm", // Lucene 8.6 point format metadata file
+        "nvm", // norms metadata file
+        "tmd", // Lucene 8.6 terms metadata file
+        "tvm", // terms vectors metadata file
+        "vem" // Lucene 9.0 indexed vectors metadata
+    );
+
+    private static Set<String> NON_METADATA_FILES_EXTENSIONS = Set.of(
+        "cfs",
+        "dii",
+        "dim",
+        "doc",
+        "dvd",
+        "fdt",
+        "fdx",
+        "kdd",
+        "kdi",
+        "liv",
+        "nvd",
+        "pay",
+        "pos",
+        "tim",
+        "tip",
+        "tvd",
+        "tvx",
+        "vec"
+    );
+
+    /**
+     * Computes the {@link ByteRange} corresponding to the header of a Lucene file. This range can vary depending of the type of the file
+     * which is indicated by the file's extension. The returned byte range can never be larger than the file's length but it can be smaller.
+     *
+     * @param fileName the name of the file
+     * @param fileLength the length of the file
+     * @return
+     */
+    public static ByteRange computeHeaderByteRange(String fileName, long fileLength) {
+        assert Sets.intersection(METADATA_FILES_EXTENSIONS, NON_METADATA_FILES_EXTENSIONS).isEmpty();
+        final String fileExtension = IndexFileNames.getExtension(fileName);
+        if (METADATA_FILES_EXTENSIONS.contains(fileExtension)) {
+            return upTo64kb(fileLength);
+        } else {
+            if (NON_METADATA_FILES_EXTENSIONS.contains(fileExtension) == false) {
+                // TODO maybe log less?
+                logger.warn("Blob store cache failed to detect Lucene file extension [{}], using default cache file size", fileExtension);
+            }
+            return upTo1kb(fileLength);
+        }
+    }
+
+    private static ByteRange upTo64kb(long fileLength) {
+        if (fileLength > 65536L) {
+            return upTo1kb(fileLength);
+        }
+        return ByteRange.of(0L, fileLength);
+    }
+
+    private static ByteRange upTo1kb(long fileLength) {
+        return ByteRange.of(0L, Math.min(fileLength, 1024L));
     }
 }

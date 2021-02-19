@@ -659,8 +659,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
             final Path shardSnapshotDir = createTempDir();
             for (int i = 0; i < nbRandomFiles; i++) {
-                final String fileName = "file_" + randomAlphaOfLength(10);
-
+                final String fileName = randomAlphaOfLength(5) + randomFileExtension();
                 final Tuple<String, byte[]> bytes = randomChecksumBytes(randomIntBetween(1, 100_000));
                 final byte[] input = bytes.v2();
                 final String checksum = bytes.v1();

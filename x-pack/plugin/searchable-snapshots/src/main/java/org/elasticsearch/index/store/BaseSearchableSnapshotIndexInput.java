@@ -7,33 +7,46 @@
 package org.elasticsearch.index.store;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.Version;
+import org.elasticsearch.blobstore.cache.CachedBlob;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.cache.ByteRange;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.blobstore.cache.BlobStoreCacheService.computeHeaderByteRange;
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
     protected final Logger logger;
+    protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
     protected final IOContext context;
     protected final IndexInputStats stats;
     protected final long offset;
     protected final long length;
+    protected final List<ByteRange> blobCacheByteRanges;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     protected volatile boolean isClone;
@@ -42,16 +55,18 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     public BaseSearchableSnapshotIndexInput(
         Logger logger,
         String resourceDesc,
-        BlobContainer blobContainer,
+        SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
         long offset,
-        long length
+        long length,
+        List<ByteRange> blobCacheByteRanges
     ) {
         super(resourceDesc, context);
         this.logger = Objects.requireNonNull(logger);
-        this.blobContainer = Objects.requireNonNull(blobContainer);
+        this.directory = Objects.requireNonNull(directory);
+        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
@@ -61,6 +76,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.length = length;
         this.closed = new AtomicBoolean(false);
         this.isClone = false;
+        this.blobCacheByteRanges = Objects.requireNonNull(blobCacheByteRanges);
     }
 
     @Override
@@ -68,9 +84,17 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return length;
     }
 
+    protected long getAbsolutePosition() {
+        final long position = getFilePointer() + this.offset;
+        assert position >= 0L : "absolute position is negative: " + position;
+        assert position <= fileInfo.length() : position + " vs " + fileInfo.length();
+        return position;
+    }
+
     @Override
     protected final void readInternal(ByteBuffer b) throws IOException {
         assert assertCurrentThreadIsNotCacheFetchAsync();
+        final int remaining = b.remaining();
 
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
@@ -78,12 +102,34 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             logger.trace("read footer of file [{}], bypassing all caches", fileInfo.physicalName());
             assert b.remaining() == 0L : b.remaining();
             return;
+
+            // We can maybe use the blob store cache to execute this read operation
+        } else if (maybeReadFromBlobCache(b)) {
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "read [{}] bytes of file [{}] at position [{}] using blob cache index",
+                    remaining,
+                    fileInfo.physicalName(),
+                    getAbsolutePosition()
+                )
+            );
+            assert b.remaining() == 0L : b.remaining();
+            return;
         }
 
+        assert b.remaining() == remaining;
         doReadInternal(b);
     }
 
     protected abstract void doReadInternal(ByteBuffer b) throws IOException;
+
+    /**
+     * Called after a read operation completes
+     *
+     * @param position the position where the read operation started
+     * @param length the number of bytes read
+     */
+    protected abstract void onReadComplete(long position, int length);
 
     /**
      * Detects read operations that are executed on the last 16 bytes of the index input which is where Lucene stores the footer checksum
@@ -98,7 +144,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         if (remaining != CodecUtil.footerLength()) {
             return false;
         }
-        final long position = getFilePointer() + this.offset;
+        final long position = getAbsolutePosition();
         if (position != fileInfo.length() - CodecUtil.footerLength()) {
             return false;
         }
@@ -108,6 +154,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         boolean success = false;
         try {
             b.put(checksumToBytesArray(fileInfo.checksum()));
+            onReadComplete(position, remaining);
             success = true;
         } catch (NumberFormatException e) {
             // tests disable this optimisation by passing an invalid checksum
@@ -115,6 +162,86 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             assert b.remaining() == (success ? 0L : remaining) : b.remaining() + " remaining bytes but success is " + success;
         }
         return success;
+    }
+
+    /**
+     * Detects read operations that are executed on a portion of the file that is likely to be present in the blob store cache.
+     *
+     * @return true if the read operation has been fully completed using the blob store cache.
+     */
+    private boolean maybeReadFromBlobCache(ByteBuffer b) throws IOException {
+        if (tryReadFromBlobCache()) {
+            assert blobCacheByteRanges.size() > 0;
+            final long position = getAbsolutePosition();
+            final int length = b.remaining();
+
+            final ByteRange range = getBlobCacheByteRange(position, length);
+            if (range != null) {
+                final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), range.start(), length);
+                if (cachedBlob != CachedBlob.CACHE_MISS && cachedBlob != CachedBlob.CACHE_NOT_READY) {
+                    if (cachedBlob.from() <= position && length <= cachedBlob.length()) {
+                        final BytesRefIterator cachedBytesIterator = cachedBlob.bytes()
+                            .slice(toIntBytes(position - cachedBlob.from()), length)
+                            .iterator();
+                        BytesRef bytesRef;
+                        while ((bytesRef = cachedBytesIterator.next()) != null) {
+                            b.put(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                            stats.addIndexCacheBytesRead(bytesRef.length);
+                        }
+                        assert b.position() == length : "copied " + b.position() + " but expected " + length;
+                        onReadComplete(position, length);
+                        return true;
+                    } else {
+                        assert cachedBlob.version().before(Version.CURRENT) : cachedBlob;
+                        return false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Indicates if reading data from the blob store cache index should be attempted. This is always the case when the shard is recovering.
+     */
+    protected boolean tryReadFromBlobCache() {
+        return blobCacheByteRanges.isEmpty() == false && directory.isRecoveryFinalized() == false;
+    }
+
+    @Nullable
+    protected ByteRange getBlobCacheByteRange(long position, int length) {
+        assert tryReadFromBlobCache();
+        for (ByteRange blobCacheByteRange : blobCacheByteRanges) {
+            if (blobCacheByteRange.contains(position, position + length)) {
+                return blobCacheByteRange;
+            }
+        }
+        return null;
+    }
+
+    protected boolean isCompoundFile() {
+        return IndexFileNames.matchesExtension(fileInfo.physicalName(), "cfs");
+    }
+
+    protected static List<ByteRange> blobCacheByteRanges(String fileName, long fileLength) {
+        // footer is not cached in blob store cache but extracted from shard snapshot metadata
+        return List.of(computeHeaderByteRange(fileName, fileLength));
+    }
+
+    protected List<ByteRange> getBlobCacheByteRangesForSlice(String sliceName, long sliceOffset, long sliceLength) {
+        if (isCompoundFile() && isClone == false) {
+            // slices created from .cfs index input can have header/footer in the blob store cache
+            final ByteRange headerByteRange = computeHeaderByteRange(sliceName, sliceLength).withOffset(this.offset + sliceOffset);
+            if (headerByteRange.length() == sliceLength) {
+                return List.of(headerByteRange);
+            } else {
+                final ByteRange footerByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength)
+                    .withOffset(this.offset + sliceOffset);
+                return List.of(headerByteRange, footerByteRange);
+            }
+        }
+        return List.of();
+
     }
 
     /**

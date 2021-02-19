@@ -121,6 +121,10 @@ public class CachedBlob implements ToXContent {
         return bytes;
     }
 
+    public Version version() {
+        return version;
+    }
+
     public static String generateId(String repository, String name, String path, long offset) {
         return String.join("/", repository, path, name, "@" + offset);
     }
@@ -186,5 +190,28 @@ public class CachedBlob implements ToXContent {
             from.longValue(),
             to.longValue()
         );
+    }
+
+    @Override
+    public String toString() {
+        return "CachedBlob ["
+            + "creationTime="
+            + creationTime
+            + ", version="
+            + version
+            + ", repository='"
+            + repository
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", path='"
+            + path
+            + '\''
+            + ", from="
+            + from
+            + ", to="
+            + to
+            + ']';
     }
 }

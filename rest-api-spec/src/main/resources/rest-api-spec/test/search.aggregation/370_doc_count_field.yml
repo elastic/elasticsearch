@@ -177,4 +177,5 @@ setup:
   - match: { aggregations.f.buckets.foo.doc_count: 8 }
   - match: { aggregations.f.buckets.xyz.doc_count: 5 }
   - match: { profile.shards.0.aggregations.0.type: FiltersAggregator.FilterByFilter }
+  - match: { profile.shards.0.aggregations.0.debug.results_from_metadata: 0 }
   - gte: { profile.shards.0.aggregations.0.debug.segments_with_doc_count: 1 }

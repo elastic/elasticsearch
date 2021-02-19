@@ -54,6 +54,8 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -228,6 +230,21 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
+    }
+
+    public static BlobStoreRepository getSearchableRepository(Repository repository) {
+        if (repository instanceof SourceOnlySnapshotRepository) {
+            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
+        }
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
+        }
+        if (repository.getMetadata().type().equals(BlobStoreRepository.URL_REPOSITORY_TYPE)) {
+            throw new IllegalArgumentException(
+                "Searchable snapshots are not supported on URL repositories [" + repository.getMetadata().name() + "]"
+            );
+        }
+        return (BlobStoreRepository) repository;
     }
 
     @Override

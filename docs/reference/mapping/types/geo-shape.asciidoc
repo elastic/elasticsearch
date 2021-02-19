@@ -663,7 +663,11 @@ PUT /circle-example
     }
   }
 }
+----
+// TEST[warning:Parameter [strategy] is deprecated and will be removed in a future version]
 
+[source,console]
+----
 POST /circle-example/_doc
 {
   "location" : {
@@ -673,7 +677,7 @@ POST /circle-example/_doc
   }
 }
 ----
-// TEST[skip:uses deprecated strategy parameter]
+// TEST[continued]
 
 Note: The inner `radius` field is required. If not specified, then
 the units of the `radius` will default to `METERS`.

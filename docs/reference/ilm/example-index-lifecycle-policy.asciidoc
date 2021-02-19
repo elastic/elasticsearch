@@ -100,8 +100,8 @@ manage resource usage.
 . Activate the warm phase and click **Advanced settings**.
 +
 --
-.. Set **Move data into phase when** to **30 days**. This moves indices to the
-warm tier 30 days after rollover.
+.. Set **Move data into phase when** to **30 days old**. This moves indices to
+the warm tier 30 days after rollover.
 
 .. Enable **Set replicas** and change **Number of replicas** to **1**.
 
@@ -116,7 +116,7 @@ image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png[Add a warm
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-enable-delete-phase.png[Enable the delete phase]
 +
-In the delete phase, set **Move data into phase when** to **90** days. This
+In the delete phase, set **Move data into phase when** to **90 days old**. This
 deletes indices 90 days after rollover.
 +
 [role="screenshot"]

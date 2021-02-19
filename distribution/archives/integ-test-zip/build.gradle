@@ -26,7 +26,7 @@ ext.buildDist = parent.tasks.named("buildIntegTestZip")
 
 publishing {
   publications {
-    nebula {
+    elastic {
       pom.packaging = 'zip'
       artifact(buildDist.flatMap { it.archiveFile })
     }

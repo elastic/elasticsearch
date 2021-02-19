@@ -180,7 +180,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseSearchableS
             restoredIndex,
             Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), cacheEnabled)
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false)
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), randomBoolean())
                 .build(),
             storage
         );

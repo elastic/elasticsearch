@@ -3926,7 +3926,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 false
             );
             // tag::put-trained-model-alias-execute-listener
-            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     // <1>
@@ -3992,7 +3992,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 "my-trained-model-with-delete-alias"
             );
             // tag::delete-trained-model-alias-execute-listener
-            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     // <1>

@@ -85,7 +85,8 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
             }
 
             final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(new BlobPath().add(request.getBlobPath()));
+            final BlobContainer blobContainer =
+                blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath().add(request.getBlobPath()));
 
             logger.trace("handling [{}]", request);
 

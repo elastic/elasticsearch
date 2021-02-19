@@ -243,7 +243,7 @@ public class S3HttpHandler implements HttpHandler {
                 deletes.append("<DeleteResult>");
                 for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
-                    String key = blob.getKey().replace("/" + path + "/", "");
+                    String key = blob.getKey().replace("/" + bucket + "/", "");
                     if (requestBody.contains("<Key>" + key + "</Key>")) {
                         deletes.append("<Deleted><Key>").append(key).append("</Key></Deleted>");
                         iterator.remove();

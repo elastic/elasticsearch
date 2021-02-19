@@ -525,7 +525,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         private BlobContainer getBlobContainer() {
-            return repository.blobStore().blobContainer(new BlobPath().add(blobPath));
+            return repository.blobStore().blobContainer(repository.basePath().add(blobPath));
         }
 
         private void onWorkerCompletion() {

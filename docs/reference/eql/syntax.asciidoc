@@ -133,19 +133,6 @@ Otherwise returns `false`. Can only be used to compare strings. Supports
 <<eql-syntax-wildcards,wildcards>> and <<eql-syntax-lookup-operators,list
 lookups>>.
 
-[IMPORTANT]
-====
-Avoid using the `==` or `:` operators to perform exact matching on
-<<text,`text`>> field values.
-
-By default, {es} changes the values of `text` fields as part of <<analysis,
-analysis>>. This can make finding exact matches for `text` field values
-difficult.
-
-To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
-DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
-====
-
 `!=` (not equal, case-sensitive)::
 Returns `true` if the values to the left and right of the operator are not
 equal. Otherwise returns `false`. Wildcards are not supported.
@@ -784,6 +771,14 @@ EQL does not support the following features and syntax.
 You cannot use EQL comparison operators to compare a field to
 another field. This applies even if the fields are changed using a
 <<eql-functions,function>>.
+
+[discrete]
+[[eql-text-fields]]
+==== Text fields are not supported
+
+EQL searches do not support <<text,`text`>> fields. To a search a `text` field,
+use the EQL search API's <<eql-search-filter-query-dsl,Query DSL `filter`>>
+parameter.
 
 [discrete]
 [[eql-array-fields]]

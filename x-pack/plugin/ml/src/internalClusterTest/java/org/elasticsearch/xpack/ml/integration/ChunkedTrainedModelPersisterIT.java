@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefiniti
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
@@ -102,11 +103,18 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .collect(Collectors.toList()));
         persister.createAndIndexInferenceModelMetadata(modelMetadata);
 
-        PlainActionFuture<Tuple<Long, Set<String>>> getIdsFuture = new PlainActionFuture<>();
-        trainedModelProvider.expandIds(modelId + "*", false, PageParams.defaultParams(), Collections.emptySet(), getIdsFuture);
-        Tuple<Long, Set<String>> ids = getIdsFuture.actionGet();
+        PlainActionFuture<Tuple<Long, Map<String, Set<String>>>> getIdsFuture = new PlainActionFuture<>();
+        trainedModelProvider.expandIds(
+            modelId + "*",
+            false,
+            PageParams.defaultParams(),
+            Collections.emptySet(),
+            ModelAliasMetadata.EMPTY,
+            getIdsFuture
+        );
+        Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
         assertThat(ids.v1(), equalTo(1L));
-        String inferenceModelId = ids.v2().iterator().next();
+        String inferenceModelId = ids.v2().keySet().iterator().next();
 
         PlainActionFuture<TrainedModelConfig> getTrainedModelFuture = new PlainActionFuture<>();
         trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), getTrainedModelFuture);

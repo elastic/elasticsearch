@@ -271,6 +271,8 @@ public class SystemIndexManager implements ClusterStateListener {
             final String versionString = (String) meta.get(descriptor.getVersionMetaKey());
             if (versionString == null) {
                 logger.warn("No value found in mappings for [_meta.{}]", descriptor.getVersionMetaKey());
+                // If we called `Version.fromString(null)`, it would return `Version.CURRENT` and we wouldn't update the mappings
+                return Version.V_EMPTY;
             }
             return Version.fromString(versionString);
         } catch (ElasticsearchParseException e) {

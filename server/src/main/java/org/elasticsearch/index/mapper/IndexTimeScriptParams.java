@@ -53,7 +53,7 @@ public class IndexTimeScriptParams {
         if (docLookup == null) {
             LazyDocReader reader = new LazyDocReader();
             docLookup = new LeafDocLookup(fieldTypeLookup, ft -> {
-                IndexFieldData.Builder builder = ft.fielddataBuilder("", () -> null); // nocommit
+                IndexFieldData.Builder builder = ft.fielddataBuilder("", () -> null); // TODO sig
                 return builder.build(EMPTY_CACHE, NO_BREAKER).load(reader.get()).getScriptValues();
             });
         }

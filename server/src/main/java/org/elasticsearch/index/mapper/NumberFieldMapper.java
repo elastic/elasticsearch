@@ -1171,7 +1171,7 @@ public class NumberFieldMapper extends FieldMapper {
         NumberScript newInstance();
     }
 
-    public static abstract class NumberScript {
+    public abstract static class NumberScript {
 
         private final Map<String, Object> params = new HashMap<>();
         private IndexTimeScriptParams docParams;

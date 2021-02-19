@@ -30,7 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,6 +40,13 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
 
+    /**
+     * This tests essentially verifies that a Maxmind database reader doesn't fail with:
+     * com.maxmind.db.ClosedDatabaseException: The MaxMind DB has been closed
+     *
+     * This failure can be avoided by ensuring that a database is only closed when no
+     * geoip processor instance is using the related {@link DatabaseReaderLazyLoader} instance
+     */
     public void test() throws Exception {
         ThreadPool threadPool = new TestThreadPool("test");
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
@@ -62,7 +71,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             final AtomicBoolean completed = new AtomicBoolean(false);
             final int numberOfDatabaseUpdates = randomIntBetween(2, 4);
             final AtomicInteger numberOfIngestRuns = new AtomicInteger();
-            final int numberOfIngestThreads = 16;
+            final int numberOfIngestThreads = randomIntBetween(16, 32);
             final Thread[] ingestThreads = new Thread[numberOfIngestThreads];
             final AtomicArray<Throwable> ingestFailures = new AtomicArray<>(numberOfIngestThreads);
             for (int i = 0; i < numberOfIngestThreads; i++) {
@@ -92,19 +101,19 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             Thread updateDatabaseThread = new Thread(() -> {
                 for (int i = 0; i < numberOfDatabaseUpdates; i++) {
                     try {
-                        DatabaseReaderLazyLoader previous1 = localDatabases.getDatabase("GeoLite2-City.mmdb");
+                        DatabaseReaderLazyLoader previous1 = localDatabases.configDatabases.get("GeoLite2-City.mmdb");
                         if (Files.exists(geoIpConfigDir.resolve("GeoLite2-City.mmdb")) && randomBoolean()) {
                             Files.delete(geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
                         } else {
                             Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
                                 geoIpConfigDir.resolve("GeoLite2-City.mmdb"), StandardCopyOption.REPLACE_EXISTING);
                         }
-                        DatabaseReaderLazyLoader previous2 = localDatabases.getDatabase("GeoLite2-City-Test.mmdb");
+                        DatabaseReaderLazyLoader previous2 = localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb");
                         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
                             geoIpConfigDir.resolve("GeoLite2-City-Test.mmdb"), StandardCopyOption.REPLACE_EXISTING);
                         assertBusy(() -> {
-                            DatabaseReaderLazyLoader current1 = localDatabases.getDatabase("GeoLite2-City.mmdb");
-                            DatabaseReaderLazyLoader current2 = localDatabases.getDatabase("GeoLite2-City-Test.mmdb");
+                            DatabaseReaderLazyLoader current1 = localDatabases.configDatabases.get("GeoLite2-City.mmdb");
+                            DatabaseReaderLazyLoader current2 = localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb");
                             assertThat(current1, not(sameInstance(previous1)));
                             assertThat(current2, not(sameInstance(previous2)));
                         });
@@ -134,6 +143,11 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             ingestFailures.asList().forEach(r -> assertThat(r, nullValue()));
             assertThat(failureHolder2.get(), nullValue());
             assertThat(numberOfIngestRuns.get(), greaterThan(0));
+
+            for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
+                assertThat(lazyLoader.isClosed(), is(false));
+                assertThat(lazyLoader.current(), equalTo(0));
+            }
         } finally {
             resourceWatcherService.close();
             threadPool.shutdown();
@@ -141,10 +155,12 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     }
 
     private static void lazyLoadReaders(LocalDatabases localDatabases) throws IOException {
-        localDatabases.getDatabase("GeoLite2-City.mmdb").getDatabaseType();
-        localDatabases.getDatabase("GeoLite2-City.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
-        localDatabases.getDatabase("GeoLite2-City-Test.mmdb").getDatabaseType();
-        localDatabases.getDatabase("GeoLite2-City-Test.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+        if (localDatabases.configDatabases.get("GeoLite2-City.mmdb") != null) {
+            localDatabases.configDatabases.get("GeoLite2-City.mmdb").getDatabaseType();
+            localDatabases.configDatabases.get("GeoLite2-City.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+        }
+        localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb").getDatabaseType();
+        localDatabases.configDatabases.get("GeoLite2-City-Test.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
     }
 
 }

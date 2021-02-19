@@ -133,6 +133,7 @@ public class LocalDatabasesTests extends ESTestCase {
             CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
             assertThat(cityResponse.getCity().getName(), equalTo("Tumba"));
             assertThat(cache.count(), equalTo(1));
+            loader.postLookup();
         }
 
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"),
@@ -147,6 +148,7 @@ public class LocalDatabasesTests extends ESTestCase {
             CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
             assertThat(cityResponse.getCity().getName(), equalTo("Linköping"));
             assertThat(cache.count(), equalTo(1));
+            loader.postLookup();
         });
 
         Files.delete(configDir.resolve("GeoLite2-City.mmdb"));

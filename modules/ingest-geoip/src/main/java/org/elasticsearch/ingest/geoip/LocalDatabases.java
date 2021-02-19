@@ -49,7 +49,7 @@ final class LocalDatabases implements Closeable {
     private final Path geoipConfigDir;
 
     private final Map<String, DatabaseReaderLazyLoader> defaultDatabases;
-    private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
+    final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
     LocalDatabases(Environment environment, GeoIpCache cache) {
         this(
@@ -83,8 +83,21 @@ final class LocalDatabases implements Closeable {
             defaultDatabases.keySet(), configDatabases.keySet(), geoipConfigDir);
     }
 
+    // There is a need for reference counting in order to avoid using an instance
+    // that gets closed while using it. (this can happen during a database update)
     DatabaseReaderLazyLoader getDatabase(String name) {
-        return configDatabases.getOrDefault(name, defaultDatabases.get(name));
+        while (true) {
+            DatabaseReaderLazyLoader instance = configDatabases.getOrDefault(name, defaultDatabases.get(name));
+            if (instance == null) {
+                return instance;
+            }
+            instance.preLookup();
+            if (instance.isClosed() == false) {
+                return instance;
+            }
+            // instance is closed after incrementing its usage,
+            // drop this instance and fetch another one.
+        }
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
@@ -110,16 +123,12 @@ final class LocalDatabases implements Closeable {
                 DatabaseReaderLazyLoader existing = configDatabases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.close();
-                    int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(file);
-                    LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, file);
                 }
             } else {
                 LOGGER.info("database file removed [{}], close database...", file);
                 DatabaseReaderLazyLoader existing = configDatabases.remove(databaseFileName);
                 assert existing != null;
                 existing.close();
-                int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(file);
-                LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, file);
             }
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);

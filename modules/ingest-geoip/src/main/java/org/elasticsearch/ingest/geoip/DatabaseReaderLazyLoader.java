@@ -36,6 +36,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
@@ -55,6 +56,9 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
+
+    private volatile boolean closed = false;
+    private final AtomicInteger currentUsages = new AtomicInteger(0);
 
     DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath) {
         this(cache, databasePath, createDatabaseLoader(databasePath));
@@ -158,6 +162,24 @@ class DatabaseReaderLazyLoader implements Closeable {
         return getResponse(ipAddress, DatabaseReader::asn);
     }
 
+    void preLookup() {
+        currentUsages.incrementAndGet();
+    }
+
+    void postLookup() throws IOException {
+        if (currentUsages.decrementAndGet() == 0 && closed) {
+            doClose();
+        }
+    }
+
+    boolean isClosed() {
+        return closed;
+    }
+
+    int current() {
+        return currentUsages.get();
+    }
+
     private <T extends AbstractResponse> T getResponse(InetAddress ipAddress,
                                                        CheckedBiFunction<DatabaseReader, InetAddress, T, Exception> responseProvider) {
         SpecialPermission.check();
@@ -173,7 +195,7 @@ class DatabaseReaderLazyLoader implements Closeable {
             }));
     }
 
-    private DatabaseReader get() throws IOException {
+    DatabaseReader get() throws IOException {
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
@@ -186,8 +208,17 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public void close() throws IOException {
+        closed = true;
+        if (currentUsages.get() == 0) {
+            doClose();
+        }
+    }
+
+    private void doClose() throws IOException {
         IOUtils.close(databaseReader.get());
+        int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
+        LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
     }
 
     private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {

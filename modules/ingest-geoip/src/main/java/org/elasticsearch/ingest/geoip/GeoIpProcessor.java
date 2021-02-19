@@ -135,32 +135,36 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> getGeoData(String ip) throws IOException {
         DatabaseReaderLazyLoader lazyLoader = this.supplier.get();
-        String databaseType = lazyLoader.getDatabaseType();
-        final InetAddress ipAddress = InetAddresses.forString(ip);
-        Map<String, Object> geoData;
-        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-            try {
-                geoData = retrieveCityGeoData(lazyLoader, ipAddress);
-            } catch (AddressNotFoundRuntimeException e) {
-                geoData = Collections.emptyMap();
+        try {
+            final String databaseType = lazyLoader.getDatabaseType();
+            final InetAddress ipAddress = InetAddresses.forString(ip);
+            Map<String, Object> geoData;
+            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
+                try {
+                    geoData = retrieveCityGeoData(lazyLoader, ipAddress);
+                } catch (AddressNotFoundRuntimeException e) {
+                    geoData = Collections.emptyMap();
+                }
+            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
+                try {
+                    geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
+                } catch (AddressNotFoundRuntimeException e) {
+                    geoData = Collections.emptyMap();
+                }
+            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                try {
+                    geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
+                } catch (AddressNotFoundRuntimeException e) {
+                    geoData = Collections.emptyMap();
+                }
+            } else {
+                throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
+                    + "]", new IllegalStateException());
             }
-        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-            try {
-                geoData = retrieveCountryGeoData(lazyLoader, ipAddress);
-            } catch (AddressNotFoundRuntimeException e) {
-                geoData = Collections.emptyMap();
-            }
-        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-            try {
-                geoData = retrieveAsnGeoData(lazyLoader, ipAddress);
-            } catch (AddressNotFoundRuntimeException e) {
-                geoData = Collections.emptyMap();
-            }
-        } else {
-            throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
-                + "]", new IllegalStateException());
+            return geoData;
+        } finally {
+            lazyLoader.postLookup();
         }
-        return geoData;
     }
 
     @Override
@@ -364,8 +368,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag,
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
-
-            final String databaseType = lazyLoader.getDatabaseType();
+            final String databaseType;
+            try {
+                databaseType = lazyLoader.getDatabaseType();
+            } finally {
+                lazyLoader.postLookup();
+            }
 
             final Set<Property> properties;
             if (propertyNames != null) {

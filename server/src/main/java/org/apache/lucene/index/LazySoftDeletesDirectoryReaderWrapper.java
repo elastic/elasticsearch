@@ -117,10 +117,6 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         if (numSoftDeletes == 0) {
             return reader;
         }
-        final DocIdSetIterator iterator = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(field, reader);
-        if (iterator == null) {
-            return reader;
-        }
         final int maxDoc = reader.maxDoc();
         final int numDocs = maxDoc - segmentInfo.getDelCount() - segmentInfo.getSoftDelCount();
         final LazyBits lazyBits = new LazyBits(maxDoc, field, reader, numSoftDeletes, numDocs);
@@ -237,6 +233,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             this.numSoftDeletes = numSoftDeletes;
             this.numDocs = numDocs;
             materializedBits = null;
+            assert numSoftDeletes > 0;
         }
 
         @Override

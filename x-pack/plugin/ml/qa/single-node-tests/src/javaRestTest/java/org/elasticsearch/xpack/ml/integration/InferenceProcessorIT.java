@@ -226,6 +226,27 @@ public class InferenceProcessorIT extends ESRestTestCase {
         waitForStats();
     }
 
+    public void testDeleteModelAliasWhileAliasReferencedByPipeline() throws Exception {
+        putRegressionModel();
+        putModelAlias("regression_to_delete", MODEL_ID);
+        createdPipelines.add("first_pipeline");
+        putPipeline("regression_to_delete", "first_pipeline");
+        Exception ex = expectThrows(Exception.class,
+            () -> client().performRequest(
+                new Request(
+                    "DELETE",
+                    "_ml/trained_models/" + MODEL_ID + "/model_aliases/regression_to_delete"
+                )
+            ));
+        assertThat(
+            ex.getMessage(),
+            containsString("Cannot delete model_alias [regression_to_delete] as it is still referenced by ingest processors")
+        );
+        infer("first_pipeline");
+        deletePipeline("first_pipeline");
+        waitForStats();
+    }
+
     public void testDeleteModelWhileReferencedByPipeline() throws Exception {
         putRegressionModel();
         createdPipelines.add("first_pipeline");

@@ -176,6 +176,9 @@ repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydo
 NOTE: URLs using the `ftp`, `http`, `https`, or `jar` protocols do not need to
 be registered in the `path.repo` setting.
 
+NOTE: Read-only URL repositories do not support
+<<searchable-snapshots,searchable snapshots>>.
+
 [discrete]
 [role="xpack"]
 [testenv="basic"]

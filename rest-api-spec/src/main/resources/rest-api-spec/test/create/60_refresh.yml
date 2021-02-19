@@ -8,6 +8,8 @@
               settings:
                   index.refresh_interval: -1
                   number_of_replicas: 0
+                  # make sure that we don't have shard relocations; otherwise search can be executed by a relocated shard
+                  routing.rebalance.enable: none
  - do:
       create:
           index:   test_1

@@ -79,7 +79,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("metricbeat-*").privileges("index", "manage").build() },
+                                    .indices("metricbeat-*").privileges("index", "create_index", "view_index_metadata",
+                                        "indices:admin/aliases").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("remote_monitoring_collector", new RoleDescriptor(
                         "remote_monitoring_collector",

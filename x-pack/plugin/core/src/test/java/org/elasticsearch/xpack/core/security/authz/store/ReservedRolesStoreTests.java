@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -158,7 +159,6 @@ import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
-import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
@@ -767,6 +767,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .test(mockIndexAbstraction(metricbeatIndex)), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar")
                 .test(mockIndexAbstraction(metricbeatIndex)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME)
                 .test(mockIndexAbstraction(metricbeatIndex)), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
@@ -777,8 +779,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .test(mockIndexAbstraction(metricbeatIndex)), is(true));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesAliasesAction.NAME)
                 .test(mockIndexAbstraction(metricbeatIndex)), is(true));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
+        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(true));
+                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
                 .test(mockIndexAbstraction(metricbeatIndex)), is(false));
         assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)

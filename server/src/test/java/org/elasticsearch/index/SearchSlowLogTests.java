@@ -146,6 +146,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public void requestCache(Boolean requestCache) {
+                }
+
+                @Override
                 public Boolean allowPartialSearchResults() {
                     return null;
                 }

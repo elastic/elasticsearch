@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
+import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
@@ -825,7 +826,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
 
             validateScriptFields();
-            validateRuntimeMappings();
+            RuntimeMappingsValidator.validate(runtimeMappings);
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
@@ -843,28 +844,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (scriptFields != null && scriptFields.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
-            }
-        }
-
-        /**
-         * Perform a light check that the structure resembles runtime_mappings.
-         * The full check cannot happen until search
-         */
-        void validateRuntimeMappings() {
-            for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
-                // top level objects are fields
-                String fieldName = entry.getKey();
-                if (entry.getValue() instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
-                    Object typeNode = propNode.get("type");
-                    if (typeNode == null) {
-                        throw ExceptionsHelper.badRequestException("No type specified for runtime field [" + fieldName + "]");
-                    }
-                } else {
-                    throw ExceptionsHelper.badRequestException("Expected map for runtime field [" + fieldName + "] " +
-                        "definition but got a " + fieldName.getClass().getSimpleName());
-                }
             }
         }
 

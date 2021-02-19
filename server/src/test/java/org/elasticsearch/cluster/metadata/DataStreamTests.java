@@ -205,7 +205,11 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testSnapshotWithAllBackingIndicesRemoved() {
         var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
-        var indicesToAdd = DataStreamTestHelper.randomIndexInstances();
+        var indicesToAdd = new ArrayList<Index>();
+        while (indicesToAdd.isEmpty()) {
+            // ensure at least one index
+            indicesToAdd.addAll(DataStreamTestHelper.randomIndexInstances());
+        }
 
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),

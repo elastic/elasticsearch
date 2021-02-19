@@ -266,12 +266,17 @@ retaining these soft deletes up to configurable limits, the history of
 operations can be retained on the leader shards and made available to the
 follower shard tasks as it replays the history of operations.
 
-The <<ccr-index-soft-deletes-retention-period,`index.soft_deletes.retention_lease.period`>> setting defines the
-maximum time to retain a shard history retention lease before it is
-considered expired. This setting determines how long the cluster containing
-your leader index can be offline, which is 12 hours by default. If a shard copy
-recovers after its retention lease expires, then {es} will fall back to copying
-the entire index, because it can no longer replay the missing history.
+The <<ccr-index-soft-deletes-retention-period,`index.soft_deletes.retention_lease.period`>>
+setting defines the maximum time to retain a shard history retention lease
+before it is considered expired. This setting determines how long the cluster
+containing your follower index can be offline, which is 12 hours by default. If
+a shard copy recovers after its retention lease expires, but the missing
+operations are still available on the leader index, then {es} will establish a
+new lease and copy the missing operations. However {es} does not guarantee to
+retain unleased operations, so it is also possible that some of the missing
+operations have been discarded by the leader and are now completely
+unavailable. If this happens then the follower cannot recover automatically so
+you must <<ccr-recreate-follower-index,recreate it>>.
 
 Soft deletes must be enabled for indices that you want to use as leader
 indices. Soft deletes are enabled by default on new indices created on

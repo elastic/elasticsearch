@@ -298,6 +298,7 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-delete-forecast>>
 * <<{upid}-delete-model-snapshot>>
 * <<{upid}-delete-trained-models>>
+* <<{upid}-delete-trained-model-alias>>
 * <<{upid}-estimate-model-memory>>
 * <<{upid}-evaluate-data-frame>>
 * <<{upid}-explain-data-frame-analytics>>
@@ -332,6 +333,7 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-put-datafeed>>
 * <<{upid}-put-filter>>
 * <<{upid}-put-trained-model>>
+* <<{upid}-put-trained-model-alias>>
 * <<{upid}-revert-model-snapshot>>
 * <<{upid}-set-upgrade-mode>>
 * <<{upid}-start-data-frame-analytics>>
@@ -359,6 +361,7 @@ include::ml/delete-filter.asciidoc[]
 include::ml/delete-forecast.asciidoc[]
 include::ml/delete-model-snapshot.asciidoc[]
 include::ml/delete-trained-models.asciidoc[]
+include::ml/delete-trained-model-alias.asciidoc[]
 // ESTIMATE
 include::ml/estimate-model-memory.asciidoc[]
 // EVALUATE
@@ -403,6 +406,7 @@ include::ml/put-data-frame-analytics.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/put-trained-model.asciidoc[]
+include::ml/put-trained-model-alias.asciidoc[]
 // REVERT
 include::ml/revert-model-snapshot.asciidoc[]
 // SET

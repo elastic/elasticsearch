@@ -241,11 +241,17 @@ public final class MlIndexAndAlias {
             ActionListener.<CreateIndexResponse>wrap(
                 createIndexResponse -> listener.onResponse(true),
                 createIndexFailure -> {
-                    // If it was created between our last check, and this request being handled, we should add the alias
-                    // Adding an alias that already exists is idempotent. So, no need to double check if the alias exists
-                    // as well.
                     if (ExceptionsHelper.unwrapCause(createIndexFailure) instanceof ResourceAlreadyExistsException) {
-                        updateWriteAlias(client, alias, null, index, listener);
+                        // If it was created between our last check and this request being handled, we should add the alias
+                        // if we were asked to add it on creation.  Adding an alias that already exists is idempotent. So
+                        // no need to double check if the alias exists as well.  But if we weren't asked to add the alias
+                        // on creation then we should leave it up to the caller to decide what to do next (some call sites
+                        // already have more advanced alias update logic in their success handlers).
+                        if (addAlias) {
+                            updateWriteAlias(client, alias, null, index, listener);
+                        } else {
+                            listener.onResponse(true);
+                        }
                     } else {
                         listener.onFailure(createIndexFailure);
                     }

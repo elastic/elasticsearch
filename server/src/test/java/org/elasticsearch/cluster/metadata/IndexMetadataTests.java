@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxSinglePrimarySizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.common.Strings;
@@ -89,7 +89,7 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong()),
                         new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong()))
+                        new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()))
                     ),
                     randomNonNegativeLong())).build();
         assertEquals(system, metadata.isSystem());

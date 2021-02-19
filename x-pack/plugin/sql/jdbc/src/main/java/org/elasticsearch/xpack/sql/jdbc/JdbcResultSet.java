@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSin
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.isArray;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
@@ -934,7 +935,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Array getArray(int columnIndex) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Array not supported");
+        EsType type = columnType(columnIndex);
+        if (isArray(type) == false) {
+            throw new SQLException("Cannot get column [" + columnIndex + "] of type [" + type.getName() + "] as array");
+        }
+        return new JdbcArray(type, (List<?>) getObject(columnIndex));
     }
 
     @Override
@@ -954,7 +959,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Array getArray(String columnLabel) throws SQLException {
-        throw new SQLFeatureNotSupportedException("Array not supported");
+        return getArray(column(columnLabel));
     }
 
     @Override

@@ -143,7 +143,8 @@ public final class CsvTestUtils {
     }
 
     private static String resolveColumnType(String type) {
-        switch (type.toLowerCase(Locale.ROOT)) {
+        String t = type.toLowerCase(Locale.ROOT);
+        switch (t) {
             case "s":
                 return "string";
             case "b":
@@ -163,7 +164,8 @@ public final class CsvTestUtils {
             case "sh":
                 return "short";
             default:
-                return type;
+                // treat the arrays as strings; need for the CSV to correctly return the column value.
+                return t.endsWith("_a") || t.endsWith("_array") ? "string" : type;
         }
     }
 

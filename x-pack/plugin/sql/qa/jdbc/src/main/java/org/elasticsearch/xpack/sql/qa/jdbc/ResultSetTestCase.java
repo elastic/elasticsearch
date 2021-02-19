@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -44,6 +45,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,6 +63,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.lang.String.format;
+import static java.util.Arrays.asList;
 import static java.util.Calendar.DAY_OF_MONTH;
 import static java.util.Calendar.ERA;
 import static java.util.Calendar.HOUR_OF_DAY;
@@ -78,7 +81,9 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomSet;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsArrayTypes;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -135,7 +140,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             SQLException.class,
             () -> doWithQuery(() -> esWithLeniency(false), "SELECT int, keyword FROM test", results -> {})
         );
-        assertTrue(expected.getMessage().contains("Arrays (returned by [int]) are not supported"));
+        assertTrue(expected.getMessage().contains("Cannot return multiple values for field [int]; use ARRAY(int) instead"));
 
         // default has multi value disabled
         expectThrows(SQLException.class, () -> doWithQuery(this::esJdbc, "SELECT int, keyword FROM test", results -> {}));
@@ -171,13 +176,57 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 results -> {}
             )
         );
-        assertTrue(expected.getMessage().contains("Arrays (returned by [object.intsubfield]) are not supported"));
+        assertTrue(expected.getMessage().contains("Cannot return multiple values for field [object.intsubfield]; " +
+            "use ARRAY(object.intsubfield) instead"));
 
         // default has multi value disabled
         expectThrows(
             SQLException.class,
             () -> doWithQuery(this::esJdbc, "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword", results -> {})
         );
+    }
+
+    public void testMultiValueFieldsAsArray() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support array types", versionSupportsArrayTypes());
+
+        Integer[] ints = createTestDataForMultiValueTests();
+        List<String> strings = Arrays.stream(ints).map(String::valueOf).collect(Collectors.toList());
+
+        index("test", "2", builder -> {
+            builder.array("int", (Object) null);
+            builder.array("keyword", (Object) null);
+        });
+
+
+        doWithQuery("SELECT ARRAY(int), ARRAY(keyword) FROM test", r -> {
+            assertTrue(r.next());
+
+            Array intArray = r.getArray(1);
+            assertEquals(EsType.INTEGER.getVendorTypeNumber().intValue(), intArray.getBaseType());
+
+            List<Integer> expected = asList(ints);
+            expected.sort(Integer::compare);
+            List<?> actual = asList((Object[]) intArray.getArray());
+            actual.sort(Comparator.comparingInt(x -> (Integer) x));
+            assertEquals(expected, actual);
+
+            Array strArray = r.getArray(2);
+            assertEquals(EsType.KEYWORD.getVendorTypeNumber().intValue(), strArray.getBaseType());
+
+            strings.sort(String::compareTo);
+            actual = asList((Object[]) strArray.getArray());
+            actual.sort(Comparator.comparing(x -> (String) x));
+            assertEquals(strings, actual);
+
+            assertTrue(r.next());
+
+            intArray = r.getArray(1);
+            assertEquals(0, ((Object[]) intArray.getArray()).length);
+            strArray = r.getArray(2);
+            assertEquals(0, ((Object[]) strArray.getArray()).length);
+
+            assertFalse(r.next());
+        });
     }
 
     // Byte values testing
@@ -1836,8 +1885,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             r.next();
             assertThrowsUnsupportedAndExpectErrorMessage(() -> r.getAsciiStream("test"), "AsciiStream not supported");
             assertThrowsUnsupportedAndExpectErrorMessage(() -> r.getAsciiStream(1), "AsciiStream not supported");
-            assertThrowsUnsupportedAndExpectErrorMessage(() -> r.getArray("test"), "Array not supported");
-            assertThrowsUnsupportedAndExpectErrorMessage(() -> r.getArray(1), "Array not supported");
             assertThrowsUnsupportedAndExpectErrorMessage(() -> r.getBinaryStream("test"), "BinaryStream not supported");
             assertThrowsUnsupportedAndExpectErrorMessage(() -> r.getBinaryStream(1), "BinaryStream not supported");
             assertThrowsUnsupportedAndExpectErrorMessage(() -> r.getBlob("test"), "Blob not supported");
@@ -2071,14 +2118,15 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
 
-    private void createTestDataForMultiValueTests() throws IOException {
+    private Integer[] createTestDataForMultiValueTests() throws IOException {
         createIndex("test");
         updateMapping("test", builder -> {
             builder.startObject("int").field("type", "integer").endObject();
             builder.startObject("keyword").field("type", "keyword").endObject();
         });
 
-        Integer[] values = randomArray(3, 15, Integer[]::new, () -> randomInt(50));
+        // need a set to prevent duplicates in keyword multivalues being deduplicated by ES
+        Integer[] values = randomSet(3, 15, () -> randomInt(50)).toArray(new Integer[0]);
         // add the known value as the first one in list. Parsing from _source the value will pick up the first value in the array.
         values[0] = -10;
 
@@ -2091,6 +2139,8 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.array("int", (Object[]) values);
             builder.array("keyword", stringValues);
         });
+
+        return values;
     }
 
     private void createTestDataForMultiValuesInObjectsTests() throws IOException {
@@ -2139,7 +2189,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     private <T extends Number> List<T> createTestDataForNumericValueTests(Supplier<T> numberGenerator) throws IOException {
         T random1 = numberGenerator.get();
         T random2 = randomValueOtherThan(random1, numberGenerator);
-        T random3 = randomValueOtherThanMany(Arrays.asList(random1, random2)::contains, numberGenerator);
+        T random3 = randomValueOtherThanMany(asList(random1, random2)::contains, numberGenerator);
 
         Class<? extends Number> clazz = random1.getClass();
         String primitiveName = clazz.getSimpleName().toLowerCase(Locale.ROOT);
@@ -2160,7 +2210,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.field("test_keyword", random3);
         });
 
-        return Arrays.asList(random1, random2, random3);
+        return asList(random1, random2, random3);
     }
 
     private void createTestDataForBooleanValueTests() throws IOException {

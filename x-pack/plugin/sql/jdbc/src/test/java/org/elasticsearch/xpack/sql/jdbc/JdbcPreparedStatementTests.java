@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
@@ -583,6 +584,13 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setObject(1, buffer, EsType.INTERVAL_DAY_TO_MINUTE));
         assertEquals("Conversion from type [byte[]] to [INTERVAL_DAY_TO_MINUTE] not supported", sqle.getMessage());
+    }
+
+    public void testThrownExceptionWhenSettingArrayValue() throws SQLException {
+        JdbcPreparedStatement jps = createJdbcPreparedStatement();
+        JdbcArray array = new JdbcArray(LONG, Collections.emptyList());
+        SQLException sqle = expectThrows(SQLFeatureNotSupportedException.class, () -> jps.setArray(1, array));
+        assertEquals("Objects of type [java.sql.Array] are not supported", sqle.getMessage());
     }
 
     private JdbcPreparedStatement createJdbcPreparedStatement() throws SQLException {

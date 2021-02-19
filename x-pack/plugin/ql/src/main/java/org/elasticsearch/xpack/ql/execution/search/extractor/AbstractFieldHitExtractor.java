@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 /**
@@ -49,7 +50,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         EXTRACT_ARRAY {
             @Override
             public Object handle(Object object, String _ignored) {
-                return object instanceof List ? object : singletonList(object);
+                return object == null ? emptyList() : (object instanceof List ? object : singletonList(object));
             }
         };
 
@@ -130,16 +131,19 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     @Override
     public Object extract(SearchHit hit) {
         Object value = null;
+        String lookupName = null;
         DocumentField field = null;
         if (hitName != null) {
             value = unwrapFieldsMultiValue(extractNestedField(hit));
+            lookupName = hitName;
         } else {
             field = hit.field(fieldName);
             if (field != null) {
                 value = unwrapFieldsMultiValue(field.getValues());
             }
+            lookupName = fieldName;
         }
-        return value;
+        return multiValueHandling.handle(value, lookupName);
     }
 
     /*
@@ -210,11 +214,16 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                 return null;
             } else {
                 if (isPrimitive(list) == false) {
-                    if (list.size() == 1 || multiValueHandling == MultiValueHandling.EXTRACT_ONE) {
-                        return unwrapFieldsMultiValue(list.get(0));
-                    } else {
-                        throw new QlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                    List<Object> unwrappedList = new ArrayList<>();
+                    for (Object o : list) {
+                        Object unwrapped = unwrapFieldsMultiValue(o);
+                        if (unwrapped instanceof List) {
+                            unwrappedList.addAll((List<?>) unwrapped);
+                        } else {
+                            unwrappedList.add(unwrapped);
+                        }
                     }
+                    return unwrappedList;
                 }
             }
         }

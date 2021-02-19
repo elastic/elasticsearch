@@ -72,14 +72,14 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
 
             rows = new ArrayList<>(rowCount);
             for (int r = 0; r < rowCount; r++) {
-                List<Object> row = new ArrayList<>(rowCount);
+                List<Object> row = new ArrayList<>(columnCount);
                 for (int c = 0; c < columnCount; c++) {
                     Supplier<Object> value = randomFrom(Arrays.asList(
                             () -> randomAlphaOfLength(10),
                             ESTestCase::randomLong,
                             ESTestCase::randomDouble,
                             () -> null));
-                    row.add(value.get());
+                    row.add(randomBoolean() ? value.get() : randomList(randomIntBetween(1, 10), value));
                 }
                 rows.add(row);
             }

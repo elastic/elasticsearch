@@ -17,8 +17,12 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 final class JdbcTestUtils {
@@ -38,11 +42,13 @@ final class JdbcTestUtils {
      * Until the feature + QA tests are actually ported to the target branch, the comparison will hold true only for the master
      * branch. So you'll need to remove the equality, port the feature and subsequently add the equality; i.e. a two-step commit of a PR.
      * <code>
-     *     public static boolean isUnsignedLongSupported() {
-     *         // TODO: add equality only once actually ported to 7.11
-     *         return V_7_11_0.compareTo(JDBC_DRIVER_VERSION) < 0;
+     *     static boolean isUnsignedLongSupported() {
+     *         // TODO: add equality (onOrAfter) only once actually ported to 7.11
+     *         return JDBC_DRIVER_VERSION.after(Version.V_7_11_0);
      *     }
      * </code>
+     * Alternatively, use head's version for development (like V_8_0_0) with the right test (onOrAfter) and update it after porting, both
+     * in target branch and master.
      */
     static final Version JDBC_DRIVER_VERSION;
 
@@ -104,7 +110,22 @@ final class JdbcTestUtils {
         return (int) (nanos % 1_000_000_000);
     }
 
+    static <T> Set<T> randomSet(int minSetSize, int maxSetSize, Supplier<T> valueConstructor) {
+        final int size = randomIntBetween(minSetSize, maxSetSize);
+        Set<T> set = new HashSet<>();
+        while (set.size() < size) {
+            set.add(valueConstructor.get());
+        }
+        return set;
+    }
+
     static boolean versionSupportsDateNanos() {
         return JDBC_DRIVER_VERSION.onOrAfter(Version.V_7_12_0);
+    }
+
+    static boolean versionSupportsArrayTypes() {
+        // TODO: add equality (onOrAfter) only once actually ported to 7.12
+        return JDBC_DRIVER_VERSION.after(Version.V_7_13_0);
+
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -161,7 +161,7 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testTwoQueriesExecuted() {
         Metrics metrics = new Metrics();
-        Verifier verifier = new Verifier(metrics);
+        Verifier verifier = new Verifier(metrics, TEST_CFG.version());
         sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages LIMIT 5", verifier);
         sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3 "
                       + "ORDER BY languages LIMIT 5", verifier);
@@ -179,7 +179,7 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testTwoCommandsExecuted() {
         String command1 = randomFrom(commands);
         Metrics metrics = new Metrics();
-        Verifier verifier = new Verifier(metrics);
+        Verifier verifier = new Verifier(metrics, TEST_CFG.version());
         sqlWithVerifier(command1, verifier);
         sqlWithVerifier(randomValueOtherThan(command1, () -> randomFrom(commands)), verifier);
         Counters c = metrics.stats();
@@ -237,10 +237,10 @@ public class VerifierMetricsTests extends ESTestCase {
         Metrics metrics = null;
         if (v == null) {
             metrics = new Metrics();
-            verifier = new Verifier(metrics);
+            verifier = new Verifier(metrics, TEST_CFG.version());
         }
 
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), IndexResolution.valid(test), verifier);
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), IndexResolution.valid(test), verifier);
         analyzer.analyze(parser.createStatement(sql), true);
 
         return metrics == null ? null : metrics.stats();

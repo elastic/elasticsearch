@@ -29,7 +29,7 @@ public class VerifierTests extends ESTestCase {
         TEST_CFG,
         new SqlFunctionRegistry(),
         indexResolution,
-        new Verifier(new Metrics())
+        new Verifier(new Metrics(), TEST_CFG.version())
     );
     private final Planner planner = new Planner();
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -23,24 +22,39 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.ParseException;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
+import java.util.function.Function;
 
 import static java.lang.String.format;
+import static java.sql.Types.ARRAY;
 import static java.sql.Types.BIGINT;
+import static java.sql.Types.BINARY;
+import static java.sql.Types.BOOLEAN;
+import static java.sql.Types.DATE;
 import static java.sql.Types.DOUBLE;
 import static java.sql.Types.FLOAT;
 import static java.sql.Types.INTEGER;
+import static java.sql.Types.NULL;
+import static java.sql.Types.OTHER;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
+import static java.sql.Types.TIMESTAMP;
+import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
 import static java.sql.Types.TINYINT;
+import static java.sql.Types.VARCHAR;
 import static java.time.ZoneOffset.UTC;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATETIME_WITH_NANOS;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.logResultSetMetaData;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.resultSetCurrentData;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -59,6 +73,22 @@ public class JdbcAssert {
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
 
     private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
+
+    private static final Map<Integer, Function<String, Object>> CSV_ARRAY_VALUES_CONVERTER_MAP = new HashMap<>() {
+        {
+            put(BOOLEAN, Boolean::valueOf);
+            put(TINYINT, Byte::valueOf);
+            put(SMALLINT, Short::valueOf);
+            put(INTEGER, Integer::valueOf);
+            put(BIGINT, Long::valueOf);
+            put(REAL, Float::valueOf);
+            put(FLOAT, Float::valueOf);
+            put(DOUBLE, Double::valueOf);
+            put(VARCHAR, x -> x.substring(1, x.length() - 1)); // strip framing quotes
+            put(BINARY, x -> x.substring(1, x.length() - 1));
+            put(TIMESTAMP, JdbcAssert::asTimestamp);
+        }
+    };
 
     static {
         for (EsType type : EsType.values()) {
@@ -167,26 +197,31 @@ public class JdbcAssert {
 
             // since H2 cannot use a fixed timezone, the data is stored in UTC (and thus with timezone)
             if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
-                expectedType = Types.TIMESTAMP;
+                expectedType = TIMESTAMP;
             }
 
             // H2 treats GEOMETRY as OTHER
-            if (expectedType == Types.OTHER && nameOf(actualType).startsWith("GEO_")) {
-                actualType = Types.OTHER;
+            if (expectedType == OTHER && nameOf(actualType).startsWith("GEO_")) {
+                actualType = OTHER;
             }
 
             // since csv doesn't support real, we use float instead.....
-            if (expectedType == Types.FLOAT && expected instanceof CsvResultSet) {
-                expectedType = Types.REAL;
+            if (expectedType == FLOAT && expected instanceof CsvResultSet) {
+                expectedType = REAL;
             }
             // handle intervals
-            if ((expectedType == Types.VARCHAR && expected instanceof CsvResultSet) && nameOf(actualType).startsWith("INTERVAL_")) {
+            if ((expectedType == VARCHAR && expected instanceof CsvResultSet) && nameOf(actualType).startsWith("INTERVAL_")) {
                 expectedType = actualType;
             }
 
             // csv doesn't support NULL type so skip type checking
-            if (actualType == Types.NULL && expected instanceof CsvResultSet) {
-                expectedType = Types.NULL;
+            if (actualType == NULL && expected instanceof CsvResultSet) {
+                expectedType = NULL;
+            }
+
+            // csv doesn't support arrays
+            if (actualType == ARRAY) {
+                expectedType = ARRAY;
             }
 
             // when lenient is used, an int is equivalent to a short, etc...
@@ -245,6 +280,8 @@ public class JdbcAssert {
 
                 for (int column = 1; column <= columns; column++) {
                     int type = metaData.getColumnType(column);
+                    int actualType = actual.getMetaData().getColumnType(column);
+                    String actualTypeName = actual.getMetaData().getColumnTypeName(column);
                     Class<?> expectedColumnClass = null;
                     try {
                         String columnClassName = metaData.getColumnClassName(column);
@@ -277,11 +314,6 @@ public class JdbcAssert {
                         throw new SQLException(cnfe);
                     }
 
-                    Object expectedObject = expected.getObject(column);
-                    Object actualObject = (lenientDataType && expectedColumnClass != null)
-                        ? actual.getObject(column, expectedColumnClass)
-                        : actual.getObject(column);
-
                     String msg = format(
                         Locale.ROOT,
                         "Different result for column [%s], entry [%d]",
@@ -289,54 +321,21 @@ public class JdbcAssert {
                         count + 1
                     );
 
-                    // handle nulls first
-                    if (expectedObject == null || actualObject == null) {
-                        // hack for JDBC CSV nulls
-                        if (expectedObject != null && "null".equals(expectedObject.toString().toLowerCase(Locale.ROOT))) {
-                            assertNull(msg, actualObject);
-                        } else {
-                            assertEquals(msg, expectedObject, actualObject);
+                    Object expectedObject = extractObject(expected, column, false, null);
+                    Object actualObject = extractObject(actual, column, true, lenientDataType ? expectedColumnClass : null);
+                    if (actualType == ARRAY) {
+                        int baseType = baseTypeOf(actualTypeName).getVendorTypeNumber();
+                        assertTrue(expectedObject instanceof String);
+                        List<Object> expectedList = parseAsList((String) expectedObject, baseType);
+
+                        assertTrue(actualObject instanceof List);
+                        List<?> actualList = (List<?>) actualObject;
+                        assertEquals(expectedList.size(), actualList.size());
+                        for (int i = 0; i < actualList.size(); i++) {
+                            compareValues(type, expectedList.get(i), actualList.get(i), lenientFloatingNumbers, msg);
                         }
-                    }
-                    // then timestamp
-                    else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                        assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
-                    }
-                    // then date
-                    else if (type == Types.DATE) {
-                        assertEquals(msg, convertDateToSystemTimezone(expected.getDate(column)), actual.getDate(column));
-                    }
-                    // and floats/doubles
-                    else if (type == Types.DOUBLE) {
-                        assertEquals(msg, (double) expectedObject, (double) actualObject, lenientFloatingNumbers ? 1d : 0.0d);
-                    } else if (type == Types.FLOAT) {
-                        assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
-                    } else if (type == Types.OTHER) {
-                        if (actualObject instanceof Geometry) {
-                            // We need to convert the expected object to libs/geo Geometry for comparision
-                            try {
-                                expectedObject = WKT.fromWKT(expectedObject.toString());
-                            } catch (IOException | ParseException ex) {
-                                fail(ex.getMessage());
-                            }
-                        }
-                        if (actualObject instanceof Point) {
-                            // geo points are loaded form doc values where they are stored as long-encoded values leading
-                            // to lose in precision
-                            assertThat(expectedObject, instanceOf(Point.class));
-                            assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
-                            assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
-                        } else {
-                            assertEquals(msg, expectedObject, actualObject);
-                        }
-                    }
-                    // intervals
-                    else if (type == Types.VARCHAR && actualObject instanceof TemporalAmount) {
-                        assertEquals(msg, expectedObject, StringUtils.toString(actualObject));
-                    }
-                    // finally the actual comparison
-                    else {
-                        assertEquals(msg, expectedObject, actualObject);
+                    } else {
+                        compareValues(type, expectedObject, actualObject, lenientFloatingNumbers, msg);
                     }
                 }
             }
@@ -351,6 +350,87 @@ public class JdbcAssert {
         if (actual.next()) {
             fail("Elasticsearch [" + actual + "] still has data after [" + count + "] entries:\n" + resultSetCurrentData(actual));
         }
+    }
+
+    private static Object extractObject(ResultSet resultSet, int column, boolean fromEs, Class<?> expectedColumnClass) throws SQLException {
+        switch (resultSet.getMetaData().getColumnType(column)) {
+            case TIMESTAMP:
+            case TIMESTAMP_WITH_TIMEZONE:
+                return resultSet.getTimestamp(column);
+            case DATE:
+                Date date = resultSet.getDate(column);
+                return fromEs == false && date != null ? convertDateToSystemTimezone(date) : date;
+        }
+        return expectedColumnClass == null ? resultSet.getObject(column) : resultSet.getObject(column, expectedColumnClass);
+    }
+
+    private static void compareValues(int type, Object expectedObject, Object actualObject, boolean lenientFloatingNumbers, String msg) {
+        // handle nulls first
+        if (expectedObject == null || actualObject == null) {
+            // hack for JDBC CSV nulls
+            if (expectedObject != null && "null".equals(expectedObject.toString().toLowerCase(Locale.ROOT))) {
+                assertNull(msg, actualObject);
+            } else {
+                assertEquals(msg, expectedObject, actualObject);
+            }
+        }
+        // and floats/doubles
+        else if (type == DOUBLE) {
+            assertEquals(msg, (double) expectedObject, (double) actualObject, lenientFloatingNumbers ? 1d : 0.0d);
+        } else if (type == FLOAT) {
+            assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
+        } else if (type == OTHER) {
+            if (actualObject instanceof Geometry) {
+                // We need to convert the expected object to libs/geo Geometry for comparision
+                try {
+                    expectedObject = WKT.fromWKT(expectedObject.toString());
+                } catch (IOException | ParseException ex) {
+                    fail(ex.getMessage());
+                }
+            }
+            if (actualObject instanceof Point) {
+                assertThat(expectedObject, instanceOf(Point.class));
+                assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
+                assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
+            } else {
+                assertEquals(msg, expectedObject, actualObject);
+            }
+        }
+        // intervals
+        else if (type == VARCHAR && actualObject instanceof TemporalAmount) {
+            assertEquals(msg, expectedObject, StringUtils.toString(actualObject));
+        }
+        // finally the actual comparison
+        else {
+            assertEquals(msg, expectedObject, actualObject);
+        }
+
+    }
+
+    private static List<Object> parseAsList(String string, int type) {
+        assertTrue("Not a list representation: [" + string + "]", string.startsWith("[") && string.endsWith("]"));
+        List<Object> list = new ArrayList<>();
+        String unframed = string.substring(1, string.length() - 1);
+        if (unframed.isEmpty() == false) {
+            String[] tokens = unframed.split(",");
+            for (String tok : tokens) {
+                list.add(CSV_ARRAY_VALUES_CONVERTER_MAP.getOrDefault(type, x -> x).apply(tok));
+            }
+        }
+        return list;
+    }
+
+    private static Timestamp asTimestamp(String date) {
+        ZonedDateTime zdt = ISO_DATETIME_WITH_NANOS.parse(date, ZonedDateTime::from);
+        Timestamp timestamp = new Timestamp(zdt.toInstant().toEpochMilli());
+        timestamp.setNanos(zdt.getNano());
+        return timestamp;
+    }
+
+    private static EsType baseTypeOf(String arrayTypeName) {
+        String typeName = arrayTypeName.toUpperCase(Locale.ROOT);
+        assertTrue(typeName.endsWith("_ARRAY"));
+        return EsType.valueOf(typeName.substring(0, typeName.length() - "_ARRAY".length()));
     }
 
     /**

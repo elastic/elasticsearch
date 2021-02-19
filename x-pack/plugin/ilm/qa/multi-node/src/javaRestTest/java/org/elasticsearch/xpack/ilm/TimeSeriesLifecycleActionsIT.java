@@ -995,7 +995,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
     }
 
-    @SuppressWarnings("unchecked")
     private void createSlmPolicy(String smlPolicy, String repo) throws IOException {
         Request request;
         request = new Request("PUT", "/_slm/policy/" + smlPolicy);

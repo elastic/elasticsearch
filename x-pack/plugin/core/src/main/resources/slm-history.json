@@ -1,9 +1,11 @@
 {
   "index_patterns": [
-    "slm-history-${xpack.slm.template.version}*"
+    ".slm-history-${xpack.slm.template.version}*"
   ],
   "priority": 2147483647,
-  "data_stream": {},
+  "data_stream": {
+    "hidden": true
+  },
   "template": {
     "settings": {
       "index.number_of_shards": 1,
@@ -55,6 +57,7 @@
       }
     }
   },
+  "allow_auto_create": true,
   "_meta": {
     "description": "index template for SLM history indices",
     "managed": true

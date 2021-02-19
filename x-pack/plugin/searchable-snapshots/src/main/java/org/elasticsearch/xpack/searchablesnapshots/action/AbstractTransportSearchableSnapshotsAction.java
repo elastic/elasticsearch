@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
@@ -24,6 +25,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
@@ -105,7 +107,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     }
 
     @Override
-    protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting) throws IOException {
+    protected ShardOperationResult shardOperation(Request request, ShardRouting shardRouting, Task task) throws IOException {
         SearchableSnapshots.ensureValidLicense(licenseState);
         final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
         final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());

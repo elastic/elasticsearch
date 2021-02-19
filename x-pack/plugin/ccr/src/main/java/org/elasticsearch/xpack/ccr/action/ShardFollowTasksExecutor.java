@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -12,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -40,12 +42,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -419,7 +422,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                  * again. If that fails, it had better not be because the retention lease already exists. Either way, we will attempt to
                  * renew again on the next scheduled execution.
                  */
-                final ActionListener<RetentionLeaseActions.Response> listener = ActionListener.wrap(
+                final ActionListener<ActionResponse.Empty> listener = ActionListener.wrap(
                         r -> {},
                         e -> {
                             /*
@@ -443,7 +446,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                         params.getFollowShardId(),
                                         retentionLeaseId);
                                 try {
-                                    final ActionListener<RetentionLeaseActions.Response> wrappedListener = ActionListener.wrap(
+                                    final ActionListener<ActionResponse.Empty> wrappedListener = ActionListener.wrap(
                                         r -> {},
                                         inner -> {
                                             /*
@@ -536,9 +539,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
                     shardFollowNodeTask), e);
-                threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
+                try {
+                    threadPool.schedule(() -> nodeOperation(task, params, state), params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME);
+                } catch (EsRejectedExecutionException rex) {
+                    rex.addSuppressed(e);
+                    shardFollowNodeTask.onFatalFailure(rex);
+                }
             } else {
-                shardFollowNodeTask.setFatalException(e);
+                shardFollowNodeTask.onFatalFailure(e);
             }
         };
 

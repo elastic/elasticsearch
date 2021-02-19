@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action;
@@ -44,6 +33,71 @@ public interface ActionListener<Response> {
      * A failure caused by an exception at some phase of the task.
      */
     void onFailure(Exception e);
+
+    /**
+     * Creates a listener that wraps this listener, mapping response values via the given mapping function and passing along
+     * exceptions to this instance.
+     *
+     * Notice that it is considered a bug if the listener's onResponse or onFailure fails. onResponse failures will not call onFailure.
+     *
+     * If the function fails, the listener's onFailure handler will be called. The principle is that the mapped listener will handle
+     * exceptions from the mapping function {@code fn} but it is the responsibility of {@code delegate} to handle its own exceptions
+     * inside `onResponse` and `onFailure`.
+     *
+     * @param fn Function to apply to listener response
+     * @param <T> Response type of the wrapped listener
+     * @return a listener that maps the received response and then passes it to this instance
+     */
+    default <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> fn) {
+        return new MappedActionListener<>(fn, this);
+    }
+
+    final class MappedActionListener<Response, MappedResponse> implements ActionListener<Response> {
+
+        private final CheckedFunction<Response, MappedResponse, Exception> fn;
+
+        private final ActionListener<MappedResponse> delegate;
+
+        private MappedActionListener(CheckedFunction<Response, MappedResponse, Exception> fn, ActionListener<MappedResponse> delegate) {
+            this.fn = fn;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            MappedResponse mapped;
+            try {
+                mapped = fn.apply(response);
+            } catch (Exception e) {
+                onFailure(e);
+                return;
+            }
+            try {
+                delegate.onResponse(mapped);
+            } catch (RuntimeException e) {
+                assert false : new AssertionError("map: listener.onResponse failed", e);
+                throw e;
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                delegate.onFailure(e);
+            } catch (RuntimeException ex) {
+                if (ex != e) {
+                    ex.addSuppressed(e);
+                }
+                assert false : new AssertionError("map: listener.onFailure failed", ex);
+                throw ex;
+            }
+        }
+
+        @Override
+        public <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> fn) {
+            return new MappedActionListener<>(t -> this.fn.apply(fn.apply(t)), this.delegate);
+        }
+    }
 
     /**
      * Creates a listener that listens for a response (or failure) and executes the
@@ -130,56 +184,6 @@ public interface ActionListener<Response> {
      */
     static <Response> ActionListener<Response> wrap(Runnable runnable) {
         return wrap(r -> runnable.run(), e -> runnable.run());
-    }
-
-    /**
-     * Creates a listener that wraps another listener, mapping response values via the given mapping function and passing along
-     * exceptions to the delegate.
-     *
-     * Notice that it is considered a bug if the listener's onResponse or onFailure fails. onResponse failures will not call onFailure.
-     *
-     * If the function fails, the listener's onFailure handler will be called. The principle is that the mapped listener will handle
-     * exceptions from the mapping function {@code fn} but it is the responsibility of {@code delegate} to handle its own exceptions
-     * inside `onResponse` and `onFailure`.
-     *
-     * @param delegate Listener to delegate to
-     * @param fn Function to apply to listener response
-     * @param <Response> Response type of the new listener
-     * @param <T> Response type of the wrapped listener
-     * @return a listener that maps the received response and then passes it to its delegate listener
-     */
-    static <T, Response> ActionListener<Response> map(ActionListener<T> delegate, CheckedFunction<Response, T, Exception> fn) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-                T mapped;
-                try {
-                    mapped = fn.apply(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                    return;
-                }
-                try {
-                    delegate.onResponse(mapped);
-                } catch (RuntimeException e) {
-                    assert false : new AssertionError("map: listener.onResponse failed", e);
-                    throw e;
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    delegate.onFailure(e);
-                } catch (RuntimeException ex) {
-                    if (ex != e) {
-                        ex.addSuppressed(e);
-                    }
-                    assert false : new AssertionError("map: listener.onFailure failed", ex);
-                    throw ex;
-                }
-            }
-        };
     }
 
     /**

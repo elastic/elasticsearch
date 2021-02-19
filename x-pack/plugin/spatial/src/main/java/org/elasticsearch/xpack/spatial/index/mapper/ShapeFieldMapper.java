@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
@@ -14,12 +15,12 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.util.Arrays;
@@ -49,7 +50,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         return ((ShapeFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
 
@@ -72,14 +73,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
 
         @Override
-        public ShapeFieldMapper build(BuilderContext context) {
+        public ShapeFieldMapper build(ContentPath contentPath) {
             GeometryParser geometryParser
                 = new GeometryParser(orientation.get().value().getAsBoolean(), coerce.get().value(), ignoreZValue.get().value());
             Parser<Geometry> parser = new GeoShapeParser(geometryParser);
             ShapeFieldType ft
-                = new ShapeFieldType(buildFullName(context), indexed.get(), orientation.get().value(), parser, meta.get());
+                = new ShapeFieldType(buildFullName(contentPath), indexed.get(), orientation.get().value(), parser, meta.get());
             return new ShapeFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, context), copyTo.build(),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(),
                 new ShapeIndexer(ft.name()), parser, this);
         }
     }
@@ -100,7 +101,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
 
         @Override
-        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
 
@@ -143,7 +144,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value())
             .init(this);
     }

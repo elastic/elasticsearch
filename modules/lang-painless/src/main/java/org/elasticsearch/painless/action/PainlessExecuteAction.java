@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.painless.action;
 
@@ -65,7 +54,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -85,6 +74,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -537,7 +527,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
 
         private static Response prepareRamIndex(Request request,
-                                                CheckedBiFunction<QueryShardContext, LeafReaderContext, Response, IOException> handler,
+                                                CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
                                                 IndexService indexService) throws IOException {
 
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
@@ -554,8 +544,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
-                        QueryShardContext context =
-                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
+                        SearchExecutionContext context =
+                            indexService.newSearchExecutionContext(0, 0, searcher, () -> absoluteStartMillis, null, emptyMap());
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }

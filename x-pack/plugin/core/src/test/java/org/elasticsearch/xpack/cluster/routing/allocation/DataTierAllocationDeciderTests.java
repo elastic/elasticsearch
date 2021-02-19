@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.DataTier;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -45,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
-    private static final Set<Setting<?>> ALL_SETTINGS;
+    public static final Set<Setting<?>> ALL_SETTINGS;
     private static final DiscoveryNode HOT_NODE = newNode("node-hot", Collections.singleton(DataTier.DATA_HOT_NODE_ROLE));
     private static final DiscoveryNode WARM_NODE = newNode("node-warm", Collections.singleton(DataTier.DATA_WARM_NODE_ROLE));
     private static final DiscoveryNode COLD_NODE = newNode("node-cold", Collections.singleton(DataTier.DATA_COLD_NODE_ROLE));
@@ -53,7 +55,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ALL_SETTINGS);
-    private final DataTierAllocationDecider decider = new DataTierAllocationDecider(clusterSettings);
+    private final DataTierAllocationDecider decider = new DataTierAllocationDecider(Settings.EMPTY, clusterSettings);
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
         Arrays.asList(decider,
             new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
@@ -646,6 +648,60 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             equalTo(Optional.of("data_content")));
         assertThat(DataTierAllocationDecider.preferredAvailableTier("data_hot,data_cold,data_warm", nodes),
             equalTo(Optional.of("data_warm")));
+    }
+
+    public void testExistedClusterFilters() {
+        Settings existedSettings = Settings.builder()
+            .put("cluster.routing.allocation.include._tier", "data_hot,data_warm")
+            .put("cluster.routing.allocation.exclude._tier", "data_cold")
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ALL_SETTINGS);
+        DataTierAllocationDecider dataTierAllocationDecider = new DataTierAllocationDecider(existedSettings, clusterSettings);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(
+            List.of(dataTierAllocationDecider));
+        AllocationService service = new AllocationService(allocationDeciders,
+            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE);
+
+        ClusterState clusterState = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
+
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState.getRoutingNodes(), clusterState,
+            null, null, 0);
+        allocation.debugDecision(true);
+        Decision d;
+        RoutingNode node;
+
+        for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE)) {
+            node = new RoutingNode(n.getId(), n, shard);
+            d = dataTierAllocationDecider.canAllocate(shard, node, allocation);
+            assertThat(d.type(), equalTo(Decision.Type.YES));
+            d = dataTierAllocationDecider.canRemain(shard, node, allocation);
+            assertThat(d.type(), equalTo(Decision.Type.YES));
+        }
+
+        node = new RoutingNode(DATA_NODE.getId(), DATA_NODE, shard);
+        d = dataTierAllocationDecider.canAllocate(shard, node, allocation);
+        assertThat(d.type(), equalTo(Decision.Type.NO));
+        assertThat(d.getExplanation(),
+            containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] " +
+                "tier filters [data_cold]"));
+        d = dataTierAllocationDecider.canRemain(shard, node, allocation);
+        assertThat(d.type(), equalTo(Decision.Type.NO));
+        assertThat(d.getExplanation(),
+            containsString("node matches any cluster setting [cluster.routing.allocation.exclude._tier] " +
+                "tier filters [data_cold]"));
+
+        node = new RoutingNode(COLD_NODE.getId(), COLD_NODE, shard);
+        d = dataTierAllocationDecider.canAllocate(shard, node, allocation);
+        assertThat(d.type(), equalTo(Decision.Type.NO));
+        assertThat(d.getExplanation(),
+            containsString("node does not match any cluster setting [cluster.routing.allocation.include._tier] " +
+                "tier filters [data_hot,data_warm]"));
+        d = dataTierAllocationDecider.canRemain(shard, node, allocation);
+        assertThat(d.type(), equalTo(Decision.Type.NO));
+        assertThat(d.getExplanation(),
+            containsString("node does not match any cluster setting [cluster.routing.allocation.include._tier] " +
+                "tier filters [data_hot,data_warm]"));
     }
 
     private ClusterState prepareState(ClusterState initialState) {

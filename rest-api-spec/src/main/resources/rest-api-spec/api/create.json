@@ -5,6 +5,11 @@
       "description":"Creates a new document in the index.\n\nReturns a 409 response when a document with a same ID already exists in the index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

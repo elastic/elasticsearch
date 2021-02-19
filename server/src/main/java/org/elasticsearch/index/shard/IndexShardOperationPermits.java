@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -24,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -89,42 +77,20 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * Wait for in-flight operations to finish and executes {@code onBlocked} under the guarantee that no new operations are started. Queues
-     * operations that are occurring in the meanwhile and runs them once {@code onBlocked} has executed.
-     *
-     * @param timeout   the maximum time to wait for the in-flight operations block
-     * @param timeUnit  the time unit of the {@code timeout} argument
-     * @param onBlocked the action to run once the block has been acquired
-     * @param <E>       the type of checked exception thrown by {@code onBlocked}
-     * @throws InterruptedException      if calling thread is interrupted
-     * @throws TimeoutException          if timed out waiting for in-flight operations to finish
-     * @throws IndexShardClosedException if operation permit has been closed
-     */
-    <E extends Exception> void blockOperations(
-            final long timeout,
-            final TimeUnit timeUnit,
-            final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
-        delayOperations();
-        try (Releasable ignored = acquireAll(timeout, timeUnit)) {
-            onBlocked.run();
-        } finally {
-            releaseDelayedOperations();
-        }
-    }
-
-    /**
-     * Immediately delays operations and on another thread waits for in-flight operations to finish and then acquires all permits. When all
-     * permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are started. Delayed
-     * operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in this case the
-     * {@code onFailure} handler will be invoked after delayed operations are released.
+     * Immediately delays operations and uses the {@code executor} to wait for in-flight operations to finish and then acquires all
+     * permits. When all permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are
+     * started. Delayed operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in
+     * this case the {@code onFailure} handler will be invoked after delayed operations are released.
      *
      * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param timeout    the maximum time to wait for the in-flight operations block
      * @param timeUnit   the time unit of the {@code timeout} argument
+     * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
-    public void asyncBlockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit)  {
+    public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit,
+                                String executor)  {
         delayOperations();
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+        threadPool.executor(executor).execute(new AbstractRunnable() {
 
             final RunOnce released = new RunOnce(() -> releaseDelayedOperations());
 
@@ -191,7 +157,7 @@ final class IndexShardOperationPermits implements Closeable {
                 queuedActions = Collections.emptyList();
             }
         }
-        if (!queuedActions.isEmpty()) {
+        if (queuedActions.isEmpty() == false) {
             /*
              * Try acquiring permits on fresh thread (for two reasons):
              *   - blockOperations can be called on a recovery thread which can be expected to be interrupted when recovery is cancelled;
@@ -211,8 +177,7 @@ final class IndexShardOperationPermits implements Closeable {
 
     /**
      * Acquires a permit whenever permit acquisition is not blocked. If the permit is directly available, the provided
-     * {@link ActionListener} will be called on the calling thread. During calls of
-     * {@link #blockOperations(long, TimeUnit, CheckedRunnable)}, permit acquisition can be delayed.
+     * {@link ActionListener} will be called on the calling thread.
      * The {@link ActionListener#onResponse(Object)} method will then be called using the provided executor once operations are no
      * longer blocked. Note that the executor will not be used for {@link ActionListener#onFailure(Exception)} calls. Those will run
      * directly on the calling thread, which in case of delays, will be a generic thread. Callers should thus make sure

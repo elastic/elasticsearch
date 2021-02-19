@@ -2,52 +2,52 @@
 "Test exists query on flattened object field":
   - skip:
       version: " - 7.2.99"
-      reason: "Flat object fields were implemented in 7.3."
+      reason: "Flattened fields were implemented in 7.3."
 
   - do:
       indices.create:
-        index:  flat_object_test
+        index:  flattened_test
         body:
           mappings:
             properties:
-              flat_object:
+              flattened:
                 type: flattened
   - do:
       index:
-        index:  flat_object_test
+        index:  flattened_test
         id:     1
         body:
-          flat_object:
+          flattened:
             key: some_value
         refresh: true
 
   - do:
       search:
-        index: flat_object_test
+        index: flattened_test
         body:
           query:
             exists:
-              field: flat_object
+              field: flattened
 
   - match: { hits.total.value: 1 }
 
   - do:
       search:
-        index: flat_object_test
+        index: flattened_test
         body:
           query:
             exists:
-              field: flat_object.key
+              field: flattened.key
 
   - match: { hits.total.value: 1 }
 
   - do:
       search:
-        index: flat_object_test
+        index: flattened_test
         body:
           query:
             exists:
-              field: flat_object.nonexistent_key
+              field: flattened.nonexistent_key
 
   - match: { hits.total.value: 0 }
 
@@ -55,7 +55,7 @@
 "Test query string query on flattened object field":
   - skip:
       version: " - 7.2.99"
-      reason: "Flat object fields were implemented in 7.3."
+      reason: "Flattened fields were implemented in 7.3."
 
   - do:
       indices.create:
@@ -109,3 +109,84 @@
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "1" }
+
+
+---
+"Test fields option on flattened object field":
+  - skip:
+      version: " - 7.9.99"
+      reason: "Fields option on search request was added in 7.10"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          flattened:
+            some_field: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: ["flattened"]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "flat*" ]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+---
+"Test fields option on flattened object field with include_unmapped":
+  -  skip:
+        version: ' - 7.10.99'
+        reason: support was introduced in 7.11
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          flattened:
+            some_field: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flat*", "include_unmapped" : true } ]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }

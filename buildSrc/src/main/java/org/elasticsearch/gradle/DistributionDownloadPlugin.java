@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle;
@@ -34,10 +23,8 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
 import org.gradle.api.provider.Provider;
-import org.gradle.authentication.http.HttpHeaderAuthentication;
 
 import java.util.Comparator;
 
@@ -83,7 +70,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         setupResolutionsContainer(project);
         setupDistributionContainer(project, dockerSupport);
         setupDownloadServiceRepo(project);
-        project.afterEvaluate(this::setupDistributions);
     }
 
     private void setupDistributionContainer(Project project, Provider<DockerSupportService> dockerSupport) {
@@ -91,7 +77,14 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
             extractedConfiguration.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-            return new ElasticsearchDistribution(name, project.getObjects(), dockerSupport, fileConfiguration, extractedConfiguration);
+            return new ElasticsearchDistribution(
+                name,
+                project.getObjects(),
+                dockerSupport,
+                fileConfiguration,
+                extractedConfiguration,
+                (dist) -> finalizeDistributionDependencies(project, dist)
+            );
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
     }
@@ -115,20 +108,16 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
 
-    // pkg private for tests
-    void setupDistributions(Project project) {
-        for (ElasticsearchDistribution distribution : distributionsContainer) {
-            distribution.finalizeValues();
-            DependencyHandler dependencies = project.getDependencies();
-            // for the distribution as a file, just depend on the artifact directly
-            DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
-            dependencies.add(distribution.configuration.getName(), distributionDependency.getDefaultNotation());
-            // no extraction allowed for rpm, deb or docker
-            if (distribution.getType().shouldExtract()) {
-                // The extracted configuration depends on the artifact directly but has
-                // an artifact transform registered to resolve it as an unpacked folder.
-                dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
-            }
+    private void finalizeDistributionDependencies(Project project, ElasticsearchDistribution distribution) {
+        DependencyHandler dependencies = project.getDependencies();
+        // for the distribution as a file, just depend on the artifact directly
+        DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
+        dependencies.add(distribution.configuration.getName(), distributionDependency.getDefaultNotation());
+        // no extraction needed for rpm, deb or docker
+        if (distribution.getType().shouldExtract()) {
+            // The extracted configuration depends on the artifact directly but has
+            // an artifact transform registered to resolve it as an unpacked folder.
+            dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
         }
     }
 
@@ -146,12 +135,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             repo.setName(name);
             repo.setUrl(url);
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            repo.credentials(HttpHeaderCredentials.class, creds -> {
-                creds.setName("X-Elastic-No-KPI");
-                creds.setValue("1");
-            });
-            repo.getAuthentication().create("header", HttpHeaderAuthentication.class);
             repo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
         });
         project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
@@ -164,8 +147,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (project.getRepositories().findByName(DOWNLOAD_REPO_NAME) != null) {
             return;
         }
-        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.elastic.co", FAKE_IVY_GROUP);
-        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
+        addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts-no-kpi.elastic.co", FAKE_IVY_GROUP);
+        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
     /**
@@ -183,11 +166,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
-        String classifier = ":x86_64";
+        String classifier = ":" + Architecture.current().classifier;
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             if (distroVersion.onOrAfter("7.0.0")) {
-                classifier = ":" + distribution.getPlatform() + "-x86_64";
+                classifier = ":" + distribution.getPlatform() + "-" + Architecture.current().classifier;
             } else {
                 classifier = "";
             }

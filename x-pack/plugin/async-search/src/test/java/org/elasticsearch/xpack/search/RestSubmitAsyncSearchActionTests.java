@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.Before;
 
@@ -53,7 +55,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
                 assertThat(submitRequest.getSearchRequest().requestCache(), equalTo(true));
                 assertThat(submitRequest.getSearchRequest().getPreFilterShardSize().intValue(), equalTo(1));
                 executeCalled.set(true);
-                return null;
+                return new AsyncSearchResponse("", randomBoolean(), randomBoolean(), 0L, 0L);
             });
             RestRequest submitAsyncRestRequest = new FakeRestRequest.Builder(xContentRegistry())
                 .withMethod(RestRequest.Method.POST)
@@ -88,7 +90,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             assertThat(valueAccessor.apply((SubmitAsyncSearchRequest) request), equalTo(expectedValue));
             executeCalled.set(true);
-            return null;
+            return new AsyncSearchResponse("", randomBoolean(), randomBoolean(), 0L, 0L);
         });
         Map<String, String> params = new HashMap<>();
         params.put(paramName, paramValue);

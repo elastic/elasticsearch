@@ -7,7 +7,7 @@ experimental[]
 
 To preserve flexibility, Rollup Jobs are defined based on how future queries may need to use the data.  Traditionally, systems force
 the admin to make decisions about what metrics to rollup and on what interval.  E.g. The average of `cpu_time` on an hourly basis.  This
-is limiting; if, at a future date, the admin wishes to see the average of `cpu_time` on an hourly basis _and partitioned by `host_name`_,
+is limiting; if, in the future, the admin wishes to see the average of `cpu_time` on an hourly basis _and_ partitioned by `host_name`,
 they are out of luck.
 
 Of course, the admin can decide to rollup the `[hour, host]` tuple on an hourly basis, but as the number of grouping keys grows, so do the
@@ -36,7 +36,7 @@ based on which groups are potentially useful to future queries.  For example, th
 --------------------------------------------------
 // NOTCONSOLE
 
-Allows `date_histogram`s to be used on the `"timestamp"` field, `terms` aggregations to be used on the `"hostname"` and `"datacenter"`
+Allows `date_histogram` to be used on the `"timestamp"` field, `terms` aggregations to be used on the `"hostname"` and `"datacenter"`
 fields, and `histograms` to be used on any of `"load"`, `"net_in"`, `"net_out"` fields.
 
 Importantly, these aggs/fields can be used in any combination.  This aggregation:

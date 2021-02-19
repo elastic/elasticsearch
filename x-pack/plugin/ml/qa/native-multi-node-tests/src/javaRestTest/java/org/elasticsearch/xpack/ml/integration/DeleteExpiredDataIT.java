@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -95,6 +96,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataNoThrottle() throws Exception {
         testExpiredDeletion(null, 10010);
     }
@@ -137,6 +139,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             is(arrayContaining(".ml-state-000001", ".ml-state-000005", ".ml-state-000007")));
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/62699")
     public void testDeleteExpiredDataWithStandardThrottle() throws Exception {
         testExpiredDeletion(-1.0f, 100);
     }

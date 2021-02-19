@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.support;
@@ -30,10 +31,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
     @Before
     public void setup() throws IllegalAccessException {
         licenseState = Mockito.mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
-
         listener = new SecurityStatusChangeListener(licenseState);
-
         logAppender = new MockLogAppender();
         logAppender.start();
         listenerLogger = LogManager.getLogger(listener.getClass());

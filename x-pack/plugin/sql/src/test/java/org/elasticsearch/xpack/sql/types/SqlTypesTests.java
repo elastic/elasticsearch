@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.types;
@@ -61,7 +62,17 @@ public class SqlTypesTests extends ESTestCase {
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
-        assertThat(SqlDataTypes.defaultPrecision(field.getDataType()), is(3));
+        assertThat(SqlDataTypes.defaultPrecision(field.getDataType()), is(9));
+    }
+
+    public void testDateNanosField() {
+        Map<String, EsField> mapping = loadMapping("mapping-date_nanos.json");
+
+        assertThat(mapping.size(), is(1));
+        EsField field = mapping.get("date_nanos");
+        assertThat(field.getDataType(), is(DATETIME));
+        assertThat(field.isAggregatable(), is(true));
+        assertThat(SqlDataTypes.defaultPrecision(field.getDataType()), is(9));
     }
 
     public void testDocValueField() {

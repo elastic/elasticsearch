@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.runtimefields.query;
@@ -75,16 +76,17 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
+                SearchLookup searchLookup = new SearchLookup(null, null);
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(null, null),
+                    searchLookup,
                     null,
                     ctx
                 ) {
                     @Override
                     public void execute() {
-                        for (Object timestamp : (List<?>) getSource().get("timestamp")) {
+                        for (Object timestamp : (List<?>) searchLookup.source().get("timestamp")) {
                             emit(((Number) timestamp).longValue());
                         }
                     }

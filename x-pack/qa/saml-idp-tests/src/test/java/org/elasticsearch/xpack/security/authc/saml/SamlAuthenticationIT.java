@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -134,7 +135,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         final Map<String, Object> body = MapBuilder.<String, Object>newMapBuilder()
             .put("roles", Collections.singletonList("kibana_admin"))
             .put("full_name", "Thor Son of Odin")
-            .put("password", randomAlphaOfLengthBetween(8, 16))
+            .put("password", randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 8, 16))
             .put("metadata", Collections.singletonMap("is_native", true))
             .map();
         final Response response = adminClient().performRequest(buildRequest("PUT", "/_security/user/thor", body));

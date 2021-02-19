@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -59,7 +60,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testBwcWith73() throws IOException {
@@ -69,12 +70,13 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                 STARTED,
                 randomBoolean() ? null : randomAlphaOfLength(100),
                 randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
-                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 0, 8, 9, 0, 11, 12, 0.0, 0.0, 0.0),
+                new TransformIndexerStats(1, 2, 3, 0, 5, 6, 7, 0, 0, 10, 11, 0, 13, 14, 0.0, 0.0, 0.0),
                 new TransformCheckpointingInfo(
                     new TransformCheckpointStats(0, null, null, 10, 100),
                     new TransformCheckpointStats(0, null, null, 100, 1000),
                     // changesLastDetectedAt aren't serialized back
                     100,
+                    null,
                     null
                 )
             );
@@ -97,12 +99,13 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                 STARTED,
                 randomBoolean() ? null : randomAlphaOfLength(100),
                 randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
-                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 0, 8, 9, 0, 11, 12, 13.0, 14.0, 15.0),
+                new TransformIndexerStats(1, 2, 3, 0, 5, 6, 7, 0, 0, 10, 11, 0, 13, 14, 15.0, 16.0, 17.0),
                 new TransformCheckpointingInfo(
                     new TransformCheckpointStats(0, null, null, 10, 100),
                     new TransformCheckpointStats(0, null, null, 100, 1000),
                     // changesLastDetectedAt aren't serialized back
                     100,
+                    null,
                     null
                 )
             );

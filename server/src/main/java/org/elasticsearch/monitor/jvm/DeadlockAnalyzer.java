@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -27,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
@@ -76,11 +66,11 @@ public class DeadlockAnalyzer {
         Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<>();
         for (Map.Entry<Long, ThreadInfo> entry : threadInfoMap.entrySet()) {
             LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<>();
-            for (ThreadInfo t = entry.getValue(); !cycle.contains(t); t = threadInfoMap.get(Long.valueOf(t.getLockOwnerId()))) {
+            for (ThreadInfo t = entry.getValue(); cycle.contains(t) == false; t = threadInfoMap.get(Long.valueOf(t.getLockOwnerId()))) {
                 cycle.add(t);
             }
 
-            if (!cycles.contains(cycle)) {
+            if (cycles.contains(cycle) == false) {
                 cycles.add(cycle);
             }
         }
@@ -95,12 +85,12 @@ public class DeadlockAnalyzer {
         Set<Long> knownDeadlockedThreads = threadInfoMap.keySet();
         for (ThreadInfo threadInfo : allThreads) {
             Thread.State state = threadInfo.getThreadState();
-            if (state == Thread.State.BLOCKED && !knownDeadlockedThreads.contains(threadInfo.getThreadId())) {
+            if (state == Thread.State.BLOCKED && knownDeadlockedThreads.contains(threadInfo.getThreadId()) == false) {
                 for (LinkedHashSet<ThreadInfo> cycle : cycles) {
                     if (cycle.contains(threadInfoMap.get(Long.valueOf(threadInfo.getLockOwnerId())))) {
                         LinkedHashSet<ThreadInfo> chain = new LinkedHashSet<>();
                         ThreadInfo node = threadInfo;
-                        while (!chain.contains(node)) {
+                        while (chain.contains(node) == false) {
                             chain.add(node);
                             node = threadInfoMap.get(Long.valueOf(node.getLockOwnerId()));
                         }
@@ -158,9 +148,7 @@ public class DeadlockAnalyzer {
 
             Deadlock deadlock = (Deadlock) o;
 
-            if (memberIds != null ? !memberIds.equals(deadlock.memberIds) : deadlock.memberIds != null) return false;
-
-            return true;
+            return Objects.equals(memberIds, deadlock.memberIds);
         }
 
         @Override

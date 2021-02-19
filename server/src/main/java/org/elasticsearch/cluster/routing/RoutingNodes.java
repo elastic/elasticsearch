@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -335,7 +324,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // be accessible. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-                .filter(shr -> !shr.primary() && shr.active())
+                .filter(shr -> shr.primary() == false && shr.active())
                 .filter(shr -> node(shr.currentNodeId()) != null)
                 .max(Comparator.comparing(shr -> node(shr.currentNodeId()).node(),
                                 Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))))
@@ -351,7 +340,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return false; // if we are empty nothing is active if we have less than total at least one is unassigned
         }
         for (ShardRouting shard : shards) {
-            if (!shard.active()) {
+            if (shard.active() == false) {
                 return false;
             }
         }
@@ -543,7 +532,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (assignedShards.isEmpty() == false) {
                 // copy list to prevent ConcurrentModificationException
                 for (ShardRouting routing : new ArrayList<>(assignedShards)) {
-                    if (!routing.primary() && routing.initializing()) {
+                    if (routing.primary() == false && routing.initializing()) {
                         // re-resolve replica as earlier iteration could have changed source/target of replica relocation
                         ShardRouting replicaShard = getByAllocationId(routing.shardId(), routing.allocationId().getId());
                         assert replicaShard != null : "failed to re-resolve " + routing + " when failing replicas";
@@ -1016,7 +1005,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *         this method does nothing.
      */
     public static boolean assertShardStats(RoutingNodes routingNodes) {
-        if (!Assertions.ENABLED) {
+        if (Assertions.ENABLED == false) {
             return true;
         }
         int unassignedPrimaryCount = 0;
@@ -1058,7 +1047,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         for (final Map.Entry<Index, Integer> e : entries) {
             final Index index = e.getKey();
-            for (int i = 0; i < e.getValue(); i++) {
+            for (int i = 0; i <= e.getValue(); i++) {
                 final ShardId shardId = new ShardId(index, i);
                 final HashSet<ShardRouting> shards = shardsByShardId.get(shardId);
                 final List<ShardRouting> mutableShardRoutings = routingNodes.assignedShards(shardId);
@@ -1141,7 +1130,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         return new Iterator<ShardRouting>() {
             public boolean hasNext() {
-                while (!queue.isEmpty()) {
+                while (queue.isEmpty() == false) {
                     if (queue.peek().hasNext()) {
                         return true;
                     }

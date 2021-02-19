@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
@@ -27,16 +27,16 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
     protected StringContainsFunctionPipe randomInstance() {
         return randomStringContainsFunctionPipe();
     }
-    
+
     private Expression randomStringContainsFunctionExpression() {
         return randomStringContainsFunctionPipe().expression();
     }
-    
+
     public static StringContainsFunctionPipe randomStringContainsFunctionPipe() {
         return (StringContainsFunctionPipe) (new StringContains(randomSource(),
-                                    randomStringLiteral(),
-                                    randomStringLiteral(),
-                                    EqlTestUtils.randomConfiguration())
+            randomStringLiteral(),
+            randomStringLiteral(),
+            randomBoolean())
             .makePipe());
     }
 
@@ -51,9 +51,9 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
                 newExpression,
                 b1.string(),
                 b1.substring(),
-                b1.isCaseSensitive());
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+                b1.isCaseInsensitive());
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         StringContainsFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new StringContainsFunctionPipe(
@@ -61,9 +61,9 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
                 b2.expression(),
                 b2.string(),
                 b2.substring(),
-                b2.isCaseSensitive());
+                b2.isCaseInsensitive());
         assertEquals(newB,
-                b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+                b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -71,22 +71,22 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
         StringContainsFunctionPipe b = randomInstance();
         Pipe newString = pipe(((Expression) randomValueOtherThan(b.string(), () -> randomStringLiteral())));
         Pipe newSubstring = pipe(((Expression) randomValueOtherThan(b.substring(), () -> randomStringLiteral())));
-        boolean newCaseSensitive = randomValueOtherThan(b.isCaseSensitive(), () -> randomBoolean());
+        boolean newCaseSensitive = randomValueOtherThan(b.isCaseInsensitive(), () -> randomBoolean());
         StringContainsFunctionPipe newB =
                 new StringContainsFunctionPipe(b.source(), b.expression(), b.string(), b.substring(), newCaseSensitive);
-        
+
         StringContainsFunctionPipe transformed = newB.replaceChildren(newString, b.substring());
         assertEquals(transformed.string(), newString);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.substring(), b.substring());
-        
+
         transformed = newB.replaceChildren(b.string(), newSubstring);
         assertEquals(transformed.string(), b.string());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.substring(), newSubstring);
-        
+
         transformed = newB.replaceChildren(newString, newSubstring);
         assertEquals(transformed.string(), newString);
         assertEquals(transformed.source(), b.source());
@@ -101,18 +101,18 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.string(), () -> randomStringLiteral()))),
                 f.substring(),
-                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
+                randomValueOtherThan(f.isCaseInsensitive(), () -> randomBoolean())));
         randoms.add(f -> new StringContainsFunctionPipe(f.source(),
                 f.expression(),
                 f.string(),
                 pipe(((Expression) randomValueOtherThan(f.substring(), () -> randomStringLiteral()))),
-                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
+                randomValueOtherThan(f.isCaseInsensitive(), () -> randomBoolean())));
         randoms.add(f -> new StringContainsFunctionPipe(f.source(),
                 f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.string(), () -> randomStringLiteral()))),
                 pipe(((Expression) randomValueOtherThan(f.substring(), () -> randomStringLiteral()))),
-                randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
-        
+                randomValueOtherThan(f.isCaseInsensitive(), () -> randomBoolean())));
+
         return randomFrom(randoms).apply(instance);
     }
 
@@ -122,6 +122,6 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
                 instance.expression(),
                 instance.string(),
                 instance.substring(),
-                instance.isCaseSensitive());
+                instance.isCaseInsensitive());
     }
 }

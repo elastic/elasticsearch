@@ -1,28 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -34,21 +27,15 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
+    private final Set<RestApiCompatibleVersion> restApiCompatibleVersions = new HashSet<>(2);
     private String allReplacedWith = null;
     private final String[] allNames;
     private boolean fullyDeprecated = false;
 
     private static final String[] EMPTY = new String[0];
 
-    /**
-     * @param name
-     *            the primary name for this field. This will be returned by
-     *            {@link #getPreferredName()}
-     * @param deprecatedNames
-     *            names for this field which are deprecated and will not be
-     *            accepted when strict matching is used.
-     */
-    public ParseField(String name, String... deprecatedNames) {
+
+    private ParseField(String name, Collection<RestApiCompatibleVersion> restApiCompatibleVersions, String[] deprecatedNames) {
         this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = EMPTY;
@@ -57,10 +44,23 @@ public class ParseField {
             Collections.addAll(set, deprecatedNames);
             this.deprecatedNames = set.toArray(new String[set.size()]);
         }
+        this.restApiCompatibleVersions.addAll(restApiCompatibleVersions);
+
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
         Collections.addAll(allNames, this.deprecatedNames);
         this.allNames = allNames.toArray(new String[allNames.size()]);
+    }
+
+    /**
+     * Creates a field available for lookup for both current and previous REST API compatible versions
+     * @param name            the primary name for this field. This will be returned by
+     *                        {@link #getPreferredName()}
+     * @param deprecatedNames names for this field which are deprecated and will not be
+     *                        accepted when strict matching is used.
+     */
+    public ParseField(String name, String... deprecatedNames) {
+        this(name, List.of(RestApiCompatibleVersion.currentVersion(), RestApiCompatibleVersion.minimumSupported()) ,deprecatedNames);
     }
 
     /**
@@ -87,6 +87,22 @@ public class ParseField {
      */
     public ParseField withDeprecation(String... deprecatedNames) {
         return new ParseField(this.name, deprecatedNames);
+    }
+
+
+    /**
+     * Creates a new field with current name and deprecatedNames, but overrides restApiCompatibleVersions
+     * @param restApiCompatibleVersions rest api compatibility versions under which specifies when a lookup will be allowed
+     */
+    public ParseField withRestApiCompatibilityVersions(RestApiCompatibleVersion... restApiCompatibleVersions) {
+        return new ParseField(this.name, Arrays.asList(restApiCompatibleVersions), this.deprecatedNames);
+    }
+
+    /**
+     * @return rest api compatibility versions under which a lookup will be allowed
+     */
+    public Set<RestApiCompatibleVersion> getRestApiCompatibleVersions() {
+        return restApiCompatibleVersions;
     }
 
     /**
@@ -179,6 +195,7 @@ public class ParseField {
     public String[] getDeprecatedNames() {
         return deprecatedNames;
     }
+
 
     public static class CommonFields {
         public static final ParseField FIELD = new ParseField("field");

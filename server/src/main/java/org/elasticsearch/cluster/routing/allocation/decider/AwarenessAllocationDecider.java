@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -125,22 +114,25 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         return underCapacity(shardRouting, node, allocation, false);
     }
 
+    private static final Decision YES_NOT_ENABLED = Decision.single(Decision.Type.YES, NAME,
+            "allocation awareness is not enabled, set cluster setting ["
+                    + CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey() + "] to enable it");
+
+    private static final Decision YES_ALL_MET =
+            Decision.single(Decision.Type.YES, NAME, "node meets all awareness attribute requirements");
+
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.isEmpty()) {
-            return allocation.decision(Decision.YES, NAME,
-                "allocation awareness is not enabled, set cluster setting [%s] to enable it",
-                CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
+            return YES_NOT_ENABLED;
         }
 
+        final boolean debug = allocation.debugDecision();
         IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         int shardCount = indexMetadata.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (node.node().getAttributes().containsKey(awarenessAttribute) == false) {
-                return allocation.decision(Decision.NO, NAME,
-                    "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
-                    awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
-                    allocation.debugDecision() ? Strings.collectionToCommaDelimitedString(awarenessAttributes) : null);
+                return debug ? debugNoMissingAttribute(awarenessAttribute, awarenessAttributes) : Decision.NO;
             }
 
             // build attr_value -> nodes map
@@ -185,18 +177,31 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
             if (currentNodeCount > maximumNodeCount) {
-                return allocation.decision(Decision.NO, NAME,
-                        "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
-                        "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
-                        "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
-                        awarenessAttribute,
-                        shardCount,
-                        numberOfAttributes,
-                        currentNodeCount,
-                        maximumNodeCount);
+                return debug ? debugNoTooManyCopies(shardCount, awarenessAttribute, numberOfAttributes, currentNodeCount, maximumNodeCount)
+                        : Decision.NO;
             }
         }
 
-        return allocation.decision(Decision.YES, NAME, "node meets all awareness attribute requirements");
+        return YES_ALL_MET;
+    }
+
+    private static Decision debugNoTooManyCopies(int shardCount, String awarenessAttribute, int numberOfAttributes, int currentNodeCount,
+                                                 int maximumNodeCount) {
+        return Decision.single(Decision.Type.NO, NAME,
+                "there are too many copies of the shard allocated to nodes with attribute [%s], there are [%d] total configured " +
+                        "shard copies for this shard id and [%d] total attribute values, expected the allocated shard count per " +
+                        "attribute [%d] to be less than or equal to the upper bound of the required number of shards per attribute [%d]",
+                awarenessAttribute,
+                shardCount,
+                numberOfAttributes,
+                currentNodeCount,
+                maximumNodeCount);
+    }
+
+    private static Decision debugNoMissingAttribute(String awarenessAttribute, List<String> awarenessAttributes) {
+        return Decision.single(Decision.Type.NO, NAME,
+                "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]", awarenessAttribute,
+                CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
+                Strings.collectionToCommaDelimitedString(awarenessAttributes));
     }
 }

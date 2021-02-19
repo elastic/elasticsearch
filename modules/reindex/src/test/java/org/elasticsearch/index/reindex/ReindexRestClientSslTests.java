@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -23,6 +12,7 @@ import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -102,7 +92,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     private static SSLContext buildServerSslContext() throws Exception {
-        final SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+        final SSLContext sslContext = SSLContext.getInstance(isHttpsServerBrokenWithTLSv13() ? "TLSv1.2" : "TLS");
         final char[] password = "http-password".toCharArray();
 
         final Path cert = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.crt").toURI());
@@ -119,10 +109,12 @@ public class ReindexRestClientSslTests extends ESTestCase {
     public void testClientFailsWithUntrustedCertificate() throws IOException {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
-        final Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("reindex.ssl.supported_protocols", "TLSv1.2")
-            .build();
+        final Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir());
+        if (isHttpsServerBrokenWithTLSv13()) {
+            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
+        }
+        final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
@@ -133,11 +125,13 @@ public class ReindexRestClientSslTests extends ESTestCase {
     public void testClientSucceedsWithCertificateAuthorities() throws IOException {
         final List<Thread> threads = new ArrayList<>();
         final Path ca = getDataPath("ca.pem");
-        final Settings settings = Settings.builder()
+        final Settings.Builder builder = Settings.builder()
             .put("path.home", createTempDir())
-            .putList("reindex.ssl.certificate_authorities", ca.toString())
-            .put("reindex.ssl.supported_protocols", "TLSv1.2")
-            .build();
+            .putList("reindex.ssl.certificate_authorities", ca.toString());
+        if (isHttpsServerBrokenWithTLSv13()) {
+            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
+        }
+        final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
@@ -149,11 +143,13 @@ public class ReindexRestClientSslTests extends ESTestCase {
     public void testClientSucceedsWithVerificationDisabled() throws IOException {
         assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
-        final Settings settings = Settings.builder()
+        final Settings.Builder builder = Settings.builder()
             .put("path.home", createTempDir())
-            .put("reindex.ssl.verification_mode", "NONE")
-            .put("reindex.ssl.supported_protocols", "TLSv1.2")
-            .build();
+            .put("reindex.ssl.verification_mode", "NONE");
+        if (isHttpsServerBrokenWithTLSv13()) {
+            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
+        }
+        final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
@@ -167,14 +163,16 @@ public class ReindexRestClientSslTests extends ESTestCase {
         final Path ca = getDataPath("ca.pem");
         final Path cert = getDataPath("client/client.crt");
         final Path key = getDataPath("client/client.key");
-        final Settings settings = Settings.builder()
+        final Settings.Builder builder = Settings.builder()
             .put("path.home", createTempDir())
             .putList("reindex.ssl.certificate_authorities", ca.toString())
             .put("reindex.ssl.certificate", cert)
             .put("reindex.ssl.key", key)
-            .put("reindex.ssl.key_passphrase", "client-password")
-            .put("reindex.ssl.supported_protocols", "TLSv1.2")
-            .build();
+            .put("reindex.ssl.key_passphrase", "client-password");
+        if (isHttpsServerBrokenWithTLSv13()) {
+            builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
+        }
+        final Settings settings = builder.build();
         AtomicReference<Certificate[]> clientCertificates = new AtomicReference<>();
         handler = https -> {
             try {
@@ -215,5 +213,13 @@ public class ReindexRestClientSslTests extends ESTestCase {
         public void configure(HttpsParameters params) {
             params.setWantClientAuth(true);
         }
+    }
+
+    /**
+     * Checks whether the JVM this test is run under is affected by JDK-8254967, which causes these
+     * tests to fail if a TLSv1.3 SSLContext is used.
+     */
+    private static boolean isHttpsServerBrokenWithTLSv13() {
+        return JavaVersion.current().compareTo(JavaVersion.parse("16.0.0")) < 0;
     }
 }

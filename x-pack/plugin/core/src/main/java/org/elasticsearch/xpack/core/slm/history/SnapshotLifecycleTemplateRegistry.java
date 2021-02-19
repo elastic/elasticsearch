@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.history;
@@ -38,7 +39,8 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // version 2: converted to hidden index
     // version 3: templates moved to composable templates
     // version 4:converted data stream
-    public static final int INDEX_TEMPLATE_VERSION = 4;
+    // version 5: add `allow_auto_create` setting
+    public static final int INDEX_TEMPLATE_VERSION = 5;
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history";

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -2119,7 +2108,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             )
         );
 
-        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -2139,7 +2128,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         // source field and index sorting config have different order
-        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -2176,7 +2165,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         for (SortOrder order : SortOrder.values()) {
-            executeTestCase(true, new MatchAllDocsQuery(),
+            executeTestCase(false, true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -2199,7 +2188,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 }
             );
 
-            executeTestCase(true, new MatchAllDocsQuery(),
+            executeTestCase(false, true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -2229,12 +2218,13 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                                 Supplier<CompositeAggregationBuilder> create,
                                 Consumer<InternalComposite> verify) throws IOException {
         for (Query query : queries) {
-            executeTestCase(false, query, dataset, create, verify);
-            executeTestCase(true, query, dataset, create, verify);
+            executeTestCase(false, false, query, dataset, create, verify);
+            executeTestCase(false, true, query, dataset, create, verify);
         }
     }
 
-    private void executeTestCase(boolean useIndexSort,
+    private void executeTestCase(boolean forceMerge,
+                                 boolean useIndexSort,
                                  Query query,
                                  List<Map<String, List<Object>>> dataset,
                                  Supplier<CompositeAggregationBuilder> create,
@@ -2259,18 +2249,21 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     indexWriter.addDocument(document);
                     id++;
                 }
-                if (rarely()) {
+                if (forceMerge || rarely()) {
+                    // forceMerge randomly or if the collector-per-leaf testing stuff would break the tests.
                     indexWriter.forceMerge(1);
-                }
-                if (dataset.size() > 0) {
-                    int numDeletes = randomIntBetween(1, 25);
-                    for (int i = 0; i < numDeletes; i++) {
-                        id = randomIntBetween(0, dataset.size() - 1);
-                        indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
-                        document.clear();
-                        addToDocument(id, document, dataset.get(id));
-                        indexWriter.addDocument(document);
+                } else {
+                    if (dataset.size() > 0) {
+                        int numDeletes = randomIntBetween(1, 25);
+                        for (int i = 0; i < numDeletes; i++) {
+                            id = randomIntBetween(0, dataset.size() - 1);
+                            indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
+                            document.clear();
+                            addToDocument(id, document, dataset.get(id));
+                            indexWriter.addDocument(document);
+                        }
                     }
+
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {

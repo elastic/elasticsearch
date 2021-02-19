@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -47,8 +36,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
-            new ComposableIndexTemplate.DataStreamTemplate());
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put("template", template).build())
             .build();
@@ -102,13 +93,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testCreateDataStreamStartingWithPeriod() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        final String dataStreamName = ".may_not_start_with_period";
+        final String dataStreamName = ".ds-may_not_start_with_ds";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
-        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.'"));
+        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.ds-'"));
     }
 
     public void testCreateDataStreamNoTemplate() throws Exception {
@@ -126,7 +117,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStreamNoValidTemplate() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null, null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+              .indexPatterns(List.of(dataStreamName + "*")).build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put("template", template).build())
             .build();
@@ -140,8 +132,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public static ClusterState createDataStream(final String dataStreamName) throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
-            new ComposableIndexTemplate.DataStreamTemplate());
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put("template", template).build())
             .build();
@@ -172,5 +166,4 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
         return s;
     }
-
 }

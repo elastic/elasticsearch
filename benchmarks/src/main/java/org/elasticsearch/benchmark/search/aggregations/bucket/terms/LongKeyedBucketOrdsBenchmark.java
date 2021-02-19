@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.benchmark.search.aggregations.bucket.terms;
@@ -52,14 +41,18 @@ public class LongKeyedBucketOrdsBenchmark {
     /**
      * The number of distinct values to add to the buckets.
      */
-    private static final long DISTINCT_VALUES = 10;
+    private static final long DISTINCT_VALUES = 210;
     /**
      * The number of buckets to create in the {@link #multiBucket} case.
      * <p>
-     * If this is not relatively prime to {@link #DISTINCT_VALUES} then the
-     * values won't be scattered evenly across the buckets.
+     * If this is not relatively prime to {@link #DISTINCT_VALUES_IN_BUCKETS}
+     * then the values won't be scattered evenly across the buckets.
      */
     private static final long DISTINCT_BUCKETS = 21;
+    /**
+     * Number of distinct values to add to values within buckets.
+     */
+    private static final long DISTINCT_VALUES_IN_BUCKETS = 10;
 
     private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
     private final BigArrays bigArrays = new BigArrays(recycler, null, "REQUEST");
@@ -74,6 +67,7 @@ public class LongKeyedBucketOrdsBenchmark {
     public void forceLoadClasses(Blackhole bh) {
         bh.consume(LongKeyedBucketOrds.FromSingle.class);
         bh.consume(LongKeyedBucketOrds.FromMany.class);
+        bh.consume(LongKeyedBucketOrds.FromManySmall.class);
     }
 
     /**
@@ -86,6 +80,9 @@ public class LongKeyedBucketOrdsBenchmark {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }
+            if (ords.size() != DISTINCT_VALUES) {
+                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+            }
             bh.consume(ords);
         }
     }
@@ -94,10 +91,13 @@ public class LongKeyedBucketOrdsBenchmark {
      * Emulates the way that most aggregations use {@link LongKeyedBucketOrds}.
      */
     @Benchmark
-    public void singleBucketIntoSingleImmutableBimorphicInvocation(Blackhole bh) {
+    public void singleBucketIntoSingleImmutableMegamorphicInvocation(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
+            }
+            if (ords.size() != DISTINCT_VALUES) {
+                throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
             }
             bh.consume(ords);
         }
@@ -117,6 +117,10 @@ public class LongKeyedBucketOrdsBenchmark {
             }
             ords.add(0, i % DISTINCT_VALUES);
         }
+        if (ords.size() != DISTINCT_VALUES) {
+            ords.close();
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+        }
         bh.consume(ords);
         ords.close();
     }
@@ -127,7 +131,7 @@ public class LongKeyedBucketOrdsBenchmark {
      * {@link #singleBucketIntoSingleMutableMonmorphicInvocation monomorphic invocation}.
      */
     @Benchmark
-    public void singleBucketIntoSingleMutableBimorphicInvocation(Blackhole bh) {
+    public void singleBucketIntoSingleMutableMegamorphicInvocation(Blackhole bh) {
         LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {
@@ -136,7 +140,9 @@ public class LongKeyedBucketOrdsBenchmark {
                 ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
             }
             ords.add(0, i % DISTINCT_VALUES);
-
+        }
+        if (ords.size() != DISTINCT_VALUES) {
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
         }
         bh.consume(ords);
         ords.close();
@@ -145,15 +151,48 @@ public class LongKeyedBucketOrdsBenchmark {
     /**
      * Emulates an aggregation that collects from a single bucket "by accident".
      * This can happen if an aggregation is under, say, a {@code terms}
-     * aggregation and there is only a single value for that term in the index.
+     * aggregation and there is only a single value for that term in the index
+     * but we can't tell that up front.
      */
     @Benchmark
     public void singleBucketIntoMulti(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
-            for (long i = 0; i < LIMIT; i++) {
-                ords.add(0, i % DISTINCT_VALUES);
-            }
+            singleBucketIntoMultiSmall(ords);
             bh.consume(ords);
+        }
+    }
+
+    /**
+     * Emulates an aggregation that collects from a single bucket "by accident"
+     * and gets a "small" bucket ords. This can happen to a {@code terms} inside
+     * of another {@code terms} when the "inner" terms only even has a single
+     * bucket.
+     */
+    @Benchmark
+    public void singleBucketIntoMultiSmall(Blackhole bh) {
+        try (LongKeyedBucketOrds ords = new LongKeyedBucketOrds.FromManySmall(bigArrays, 60)) {
+            singleBucketIntoMultiSmall(ords);
+            bh.consume(ords);
+        }
+    }
+
+    private void singleBucketIntoMultiSmall(LongKeyedBucketOrds ords) {
+        for (long i = 0; i < LIMIT; i++) {
+            ords.add(0, i % DISTINCT_VALUES);
+        }
+        if (ords.size() != DISTINCT_VALUES) {
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+        }
+    }
+
+    /**
+     * Emulates an aggregation that collects from many buckets with a known
+     * bounds on the values.
+     */
+    @Benchmark
+    public void multiBucketManySmall(Blackhole bh) {
+        try (LongKeyedBucketOrds ords = new LongKeyedBucketOrds.FromManySmall(bigArrays, 5)) {
+            multiBucket(bh, ords);
         }
     }
 
@@ -161,12 +200,19 @@ public class LongKeyedBucketOrdsBenchmark {
      * Emulates an aggregation that collects from many buckets.
      */
     @Benchmark
-    public void multiBucket(Blackhole bh) {
+    public void multiBucketMany(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
-            for (long i = 0; i < LIMIT; i++) {
-                ords.add(i % DISTINCT_BUCKETS, i % DISTINCT_VALUES);
-            }
-            bh.consume(ords);
+            multiBucket(bh, ords);
         }
+    }
+
+    private void multiBucket(Blackhole bh, LongKeyedBucketOrds ords) {
+        for (long i = 0; i < LIMIT; i++) {
+            ords.add(i % DISTINCT_BUCKETS, i % DISTINCT_VALUES_IN_BUCKETS);
+        }
+        if (ords.size() != DISTINCT_VALUES) {
+            throw new IllegalArgumentException("Expected [" + DISTINCT_VALUES + "] but found [" + ords.size() + "]");
+        }
+        bh.consume(ords);
     }
 }

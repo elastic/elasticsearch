@@ -22,6 +22,14 @@ You can use the following APIs to perform {infer} operations.
 * <<get-trained-models>>
 * <<get-trained-models-stats>>
 * <<delete-trained-models>>
+* <<put-trained-models-aliases>>
+* <<delete-trained-models-aliases>>
+
+You can deploy a trained model to make predictions in an ingest pipeline or in
+an aggregation. Refer to the following documentation to learn more.
+
+* <<inference-processor,{infer-cap} processor>>
+* <<search-aggregations-pipeline-inference-bucket-aggregation,{infer-cap} bucket aggregation>>
 
 
 See also <<ml-apis>>.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -96,12 +85,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequ
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequestBuilder;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -377,52 +360,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Explicitly force merge one or more indices into a the number of segments.
      */
     ForceMergeRequestBuilder prepareForceMerge(String... indices);
-
-    /**
-     * Explicitly upgrade one or more indices
-     *
-     * @param request The upgrade request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    ActionFuture<UpgradeResponse> upgrade(UpgradeRequest request);
-
-    /**
-     * Explicitly upgrade one or more indices
-     *
-     * @param request  The upgrade request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    void upgrade(UpgradeRequest request, ActionListener<UpgradeResponse> listener);
-
-    /**
-     *  Explicitly upgrade one or more indices
-     */
-    UpgradeStatusRequestBuilder prepareUpgradeStatus(String... indices);
-
-    /**
-     * Check upgrade status of one or more indices
-     *
-     * @param request The upgrade request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    ActionFuture<UpgradeStatusResponse> upgradeStatus(UpgradeStatusRequest request);
-
-    /**
-     * Check upgrade status of one or more indices
-     *
-     * @param request  The upgrade request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#upgradeRequest(String...)
-     */
-    void upgradeStatus(UpgradeStatusRequest request, ActionListener<UpgradeStatusResponse> listener);
-
-    /**
-     * Check upgrade status of one or more indices
-     */
-    UpgradeRequestBuilder prepareUpgrade(String... indices);
 
     /**
      * Get the complete mappings of one or more types

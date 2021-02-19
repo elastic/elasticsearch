@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.precommit;
@@ -32,12 +21,11 @@ public class JarHellPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         Configuration jarHellConfig = project.getConfigurations().create("jarHell");
         if (BuildParams.isInternal() && project.getPath().equals(":libs:elasticsearch-core") == false) {
-            // External plugins will depend on this already via transitive dependencies.
-            // Internal projects are not all plugins, so make sure the check is available
-            // we are not doing this for this project itself to avoid jar hell with itself
+            // ideally we would configure this as a default dependency. But Default dependencies do not work correctly
+            // with gradle project dependencies as they're resolved to late in the build and don't setup according task
+            // dependencies properly
             project.getDependencies().add("jarHell", project.project(":libs:elasticsearch-core"));
         }
-
         TaskProvider<JarHellTask> jarHell = project.getTasks().register("jarHell", JarHellTask.class);
         jarHell.configure(t -> {
             SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();

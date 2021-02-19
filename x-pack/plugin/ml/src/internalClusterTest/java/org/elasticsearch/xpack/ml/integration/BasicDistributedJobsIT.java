@@ -1,9 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
+
+import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -43,23 +59,37 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
-import static org.elasticsearch.test.NodeRoles.addRoles;
-import static org.elasticsearch.test.NodeRoles.onlyRole;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasEntry;
+import org.junit.After;
+import org.junit.Before;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
+
+    @Before
+    // upping the logging due to potential failures in: https://github.com/elastic/elasticsearch/issues/63980
+    public void setLogging() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager", "TRACE")
+                .build()).get();
+    }
+
+    @After
+    public void unsetLogging() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction")
+                .putNull("logger.org.elasticsearch.xpack.ml.action.TransportOpenJobAction")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor")
+                .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager")
+                .build()).get();
+    }
 
     public void testFailOverBasics() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);

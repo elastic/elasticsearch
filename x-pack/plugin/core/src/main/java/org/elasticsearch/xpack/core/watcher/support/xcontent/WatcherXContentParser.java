@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.compatibility.RestApiCompatibleVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -284,6 +286,11 @@ public class WatcherXContentParser implements XContentParser {
     @Override
     public void close() throws IOException {
         parser.close();
+    }
+
+    @Override
+    public RestApiCompatibleVersion getRestApiCompatibleVersion() {
+        return RestApiCompatibleVersion.currentVersion();
     }
 
     @Override

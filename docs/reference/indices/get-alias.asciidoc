@@ -25,6 +25,14 @@ GET /my-index-000001/_alias/alias1
 
 `GET /<index>/_alias/<alias>`
 
+[[get-alias-api-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the index alias. If you specify an index, you must also have
+`view_index_metadata` or `manage` index privilege for the index.
+
 
 [[get-alias-api-path-params]]
 ==== {api-path-parms-title}
@@ -50,7 +58,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `all`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`ignore_unavailable`::
+(Optional, Boolean)
+If `false`, requests that include a missing index in the `<index>` argument
+return an error. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 

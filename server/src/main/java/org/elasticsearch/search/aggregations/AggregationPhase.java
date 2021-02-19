@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -47,15 +36,14 @@ public class AggregationPhase {
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {
-                AggregatorFactories factories = context.aggregations().factories();
-                aggregators = factories.createTopLevelAggregators(context);
+                aggregators = context.aggregations().factories().createTopLevelAggregators();
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
                     }
                 }
                 context.aggregations().aggregators(aggregators);
-                if (!collectors.isEmpty()) {
+                if (collectors.isEmpty() == false) {
                     Collector collector = MultiBucketCollector.wrap(collectors);
                     ((BucketCollector)collector).preCollection();
                     if (context.getProfilers() != null) {
@@ -91,7 +79,7 @@ public class AggregationPhase {
         }
 
         // optimize the global collector based execution
-        if (!globals.isEmpty()) {
+        if (globals.isEmpty() == false) {
             BucketCollector globalsCollector = MultiBucketCollector.wrap(globals);
             Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
 
@@ -116,7 +104,10 @@ public class AggregationPhase {
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        context.aggregations().resetBucketMultiConsumer();
+        if (context.aggregations().factories().context() != null) {
+            // Rollup can end up here with a null context but not null factories.....
+            context.aggregations().factories().context().multiBucketConsumer().reset();
+        }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();

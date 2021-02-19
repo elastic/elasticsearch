@@ -35,7 +35,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 == {api-query-parms-title}
 
 `force`::
-(Optional, boolean) Use to forcefully delete a started {dfeed}; this method is
+(Optional, Boolean) Use to forcefully delete a started {dfeed}; this method is
 quicker than stopping and deleting the {dfeed}.
 
 [[ml-delete-datafeed-example]]

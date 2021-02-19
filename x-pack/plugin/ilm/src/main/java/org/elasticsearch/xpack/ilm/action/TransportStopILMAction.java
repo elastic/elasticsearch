@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -38,16 +39,10 @@ public class TransportStopILMAction extends AcknowledgedTransportMasterNodeActio
     @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.IMMEDIATE, request, listener) {
-
+            new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                        return (OperationModeUpdateTask.ilmMode(OperationMode.STOPPING)).execute(currentState);
-                }
-
-                @Override
-                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return AcknowledgedResponse.of(acknowledged);
+                    return (OperationModeUpdateTask.ilmMode(OperationMode.STOPPING)).execute(currentState);
                 }
             });
     }

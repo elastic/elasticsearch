@@ -1,33 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -61,7 +54,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         return ((GeoShapeFieldMapper)in).builder;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
 
@@ -89,32 +82,29 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        public GeoShapeFieldMapper build(BuilderContext context) {
+        public GeoShapeFieldMapper build(ContentPath contentPath) {
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
                 ignoreZValue.get().value());
             GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
             GeoShapeFieldType ft = new GeoShapeFieldType(
-                buildFullName(context),
+                buildFullName(contentPath),
                 indexed.get(),
                 orientation.get().value(),
                 geoShapeParser,
                 meta.get());
-            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), buildFullName(context)),
+            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, contentPath), copyTo.build(),
+                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), buildFullName(contentPath)),
                 geoShapeParser, this);
         }
     }
 
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
 
-        private final VectorGeoShapeQueryProcessor queryProcessor;
-
         public GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                  Parser<Geometry> parser, Map<String, String> meta) {
             super(name, indexed, false, false, false, parser, orientation, meta);
-            this.queryProcessor = new VectorGeoShapeQueryProcessor();
         }
 
         @Override
@@ -123,14 +113,23 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
+            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
+                throw new QueryShardException(context,
+                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
+            }
+            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
+            if (luceneGeometries.length == 0) {
+                return new MatchNoDocsQuery();
+            }
+            return LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
         }
     }
 
     @SuppressWarnings("deprecation")
     public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
-        ParametrizedFieldMapper.Builder builder;
+        FieldMapper.Builder builder;
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
@@ -165,7 +164,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
             simpleName(),
             builder.ignoreMalformed.getDefaultValue().value(),

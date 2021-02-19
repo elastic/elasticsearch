@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.nodes;
@@ -57,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
@@ -101,8 +91,10 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     public void testNewResponseNullArray() {
-        TransportNodesAction action = getTestTransportNodesAction();
-        expectThrows(NullPointerException.class, () -> action.newResponse(new TestNodesRequest(), null));
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), new TestNodesRequest(), null, future);
+        expectThrows(NullPointerException.class, future::actionGet);
     }
 
     public void testNewResponse() {
@@ -110,9 +102,6 @@ public class TransportNodesActionTests extends ESTestCase {
         TestNodesRequest request = new TestNodesRequest();
         List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse::new, randomIntBetween(0, 2));
         expectedNodeResponses.add(new TestNodeResponse());
-        List<BaseNodeResponse> nodeResponses = new ArrayList<>(expectedNodeResponses);
-        // This should be ignored:
-        nodeResponses.add(new OtherNodeResponse());
         List<FailedNodeException> failures = mockList(
             () -> new FailedNodeException(
                 randomAlphaOfLength(8),
@@ -127,7 +116,9 @@ public class TransportNodesActionTests extends ESTestCase {
 
         AtomicReferenceArray<?> atomicArray = new AtomicReferenceArray<>(allResponses.toArray());
 
-        TestNodesResponse response = action.newResponse(request, atomicArray);
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), request, atomicArray, future);
+        TestNodesResponse response = future.actionGet();
 
         assertSame(request, response.request);
         // note: I shuffled the overall list, so it's not possible to guarantee that it's in the right order

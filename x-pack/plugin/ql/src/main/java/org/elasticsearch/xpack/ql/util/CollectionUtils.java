@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.util;
 
@@ -29,10 +30,10 @@ public abstract class CollectionUtils {
         }
 
         List<T> list = new ArrayList<>(left.size() + right.size());
-        if (!left.isEmpty()) {
+        if (left.isEmpty() == false) {
             list.addAll(left);
         }
-        if (!right.isEmpty()) {
+        if (right.isEmpty() == false) {
             list.addAll(right);
         }
         return list;
@@ -64,7 +65,7 @@ public abstract class CollectionUtils {
     @SuppressWarnings("varargs")
     public static <T> List<T> combine(Collection<? extends T> left, T... entries) {
         List<T> list = new ArrayList<>(left.size() + entries.length);
-        if (!left.isEmpty()) {
+        if (left.isEmpty() == false) {
             list.addAll(left);
         }
         if (entries.length > 0) {

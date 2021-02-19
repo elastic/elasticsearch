@@ -69,7 +69,7 @@ valid values and more information, see <<regexp-optional-operators, Regular
 expression syntax>>.
 
 `case_insensitive`::
-(Optional, boolean) allows case insensitive matching of the regular expression
+(Optional, Boolean) allows case insensitive matching of the regular expression
 value with the indexed field values when set to true. Default is false which means
 the case sensitivity of matching depends on the underlying field's mapping.
 

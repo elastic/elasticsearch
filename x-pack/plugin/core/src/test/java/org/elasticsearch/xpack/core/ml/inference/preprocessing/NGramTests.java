@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
@@ -42,11 +43,12 @@ public class NGramTests extends PreProcessingTests<NGram> {
     }
 
     public static NGram createRandom(Boolean isCustom) {
+        int possibleLength = randomIntBetween(1, 10);
         return new NGram(
             randomAlphaOfLength(10),
-            IntStream.generate(() -> randomIntBetween(1, 5)).limit(5).boxed().collect(Collectors.toList()),
+            IntStream.generate(() -> randomIntBetween(1, Math.min(possibleLength, 5))).limit(5).boxed().collect(Collectors.toList()),
             randomBoolean() ? null : randomIntBetween(0, 10),
-            randomBoolean() ? null : randomIntBetween(1, 10),
+            randomBoolean() ? null : possibleLength,
             isCustom,
             randomBoolean() ? null : randomAlphaOfLength(10));
     }

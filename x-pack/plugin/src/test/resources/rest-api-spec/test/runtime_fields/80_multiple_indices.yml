@@ -8,19 +8,13 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            properties:
-              timestamp:
-                type: date
-              message:
-                type: keyword
+            runtime:
               day_of_week:
-                type: runtime
-                runtime_type: keyword
+                type: keyword
                 script: |
                   emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
               tomorrow:
-                type: runtime
-                runtime_type: date
+                type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
@@ -28,11 +22,8 @@ setup:
                     }
                   params:
                     days: 1
-              voltage:
-                type: double
               voltage_times_ten:
-                type: runtime
-                runtime_type: long
+                type: long
                 script:
                   source: |
                     for (double v : doc['voltage']) {
@@ -41,8 +32,7 @@ setup:
                   params:
                     multiplier: 10
               voltage_percent:
-                type: runtime
-                runtime_type: double
+                type: double
                 script:
                   source: |
                     for (double v : doc['voltage']) {
@@ -51,16 +41,14 @@ setup:
                   params:
                     max: 5.8
               ip:
-                type: runtime
-                runtime_type: ip
+                type: ip
                 script:
                   source: |
                     String m = doc["message"].value;
                     int end = m.indexOf(" ");
                     emit(m.substring(0, end));
               over_v:
-                type: runtime
-                runtime_type: boolean
+                type: boolean
                 script:
                   source: |
                     for (def v : doc['voltage']) {
@@ -68,6 +56,19 @@ setup:
                     }
                   params:
                     min_v: 5.0
+              message.keyword:
+                type: keyword
+                script:
+                  source: |
+                    emit("hello world")
+
+            properties:
+              timestamp:
+                type: date
+              message:
+                type: keyword
+              voltage:
+                type: double
 
   - do:
       bulk:
@@ -138,9 +139,10 @@ setup:
   - do:
       field_caps:
         index: sensor*
-        fields: [day_of_week, voltage_*, tomorrow, ip, over_v]
+        fields: [day_of_week, voltage_*, tomorrow, ip, over_v, message.keyword]
 
   - match: {indices: [sensor1, sensor2]}
+  - length: {fields: 7}
   - match: {fields.day_of_week.keyword.searchable: true}
   - match: {fields.day_of_week.keyword.aggregatable: true}
   - is_false: fields.day_of_week.keyword.indices
@@ -159,6 +161,10 @@ setup:
   - match: {fields.over_v.boolean.searchable: true}
   - match: {fields.over_v.boolean.aggregatable: true}
   - is_false: fields.over_v.boolean.indices
+  - match: {fields.message\.keyword.keyword.searchable: true}
+  - match: {fields.message\.keyword.keyword.aggregatable: true}
+  - is_false: fields.message\.keyword.keyword.indices
+  - is_false: fields.message
 
 ---
 "terms agg - keyword":

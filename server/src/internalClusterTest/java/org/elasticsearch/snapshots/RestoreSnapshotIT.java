@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -35,9 +24,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -90,24 +81,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         createRepository(repoName, "fs", absolutePath);
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName1)
-                .setWaitForCompletion(true)
-                .setIndices(indexName1)
-                .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
-
-        CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName2)
-                .setWaitForCompletion(true)
-                .setIndices(indexName2)
-                .get();
-        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards()));
-        assertThat(createSnapshotResponse2.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        createSnapshot(repoName, snapshotName1, Collections.singletonList(indexName1));
+        createSnapshot(repoName, snapshotName2, Collections.singletonList(indexName2));
 
         RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin().cluster().prepareRestoreSnapshot(repoName, snapshotName1)
                 .setWaitForCompletion(false)
@@ -147,15 +122,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         createRepository(repoName, "fs", absolutePath);
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                .setWaitForCompletion(true)
-                .setIndices(indexName1, indexName2)
-                .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        createSnapshot(repoName, snapshotName, Arrays.asList(indexName1, indexName2));
 
         ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse1 = client.admin().cluster()
                 .prepareRestoreSnapshot(repoName, snapshotName)
@@ -200,10 +167,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .boxed().collect(Collectors.toMap(shardId -> shardId, indexMetadata::primaryTerm));
 
         createRepository("test-repo", "fs");
-        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-                .setWaitForCompletion(true).setIndices(indexName).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(numPrimaries));
-        assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
 
         assertAcked(client().admin().indices().prepareClose(indexName));
 
@@ -232,12 +196,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("baz", "type=text"));
         ensureGreen();
 
-        logger.info("--> snapshot it");
-        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-                .setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         logger.info("--> delete the index and recreate it with foo field");
         cluster().wipeIndices("test-idx");
@@ -283,10 +242,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertFalse(client().admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
 
-        logger.info("--> snapshot");
-        assertThat(clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-                        .setIndices().setWaitForCompletion(true).get().getSnapshotInfo().state(),
-                equalTo(SnapshotState.SUCCESS));
+        createSnapshot("test-repo", "test-snap", Collections.emptyList());
 
         logger.info("-->  delete all indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2", "test-idx-3");
@@ -351,11 +307,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .endObject())
                 .get().isAcknowledged(), equalTo(true));
 
-        logger.info("--> snapshot");
-        final SnapshotInfo snapshotInfo = assertSuccessful(clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap")
-                .setIndices().setWaitForCompletion(true).execute());
-        assertThat(snapshotInfo.totalShards(), equalTo(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(0));
+        createSnapshot("test-repo", "test-snap", Collections.emptyList());
         assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("-->  delete test template");
@@ -374,7 +326,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
     }
 
-
     public void testRenameOnRestore() throws Exception {
         Client client = client();
 
@@ -392,12 +343,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandomDocs("test-idx-1", 100);
         indexRandomDocs("test-idx-2", 100);
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setWaitForCompletion(true).setIndices("test-idx-1", "test-idx-2").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-snap", Arrays.asList("test-idx-1", "test-idx-2"));
 
         logger.info("--> restore indices with different names");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -498,10 +444,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .put("chunk_size", 100, ByteSizeUnit.BYTES));
 
         createIndexWithRandomDocs("test-idx", 100);
-
-        logger.info("--> snapshot");
-        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setWaitForCompletion(true).setIndices("test-idx").get();
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -562,12 +505,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")).get(), 0);
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar")).get(), numdocs);
 
-        logger.info("--> snapshot it");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setWaitForCompletion(true).setIndices("test-idx").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
         logger.info("--> delete the index and recreate it while changing refresh interval and analyzer");
         cluster().wipeIndices("test-idx");
@@ -662,17 +600,12 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             Settings initialSettings = initialSettingsBuilder.build();
             logger.info("--> using initial block settings {}", initialSettings);
 
-            if (!initialSettings.isEmpty()) {
+            if (initialSettings.isEmpty() == false) {
                 logger.info("--> apply initial blocks to index");
                 client().admin().indices().prepareUpdateSettings("test-idx").setSettings(initialSettingsBuilder).get();
             }
 
-            logger.info("--> snapshot index");
-            CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                    .setWaitForCompletion(true).setIndices("test-idx").get();
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-                    equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+            createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));
 
             logger.info("--> remove blocks and delete index");
             disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_METADATA);
@@ -736,13 +669,25 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             indexRandomDocs("test-index", between(0, 100));
             flush("test-index");
         }
-        clusterAdmin().prepareCreateSnapshot("test-repo", "snapshot-0")
-                .setIndices("test-index").setWaitForCompletion(true).get();
+        createSnapshot("test-repo", "snapshot-0", Collections.singletonList("test-index"));
         final SnapshotRestoreException restoreError = expectThrows(SnapshotRestoreException.class,
                 () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                         .setIndexSettings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false))
                         .setRenamePattern("test-index").setRenameReplacement("new-index")
                         .get());
         assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+    }
+
+    public void testFailOnAncientVersion() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, FsRepository.TYPE, repoPath);
+        final Version oldVersion = Version.CURRENT.previousMajor().previousMajor();
+        final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
+        final SnapshotRestoreException snapshotRestoreException = expectThrows(SnapshotRestoreException.class,
+                () -> client().admin().cluster().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet());
+        assertThat(snapshotRestoreException.getMessage(), containsString( "the snapshot was created with Elasticsearch version ["
+                + oldVersion + "] which is below the current versions minimum index compatibility version [" +
+                Version.CURRENT.minimumIndexCompatibilityVersion() + "]"));
     }
 }

@@ -144,7 +144,7 @@ curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrd
 --------------------------------------------------
 // NOTCONSOLE
 
-One way to create the _credentails_ from CLI on an Unix-like system is as the follows:
+One way to create the credentials from CLI on an Unix-like system is as the follows:
 
 [source,shell]
 ----

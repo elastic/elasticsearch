@@ -261,6 +261,6 @@ secondary clusters are read-only followers.
 As with any enterprise system, you need tools to secure, manage, and
 monitor your {es} clusters. Security, monitoring, and administrative features
 that are integrated into {es} enable you to use {kibana-ref}/introduction.html[{kib}]
-as a control center for managing a cluster. Features like <<rollup-overview,
+as a control center for managing a cluster. Features like <<xpack-rollup,
 data rollups>> and <<index-lifecycle-management, index lifecycle management>>
 help you intelligently manage your data over time.

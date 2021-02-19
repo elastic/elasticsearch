@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -26,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,62 +26,51 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class BytesRefHashTests extends ESTestCase {
-
-    BytesRefHash hash;
-
-    private BigArrays randomBigArrays() {
+    private BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
-    private void newHash() {
-        if (hash != null) {
-            hash.close();
-        }
+    private BytesRefHash randomHash() {
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
-        hash = new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, randomBigArrays());
-    }
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        newHash();
+        return new BytesRefHash(randomIntBetween(0, 100), maxLoadFactor, mockBigArrays());
     }
 
     public void testDuel() {
-        final int len = randomIntBetween(1, 100000);
-        final BytesRef[] values = new BytesRef[len];
-        for (int i = 0; i < values.length; ++i) {
-            values[i] = new BytesRef(randomAlphaOfLength(5));
-        }
-        final ObjectLongMap<BytesRef> valueToId = new ObjectLongHashMap<>();
-        final BytesRef[] idToValue = new BytesRef[values.length];
-        final int iters = randomInt(1000000);
-        for (int i = 0; i < iters; ++i) {
-            final BytesRef value = randomFrom(values);
-            if (valueToId.containsKey(value)) {
-                assertEquals(- 1 - valueToId.get(value), hash.add(value, value.hashCode()));
-            } else {
-                assertEquals(valueToId.size(), hash.add(value, value.hashCode()));
-                idToValue[valueToId.size()] = value;
-                valueToId.put(value, valueToId.size());
+        try (BytesRefHash hash = randomHash()) {
+            final int len = randomIntBetween(1, 100000);
+            final BytesRef[] values = new BytesRef[len];
+            for (int i = 0; i < values.length; ++i) {
+                values[i] = new BytesRef(randomAlphaOfLength(5));
+            }
+            final ObjectLongMap<BytesRef> valueToId = new ObjectLongHashMap<>();
+            final BytesRef[] idToValue = new BytesRef[values.length];
+            final int iters = randomInt(1000000);
+            for (int i = 0; i < iters; ++i) {
+                final BytesRef value = randomFrom(values);
+                if (valueToId.containsKey(value)) {
+                    assertEquals(- 1 - valueToId.get(value), hash.add(value, value.hashCode()));
+                } else {
+                    assertEquals(valueToId.size(), hash.add(value, value.hashCode()));
+                    idToValue[valueToId.size()] = value;
+                    valueToId.put(value, valueToId.size());
+                }
+            }
+
+            assertEquals(valueToId.size(), hash.size());
+            for (final ObjectLongCursor<BytesRef> next : valueToId) {
+                assertEquals(next.value, hash.find(next.key, next.key.hashCode()));
+            }
+
+            for (long i = 0; i < hash.capacity(); ++i) {
+                final long id = hash.id(i);
+                BytesRef spare = new BytesRef();
+                if (id >= 0) {
+                    hash.get(id, spare);
+                    assertEquals(idToValue[(int) id], spare);
+                }
             }
         }
-
-        assertEquals(valueToId.size(), hash.size());
-        for (final ObjectLongCursor<BytesRef> next : valueToId) {
-            assertEquals(next.value, hash.find(next.key, next.key.hashCode()));
-        }
-
-        for (long i = 0; i < hash.capacity(); ++i) {
-            final long id = hash.id(i);
-            BytesRef spare = new BytesRef();
-            if (id >= 0) {
-                hash.get(id, spare);
-                assertEquals(idToValue[(int) id], spare);
-            }
-        }
-        hash.close();
     }
 
     // START - tests borrowed from LUCENE
@@ -100,6 +79,7 @@ public class BytesRefHashTests extends ESTestCase {
      * Test method for {@link org.apache.lucene.util.BytesRefHash#size()}.
      */
     public void testSize() {
+        BytesRefHash hash = randomHash();
         BytesRefBuilder ref = new BytesRefBuilder();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
@@ -112,12 +92,14 @@ public class BytesRefHashTests extends ESTestCase {
                 ref.copyChars(str);
                 long count = hash.size();
                 long key = hash.add(ref.get());
-                if (key < 0)
+                if (key < 0) {
                     assertEquals(hash.size(), count);
-                else
+                } else {
                     assertEquals(hash.size(), count + 1);
+                }
                 if(i % mod == 0) {
-                    newHash();
+                    hash.close();
+                    hash = randomHash();
                 }
             }
         }
@@ -130,6 +112,7 @@ public class BytesRefHashTests extends ESTestCase {
      * .
      */
     public void testGet() {
+        BytesRefHash hash = randomHash();
         BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
@@ -158,7 +141,8 @@ public class BytesRefHashTests extends ESTestCase {
                 ref.copyChars(entry.getKey());
                 assertEquals(ref.get(), hash.get(entry.getValue(), scratch));
             }
-            newHash();
+            hash.close();
+            hash = randomHash();
         }
         hash.close();
     }
@@ -169,6 +153,7 @@ public class BytesRefHashTests extends ESTestCase {
      * .
      */
     public void testAdd() {
+        BytesRefHash hash = randomHash();
         BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
@@ -198,12 +183,14 @@ public class BytesRefHashTests extends ESTestCase {
             }
 
             assertAllIn(strings, hash);
-            newHash();
+            hash.close();
+            hash = randomHash();
         }
         hash.close();
     }
 
     public void testFind() {
+        BytesRefHash hash = randomHash();
         BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
@@ -233,7 +220,8 @@ public class BytesRefHashTests extends ESTestCase {
             }
 
             assertAllIn(strings, hash);
-            newHash();
+            hash.close();
+            hash = randomHash();
         }
         hash.close();
     }
@@ -254,4 +242,7 @@ public class BytesRefHashTests extends ESTestCase {
 
     // END - tests borrowed from LUCENE
 
+    public void testAllocation() {
+        MockBigArrays.assertFitsIn(new ByteSizeValue(512), bigArrays -> new BytesRefHash(1, bigArrays));
+    }
 }

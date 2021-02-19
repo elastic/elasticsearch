@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
@@ -59,7 +61,11 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private AnalyticsProcess<AnalyticsResult> process;
     private DataFrameRowsJoiner dataFrameRowsJoiner;
-    private StatsHolder statsHolder = new StatsHolder(ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report());
+    private StatsHolder statsHolder = new StatsHolder(
+        ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report(),
+        null,
+        null,
+        new DataCounts(JOB_ID));
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
     private StatsPersister statsPersister;
@@ -76,7 +82,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         analyticsConfig = new DataFrameAnalyticsConfig.Builder()
             .setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(new Regression("foo"))
             .build();

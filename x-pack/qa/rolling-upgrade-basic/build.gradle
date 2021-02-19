@@ -9,6 +9,10 @@ apply from : "$rootDir/gradle/bwc-test.gradle"
 dependencies {
   testImplementation project(':x-pack:qa')
 }
+if (BuildParams.inFipsJvm){
+  // This test is testing rolling upgrades with a BASIC license and FIPS 140 mode is not available in BASIC
+  tasks.withType(Test).configureEach{ enabled = false }
+}
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
@@ -29,7 +33,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
@@ -78,4 +82,13 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
+}
+
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
+}
+tasks.named("testingConventions").configure {
+  onlyIf { BuildParams.inFipsJvm == false }
 }

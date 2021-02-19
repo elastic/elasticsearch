@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -105,7 +107,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         this.absoluteMillisTimeProvider = absoluteMillisTimeProvider;
         this.executor = Objects.requireNonNull(executor);
-        this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
+        this.recentAutoFollowErrors = new LinkedHashMap<>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;
@@ -496,8 +498,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 leaderIndicesToFollow.size());
 
             for (final Index indexToFollow : leaderIndicesToFollow) {
+                IndexAbstraction indexAbstraction = remoteMetadata.getIndicesLookup().get(indexToFollow.getName());
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
-                    .filter(otherPattern -> otherPattern.v2().match(indexToFollow.getName()))
+                    .filter(otherPattern -> otherPattern.v2().match(indexAbstraction))
                     .map(Tuple::v1)
                     .collect(Collectors.toList());
                 if (otherMatchingPatterns.size() != 0) {
@@ -615,7 +618,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 if (leaderIndexMetadata.getState() != IndexMetadata.State.OPEN) {
                     continue;
                 }
-                if (autoFollowPattern.isActive() && autoFollowPattern.match(leaderIndexMetadata.getIndex().getName())) {
+                IndexAbstraction indexAbstraction =
+                    remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndexMetadata.getIndex().getName());
+                if (autoFollowPattern.isActive() && autoFollowPattern.match(indexAbstraction)) {
                     IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetadata.getIndex());
                     if (indexRoutingTable != null &&
                         // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
@@ -624,7 +629,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         // this index will be auto followed.
                         indexRoutingTable.allPrimaryShardsActive() &&
                         followedIndexUUIDs.contains(leaderIndexMetadata.getIndex().getUUID()) == false) {
-
                         leaderIndicesToFollow.add(leaderIndexMetadata.getIndex());
                     }
                 }

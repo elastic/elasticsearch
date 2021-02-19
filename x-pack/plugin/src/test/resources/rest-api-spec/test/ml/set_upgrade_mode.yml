@@ -60,6 +60,16 @@ setup:
       cluster.health:
         index: airline-data
         wait_for_status: green
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "transient": {
+              "logger.org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction": "TRACE",
+              "logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction": "TRACE",
+              "logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager": "TRACE"
+            }
+          }
 
 ---
 teardown:

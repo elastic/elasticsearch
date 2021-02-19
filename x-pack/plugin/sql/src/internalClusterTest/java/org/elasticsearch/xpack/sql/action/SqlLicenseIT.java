@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.License.OperationMode;
@@ -25,9 +27,7 @@ import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.license.XPackLicenseStateTests.randomBasicStandardOrGold;
@@ -50,9 +50,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // Add Netty so we can test JDBC licensing because only exists on the REST layer.
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(Netty4Plugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), Netty4Plugin.class);
     }
 
     @Override

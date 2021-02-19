@@ -8,18 +8,9 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            properties:
-              timestamp:
-                type: date
-              temperature:
-                type: long
-              voltage:
-                type: double
-              node:
-                type: keyword
+            runtime:
               voltage_times_ten:
-                type: runtime
-                runtime_type: long
+                type: long
                 script:
                   source: |
                     for (double v : doc['voltage']) {
@@ -29,8 +20,7 @@ setup:
                     multiplier: 10
               # Test fetching from _source
               voltage_times_ten_from_source:
-                type: runtime
-                runtime_type: long
+                type: long
                 script:
                   source: |
                     emit((long)(params._source.voltage * params.multiplier));
@@ -38,8 +28,7 @@ setup:
                     multiplier: 10
               # Test fetching many values
               temperature_digits:
-                type: runtime
-                runtime_type: long
+                type: long
                 script:
                   source: |
                     for (long temperature : doc['temperature']) {
@@ -51,13 +40,21 @@ setup:
                     }
               # Test now
               millis_ago:
-                type: runtime
-                runtime_type: date
+                type: date
                 script:
                   source: |
                     for (def dt : doc['timestamp']) {
                       emit(System.currentTimeMillis() - dt.toInstant().toEpochMilli());
                     }
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
 
   - do:
       bulk:
@@ -82,15 +79,14 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.voltage_times_ten.type: runtime }
-  - match: {sensor.mappings.properties.voltage_times_ten.runtime_type: long }
+  - match: {sensor.mappings.runtime.voltage_times_ten.type: long }
   - match:
-      sensor.mappings.properties.voltage_times_ten.script.source: |
+      sensor.mappings.runtime.voltage_times_ten.script.source: |
         for (double v : doc['voltage']) {
           emit((long)(v * params.multiplier));
         }
-  - match: {sensor.mappings.properties.voltage_times_ten.script.params: {multiplier: 10} }
-  - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }
+  - match: {sensor.mappings.runtime.voltage_times_ten.script.params: {multiplier: 10} }
+  - match: {sensor.mappings.runtime.voltage_times_ten.script.lang: painless }
 
 ---
 "fetch fields":
@@ -201,6 +197,13 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
+            runtime:
+              users.first_script:
+                type: long
+                script: emit(doc['users.first'].value.length())
+              users.last_script:
+                type:   long
+                script: emit(doc['users.last'].value.length())
             properties:
               users:
                 type: nested
@@ -209,14 +212,6 @@ setup:
                     type: keyword
                   last:
                     type: keyword
-                  first_script:
-                    type: runtime
-                    runtime_type: long
-                    script: emit(doc['users.first'].value.length())
-                  last_script:
-                    type: runtime
-                    runtime_type: long
-                    script: emit(doc['users.last'].value.length())
   - do:
       bulk:
         index: test

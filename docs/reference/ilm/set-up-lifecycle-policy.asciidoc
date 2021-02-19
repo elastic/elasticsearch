@@ -78,7 +78,7 @@ You specify the name of the policy and the alias used to reference the rolling i
 
 You can use the {kib} Create template wizard to create a template. To access the
 wizard, open the menu and go to *Stack Management > Index Management*. In the
-the *Index Templates* tab, click *Create template*.
+*Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard-my_template.png[Create template page]

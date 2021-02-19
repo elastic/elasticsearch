@@ -52,6 +52,11 @@ The `geoip` processor is now a module and distributed with {es} by default. See
 The `user_agent` processor is now a module and distributed with {es} by default.
 See {ref}/user-agent-processor.html[User Agent processor].
 
+[role="exclude",id="using-ingest-geoip"]
+=== Using the `geoip` processor in a pipeline
+
+See {ref}/geoip-processor.html#using-ingest-geoip[using `ingest-geoip`].
+
 [role="exclude",id="alerting"]
 === Alerting plugins
 

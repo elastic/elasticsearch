@@ -123,65 +123,18 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
         final int maxDoc = reader.maxDoc();
         final int numDocs = maxDoc - segmentInfo.getDelCount() - segmentInfo.getSoftDelCount();
-        final Bits lazyBits = new Bits() {
-
-            volatile Bits materializedBits = null;
-
-            @Override
-            public boolean get(int index) {
-                if (materializedBits == null) {
-                    synchronized (this) {
-                        try {
-                            if (materializedBits == null) {
-                                materializedBits = init();
-                            }
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-                }
-                return materializedBits.get(index);
-            }
-
-            @Override
-            public int length() {
-                return maxDoc;
-            }
-
-            private Bits init() throws IOException {
-                assert Thread.holdsLock(this);
-
-                DocIdSetIterator iterator = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(field, reader);
-                assert iterator != null;
-                Bits liveDocs = reader.getLiveDocs();
-                final FixedBitSet bits;
-                if (liveDocs != null) {
-                    bits = FixedBitSet.copyOf(liveDocs);
-                } else {
-                    bits = new FixedBitSet(maxDoc);
-                    bits.set(0, maxDoc);
-                }
-                int numComputedSoftDeletes = PendingSoftDeletes.applySoftDeletes(iterator, bits);
-                assert numComputedSoftDeletes == numSoftDeletes :
-                    "numComputedSoftDeletes: " + numComputedSoftDeletes + " expected: " + numSoftDeletes;
-
-                int numDeletes = reader.numDeletedDocs() + numComputedSoftDeletes;
-                int computedNumDocs = reader.maxDoc() - numDeletes;
-                assert computedNumDocs == numDocs : "computedNumDocs: " + computedNumDocs + " expected: " + numDocs;
-                return bits;
-            }
-        };
+        final LazyBits lazyBits = new LazyBits(maxDoc, field, reader, numSoftDeletes, numDocs);
         return reader instanceof CodecReader ? new LazySoftDeletesFilterCodecReader((CodecReader) reader, lazyBits, numDocs)
             : new LazySoftDeletesFilterLeafReader(reader, lazyBits, numDocs);
     }
 
-    static final class LazySoftDeletesFilterLeafReader extends FilterLeafReader {
+    public static final class LazySoftDeletesFilterLeafReader extends FilterLeafReader {
         private final LeafReader reader;
-        private final Bits bits;
+        private final LazyBits bits;
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        private LazySoftDeletesFilterLeafReader(LeafReader reader, Bits bits, int numDocs) {
+        public LazySoftDeletesFilterLeafReader(LeafReader reader, LazyBits bits, int numDocs) {
             super(reader);
             this.reader = reader;
             this.bits = bits;
@@ -191,7 +144,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
 
         @Override
-        public Bits getLiveDocs() {
+        public LazyBits getLiveDocs() {
             return bits;
         }
 
@@ -211,13 +164,13 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
     }
 
-    static final class LazySoftDeletesFilterCodecReader extends FilterCodecReader {
+    public static final class LazySoftDeletesFilterCodecReader extends FilterCodecReader {
         private final LeafReader reader;
-        private final Bits bits;
+        private final LazyBits bits;
         private final int numDocs;
         private final CacheHelper readerCacheHelper;
 
-        private LazySoftDeletesFilterCodecReader(CodecReader reader, Bits bits, int numDocs) {
+        public LazySoftDeletesFilterCodecReader(CodecReader reader, LazyBits bits, int numDocs) {
             super(reader);
             this.reader = reader;
             this.bits = bits;
@@ -227,7 +180,7 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
         }
 
         @Override
-        public Bits getLiveDocs() {
+        public LazyBits getLiveDocs() {
             return bits;
         }
 
@@ -265,6 +218,73 @@ public final class LazySoftDeletesDirectoryReaderWrapper extends FilterDirectory
             // here we wrap the listener and call it with our cache key
             // this is important since this key will be used to cache the reader and otherwise we won't free caches etc.
             delegate.addClosedListener(unused -> listener.onClose(cacheKey));
+        }
+    }
+
+    public static class LazyBits implements Bits {
+
+        private final int maxDoc;
+        private final String field;
+        private final LeafReader reader;
+        private final int numSoftDeletes;
+        private final int numDocs;
+        volatile Bits materializedBits;
+
+        public LazyBits(int maxDoc, String field, LeafReader reader, int numSoftDeletes, int numDocs) {
+            this.maxDoc = maxDoc;
+            this.field = field;
+            this.reader = reader;
+            this.numSoftDeletes = numSoftDeletes;
+            this.numDocs = numDocs;
+            materializedBits = null;
+        }
+
+        @Override
+        public boolean get(int index) {
+            if (materializedBits == null) {
+                synchronized (this) {
+                    try {
+                        if (materializedBits == null) {
+                            materializedBits = init();
+                        }
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            }
+            return materializedBits.get(index);
+        }
+
+        @Override
+        public int length() {
+            return maxDoc;
+        }
+
+        private Bits init() throws IOException {
+            assert Thread.holdsLock(this);
+
+            DocIdSetIterator iterator = DocValuesFieldExistsQuery.getDocValuesDocIdSetIterator(field, reader);
+            assert iterator != null;
+            Bits liveDocs = reader.getLiveDocs();
+            final FixedBitSet bits;
+            if (liveDocs != null) {
+                bits = FixedBitSet.copyOf(liveDocs);
+            } else {
+                bits = new FixedBitSet(maxDoc);
+                bits.set(0, maxDoc);
+            }
+            int numComputedSoftDeletes = PendingSoftDeletes.applySoftDeletes(iterator, bits);
+            assert numComputedSoftDeletes == numSoftDeletes :
+                "numComputedSoftDeletes: " + numComputedSoftDeletes + " expected: " + numSoftDeletes;
+
+            int numDeletes = reader.numDeletedDocs() + numComputedSoftDeletes;
+            int computedNumDocs = reader.maxDoc() - numDeletes;
+            assert computedNumDocs == numDocs : "computedNumDocs: " + computedNumDocs + " expected: " + numDocs;
+            return bits;
+        }
+
+        public boolean initialized() {
+            return materializedBits != null;
         }
     }
 }

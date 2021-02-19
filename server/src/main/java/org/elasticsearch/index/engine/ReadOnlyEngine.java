@@ -9,18 +9,27 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterCodecReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper.LazyBits;
+import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader;
+import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterLeafReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -204,6 +213,40 @@ public class ReadOnlyEngine extends Engine {
         } else {
             return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
         }
+    }
+
+    // used in tests
+    public void checkNoSoftDeletesLoaded() {
+        if (lazilyLoadSoftDeletes == false) {
+            throw new IllegalStateException("method should only be called when lazily loading soft-deletes is enabled");
+        }
+        try (Searcher searcher = acquireSearcher("soft-deletes-check", SearcherScope.INTERNAL)) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
+                LazyBits lazyBits = lazyBits(ctx.reader());
+                if (lazyBits != null && lazyBits.initialized()) {
+                    throw new IllegalStateException("soft-deletes loaded");
+                }
+            }
+        }
+    }
+
+    @Nullable
+    public static LazyBits lazyBits(LeafReader reader) {
+        if (reader instanceof LazySoftDeletesFilterLeafReader) {
+            return ((LazySoftDeletesFilterLeafReader) reader).getLiveDocs();
+        } else if (reader instanceof LazySoftDeletesFilterCodecReader) {
+            return ((LazySoftDeletesFilterCodecReader) reader).getLiveDocs();
+        } else if (reader instanceof FilterLeafReader) {
+            final FilterLeafReader fReader = (FilterLeafReader) reader;
+            return lazyBits(FilterLeafReader.unwrap(fReader));
+        } else if (reader instanceof FilterCodecReader) {
+            final FilterCodecReader fReader = (FilterCodecReader) reader;
+            return lazyBits(FilterCodecReader.unwrap(fReader));
+        } else if (reader instanceof SegmentReader) {
+            return null;
+        }
+        // hard fail - we can't get the lazybits
+        throw new IllegalStateException("Can not extract lazy bits from given index reader [" + reader + "]");
     }
 
     @Override

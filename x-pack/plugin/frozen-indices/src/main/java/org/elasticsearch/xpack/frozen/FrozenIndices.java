@@ -43,8 +43,9 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            final boolean requireCompleteHistory = isSearchableSnapshotStore(indexSettings.getSettings()) == false;
-            return Optional.of(config -> new FrozenEngine(config, requireCompleteHistory, true));
+            final boolean searchableSnapshots = isSearchableSnapshotStore(indexSettings.getSettings());
+            final boolean requireCompleteHistory = searchableSnapshots == false;
+            return Optional.of(config -> new FrozenEngine(config, requireCompleteHistory, searchableSnapshots));
         } else {
             return Optional.empty();
         }

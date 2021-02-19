@@ -16,6 +16,8 @@ import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
@@ -23,9 +25,11 @@ import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -43,8 +47,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin.COMPATIBLE_VERSION;
-
 /**
  * A task to transform REST tests for use in REST API compatibility before they are executed.
  */
@@ -58,18 +60,22 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     private static final Map<String, String> headers = new LinkedHashMap<>();
 
-    private FileCollection input;
-    private File output;
+    private final int compatibleVersion;
+    private final DirectoryProperty sourceDirectory;
+    private final DirectoryProperty outputDirectory;
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations = new ArrayList<>();
 
     @Inject
-    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory) {
+    public RestCompatTestTransformTask(Factory<PatternSet> patternSetFactory, ObjectFactory objectFactory) {
+        this.compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
+        this.sourceDirectory = objectFactory.directoryProperty();
+        this.outputDirectory = objectFactory.directoryProperty();
         this.testPatternSet = patternSetFactory.create();
         this.testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         // always inject compat headers
-        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
-        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + COMPATIBLE_VERSION);
+        headers.put("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
+        headers.put("Accept", "application/vnd.elasticsearch+json;compatible-with=" + compatibleVersion);
         transformations.add(new InjectHeaders(headers));
     }
 
@@ -129,14 +135,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     @OutputDirectory
-    public File getOutputDir() {
-        return output;
+    public DirectoryProperty getOutputDirectory() {
+        return outputDirectory;
     }
 
     @SkipWhenEmpty
     @InputFiles
     public FileTree getTestFiles() {
-        return input.getAsFileTree().matching(testPatternSet);
+        return sourceDirectory.getAsFileTree().matching(testPatternSet);
     }
 
     @TaskAction
@@ -151,7 +157,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
             if (testFileParts.length != 2) {
                 throw new IllegalArgumentException("could not split " + file + " into expected parts");
             }
-            File output = new File(getOutputDir(), testFileParts[1]);
+            File output = new File(outputDirectory.get().getAsFile(), testFileParts[1]);
             output.getParentFile().mkdirs();
             try (SequenceWriter sequenceWriter = WRITER.writeValues(output)) {
                 for (ObjectNode transformedTest : transformRestTests) {
@@ -161,16 +167,13 @@ public class RestCompatTestTransformTask extends DefaultTask {
         }
     }
 
+    @Internal
+    public DirectoryProperty getSourceDirectory() {
+        return sourceDirectory;
+    }
+
     @Nested
     public List<RestTestTransform<?>> getTransformations() {
         return transformations;
-    }
-
-    public void setInput(FileCollection input) {
-        this.input = input;
-    }
-
-    public void setOutput(File output) {
-        this.output = output;
     }
 }

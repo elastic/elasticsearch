@@ -35,6 +35,7 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -53,7 +54,8 @@ public class QueryFolderTests extends ESTestCase {
         Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult,
+            new Verifier(new Metrics(), TEST_CFG.version()));
         optimizer = new Optimizer();
         planner = new Planner();
     }

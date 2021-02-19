@@ -29,6 +29,7 @@ import java.time.temporal.ChronoField;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 
 public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expression> {
@@ -93,7 +94,8 @@ public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expressi
         IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
                 SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json")));
 
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), indexResolution,
+            new Verifier(new Metrics(), TEST_CFG.version()));
         ParsingException e = expectThrows(ParsingException.class, () ->
             analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100000000000000)"), true));
         assertEquals("line 1:22: invalid precision; [100000000000000] out of [integer] range", e.getMessage());

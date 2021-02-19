@@ -12,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -175,5 +176,23 @@ final class TypeUtils {
             throw new SQLFeatureNotSupportedException("Objects of type [" + clazz.getName() + "] are not supported");
         }
         return dataType;
+    }
+
+    static EsType baseType(EsType type) throws SQLException {
+        String typeName = type.getName();
+        return isArray(type)
+            ? of(typeName.substring(0, typeName.length() - "_ARRAY".length()).toLowerCase(Locale.ROOT))
+            : type;
+    }
+
+    static EsType arrayOf(EsType type) throws SQLException {
+        if (isArray(type)) {
+            throw new SQLException("multidimentional array types not supported");
+        }
+        return ENUM_NAME_TO_TYPE.get(type.name().toLowerCase(Locale.ROOT) + "_array");
+    }
+
+    static boolean isArray(EsType type) {
+        return type.getVendorTypeNumber() == Types.ARRAY;
     }
 }

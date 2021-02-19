@@ -78,7 +78,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
                     response.toXContent(builder, request);
                     restResponse = new BytesRestResponse(RestStatus.OK, builder);
                 } else { // TextFormat
-                    TextFormat type = (TextFormat)responseMediaType;
+                    TextFormat type = (TextFormat) responseMediaType;
                     final String data = type.format(request, response);
 
                     restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request),

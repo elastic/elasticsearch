@@ -95,13 +95,35 @@ public class SqlQueryResponse {
 
     public static List<Object> parseRow(XContentParser parser) throws IOException {
         List<Object> list = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (parser.currentToken().isValue()) {
-                list.add(ProtoUtils.parseFieldsValue(parser));
-            } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                list.add(null);
-            } else {
-                throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
+        List<Object> savedList = null;
+        for (boolean parsing = true; parsing; ) {
+            switch (parser.nextToken()) {
+                case END_ARRAY:
+                    if (savedList != null) {
+                        savedList.add(list);
+                        list = savedList;
+                        savedList = null;
+                    } else {
+                        parsing = false;
+                    }
+                    break;
+                case START_ARRAY:
+                    if (savedList == null) {
+                        savedList = list;
+                        list = new ArrayList<>();
+                    } else {
+                        throw new IllegalStateException("multidimensional multivalue not supported");
+                    }
+                    break;
+                case VALUE_NULL:
+                    list.add(null);
+                    break;
+                default:
+                    if (parser.currentToken().isValue()) {
+                        list.add(ProtoUtils.parseFieldsValue(parser));
+                    } else {
+                        throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
+                    }
             }
         }
         return list;

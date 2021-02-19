@@ -651,8 +651,20 @@ does not support the `circle` type. Instead, use a
 a <<geo-polygon,`polygon`>>.
 
 [source,console]
---------------------------------------------------
-POST /example/_doc
+----
+PUT /circle-example
+{
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_shape",
+        "strategy": "recursive"
+      }
+    }
+  }
+}
+
+POST /circle-example/_doc
 {
   "location" : {
     "type" : "circle",
@@ -660,8 +672,8 @@ POST /example/_doc
     "radius" : "100m"
   }
 }
---------------------------------------------------
-// TEST[skip:not supported in default]
+----
+// TEST[skip:uses deprecated strategy parameter]
 
 Note: The inner `radius` field is required. If not specified, then
 the units of the `radius` will default to `METERS`.

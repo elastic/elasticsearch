@@ -115,10 +115,10 @@ subprojects {
  * }
  *
  * */
-ext.testArtifact = { p ->
+ext.testArtifact = { p, String name = "test" ->
   def projectDependency = p.dependencies.create(p)
   projectDependency.capabilities {
-    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-test-artifacts")
+    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
   };
 }
 

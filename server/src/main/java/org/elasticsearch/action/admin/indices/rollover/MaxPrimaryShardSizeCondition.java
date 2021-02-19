@@ -22,22 +22,22 @@ import java.io.IOException;
  * A size-based condition for the primary shards within an index.
  * Evaluates to <code>true</code> if the size of the largest primary shard is at least {@link #value}.
  */
-public class MaxSinglePrimarySizeCondition extends Condition<ByteSizeValue> {
-    public static final String NAME = "max_single_primary_size";
+public class MaxPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
+    public static final String NAME = "max_primary_shard_size";
 
-    public MaxSinglePrimarySizeCondition(ByteSizeValue value) {
+    public MaxPrimaryShardSizeCondition(ByteSizeValue value) {
         super(NAME);
         this.value = value;
     }
 
-    public MaxSinglePrimarySizeCondition(StreamInput in) throws IOException {
+    public MaxPrimaryShardSizeCondition(StreamInput in) throws IOException {
         super(NAME);
         this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
     }
 
     @Override
     public Result evaluate(Stats stats) {
-        return new Result(this, stats.maxSinglePrimarySize.getBytes() >= value.getBytes());
+        return new Result(this, stats.maxPrimaryShardSize.getBytes() >= value.getBytes());
     }
 
     @Override
@@ -57,9 +57,9 @@ public class MaxSinglePrimarySizeCondition extends Condition<ByteSizeValue> {
         return builder.field(NAME, value.getStringRep());
     }
 
-    public static MaxSinglePrimarySizeCondition fromXContent(XContentParser parser) throws IOException {
+    public static MaxPrimaryShardSizeCondition fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-            return new MaxSinglePrimarySizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
+            return new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
         } else {
             throw new IllegalArgumentException("invalid token: " + parser.currentToken());
         }

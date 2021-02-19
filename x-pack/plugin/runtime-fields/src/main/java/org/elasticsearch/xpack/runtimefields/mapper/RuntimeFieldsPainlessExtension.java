@@ -30,8 +30,7 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     private final List<Whitelist> whitelists;
 
     public RuntimeFieldsPainlessExtension(RuntimeFields plugin) {
-        Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(
-            RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
+        Whitelist commonWhitelist = WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "common_whitelist.txt");
         Whitelist grokWhitelist = new Whitelist(
             commonWhitelist.classLoader,
             List.of(),

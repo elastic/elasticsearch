@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -23,18 +24,22 @@ import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_ARRAY_TYPES;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.types;
 import static org.mockito.Mockito.mock;
 
 public class SysTypesTests extends ESTestCase {
@@ -82,7 +87,7 @@ public class SysTypesTests extends ESTestCase {
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(19, r.columnCount());
-            assertEquals(SqlDataTypes.types().size(), r.size());
+            assertEquals(types().size(), r.size());
             assertFalse(r.schema().types().contains(DataTypes.NULL));
             // test first numeric (i.e. BYTE) as signed
             assertFalse(r.column(9, Boolean.class));
@@ -104,7 +109,7 @@ public class SysTypesTests extends ESTestCase {
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
-            assertEquals(SqlDataTypes.types().size(), r.size());
+            assertEquals(types().size(), r.size());
         }, ex -> fail(ex.getMessage())));
     }
 
@@ -141,5 +146,34 @@ public class SysTypesTests extends ESTestCase {
             assertTrue(r.advanceRow());
             assertEquals("TEXT", r.column(0));
         }, ex -> fail(ex.getMessage())));
+    }
+
+    public void testArrayTypesFiltering() {
+        Set<SqlVersion> versions = new HashSet<>(List.of(
+            SqlVersion.fromId(INTRODUCING_ARRAY_TYPES.id - SqlVersion.MINOR_MULTIPLIER),
+            INTRODUCING_ARRAY_TYPES,
+            SqlVersion.fromId(INTRODUCING_ARRAY_TYPES.id + SqlVersion.MINOR_MULTIPLIER),
+            SqlVersion.fromId(Version.CURRENT.id)
+        ));
+        versions.add(null);
+
+        for (SqlVersion version : versions) {
+            for (Mode mode : Mode.values()) {
+                Tuple<Command, SqlSession> cmd = sql("SYS TYPES", mode, version);
+                SqlSession session = cmd.v2();
+
+                cmd.v1().execute(session, wrap(p -> {
+                    List<String> types = new ArrayList<>();
+
+                    SchemaRowSet r = (SchemaRowSet) p.rowSet();
+                    r.forEachRow(rv -> types.add((String) rv.column(0)));
+
+                    for (DataType arrayType : types().stream().filter(DataTypes::isArray).collect(Collectors.toList())) {
+                        assertEquals(isTypeSupportedInVersion(arrayType, session.configuration().version()),
+                            types.contains(arrayType.toString()));
+                    }
+                }, ex -> fail(ex.getMessage())));
+            }
+        }
     }
 }

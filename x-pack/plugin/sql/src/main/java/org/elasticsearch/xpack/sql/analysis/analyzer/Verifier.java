@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -78,6 +79,8 @@ import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterCond
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.versionIntroducingType;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -94,9 +97,11 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
  */
 public final class Verifier {
     private final Metrics metrics;
+    private final SqlVersion version;
 
-    public Verifier(Metrics metrics) {
+    public Verifier(Metrics metrics, SqlVersion version) {
         this.metrics = metrics;
+        this.version = version;
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -240,6 +245,8 @@ public final class Verifier {
 
                 failures.addAll(localFailures);
             });
+
+            checkClientSupportsDataTypes(plan, failures, version);
         }
 
         // gather metrics
@@ -940,5 +947,15 @@ public final class Verifier {
                 localFailures.add(fail(r, "ARRAY()'s argument must be an index field, found [{}]", a.source().text()));
             }
         }));
+    }
+
+    private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
+        p.output().forEach(e -> {
+            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), version) == false) {
+                localFailures.add(fail(e, "Cannot use [" + e.name() + "] with type [" + e.dataType() + "] unsupported " +
+                    "in version [" + version + "], upgrade required (to version [" + versionIntroducingType(e.dataType()) +
+                    "] or higher)"));
+            }
+        });
     }
 }

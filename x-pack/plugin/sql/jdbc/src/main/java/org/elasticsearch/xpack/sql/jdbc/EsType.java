@@ -48,7 +48,24 @@ public enum EsType implements SQLType {
     INTERVAL_MINUTE_TO_SECOND(ExtraTypes.INTERVAL_MINUTE_SECOND),
     GEO_POINT(                ExtraTypes.GEOMETRY),
     GEO_SHAPE(                ExtraTypes.GEOMETRY),
-    SHAPE(                    ExtraTypes.GEOMETRY);
+    SHAPE(                    ExtraTypes.GEOMETRY),
+    BOOLEAN_ARRAY(            Types.ARRAY),
+    BYTE_ARRAY(               Types.ARRAY),
+    SHORT_ARRAY(              Types.ARRAY),
+    INTEGER_ARRAY(            Types.ARRAY),
+    LONG_ARRAY(               Types.ARRAY),
+    DOUBLE_ARRAY(             Types.ARRAY),
+    FLOAT_ARRAY(              Types.ARRAY),
+    HALF_FLOAT_ARRAY(         Types.ARRAY),
+    SCALED_FLOAT_ARRAY(       Types.ARRAY),
+    KEYWORD_ARRAY(            Types.ARRAY),
+    TEXT_ARRAY(               Types.ARRAY),
+    DATETIME_ARRAY(           Types.ARRAY),
+    IP_ARRAY(                 Types.ARRAY),
+    BINARY_ARRAY(             Types.ARRAY),
+    GEO_SHAPE_ARRAY(          Types.ARRAY),
+    GEO_POINT_ARRAY(          Types.ARRAY),
+    SHAPE_ARRAY(              Types.ARRAY);
 
     private final Integer type;
 

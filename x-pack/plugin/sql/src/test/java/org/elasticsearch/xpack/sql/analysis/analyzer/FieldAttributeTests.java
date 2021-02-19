@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 
 import java.util.List;
@@ -34,6 +36,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_ARRAY_TYPES;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.LONG_ARRAY;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
@@ -54,7 +58,7 @@ public class FieldAttributeTests extends ESTestCase {
     public FieldAttributeTests() {
         parser = new SqlParser();
         functionRegistry = new SqlFunctionRegistry();
-        verifier = new Verifier(new Metrics());
+        verifier = new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version());
 
         Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json");
 
@@ -277,6 +281,56 @@ public class FieldAttributeTests extends ESTestCase {
                 "line 1:94: Reference [m] is ambiguous (to disambiguate use quotes or qualifiers); "
                 + "matches any of [line 1:37 [m], line 1:55 [m]]",
             ex.getMessage());
+    }
+
+    public void testArrayTypeVersionCompatibility() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-numeric.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+
+
+        SqlVersion preArrayTypes = SqlVersion.fromId(INTRODUCING_ARRAY_TYPES.id - SqlVersion.MINOR_MULTIPLIER);
+        SqlVersion postArrayTypes = SqlVersion.fromId(INTRODUCING_ARRAY_TYPES.id + SqlVersion.MINOR_MULTIPLIER);
+
+        String query = "SELECT ARRAY(long) FROM test";
+
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preArrayTypes);
+        analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig.version()));
+        VerificationException ex = expectThrows(VerificationException.class, () -> plan(query));
+        assertEquals(
+            "Found 1 problem\nline 1:8: Cannot use [ARRAY(long)] with type [LONG_ARRAY] unsupported in version [" +
+                preArrayTypes + "], upgrade required (to version [" + INTRODUCING_ARRAY_TYPES + "] or higher)",
+            ex.getMessage());
+
+        for (SqlVersion v : List.of(INTRODUCING_ARRAY_TYPES, postArrayTypes)) {
+            analyzer = new Analyzer(SqlTestUtils.randomConfiguration(v), functionRegistry, getIndexResult, verifier);
+            LogicalPlan plan = plan(query);
+            assertThat(plan, instanceOf(Project.class));
+            Project p = (Project) plan;
+            List<? extends NamedExpression> projections = p.projections();
+            assertThat(projections, hasSize(1));
+            Attribute attribute = projections.get(0).toAttribute();
+            assertThat(attribute.dataType(), is(LONG_ARRAY));
+            assertThat(attribute.name(), is("ARRAY(long)"));
+        }
+    }
+
+    public void testUnprojectedArrayTypeVersionCompatibility() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-numeric.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        SqlVersion preArrayTypes = SqlVersion.fromId(INTRODUCING_ARRAY_TYPES.id - SqlVersion.MINOR_MULTIPLIER);
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preArrayTypes);
+        analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig.version()));
+
+        String query = "SELECT l = 1 FROM (SELECT ARRAY(long), long AS l FROM test WHERE l > 10)";
+
+        LogicalPlan plan = plan(query);
+        assertThat(plan, instanceOf(Project.class));
+        Project p = (Project) plan;
+        List<? extends NamedExpression> projections = p.projections();
+        assertThat(projections, hasSize(1));
+        assertEquals(projections.get(0).dataType(), BOOLEAN);
     }
 
     public void testFunctionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {

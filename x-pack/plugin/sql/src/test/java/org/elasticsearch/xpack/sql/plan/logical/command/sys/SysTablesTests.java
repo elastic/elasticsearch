@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.ql.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -25,8 +24,8 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
@@ -44,6 +43,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_TABLE;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_VIEW;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -334,8 +334,8 @@ public class SysTablesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration cfg) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
-                                         new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
+                                         new Verifier(new Metrics(), TEST_CFG.version()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId()), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
@@ -355,7 +355,7 @@ public class SysTablesTests extends ESTestCase {
 
     private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, IndexInfo... infos)
             throws Exception {
-        executeCommand(sql, params, consumer, SqlTestUtils.TEST_CFG, infos);
+        executeCommand(sql, params, consumer, TEST_CFG, infos);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

@@ -42,6 +42,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -733,7 +735,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testBasicQueryWithMultiValues() throws IOException {
         List<Long> values = randomList(1, 5, ESTestCase::randomLong);
         String field = randomAlphaOfLength(5);
@@ -754,7 +755,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testBasicQueryWithMultiValuesAndMultiPathAndMultiDoc() throws IOException {
         // formatter will leave first argument as is, but fold the following on a line
         index(
@@ -795,9 +795,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonList(columnInfo(mode, "ARRAY(a.b.c.d)", "long_array", JDBCType.ARRAY, 20)));
         if (columnar) {
-            expected.put("values", singletonList(asList(asList(2, 3, 4, 5), singletonList(6), asList(8, 7))));
+            expected.put("values", singletonList(asList(asList(5, 2, 3, 4), singletonList(6), asList(7, 8))));
         } else {
-            expected.put("rows", asList(singletonList(asList(2, 3, 4, 5)), singletonList(singletonList(6)), singletonList(asList(8, 7))));
+            expected.put("rows", asList(singletonList(asList(5, 2, 3, 4)), singletonList(singletonList(6)), singletonList(asList(7, 8))));
         }
 
         assertResponse(
@@ -813,7 +813,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testFilteringQueryWithMultiValuesAndWithout() throws IOException {
         index("{\"a\": [2, 3, 4, 5]}", "{\"a\": 6}", "{\"a\": [7, 8]}");
         String mode = randomMode();
@@ -835,6 +834,29 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 mode
             )
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMultiValueDifferentPathsWithArraysAndNulls() throws IOException {
+        Supplier<Long> supplier = () -> rarely() ? null : randomLong();
+        ExhaustiveMultiPathMapper<Long> mapper = new ExhaustiveMultiPathMapper<>(randomIntBetween(3, 10), supplier);
+
+        index(Strings.toString(JsonXContent.contentBuilder().map(mapper.map())));
+
+        Map<String, Object> retMap = runSql(randomMode(), "SELECT ARRAY(\\\"" + mapper.path() + "\\\") FROM test", false);
+        List<?> rows = (List<?>) retMap.get("rows");
+        assertTrue(rows.size() == 1 && rows.get(0) instanceof List && ((List<?>) rows.get(0)).size() == 1);
+        List<?> cell = (List<?>) ((List<?>) rows.get(0)).get(0);
+        assertFalse(cell.isEmpty());
+        assertTrue(cell.get(0) instanceof Long);
+        List<Long> floats = (List<Long>) cell;
+
+        // order of array retrieval is stable, not trivial to predict and ultimately irrelevant / not guaranteed
+        floats.sort(Long::compare);
+        List<Long> values = mapper.values();
+        values.removeIf(Objects::isNull);
+        values.sort(Long::compare);
+        assertEquals(values, floats);
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {
@@ -1178,7 +1200,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(client(), "test"));
     }
 
-    @AwaitsFix(bugUrl = "Test disabled while merging fields API in")
     public void testMultiValueQueryText() throws IOException {
         index(
             "{"
@@ -1196,7 +1217,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         String expected = "               t               |       n       \n"
             + "-------------------------------+---------------\n"
-            + "[\"one\",\"two, three\",\"\\\"four\\\"\"]|[1,2,3,4]      \n";
+            + "[\"one\",\"two, three\",\"\\\"four\\\"\"]|[1,4,2,3]      \n";
         Tuple<String, String> response = runSqlAsText("SELECT ARRAY(text) t, ARRAY(number) n FROM test", "text/plain");
         assertEquals(expected, response.v1());
     }
@@ -1245,6 +1266,173 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
             fail("Response does not match:\n" + message.toString());
+        }
+    }
+
+    /**
+     * Generates the map of a JSON object whose paths to a value are of a specified depth, having mapped all possible path combinations:
+     *   {"a": {"b": {"c": 1}}, "a": {"b.c": [2, 3]}, "a.b": [{"c": 4}, {"c": 5}], "a.b.c": ...}
+     * Some of the paths are randomly multiplied:
+     *   {"a": [{"b": {"c": 1}}}, {"b": {"c": 1}}}], ...}
+     */
+    private static class ExhaustiveMultiPathMapper<T> {
+        private final List<List<String>> paths;
+        private final String path;
+        private Map<String, Object> map;
+        private List<T> values;
+
+        // the depth excludes the leaf
+        ExhaustiveMultiPathMapper(int depth, Supplier<T> supplier) {
+            if (depth < 2) {
+                throw new IllegalArgumentException("the depth must be larger than 2; provided: [" + depth + "]");
+            }
+            // generate the list of nodes ("a", "b", "c"...)
+            List<String> nodes = randomList(2, depth, () -> randomAlphaOfLength(randomIntBetween(1, 5)));
+            paths = generatePaths(nodes);
+            values = new ArrayList<>(paths.size());
+            path = String.join(".", paths.get(0));
+
+            generate(supplier);
+        }
+
+        Map<String, Object> map() {
+            return map;
+        }
+
+        List<T> values() {
+            return values;
+        }
+
+        String path() {
+            return path;
+        }
+
+        @SuppressWarnings("unchecked")
+        private void generate(Supplier<T> supplier) {
+            values = new ArrayList<>(paths.size());
+            map = new HashMap<>();
+
+            // add the leaf values to all paths
+            for (List<String> path : paths) {
+                Object value;
+                // randomly generate single value or a list of them
+                if (randomBoolean()) {
+                    value = supplier.get();
+                    values.add((T) value);
+                } else {
+                    value = randomList(1, 5, supplier);
+                    values.addAll((List<T>) value);
+                }
+                if (path.size() == 1) { // "a.b.c": 3
+                    map.put(path.get(0), value);
+                } else {
+                    // for a path ["a", "b", "c"] construct the JSON-like map of a path {"a": {"b": {"c": ...}}}
+                    Map<String, Object> crrMap = new HashMap<>();
+                    crrMap.put(path.get(path.size() - 1), value);
+                    for (int j = path.size() - 2; j > 0; j--) {
+                        Map<String, Object> newMap = new HashMap<>();
+                        newMap.put(path.get(j), crrMap);
+                        crrMap = newMap;
+                    }
+                    mergeMaps(map, path.get(0), crrMap);
+                }
+            }
+            randomlyMultiplySubmaps(map, values);
+        }
+
+        // "a": {"b": 2} => "a": [{"b": 2}, {"b": 2}]
+        private static <T> void randomlyMultiplySubmaps(Map<String, Object> map, List<T> valuesList) {
+            map.keySet().forEach(key -> {
+                Object val = map.get(key);
+                if (val instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> innerMap = (Map<String, Object>) val;
+                    if (usually()) {
+                        List<Map<String, Object>> replacementList = new ArrayList<>();
+                        int multiplicate = randomIntBetween(1, 5);
+                        for (int i = 0; i < multiplicate; i++) {
+                            Map<String, Object> copy = new HashMap<>(innerMap);
+                            replacementList.add(copy);
+                            if (i > 0) { // the initial copy is already part of valuesList
+                                collectLeaves(copy, valuesList);
+                            }
+                        }
+                        map.put(key, replacementList);
+                    } else {
+                        randomlyMultiplySubmaps(innerMap, valuesList);
+                    }
+                }
+            });
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <T> void collectLeaves(Map<String, Object> map, List<T> valuesList) {
+            for (Object val : map.values()) {
+                if (val instanceof Map) {
+                    collectLeaves((Map<String, Object>) val, valuesList);
+                } else if (val instanceof List) {
+                    for (Object o : (List<Object>) val) {
+                        if (o instanceof Map) {
+                            collectLeaves((Map<String, Object>) o, valuesList);
+                        } else {
+                            valuesList.add((T) o);
+                        }
+                    }
+                } else {
+                    valuesList.add((T) val);
+                }
+            }
+        }
+
+        // {"a" : {"b": {"c": 3}}} + "a", {"b.c": 4} => {"a": {"b": {"c": 3}, "b.c": 4}}
+        @SuppressWarnings("unchecked")
+        private static void mergeMaps(Map<String, Object> destination, String key, Map<String, Object> singleKeys) {
+            Object o = singleKeys;
+            while (destination.containsKey(key)) {
+                destination = (Map<String, Object>) destination.get(key);
+                key = singleKeys.keySet().toArray(new String[0])[0];
+                o = singleKeys.get(key);
+                if (o instanceof Map == false) {
+                    break;
+                }
+                singleKeys = (Map<String, Object>) o;
+            }
+            destination.put(key, o);
+        }
+
+        // generate all possible path combinations with given node names: a, b, c => (a, b, c), (a, b.c), (a.b, c), (a.b.c)
+        private static List<List<String>> generatePaths(List<String> nodes) {
+            if (nodes.size() == 0) {
+                return emptyList();
+            }
+            List<List<String>> paths = new ArrayList<>(singletonList(singletonList(nodes.get(0))));
+            for (int i = 1; i < nodes.size(); i++) {
+                List<List<String>> newPaths = new ArrayList<>();
+                for (List<String> crrPath : paths) {
+                    newPaths.addAll(extendPaths(crrPath, nodes.get(i)));
+                }
+                paths = newPaths;
+            }
+            return paths;
+        }
+
+        // (a, b) + c => (a, b, c), (a, bc)
+        private static List<List<String>> extendPaths(List<String> paths, String node) {
+            List<List<String>> extendedPaths = new ArrayList<>(paths.size() * 2);
+            List<String> listA = new ArrayList<>(paths);
+            listA.add(node);
+            extendedPaths.add(listA);
+            if (paths.isEmpty() == false) {
+                List<String> listB;
+                if (paths.size() > 1) {
+                    listB = paths.subList(0, paths.size() - 1);
+                    listB.add(paths.get(paths.size() - 1) + "." + node);
+                } else {
+                    listB = singletonList(paths.get(0) + "." + node);
+                }
+                extendedPaths.add(listB);
+            }
+            return extendedPaths;
         }
     }
 }

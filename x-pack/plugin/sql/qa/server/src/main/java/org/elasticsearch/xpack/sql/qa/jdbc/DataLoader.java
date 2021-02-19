@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class DataLoader {
 
@@ -73,6 +74,8 @@ public class DataLoader {
         // frozen index
         loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
         freeze(client, "frozen_emp");
+        // multivalue
+        loadEcommerceDatasetIntoEs(client, "ecommerce", "ecommerce");
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
@@ -179,8 +182,7 @@ public class DataLoader {
             list.add(dep);
         });
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(fileName, (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
@@ -267,8 +269,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(filename, (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
@@ -310,8 +311,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(filename, (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
@@ -354,8 +354,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
         StringBuilder bulk = new StringBuilder();
         csvToLines("library", (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
@@ -370,6 +369,60 @@ public class DataLoader {
         });
         request.setJsonEntity(bulk.toString());
         Response response = client.performRequest(request);
+    }
+
+    // TODO: functionalize index creation (settings+mapping) and bulk builder throughout class?
+    protected static void loadEcommerceDatasetIntoEs(RestClient client, String index, String fileName) throws Exception {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("date").field("type", "date").endObject();
+                createString("product", createIndex);
+                createString("sku", createIndex);
+                createIndex.startObject("price").field("type", "integer").endObject();
+                createIndex.startObject("tax").field("type", "double").endObject();
+                createIndex.startObject("shipped").field("type", "date").endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+
+        Request request = new Request("PUT", "/" + index);
+        request.setJsonEntity(Strings.toString(createIndex));
+        client.performRequest(request);
+
+        StringBuilder builder = new StringBuilder();
+        csvToLines(fileName, (headers, values) -> {
+            builder.append("{\"index\":{\"_id\":" + values.get(0) + "}}\n");
+            builder.append("{");
+            for (int i = 0; i < headers.size(); i++) {
+                String value = values.get(i);
+                if (i == 1) { // date: [2020-...]
+                    value = '"' + value + '"';
+                } else if (i == 6) { // shipped: [2020-..,2020-...] or [null,2020-...]
+                    String[] tokens = value.substring(1, value.length() - 1).split(",");
+                    value = Arrays.stream(tokens).map(x -> x.equals("null") ? x : '"' + x + '"').collect(Collectors.joining(","));
+                    value = '[' + value + ']';
+                }
+                builder.append('"').append(headers.get(i)).append('"').append(':').append(value);
+                builder.append(",");
+            }
+            builder.deleteCharAt(builder.length() - 1); // trailing comma
+            builder.append("}").append("\n");
+        });
+
+        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
+        request.setJsonEntity(builder.toString());
+        client.performRequest(request); // fails by exception
     }
 
     public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
@@ -396,13 +449,56 @@ public class DataLoader {
             if (titlesString == null) {
                 throw new IllegalArgumentException("[" + location + "] must contain at least a title row");
             }
-            List<String> titles = Arrays.asList(titlesString.split(","));
+            List<String> titles = splitCsvLine(titlesString);
 
             String line;
             while ((line = reader.readLine()) != null) {
-                consumeLine.accept(titles, Arrays.asList(line.split(",")));
+                List<String> values = splitCsvLine(line);
+                if (values.size() != titles.size()) {
+                    throw new IllegalArgumentException(
+                        "Values count mismatch in header [" + titles.size() + "] and line " + "[" + values.size() + "] for [" + line + "]"
+                    );
+                }
+                consumeLine.accept(titles, values);
             }
         }
+    }
+
+    private static List<String> splitCsvLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder buff = new StringBuilder();
+        boolean quoteOn = false;
+        char crr, prev = 0;
+        for (int i = 0; i < line.length(); i++, prev = crr) {
+            switch ((crr = line.charAt(i))) {
+                case ',':
+                    if (quoteOn) {
+                        buff.append(crr);
+                    } else {
+                        values.add(buff.toString());
+                        buff = new StringBuilder();
+                    }
+                    break;
+                case '"':
+                    if (quoteOn) {
+                        quoteOn = false;
+                    } else {
+                        if (prev == '"') { // double `"` == escaped `"`
+                            buff.append('"');
+                        } // else: no if (prev != 0 && prev != ',') check => ...,foo"bar"baz,... -> foobarbaz
+                        quoteOn = true;
+                    }
+                    break;
+                default:
+                    buff.append(crr);
+                    break;
+            }
+        }
+        if (quoteOn) {
+            throw new IllegalArgumentException("Quote not closed in badly formatted CSV line: [" + line + "]");
+        }
+        values.add(buff.toString());
+        return values;
     }
 
     @SuppressForbidden(reason = "test reads from jar")

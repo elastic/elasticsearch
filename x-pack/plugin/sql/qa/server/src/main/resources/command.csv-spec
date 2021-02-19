@@ -225,7 +225,8 @@ TODAY          |SCALAR
 showTables
 SHOW TABLES;
 
-       name    |  type |  kind   
+       name    |  type |  kind
+ecommerce      |TABLE  |INDEX
 logs           |TABLE  |INDEX
 logs_nanos     |TABLE  |INDEX
 test_alias     |VIEW   |ALIAS

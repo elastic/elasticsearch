@@ -1,0 +1,61 @@
+[[painless-intro]]
+=== A Painless Introduction
+
+Welcome to the Painless scripting language!
+
+If you have reached this documentation, you are probably looking to come up
+with a solution to your use-case outside of what the standard Elasticsearch
+APIs may provide. If so, you're in the right place.
+
+Painless is a scripting language designed to extend the Elasticsearch APIs
+under many different environments known as
+<<painless-contexts, script contexts>> allowing for solutions to more
+advanced use-cases. Each script context provides support for a different
+environment such as ingest or scoring and determines what data is available and
+how to access that data.
+
+For our examples in this introduction we use the
+<<painless-execute-api, painless execute API>> which by default allows
+us to test a script with simple user-defined parameters and receive a result.
+
+Now, before we dive into the basics of writing a Painless script, let's discuss
+the design goals we have in mind when choosing the syntax and available
+features for the language.
+
+* Safety: Our primary goal is to ensure the security of your cluster. To
+that end, Painless uses a fine-grained allowlist with a granularity down to the
+members of a class. Anything that is not part of the allowlist simply does not
+execute. See the {painless}/painless-api-reference.html[Painless API Reference]
+for a complete list of available classes, methods, and fields per script
+context.
+* Performance: Our secondary goal is to ensure the best performance possible.
+Painless compiles directly into JVM bytecode to take advantage of all possible
+optimizations the JVM provides which are numerous. We also generally avoid
+features that require additional slower checks at runtime.
+* Syntax: Our final goal is to implement a syntax with a natural familiarity to
+anyone with some basic coding experience. Painless uses a subset of Java syntax
+with some additional sugar to improve readability and remove some boilerplate.
+Use of a Java-like syntax has the additional benefit a of natural compilation
+path into JVM bytecode that the syntax and semantics of other languages tend to
+heavily complicate.
+
+With that said, let's jump into the basics of a Painless script.
+
+==== The Basics of a Painless Script
+
+A Painless script is structured as one or more statements and optionally
+has one or more user-defined functions at the beginning. A script must always
+have at least one statement.
+
+Let's take a look at simple script and then break out the individual pieces.
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "'Hello, world!'"
+  }
+}
+----
+[TEST]

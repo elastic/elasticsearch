@@ -1,3 +1,5 @@
+include::painless-intro.asciidoc[]
+
 include::painless-walkthrough.asciidoc[]
 
 include::painless-runtime-fields.asciidoc[]

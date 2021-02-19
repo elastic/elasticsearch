@@ -838,9 +838,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     @SuppressWarnings("unchecked")
     public void testMultiValueDifferentPathsWithArraysAndNulls() throws IOException {
-        // TODO AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68979")
-        // Supplier<Long> supplier = () -> rarely() ? null : randomLong();
-        Supplier<Long> supplier = ESTestCase::randomLong;
+        Supplier<Long> supplier = () -> rarely() ? null : randomLong();
         ExhaustiveMultiPathMapper<Long> mapper = new ExhaustiveMultiPathMapper<>(randomIntBetween(3, 10), supplier);
 
         index(Strings.toString(JsonXContent.contentBuilder().map(mapper.map())));

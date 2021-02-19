@@ -37,7 +37,7 @@ public abstract class AdaptingAggregator extends Aggregator {
         /*
          * Lock the parent of the sub-aggregators to *this* instead of to
          * the delegate. This keeps the parent link shaped like the requested
-         * agg tree. Thisis how it has always been and some aggs rely on it.
+         * agg tree. This is how it has always been and some aggs rely on it.
          */
         this.delegate = delegate.apply(subAggregators.fixParent(this));
         if (this.delegate.parent() != parent) {

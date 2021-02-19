@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -312,9 +313,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
      *
      * @return version
      */
-    public Optional<Version> getMinRemoteClusterVersion() {
+    public Optional<Tuple<Version, String>> getMinRemoteClusterVersion() {
         if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
-            return Optional.of(FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION);
+            return Optional.of(Tuple.tuple(FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION, "runtime fields"));
         } else {
             return Optional.empty();
         }

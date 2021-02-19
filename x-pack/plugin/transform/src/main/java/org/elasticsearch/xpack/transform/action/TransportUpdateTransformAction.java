@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -238,7 +239,10 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 validations = SourceDestValidations.NON_DEFERABLE_VALIDATIONS;
             } else if (config.getMinRemoteClusterVersion().isPresent()) {
                 validations = new ArrayList<>(SourceDestValidations.ALL_VALIDATIONS);
-                validations.add(new SourceDestValidator.RemoteClusterMinimumVersionValidation(config.getMinRemoteClusterVersion().get()));
+                Tuple<Version, String> minRemoteClusterVersionAndReason = config.getMinRemoteClusterVersion().get();
+                validations.add(
+                    new SourceDestValidator.RemoteClusterMinimumVersionValidation(
+                        minRemoteClusterVersionAndReason.v1(), minRemoteClusterVersionAndReason.v2()));
             } else {
                 validations = SourceDestValidations.ALL_VALIDATIONS;
             }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -124,7 +126,10 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
         List<SourceDestValidator.SourceDestValidation> validations;
         if (config.getMinRemoteClusterVersion().isPresent()) {
             validations = new ArrayList<>(SourceDestValidations.PREVIEW_VALIDATIONS);
-            validations.add(new SourceDestValidator.RemoteClusterMinimumVersionValidation(config.getMinRemoteClusterVersion().get()));
+            Tuple<Version, String> minRemoteClusterVersionAndReason = config.getMinRemoteClusterVersion().get();
+            validations.add(
+                new SourceDestValidator.RemoteClusterMinimumVersionValidation(
+                    minRemoteClusterVersionAndReason.v1(), minRemoteClusterVersionAndReason.v2()));
         } else {
             validations = SourceDestValidations.PREVIEW_VALIDATIONS;
         }

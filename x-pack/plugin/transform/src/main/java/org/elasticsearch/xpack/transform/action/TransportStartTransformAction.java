@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -257,7 +258,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             List<SourceDestValidator.SourceDestValidation> validations;
             if (config.getMinRemoteClusterVersion().isPresent()) {
                 validations = new ArrayList<>(SourceDestValidations.ALL_VALIDATIONS);
-                validations.add(new SourceDestValidator.RemoteClusterMinimumVersionValidation(config.getMinRemoteClusterVersion().get()));
+                Tuple<Version, String> minRemoteClusterVersionAndReason = config.getMinRemoteClusterVersion().get();
+                validations.add(
+                    new SourceDestValidator.RemoteClusterMinimumVersionValidation(
+                        minRemoteClusterVersionAndReason.v1(), minRemoteClusterVersionAndReason.v2()));
             } else {
                 validations = SourceDestValidations.ALL_VALIDATIONS;
             }

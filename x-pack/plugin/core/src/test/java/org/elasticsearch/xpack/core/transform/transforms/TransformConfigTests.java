@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -574,7 +575,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
 
         TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
-        assertThat(transformConfig.getMinRemoteClusterVersion().get(), is(equalTo(Version.V_7_12_0)));
+        assertThat(transformConfig.getMinRemoteClusterVersion().get(), is(equalTo(Tuple.tuple(Version.V_7_12_0, "runtime fields"))));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

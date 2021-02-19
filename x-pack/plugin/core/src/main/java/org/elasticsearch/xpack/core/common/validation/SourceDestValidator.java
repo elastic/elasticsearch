@@ -67,7 +67,7 @@ public final class SourceDestValidator {
         + "alias [{0}], license is not active";
     public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
     public static final String REMOTE_CLUSTERS_TOO_OLD =
-        "remote clusters are expected to run at least version [{0}], but cluster [{1}] had version [{2}]";
+        "remote clusters are expected to run at least version [{0}], but cluster [{1}] had version [{2}]; reason: [{3}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -215,6 +215,11 @@ public final class SourceDestValidator {
         // convenience method to make testing easier
         public Set<String> getRegisteredRemoteClusterNames() {
             return remoteClusterService.getRegisteredRemoteClusterNames();
+        }
+
+        // convenience method to make testing easier
+        public Version getRemoteClusterVersion(String cluster) {
+            return remoteClusterService.getConnection(cluster).getVersion();
         }
 
         private void resolveLocalAndRemoteSource() {
@@ -429,21 +434,21 @@ public final class SourceDestValidator {
     public static class RemoteClusterMinimumVersionValidation implements SourceDestValidation {
 
         private final Version minExpectedVersion;
+        private final String reason;
 
-        public RemoteClusterMinimumVersionValidation(Version minExpectedVersion) {
+        public RemoteClusterMinimumVersionValidation(Version minExpectedVersion, String reason) {
             this.minExpectedVersion = minExpectedVersion;
+            this.reason = reason;
         }
 
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
-            Set<String> remoteClusterNames = context.getRemoteClusterService().getRegisteredRemoteClusterNames();
+            Set<String> remoteClusterNames = context.getRegisteredRemoteClusterNames();
             Map<String, Version> remoteClusterVersions;
             try {
                 remoteClusterVersions =
                     remoteClusterNames.stream()
-                        .collect(toMap(
-                            cluster -> cluster,
-                            cluster -> context.getRemoteClusterService().getConnection(cluster).getVersion()));
+                        .collect(toMap(cluster -> cluster, cluster -> context.getRemoteClusterVersion(cluster)));
             } catch (NoSuchRemoteClusterException e) {
                 context.addValidationError(e.getMessage());
                 listener.onResponse(context);
@@ -459,7 +464,7 @@ public final class SourceDestValidator {
                 if (minRemoteClusterVersion.get().getValue().before(minExpectedVersion)) {
                     context.addValidationError(
                         REMOTE_CLUSTERS_TOO_OLD,
-                        minExpectedVersion, minRemoteClusterVersion.get().getKey(), minRemoteClusterVersion.get().getValue());
+                        minExpectedVersion, minRemoteClusterVersion.get().getKey(), minRemoteClusterVersion.get().getValue(), reason);
                 }
             }
             listener.onResponse(context);

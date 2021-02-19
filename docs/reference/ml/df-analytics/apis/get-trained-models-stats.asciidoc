@@ -48,7 +48,7 @@ request by using a comma-separated list of model IDs or a wildcard expression.
 
 `<model_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
 
 
 [[ml-get-trained-models-stats-query-params]]

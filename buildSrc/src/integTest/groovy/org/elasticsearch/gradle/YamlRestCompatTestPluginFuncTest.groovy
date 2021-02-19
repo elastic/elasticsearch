@@ -17,15 +17,17 @@ import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
+import java.nio.file.Path
+
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
-    private static final String intermediateDir = YamlRestCompatTestPlugin.TEST_INTERMEDIATE_DIR_NAME
-    private static final String transformTask  = ":" + YamlRestCompatTestPlugin.TRANSFORM_TASK_NAME
-    private static final YAMLFactory YAML_FACTORY = new YAMLFactory()
-    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY)
-    private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class)
-    private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class)
-
+    def compatibleVersion = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1
+    def specIntermediateDir = "restResources/v${compatibleVersion}/yamlSpecs"
+    def testIntermediateDir = "restResources/v${compatibleVersion}/yamlTests"
+    def transformTask  = ":transformV${compatibleVersion}RestTests"
+    def YAML_FACTORY = new YAMLFactory()
+    def MAPPER = new ObjectMapper(YAML_FACTORY)
+    def READER = MAPPER.readerFor(ObjectNode.class)
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
@@ -104,20 +106,22 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
         result.task(transformTask).outcome == TaskOutcome.SUCCESS
 
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).exists()
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).text.contains("headers") //transformation adds this
-        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + test).exists()
+        file("/build/${specIntermediateDir}/rest-api-spec/api/" + api).exists()
+        file("/build/${testIntermediateDir}/original/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/original/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).exists()
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/" + test).text.contains("headers") //transformation adds this
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).exists()
 
         //additionalTest is not copied from the prior version, and thus not in the intermediate directory, nor transformed
-        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
+        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
 
         file("/build/classes/java/yamlRestTest/MockIT.class").exists() //The "standard" runner is used to execute the compat test
 
         file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + wrongApi).exists() == false
-        file("/build/resources/yamlRestCompatTest/" + intermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
+        file("/build/resources/yamlRestCompatTest/" + testIntermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
         file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + wrongTest).exists() == false
 
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
@@ -242,8 +246,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(transformTask).outcome == TaskOutcome.SUCCESS
 
 
-        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml" ).exists()
-        List<ObjectNode> actual = READER.readValues(file("/build/resources/yamlRestCompatTest/rest-api-spec/test/test.yml")).readAll()
+        file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/test.yml" ).exists()
+        List<ObjectNode> actual = READER.readValues(file("/build/${testIntermediateDir}/transformed/rest-api-spec/test/test.yml")).readAll()
         List<ObjectNode> expectedAll = READER.readValues(
         """
         ---

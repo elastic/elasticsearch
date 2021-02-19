@@ -391,8 +391,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
             final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
-            final boolean useFrozenEngine = SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings()) &&
-                (frozen == null || frozen.equals(Boolean.TRUE));
+            final boolean useFrozenEngine = SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings())
+                && (frozen == null || frozen.equals(Boolean.TRUE));
 
             if (useFrozenEngine) {
                 return Optional.of(

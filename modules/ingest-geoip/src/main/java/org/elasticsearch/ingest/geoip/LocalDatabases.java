@@ -24,10 +24,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES;
@@ -46,7 +49,7 @@ final class LocalDatabases implements Closeable {
     private final Path geoipConfigDir;
 
     private final Map<String, DatabaseReaderLazyLoader> defaultDatabases;
-    private volatile Map<String, DatabaseReaderLazyLoader> configDatabases;
+    private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
     LocalDatabases(Environment environment, GeoIpCache cache) {
         this(
@@ -65,12 +68,12 @@ final class LocalDatabases implements Closeable {
     LocalDatabases(Path geoipModuleDir, Path geoipConfigDir, GeoIpCache cache) {
         this.cache = cache;
         this.geoipConfigDir = geoipConfigDir;
-        this.configDatabases = Map.of();
+        this.configDatabases = new ConcurrentHashMap<>();
         this.defaultDatabases = initDefaultDatabases(geoipModuleDir);
     }
 
     void initialize(ResourceWatcherService resourceWatcher) throws IOException {
-        configDatabases = initConfigDatabases(geoipConfigDir);
+        configDatabases.putAll(initConfigDatabases(geoipConfigDir));
 
         FileWatcher watcher = new FileWatcher(geoipConfigDir);
         watcher.addListener(new GeoipDirectoryListener());
@@ -81,12 +84,7 @@ final class LocalDatabases implements Closeable {
     }
 
     DatabaseReaderLazyLoader getDatabase(String name) {
-        DatabaseReaderLazyLoader database = configDatabases.get(name);
-        if (database != null) {
-            return database;
-        } else {
-            return defaultDatabases.get(name);
-        }
+        return configDatabases.getOrDefault(name, defaultDatabases.get(name));
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
@@ -106,11 +104,10 @@ final class LocalDatabases implements Closeable {
     void updateDatabase(Path file, boolean update) {
         String databaseFileName = file.getFileName().toString();
         try {
-            Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>(this.configDatabases);
             if (update) {
                 LOGGER.info("database file changed [{}], reload database...", file);
                 DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file);
-                DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
+                DatabaseReaderLazyLoader existing = configDatabases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.close();
                     int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(file);
@@ -118,20 +115,19 @@ final class LocalDatabases implements Closeable {
                 }
             } else {
                 LOGGER.info("database file removed [{}], close database...", file);
-                DatabaseReaderLazyLoader existing = databases.remove(databaseFileName);
+                DatabaseReaderLazyLoader existing = configDatabases.remove(databaseFileName);
                 assert existing != null;
                 existing.close();
                 int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(file);
                 LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, file);
             }
-            this.configDatabases = Map.copyOf(databases);
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }
     }
 
     Map<String, DatabaseReaderLazyLoader> initDefaultDatabases(Path geoipModuleDir) {
-        Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>();
+        Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>(DEFAULT_DATABASE_FILENAMES.length);
 
         for (String filename : DEFAULT_DATABASE_FILENAMES) {
             Path source = geoipModuleDir.resolve(filename);
@@ -141,7 +137,7 @@ final class LocalDatabases implements Closeable {
             databases.put(databaseFileName, loader);
         }
 
-        return Map.copyOf(databases);
+        return Collections.unmodifiableMap(databases);
     }
 
     Map<String, DatabaseReaderLazyLoader> initConfigDatabases(Path geoipConfigDir) throws IOException {
@@ -164,7 +160,7 @@ final class LocalDatabases implements Closeable {
             }
         }
 
-        return Map.copyOf(databases);
+        return Collections.unmodifiableMap(databases);
     }
 
     @Override

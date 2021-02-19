@@ -18,8 +18,8 @@ requests to the appropriate node.
 ==== Node roles
 
 You define a node's roles by setting `node.roles` in `elasticsearch.yml`. If you
-set `node.roles`, the node is only assigned the roles you specify. If
-you don't set `node.roles`, the node is assigned the following roles:
+set `node.roles`, the node is only assigned the roles you specify. If you don't
+set `node.roles`, the node is assigned the following roles:
 
 * `master`
 * `data`

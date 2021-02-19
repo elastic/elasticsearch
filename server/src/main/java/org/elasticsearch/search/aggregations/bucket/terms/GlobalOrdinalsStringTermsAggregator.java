@@ -464,12 +464,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongKeyedBucketOrds bucketOrds;
 
         private RemapGlobalOrds(CardinalityUpperBound cardinality) {
-            bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
+            bucketOrds = LongKeyedBucketOrds.buildForValueRange(bigArrays(), cardinality, 0, valueCount - 1);
         }
 
         @Override
         String describe() {
-            return "remap";
+            return "remap using " + bucketOrds.decribe();
         }
 
         @Override

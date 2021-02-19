@@ -17,8 +17,9 @@ requests to the appropriate node.
 [[node-roles]]
 ==== Node roles
 
-You can define the roles of a node by setting `node.roles`. If you don't
-configure this setting, the node has the following roles by default:
+You define a node's roles by setting `node.roles` in `elasticsearch.yml`. If you
+set `node.roles`, the node is only assigned the roles you specify. If
+you don't set `node.roles`, the node is assigned the following roles:
 
 * `master`
 * `data`
@@ -31,8 +32,6 @@ configure this setting, the node has the following roles by default:
 * `ml`
 * `remote_cluster_client`
 * `transform`
-
-NOTE: If you set `node.roles`, the node is assigned only the roles you specify.
 
 As the cluster grows and in particular if you have large {ml} jobs or
 {ctransforms}, consider separating dedicated master-eligible nodes from

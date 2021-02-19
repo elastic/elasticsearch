@@ -8,15 +8,8 @@
 
 package org.elasticsearch.monitor.os;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -26,8 +19,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class OsProbeTests extends ESTestCase {
 
@@ -73,7 +73,6 @@ public class OsProbeTests extends ESTestCase {
         assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66629")
     public void testOsStats() {
         final OsProbe osProbe = new OsProbe();
         OsStats stats = osProbe.osStats();

@@ -43,13 +43,13 @@ implementation in core.
 [role="exclude",id="ingest-geoip"]
 === Ingest `geoip` processor plugin
 
-The `geoip` processor is now a module module distributed by default with {es}.
+The `geoip` processor is now a module distributed by default with {es}.
 See {ref}/geoip-processor.html[GeoIP processor].
 
 [role="exclude",id="ingest-user-agent"]
 === Ingest `user_agent` processor plugin
 
-The `user_agent` processor is now a module module distributed by default with
+The `user_agent` processor is now a module distributed by default with
 {es}. See {ref}/user-agent-processor.html[User Agent processor].
 
 [role="exclude",id="alerting"]

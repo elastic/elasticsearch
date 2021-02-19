@@ -21,15 +21,19 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
+import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +49,8 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
             ignoreUnknownFields, a -> new DataFrameAnalyticsSource(
                 ((List<String>) a[0]).toArray(new String[0]),
                 (QueryProvider) a[1],
-                (FetchSourceContext) a[2]));
+                (FetchSourceContext) a[2],
+                (Map<String, Object>) a[3]));
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT), QUERY);
@@ -53,14 +58,18 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
             (p, c) -> FetchSourceContext.fromXContent(p),
             _SOURCE,
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(),
+            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }
 
     private final String[] index;
     private final QueryProvider queryProvider;
     private final FetchSourceContext sourceFiltering;
+    private final Map<String, Object> runtimeMappings;
 
-    public DataFrameAnalyticsSource(String[] index, @Nullable QueryProvider queryProvider, @Nullable FetchSourceContext sourceFiltering) {
+    public DataFrameAnalyticsSource(String[] index, @Nullable QueryProvider queryProvider, @Nullable FetchSourceContext sourceFiltering,
+                                    @Nullable Map<String, Object> runtimeMappings) {
         this.index = ExceptionsHelper.requireNonNull(index, INDEX);
         if (index.length == 0) {
             throw new IllegalArgumentException("source.index must specify at least one index");
@@ -73,6 +82,8 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("source._source cannot be disabled");
         }
         this.sourceFiltering = sourceFiltering;
+        this.runtimeMappings = runtimeMappings == null ? Collections.emptyMap() : Collections.unmodifiableMap(runtimeMappings);
+        RuntimeMappingsValidator.validate(this.runtimeMappings);
     }
 
     public DataFrameAnalyticsSource(StreamInput in) throws IOException {
@@ -83,6 +94,11 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         } else {
             sourceFiltering = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            runtimeMappings = in.readMap();
+        } else {
+            runtimeMappings = Collections.emptyMap();
+        }
     }
 
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
@@ -90,6 +106,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         this.queryProvider = new QueryProvider(other.queryProvider);
         this.sourceFiltering = other.sourceFiltering == null ? null : new FetchSourceContext(
             other.sourceFiltering.fetchSource(), other.sourceFiltering.includes(), other.sourceFiltering.excludes());
+        this.runtimeMappings = Collections.unmodifiableMap(new HashMap<>(other.runtimeMappings));
     }
 
     @Override
@@ -98,6 +115,9 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         queryProvider.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
             out.writeOptionalWriteable(sourceFiltering);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(runtimeMappings);
         }
     }
 
@@ -108,6 +128,9 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         builder.field(QUERY.getPreferredName(), queryProvider.getQuery());
         if (sourceFiltering != null) {
             builder.field(_SOURCE.getPreferredName(), sourceFiltering);
+        }
+        if (runtimeMappings.isEmpty() == false) {
+            builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
         builder.endObject();
         return builder;
@@ -121,12 +144,13 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         DataFrameAnalyticsSource other = (DataFrameAnalyticsSource) o;
         return Arrays.equals(index, other.index)
             && Objects.equals(queryProvider, other.queryProvider)
-            && Objects.equals(sourceFiltering, other.sourceFiltering);
+            && Objects.equals(sourceFiltering, other.sourceFiltering)
+            && Objects.equals(runtimeMappings, other.runtimeMappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.asList(index), queryProvider, sourceFiltering);
+        return Objects.hash(Arrays.asList(index), queryProvider, sourceFiltering, runtimeMappings);
     }
 
     public String[] getIndex() {
@@ -187,6 +211,10 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     // Visible for testing
     Map<String, Object> getQuery() {
         return queryProvider.getQuery();
+    }
+
+    public Map<String, Object> getRuntimeMappings() {
+        return runtimeMappings;
     }
 
     public boolean isFieldExcluded(String path) {

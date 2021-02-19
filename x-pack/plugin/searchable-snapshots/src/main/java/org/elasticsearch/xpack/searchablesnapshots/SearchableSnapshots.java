@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.Store;
@@ -388,20 +389,38 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
-            && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
-            return Optional.of(
-                engineConfig -> new ReadOnlyEngine(
-                    engineConfig,
-                    null,
-                    new TranslogStats(),
-                    false,
-                    indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
-                        ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
-                        : Function.identity(),
-                    false
-                )
-            );
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
+            final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
+            final boolean useFrozenEngine = SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings())
+                && (frozen == null || frozen.equals(Boolean.TRUE));
+
+            if (useFrozenEngine) {
+                return Optional.of(
+                    engineConfig -> new FrozenEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false
+                    )
+                );
+            } else {
+                return Optional.of(
+                    engineConfig -> new ReadOnlyEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false
+                    )
+                );
+            }
         }
         return Optional.empty();
     }

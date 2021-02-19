@@ -2995,13 +2995,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
             // end::put-data-frame-analytics-query-config
 
+            Map<String, Object> runtimeMappings = Collections.emptyMap();
+
             // tag::put-data-frame-analytics-source-config
             DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder() // <1>
                 .setIndex("put-test-source-index") // <2>
                 .setQueryConfig(queryConfig) // <3>
+                .setRuntimeMappings(runtimeMappings) // <4>
                 .setSourceFiltering(new FetchSourceContext(true,
                     new String[] { "included_field_1", "included_field_2" },
-                    new String[] { "excluded_field" })) // <4>
+                    new String[] { "excluded_field" })) // <5>
                 .build();
             // end::put-data-frame-analytics-source-config
 

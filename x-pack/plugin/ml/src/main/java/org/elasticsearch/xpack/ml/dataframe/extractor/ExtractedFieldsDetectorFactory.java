@@ -124,7 +124,10 @@ public class ExtractedFieldsDetectorFactory {
             listener::onFailure
         );
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+            .size(0)
+            .query(config.getSource().getParsedQuery())
+            .runtimeMappings(config.getSource().getRuntimeMappings());
         for (FieldCardinalityConstraint constraint : fieldCardinalityConstraints) {
             Map<String, FieldCapabilities> fieldCapsPerType = fieldCapabilitiesResponse.getField(constraint.getField());
             if (fieldCapsPerType == null) {

@@ -25,11 +25,14 @@ public final class RuntimeMappingsValidator {
                 Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
                 Object typeNode = propNode.get("type");
                 if (typeNode == null) {
-                    throw ExceptionsHelper.badRequestException("No type specified for runtime field [" + fieldName + "]");
+                    throw ExceptionsHelper.badRequestException("No type specified for runtime field [{}]", fieldName);
                 }
             } else {
-                throw ExceptionsHelper.badRequestException("Expected map for runtime field [" + fieldName + "] " +
-                    "definition but got a " + fieldName.getClass().getSimpleName());
+                throw ExceptionsHelper.badRequestException(
+                    "Expected map for runtime field [{}] definition but got a {}",
+                    fieldName,
+                    fieldName.getClass().getSimpleName()
+                );
             }
         }
     }

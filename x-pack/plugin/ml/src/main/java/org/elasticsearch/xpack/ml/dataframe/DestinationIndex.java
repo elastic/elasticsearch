@@ -125,23 +125,7 @@ public final class DestinationIndex {
         ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(
             mappings -> {
                 mappingsHolder.set(mappings);
-
-                List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
-                if (requiredFields.isEmpty()) {
-                    fieldCapabilitiesListener.onResponse(null);
-                    return;
-                }
-                FieldCapabilitiesRequest fieldCapabilitiesRequest =
-                    new FieldCapabilitiesRequest()
-                        .indices(config.getSource().getIndex())
-                        .fields(requiredFields.stream().map(RequiredField::getName).toArray(String[]::new));
-                ClientHelper.executeWithHeadersAsync(
-                    config.getHeaders(),
-                    ML_ORIGIN,
-                    client,
-                    FieldCapabilitiesAction.INSTANCE,
-                    fieldCapabilitiesRequest,
-                    fieldCapabilitiesListener);
+                getFieldCapsForRequiredFields(client, config, fieldCapabilitiesListener);
             },
             listener::onFailure
         );
@@ -166,6 +150,27 @@ public final class DestinationIndex {
                 .names(PRESERVED_SETTINGS);
         ClientHelper.executeWithHeadersAsync(
             config.getHeaders(), ML_ORIGIN, client, GetSettingsAction.INSTANCE, getSettingsRequest, getSettingsResponseListener);
+    }
+
+    private static void getFieldCapsForRequiredFields(Client client, DataFrameAnalyticsConfig config,
+                                               ActionListener<FieldCapabilitiesResponse> listener) {
+        List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
+        if (requiredFields.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+        FieldCapabilitiesRequest fieldCapabilitiesRequest =
+            new FieldCapabilitiesRequest()
+                .indices(config.getSource().getIndex())
+                .fields(requiredFields.stream().map(RequiredField::getName).toArray(String[]::new))
+                .runtimeFields(config.getSource().getRuntimeMappings());
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            ML_ORIGIN,
+            client,
+            FieldCapabilitiesAction.INSTANCE,
+            fieldCapabilitiesRequest,
+            listener);
     }
 
     private static CreateIndexRequest createIndexRequest(Clock clock,
@@ -278,22 +283,7 @@ public final class DestinationIndex {
             listener::onFailure
         );
 
-        List<RequiredField> requiredFields = config.getAnalysis().getRequiredFields();
-        if (requiredFields.isEmpty()) {
-            fieldCapabilitiesListener.onResponse(null);
-            return;
-        }
-        FieldCapabilitiesRequest fieldCapabilitiesRequest =
-            new FieldCapabilitiesRequest()
-                .indices(config.getSource().getIndex())
-                .fields(requiredFields.stream().map(RequiredField::getName).toArray(String[]::new));
-        ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(),
-            ML_ORIGIN,
-            client,
-            FieldCapabilitiesAction.INSTANCE,
-            fieldCapabilitiesRequest,
-            fieldCapabilitiesListener);
+        getFieldCapsForRequiredFields(client, config, fieldCapabilitiesListener);
     }
 
     private static void checkResultsFieldIsNotPresentInProperties(DataFrameAnalyticsConfig config, Map<String, Object> properties) {

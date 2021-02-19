@@ -1,6 +1,3 @@
-:es-issue: https://github.com/elastic/elasticsearch/issues/
-:es-pull:  https://github.com/elastic/elasticsearch/pull/
-
 [[release-notes-7.12.0]]
 == {es} version 7.12.0
 
@@ -16,10 +13,10 @@ Mapping::
 * Returning nested data in fields API {es-pull}67432[#67432] (issue: {es-issue}63709[#63709])
 
 Query Languages::
-* "fields" api implementation in QL {es-pull}68802[#68802] (issue: {es-issue}67727[#67727])
+* Fields API implementation in QL {es-pull}68802[#68802] (issue: {es-issue}67727[#67727])
 
 SQL::
-* Test and fix the NULL handling of the String functions {es-pull}68379[#68379] (issue: {es-issue}58907[#58907])
+* Test and fix the NULL handling of the string functions {es-pull}68379[#68379] (issue: {es-issue}58907[#58907])
 
 
 
@@ -28,7 +25,7 @@ SQL::
 === Breaking Java changes
 
 Features/Java High Level REST Client::
-* Move find file structure finder in Rest high Level client to its new endpoint and plugin {es-pull}67290[#67290]
+* Move find file structure finder in REST High Level client to its new endpoint and plugin {es-pull}67290[#67290]
 
 
 
@@ -49,7 +46,7 @@ Machine Learning::
 * Add deprecation check for job model snapshots that need upgraded {es-pull}66062[#66062] (issue: {es-issue}64154[#64154])
 
 Security::
-* Deprecate the id field for the `InvalidateApiKey` API {es-pull}66317[#66317] (issue: {es-issue}63224[#63224])
+* Deprecate the `id` field for the `InvalidateApiKey` API {es-pull}66317[#66317] (issue: {es-issue}63224[#63224])
 
 
 
@@ -67,7 +64,7 @@ EQL::
 Features/ILM+SLM::
 * Add support for partial searchable snapshots to ILM {es-pull}68714[#68714] (issues: {es-issue}68509[#68509], {es-issue}68605[#68605])
 * Add the frozen tier node role and ILM phase {es-pull}68605[#68605] (issue: {es-issue}60848[#60848])
-* Support `max_single_primary_size` in Resize Action and expose in ILM {es-pull}67705[#67705] (issue: {es-issue}65714[#65714])
+* Support `max_single_primary_size` in resize action and expose in ILM {es-pull}67705[#67705] (issue: {es-issue}65714[#65714])
 
 Features/Ingest::
 * Fingerprint ingest processor {es-pull}68415[#68415] (issue: {es-issue}53578[#53578])
@@ -75,14 +72,14 @@ Features/Ingest::
 * Network direction processor {es-pull}66644[#66644]
 
 Query Languages::
-* Implement support for `date_nanos` ES type {es-pull}67666[#67666] (issue: {es-issue}38562[#38562])
+* Implement support for `date_nanos` {es} field type {es-pull}67666[#67666] (issue: {es-issue}38562[#38562])
 
 SQL::
-* Implement TO_CHAR() function {es-pull}66486[#66486] (issue: {es-issue}54964[#54964])
+* Implement `TO_CHAR()` function {es-pull}66486[#66486] (issue: {es-issue}54964[#54964])
 
 Search::
 * Add minimum compatibility version to `SearchRequest` {es-pull}65896[#65896] (issue: {es-issue}63304[#63304])
-* Sort field tiebreaker for PIT (point in time) readers {es-pull}66093[#66093] (issue: {es-issue}56828[#56828])
+* Sort field tiebreaker for point in time (PIT) readers {es-pull}66093[#66093] (issue: {es-issue}56828[#56828])
 
 Snapshot/Restore::
 * Add partial searchable snapshot support for a frozen tier {es-pull}68509[#68509]
@@ -118,7 +115,7 @@ Cluster Coordination::
 
 EQL::
 * Add `result_position` to correctness test {es-pull}66761[#66761]
-* Introduce eql search status API {es-pull}68065[#68065] (issue: {es-issue}66955[#66955])
+* Introduce EQL search status API {es-pull}68065[#68065] (issue: {es-issue}66955[#66955])
 
 Engine::
 * Assign id to searcher using ids of segments {es-pull}66668[#66668] (issue: {es-issue}63963[#63963])
@@ -170,7 +167,7 @@ Infra/Scripting::
 * Enforce GPLv2 for parsed stdlib docs {es-pull}68601[#68601]
 * Improve bad regex pattern syntax error {es-pull}68520[#68520]
 * Parse stdlib files for parameter names {es-pull}67837[#67837]
-* Whitelist Json functions for ingest {es-pull}67118[#67118]
+* Whitelist JSON functions for ingest {es-pull}67118[#67118]
 
 Infra/Settings::
 * Add enumsetting to `org.elasticsearch.common.settings.Setting` {es-pull}66826[#66826] (issue: {es-issue}65335[#65335])
@@ -199,7 +196,7 @@ Performance::
 * Add benchmark racing scripts {es-pull}68369[#68369]
 
 Query Languages::
-* Adapt nested fields extraction from "fields" API output to the new un-flattened structure {es-pull}68745[#68745] (issue: {es-issue}68722[#68722])
+* Adapt nested fields extraction from fields API output to the new un-flattened structure {es-pull}68745[#68745] (issue: {es-issue}68722[#68722])
 * Simplify arithmetic operations in binary comps {es-pull}66022[#66022] (issue: {es-issue}65394[#65394])
 
 Ranking::
@@ -263,7 +260,7 @@ Features/Features::
 
 Features/ILM+SLM::
 * Avoid exception in in `SetStepInfoUpdateTask#onFailure` {es-pull}67553[#67553]
-* Fix Issues with CS Handling in ILM Async Steps {es-pull}68361[#68361]
+* Fix issues with CS Handling in ILM async steps {es-pull}68361[#68361]
 
 Features/Java Low Level REST Client::
 * Fix wrong `totalIterationCount` when running `BulkIndexBenchmark` {es-pull}64515[#64515] (issue: {es-issue}61451[#61451])

@@ -458,9 +458,9 @@ GET /my-index-000001/_eql/search
 
 [discrete]
 [[eql-search-filter-query-dsl]]
-=== Filter using query DSL
+=== Filter using Query DSL
 
-The `filter` parameter uses <<query-dsl,query DSL>> to limit the documents on
+The `filter` parameter uses <<query-dsl,Query DSL>> to limit the documents on
 which an EQL query runs.
 
 [source,console]

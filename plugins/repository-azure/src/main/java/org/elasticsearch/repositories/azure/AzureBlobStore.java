@@ -83,6 +83,7 @@ public class AzureBlobStore implements BlobStore {
     private final String clientName;
     private final String container;
     private final LocationMode locationMode;
+    private final ByteSizeValue maxSinglePartUploadSize;
 
     private final Stats stats = new Stats();
     private final BiConsumer<String, URL> statsConsumer;
@@ -93,6 +94,7 @@ public class AzureBlobStore implements BlobStore {
         this.service = service;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
+        this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
 
         List<RequestStatsCollector> requestStatsCollectors = List.of(
             RequestStatsCollector.create(
@@ -552,7 +554,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     long getLargeBlobThresholdInBytes() {
-        return service.getSizeThresholdForMultiBlockUpload();
+        return maxSinglePartUploadSize.getBytes();
     }
 
     long getUploadBlockSize() {
